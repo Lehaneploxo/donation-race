@@ -330,15 +330,18 @@ class Car3D {
         this.group.position.y = 0;
         this._falling = false;
         this._fallVy  = 0;
-        this.group.rotation.z = 0;
-        this.group.rotation.x = 0;
+        // Fully restore car orientation so it drives straight after landing
+        this.group.rotation.set(0, Math.PI, 0);
       }
       return;
     }
 
-    // Normal driving
+    // Normal driving — keep orientation locked forward at all times
     this.group.position.z += (this.targetZ - this.group.position.z) * 0.055;
     this.group.position.x += (this.targetX - this.group.position.x) * 0.055;
+    this.group.rotation.x = 0;
+    this.group.rotation.y = Math.PI;
+    this.group.rotation.z = 0;
 
     // Spin wheels
     this._wheelAngle += dt * 0.006;
@@ -346,7 +349,6 @@ class Car3D {
 
     // Slight body bounce
     this.group.position.y = Math.abs(Math.sin(this._wheelAngle * 2)) * 0.025;
-    this.group.rotation.x = 0;
   }
 
   updatePlayer(player) {
