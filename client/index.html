@@ -228,9 +228,31 @@
     .lb-rank.rank-3 { color: #CD7F32; font-size: 14px; }
     .lb-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-right: 6px; }
     .lb-coins { color: #FFD700; font-weight: bold; font-size: 12px; white-space: nowrap; }
+
+    /* Fullscreen button */
+    #fsBtn {
+      position: fixed;
+      bottom: 16px;
+      right: 16px;
+      z-index: 99999;
+      width: 48px;
+      height: 48px;
+      font-size: 24px;
+      background: rgba(0,0,0,0.7);
+      color: #FFF;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-radius: 10px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.2s;
+    }
+    #fsBtn:hover { background: rgba(255,255,255,0.15); }
   </style>
 </head>
 <body>
+<button id="fsBtn" title="Fullscreen">⛶</button>
 <div id="scaleWrapper">
   <canvas id="gameCanvas" width="1920" height="1080"></canvas>
   <!-- Nickname labels layer — above 3D, no fog/depth -->
@@ -281,16 +303,46 @@
 <script>
   (function() {
     var wrapper = document.getElementById('scaleWrapper');
+
     function resize() {
-      var scaleX = window.innerWidth  / 1920;
-      var scaleY = window.innerHeight / 1080;
+      var w = window.innerWidth;
+      var h = window.innerHeight;
+      var scaleX = w / 1920;
+      var scaleY = h / 1080;
       var scale  = Math.min(scaleX, scaleY);
-      var offsetX = (window.innerWidth  - 1920 * scale) / 2;
-      var offsetY = (window.innerHeight - 1080 * scale) / 2;
+      var offsetX = (w - 1920 * scale) / 2;
+      var offsetY = (h - 1080 * scale) / 2;
       wrapper.style.transform = 'translate(' + offsetX + 'px, ' + offsetY + 'px) scale(' + scale + ')';
     }
+
     window.addEventListener('resize', resize);
+    window.addEventListener('orientationchange', function() {
+      setTimeout(resize, 200);
+    });
     resize();
+
+    // Fullscreen button
+    var fsBtn = document.getElementById('fsBtn');
+    fsBtn.addEventListener('click', function() {
+      var el = document.documentElement;
+      if (!document.fullscreenElement) {
+        var req = el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen;
+        if (req) req.call(el);
+        // Lock landscape on mobile
+        if (screen.orientation && screen.orientation.lock) {
+          screen.orientation.lock('landscape').catch(function(){});
+        }
+      } else {
+        var ex = document.exitFullscreen || document.webkitExitFullscreen || document.mozCancelFullScreen;
+        if (ex) ex.call(document);
+      }
+    });
+
+    document.addEventListener('fullscreenchange', updateFsBtn);
+    document.addEventListener('webkitfullscreenchange', updateFsBtn);
+    function updateFsBtn() {
+      fsBtn.textContent = document.fullscreenElement ? '✕' : '⛶';
+    }
   })();
 </script>
 </body>
