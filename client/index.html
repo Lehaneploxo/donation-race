@@ -323,26 +323,48 @@
 
     // Fullscreen button
     var fsBtn = document.getElementById('fsBtn');
-    fsBtn.addEventListener('click', function() {
+
+    function isFullscreen() {
+      return !!(document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement);
+    }
+
+    function enterFullscreen() {
       var el = document.documentElement;
-      if (!document.fullscreenElement) {
-        var req = el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen;
-        if (req) req.call(el);
-        // Lock landscape on mobile
-        if (screen.orientation && screen.orientation.lock) {
-          screen.orientation.lock('landscape').catch(function(){});
-        }
+      var req = el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen || el.msRequestFullscreen;
+      if (req) {
+        req.call(el).then(function() {
+          if (screen.orientation && screen.orientation.lock) {
+            screen.orientation.lock('landscape').catch(function(){});
+          }
+          setTimeout(resize, 300);
+        }).catch(function(e) {
+          console.log('Fullscreen error:', e);
+        });
+      }
+    }
+
+    function exitFullscreen() {
+      var ex = document.exitFullscreen || document.webkitExitFullscreen || document.mozCancelFullScreen || document.msExitFullscreen;
+      if (ex) ex.call(document);
+    }
+
+    fsBtn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      if (isFullscreen()) {
+        exitFullscreen();
       } else {
-        var ex = document.exitFullscreen || document.webkitExitFullscreen || document.mozCancelFullScreen;
-        if (ex) ex.call(document);
+        enterFullscreen();
       }
     });
 
+    function updateFsBtn() {
+      fsBtn.textContent = isFullscreen() ? '✕' : '⛶';
+      setTimeout(resize, 300);
+    }
+
     document.addEventListener('fullscreenchange', updateFsBtn);
     document.addEventListener('webkitfullscreenchange', updateFsBtn);
-    function updateFsBtn() {
-      fsBtn.textContent = document.fullscreenElement ? '✕' : '⛶';
-    }
+    document.addEventListener('mozfullscreenchange', updateFsBtn);
   })();
 </script>
 </body>
