@@ -2105,10 +2105,17 @@ function scrollWorld(dt) {
 // 5-min cycle: mountains grow from tiny → huge → pass through → reset
 const MTN_CYCLE_MS = 5 * 60 * 1000;
 
+let _worldOverride = -1; // -1 = no override, 0-4 = force that world
+
+function _showWorldBadge(text) {
+  const el = document.getElementById('timeSpeedBadge');
+  if (el) { el.textContent = text; el.style.color = '#aaf'; el.style.borderColor = '#aaf'; }
+}
+
 function getMtnState(elapsedMs) {
   const cycleNum = Math.floor(elapsedMs / MTN_CYCLE_MS);
   const progress = (elapsedMs % MTN_CYCLE_MS) / MTN_CYCLE_MS; // 0..1, loops
-  const world    = cycleNum % 5; // 0=mountains, 1=beach, 2=sea, 3=city, 4=moon
+  const world    = _worldOverride >= 0 ? _worldOverride : cycleNum % 5; // 0=mountains, 1=beach, 2=sea, 3=city, 4=moon
   // 0→88%: approach   88→100%: pass-through transition
   const ap    = Math.min(progress / 0.88, 1.0);
   const eased = ap * ap * (3.0 - 2.0 * ap); // smoothstep — slow start, fast arrival
@@ -2223,10 +2230,10 @@ function updateDayNight(nowMs) {
     lunarBaseGroup.scale.setScalar(mtnScale);
     lunarBaseGroup.position.z = -155 + mtnZOff;
     // Black space sky
-    skyUniforms.uZenith.value.set(0.0, 0.0, 0.02);
-    skyUniforms.uMidSky.value.set(0.0, 0.0, 0.015);
-    skyUniforms.uHorizon.value.set(0.02, 0.02, 0.04);
-    skyUniforms.uGlow.value.set(0.05, 0.05, 0.1);
+    skyUniforms.uZenith.value.setRGB(0.0, 0.0, 0.02);
+    skyUniforms.uMidSky.value.setRGB(0.0, 0.0, 0.015);
+    skyUniforms.uHorizon.value.setRGB(0.02, 0.02, 0.04);
+    skyUniforms.uGlow.value.setRGB(0.05, 0.05, 0.1);
     skyUniforms.uSunVisible.value = 0.0; // hide day/night sun disk
     sunGroup.visible = false;
     moonGroup.visible = false;
@@ -2510,18 +2517,13 @@ document.addEventListener('keydown', e => {
   }
   // Y — test tornado
   if (e.key === 'y' || e.key === 'Y') spawnTornado('Test (Y key)');
-  // M — jump to moon world instantly
-  if (e.key === 'm' || e.key === 'M') {
-    scaledElapsedMs = 4 * MTN_CYCLE_MS + 30000;
-    console.log('[DEV] Jumped to Moon world, scaledElapsedMs=', scaledElapsedMs);
-    const el = document.getElementById('timeSpeedBadge');
-    if (el) { el.textContent = '🌙 MOON WORLD'; el.style.color = '#aaf'; el.style.borderColor = '#aaf'; }
-  }
-  // 1-4 — jump to specific world
-  if (e.key === '1') scaledElapsedMs = 0;
-  if (e.key === '2') scaledElapsedMs = MTN_CYCLE_MS + 30000;
-  if (e.key === '3') scaledElapsedMs = 2 * MTN_CYCLE_MS + 30000;
-  if (e.key === '4') scaledElapsedMs = 3 * MTN_CYCLE_MS + 30000;
+  // 1-5 — force specific world (override)
+  if (e.key === '1') { _worldOverride = 0; _showWorldBadge('⛰️ MOUNTAINS'); }
+  if (e.key === '2') { _worldOverride = 1; _showWorldBadge('🏖️ BEACH'); }
+  if (e.key === '3') { _worldOverride = 2; _showWorldBadge('🌊 SEA'); }
+  if (e.key === '4') { _worldOverride = 3; _showWorldBadge('🏙️ CITY'); }
+  if (e.key === '5' || e.key === 'm' || e.key === 'M') { _worldOverride = 4; _showWorldBadge('🌙 MOON WORLD'); }
+  if (e.key === '0') { _worldOverride = -1; _showWorldBadge('⏱ AUTO'); }
 });
 
 // ─── TORNADO SYSTEM ──────────────────────────────────────────────────────────
