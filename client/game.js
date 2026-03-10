@@ -2498,6 +2498,11 @@ document.addEventListener('keydown', e => {
 // ─── DEV HOTKEYS ─────────────────────────────────────────────────────────────
 window.addEventListener('keydown', e => {
   if (e.key === 'y' || e.key === 'Y') spawnTornado('Test (Y key)');
+  // M — jump to moon world instantly for testing
+  if (e.key === 'm' || e.key === 'M') {
+    // Moon world = world index 4, so we need cycleNum=4 → elapsedMs = 4 * MTN_CYCLE_MS
+    scaledElapsedMs = 4 * MTN_CYCLE_MS + 30000; // 30s into moon world
+  }
 });
 
 // ─── TORNADO SYSTEM ──────────────────────────────────────────────────────────
