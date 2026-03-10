@@ -41,13 +41,15 @@ function connectToTikTok(username, onGift, onStatus, onMember, onLike) {
     // Accept: non-streakable gifts (giftType !== 2) OR end of a streak (repeatEnd)
     // Skip: intermediate events of an ongoing streak (giftType === 2 && !repeatEnd)
     if (data.giftType !== 2 || data.repeatEnd) {
-      const perGift = data.diamondCount ?? data.giftDetails?.diamondCount ?? 1;
-      const coins   = Math.max(1, perGift) * (data.repeatCount || 1);
-      console.log(`[Gift] ${data.nickname || data.uniqueId} → ${coins} coins (type=${data.giftType}, repeatEnd=${data.repeatEnd})`);
+      const perGift  = data.diamondCount ?? data.giftDetails?.diamondCount ?? 1;
+      const coins    = Math.max(1, perGift) * (data.repeatCount || 1);
+      const giftName = data.giftName || data.giftDetails?.giftName || '';
+      console.log(`[Gift] ${data.nickname || data.uniqueId} → ${coins} coins | gift="${giftName}" (type=${data.giftType})`);
       onGift({
         userId:    String(data.userId),
         username:  data.nickname || data.uniqueId || 'Unknown',
         avatarUrl: data.profilePictureUrl || '',
+        giftName,
         coins
       });
     }
@@ -94,12 +96,20 @@ function _startDemo(onGift, conn, onLike) {
       onLike({ userId: u.id, username: u.name, avatarUrl: '', likes });
     } else {
       const coins = Math.floor(Math.random() * 50) + 1;
-      onGift({ userId: u.id, username: u.name, avatarUrl: '', coins });
+      onGift({ userId: u.id, username: u.name, avatarUrl: '', giftName: '', coins });
     }
   }, 800);
 
+  // Demo: tornado every ~50 seconds so the effect can be tested
+  const tornadoIv = setInterval(() => {
+    const u = DEMO_USERS[Math.floor(Math.random() * DEMO_USERS.length)];
+    console.log(`[Demo] Tornado triggered by ${u.name}`);
+    onGift({ userId: u.id, username: u.name, avatarUrl: '', giftName: 'Donut', coins: 30 });
+  }, 50000);
+
   // Attach cleanup to the connection object so the room can clear it
-  conn._demoInterval = iv;
+  conn._demoInterval  = iv;
+  conn._demoTornadoIv = tornadoIv;
 }
 
 module.exports = { connectToTikTok };

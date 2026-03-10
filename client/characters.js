@@ -36,6 +36,11 @@ class Character3D {
     this.targetZ  = 0;
     this.targetX  = 0;
 
+    // Tornado / fall state
+    this._inTornado = false;
+    this._falling   = false;
+    this._fallVy    = 0;   // units / second
+
     this._build();
     scene.add(this.group);
 
@@ -151,11 +156,42 @@ class Character3D {
   }
 
   update(dt) {
-    // Smooth interpolation toward target position
+    // ── Inside tornado: position set externally, only animate limbs ───────────
+    if (this._inTornado) {
+      this.walkFrame += dt * 0.016;
+      const w = this.walkFrame;
+      this.leftLegGroup.rotation.x  =  Math.sin(w * 2.2) * 1.4;
+      this.rightLegGroup.rotation.x = -Math.sin(w * 2.2) * 1.4;
+      this.leftArmGroup.rotation.x  = -Math.cos(w * 2.2) * 1.4;
+      this.rightArmGroup.rotation.x =  Math.cos(w * 2.2) * 1.4;
+      return;
+    }
+
+    // ── Falling after tornado drop ─────────────────────────────────────────────
+    if (this._falling) {
+      this._fallVy -= 14 * dt * 0.001;                    // gravity  (units/s²)
+      this.group.position.y += this._fallVy * dt * 0.001; // integrate
+      // Spread limbs while airborne
+      this.walkFrame += dt * 0.006;
+      const sp = 0.9 + Math.sin(this.walkFrame) * 0.25;
+      this.leftLegGroup.rotation.x  =  sp;
+      this.rightLegGroup.rotation.x =  sp;
+      this.leftArmGroup.rotation.x  = -sp;
+      this.rightArmGroup.rotation.x = -sp;
+      if (this.group.position.y <= 0) {
+        this.group.position.y = 0;
+        this._falling = false;
+        this._fallVy  = 0;
+        this.group.rotation.z = 0;
+        this.group.rotation.x = -0.08;
+      }
+      return;
+    }
+
+    // ── Normal walk ────────────────────────────────────────────────────────────
     this.group.position.z += (this.targetZ - this.group.position.z) * 0.055;
     this.group.position.x += (this.targetX - this.group.position.x) * 0.055;
 
-    // Walk animation
     this.walkFrame += dt * 0.0048;
     const leg  = Math.sin(this.walkFrame) * 0.44;
     const arm  = Math.sin(this.walkFrame) * 0.52;
@@ -166,8 +202,6 @@ class Character3D {
     this.leftArmGroup.rotation.x   = -arm;
     this.rightArmGroup.rotation.x  =  arm;
     this.group.position.y           = bob;
-
-    // Slight body lean forward
     this.group.rotation.x = -0.08;
   }
 

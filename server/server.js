@@ -45,11 +45,13 @@ class Room {
       // onGift — донат
       (data) => {
         this.players.addCoins(data.userId, data.username, data.avatarUrl, data.coins);
+        const giftLower = (data.giftName || '').toLowerCase();
+        const isTornado = giftLower.includes('donut') || giftLower.includes('doughnut');
         this.broadcast({
           type:         'update',
           players:      this.players.getTop10(),
           totalPlayers: this.players.getTotalCount(),
-          event:        { type: 'donation', username: data.username, coins: data.coins }
+          event:        { type: isTornado ? 'tornado' : 'donation', username: data.username, coins: data.coins }
         });
       },
       // onStatus — состояние подключения

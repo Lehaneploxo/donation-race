@@ -1873,6 +1873,7 @@ GameWebSocket.on('init',   d => applyUpdate(d.players, d.totalPlayers));
 GameWebSocket.on('update', d => {
   applyUpdate(d.players, d.totalPlayers);
   if (d.event?.type === 'donation') updateProgressUI(d.players);
+  if (d.event?.type === 'tornado')  spawnTornado(d.event.username || 'Someone');
 });
 
 function applyUpdate(newPlayers, total) {
@@ -2059,6 +2060,244 @@ document.addEventListener('keydown', e => {
   }
 });
 
+// ─── TORNADO SYSTEM ──────────────────────────────────────────────────────────
+let _tornado = null;
+
+function spawnTornado(triggerUsername) {
+  if (_tornado) return; // one tornado at a time
+
+  const group    = new THREE.Group();
+  const FUNNEL_H = 24;
+  const fromLeft = Math.random() < 0.5;
+  const startX   = fromLeft ? -24 : 24;
+  const endX     = fromLeft ? 24 : -24;
+
+  // ── 1. Stacked torus rings (narrow at ground → wide at top) ────────────────
+  const rings = [];
+  const N = 32;
+  for (let i = 0; i < N; i++) {
+    const t      = i / (N - 1);                        // 0 = ground, 1 = sky
+    const radius = 0.10 + t * t * 6.5;                 // quadratic funnel
+    const tube   = 0.045 + t * 0.20;
+    const geo    = new THREE.TorusGeometry(radius, tube, 5, 22);
+    const lum    = 0.10 + t * 0.24;
+    const mat    = new THREE.MeshLambertMaterial({
+      color:       new THREE.Color(lum * 0.87, lum * 0.80, lum),
+      transparent: true,
+      opacity:     0.80 - t * 0.22,
+    });
+    const ring       = new THREE.Mesh(geo, mat);
+    ring.position.y  = t * FUNNEL_H;
+    ring.rotation.x  = Math.PI / 2;
+    ring._rSpeed     = 5.8 - t * 3.2;   // fast at ground, slower at top
+    ring._rPhase     = i * 0.42;
+    ring._wobAmp     = 0.04 + t * 0.14;
+    ring._wobFreq    = 1.6 + t * 1.2;
+    group.add(ring);
+    rings.push(ring);
+  }
+
+  // ── 2. Dark inner core ─────────────────────────────────────────────────────
+  const coreGeo = new THREE.CylinderGeometry(0.14, 0.04, FUNNEL_H * 0.74, 8);
+  const coreMat = new THREE.MeshBasicMaterial({ color: 0x060606, transparent: true, opacity: 0.94 });
+  const core    = new THREE.Mesh(coreGeo, coreMat);
+  core.position.y = FUNNEL_H * 0.37;
+  group.add(core);
+
+  // ── 3. Outer rotating funnel shells (give depth and body to the funnel) ────
+  const shells = [];
+  for (let s = 0; s < 6; s++) {
+    const sc  = 0.86 + s * 0.06;
+    const geo = new THREE.CylinderGeometry(6.8 * sc, 0.22 * sc, FUNNEL_H * 0.90, 16, 1, true);
+    const mat = new THREE.MeshBasicMaterial({
+      color:       0x2a2820,
+      side:        THREE.DoubleSide,
+      transparent: true,
+      opacity:     0.052 - s * 0.006,
+    });
+    const mesh      = new THREE.Mesh(geo, mat);
+    mesh.position.y = FUNNEL_H * 0.45;
+    mesh._sRotSpd   = (s % 2 === 0 ? 0.48 : -0.33) + (Math.random() - 0.5) * 0.10;
+    group.add(mesh);
+    shells.push(mesh);
+  }
+
+  // ── 4. 500 spiral debris particles ─────────────────────────────────────────
+  const PC   = 500;
+  const pPos = new Float32Array(PC * 3);
+  const pDat = [];
+  for (let i = 0; i < PC; i++) {
+    const t   = Math.random();
+    const ang = Math.random() * Math.PI * 2;
+    const r   = (0.10 + t * t * 6.5) + (Math.random() - 0.5) * 0.65;
+    pPos[i*3]   = Math.cos(ang) * r;
+    pPos[i*3+1] = t * FUNNEL_H;
+    pPos[i*3+2] = Math.sin(ang) * r;
+    pDat.push({ t, ang, baseR: 0.10 + t * t * 6.5 });
+  }
+  const pGeo = new THREE.BufferGeometry();
+  pGeo.setAttribute('position', new THREE.BufferAttribute(pPos, 3));
+  const pMat = new THREE.PointsMaterial({ color: 0x7a6242, size: 0.20, transparent: true, opacity: 0.88, sizeAttenuation: true });
+  const pts  = new THREE.Points(pGeo, pMat);
+  group.add(pts);
+
+  // ── 5. Ground dust swirl ───────────────────────────────────────────────────
+  const dustGeo = new THREE.TorusGeometry(2.0, 1.2, 7, 26);
+  const dustMat = new THREE.MeshBasicMaterial({ color: 0x7a5e30, transparent: true, opacity: 0.52 });
+  const dust    = new THREE.Mesh(dustGeo, dustMat);
+  dust.rotation.x = Math.PI / 2;
+  dust.position.y = 0.18;
+  group.add(dust);
+
+  // ── 6. Flying debris chunks ────────────────────────────────────────────────
+  const chunks = [];
+  for (let i = 0; i < 20; i++) {
+    const s   = 0.07 + Math.random() * 0.26;
+    const geo = Math.random() < 0.55
+      ? new THREE.BoxGeometry(s, s * 1.5, s * 0.8)
+      : new THREE.TetrahedronGeometry(s);
+    const col = new THREE.Color(0.28 + Math.random() * 0.18, 0.20 + Math.random() * 0.10, 0.12);
+    const mat = new THREE.MeshLambertMaterial({ color: col });
+    const m   = new THREE.Mesh(geo, mat);
+    const a   = Math.random() * Math.PI * 2;
+    const r   = 0.5 + Math.random() * 2.8;
+    m.position.set(Math.cos(a) * r, Math.random() * 2.2, Math.sin(a) * r);
+    m._ca = a; m._cr = r; m._cs = 3.2 + Math.random() * 3.5;
+    group.add(m);
+    chunks.push(m);
+  }
+
+  // ── 7. Dark storm-cloud cap at top ─────────────────────────────────────────
+  const capGeo = new THREE.SphereGeometry(7.5, 14, 9, 0, Math.PI * 2, 0, Math.PI * 0.46);
+  const capMat = new THREE.MeshBasicMaterial({ color: 0x161614, transparent: true, opacity: 0.50 });
+  const cap    = new THREE.Mesh(capGeo, capMat);
+  cap.position.y = FUNNEL_H - 0.3;
+  cap.rotation.x = Math.PI;
+  group.add(cap);
+
+  group.position.set(startX, 0, -14 + (Math.random() - 0.5) * 3);
+  group.scale.y = 0;   // funnel descends from sky
+  scene.add(group);
+
+  _tornado = {
+    group, rings, shells, pts, pPos, pDat, pGeo, dust, chunks,
+    startX, endX, FUNNEL_H,
+    startTime:     Date.now(),
+    duration:      7000,
+    capturedChars: new Map(),
+    triggerUsername,
+  };
+  console.log(`[Tornado] spawned by ${triggerUsername}`);
+}
+
+function updateTornado(dt) {
+  if (!_tornado) return;
+  const { group, rings, shells, pts, pPos, pDat, pGeo, dust, chunks,
+          startX, endX, FUNNEL_H, capturedChars } = _tornado;
+
+  const now     = Date.now();
+  const elapsed = now - _tornado.startTime;
+  const rawT    = Math.min(elapsed / _tornado.duration, 1.0);
+  const time    = elapsed / 1000;
+
+  // ── End: release all players and despawn ────────────────────────────────────
+  if (rawT >= 1.0) {
+    capturedChars.forEach((data, id) => {
+      const c = characters.get(id);
+      if (c) { c._inTornado = false; c._falling = true; c._fallVy = 1.5 + Math.random() * 2; c.group.rotation.z = 0; }
+    });
+    scene.remove(group);
+    _tornado = null;
+    return;
+  }
+
+  // ── Scale Y: funnel descends (0→0.14) and ascends (0.86→1) ────────────────
+  const scaleY = rawT < 0.14 ? rawT / 0.14 : rawT > 0.86 ? (1 - rawT) / 0.14 : 1.0;
+  group.scale.y = scaleY;
+
+  // ── Position: traverse across scene with organic wobble ────────────────────
+  const travelT = Math.max(0, Math.min((rawT - 0.10) / 0.80, 1));
+  group.position.x = startX + (endX - startX) * travelT;
+  group.position.z = -14 + Math.sin(time * 0.85) * 1.5 + Math.sin(time * 1.9) * 0.55;
+
+  // ── Rotate rings ───────────────────────────────────────────────────────────
+  rings.forEach(ring => {
+    ring.rotation.z = time * ring._rSpeed + ring._rPhase;
+    ring.position.x = Math.sin(time * ring._wobFreq + ring._rPhase) * ring._wobAmp;
+    ring.position.z = Math.cos(time * ring._wobFreq * 0.72 + ring._rPhase) * ring._wobAmp * 0.75;
+  });
+
+  // ── Rotate outer shells (counter-rotation effect) ──────────────────────────
+  shells.forEach(s => { s.rotation.y += s._sRotSpd * dt * 0.001; });
+
+  // ── Animate spiral particles ───────────────────────────────────────────────
+  for (let i = 0; i < pDat.length; i++) {
+    const d = pDat[i];
+    d.ang += (5.0 - d.t * 3.0) * dt * 0.001;
+    const r = d.baseR + Math.sin(time * 3.2 + d.t * 7) * 0.22;
+    pPos[i*3]   = Math.cos(d.ang) * r;
+    pPos[i*3+2] = Math.sin(d.ang) * r;
+    pPos[i*3+1] = d.t * FUNNEL_H + Math.sin(time * 2.2 + d.t * 9) * 0.30;
+  }
+  pGeo.attributes.position.needsUpdate = true;
+
+  // ── Dust ring pulse ────────────────────────────────────────────────────────
+  dust.rotation.z = time * 2.5;
+  dust.scale.setScalar(0.88 + Math.sin(time * 6) * 0.13);
+
+  // ── Debris orbit ──────────────────────────────────────────────────────────
+  chunks.forEach(ch => {
+    ch._ca += ch._cs * dt * 0.001;
+    ch.position.x = Math.cos(ch._ca) * ch._cr;
+    ch.position.z = Math.sin(ch._ca) * ch._cr;
+    ch.rotation.x += 0.045; ch.rotation.y += 0.065;
+  });
+
+  // ── Capture players within reach (main traversal phase only) ───────────────
+  if (rawT > 0.14 && rawT < 0.80) {
+    characters.forEach((char, id) => {
+      if (capturedChars.has(id) || char._inTornado || char._falling) return;
+      const dx = char.group.position.x - group.position.x;
+      const dz = char.group.position.z - group.position.z;
+      if (Math.sqrt(dx * dx + dz * dz) < 5.5) {
+        capturedChars.set(id, {
+          captureTime: now,
+          angle:    Math.atan2(dz, dx),
+          orbitR:   1.0 + Math.random() * 1.8,
+          orbitSpd: 4.2 + Math.random() * 3.2,
+          orbitH:   3.5 + Math.random() * 5.5,
+        });
+        char._inTornado = true;
+      }
+    });
+  }
+
+  // ── Update captured players: orbit tornado, lift into air ──────────────────
+  capturedChars.forEach((data, id) => {
+    const char = characters.get(id);
+    if (!char) { capturedChars.delete(id); return; }
+
+    // Release just before tornado lifts
+    if (rawT > 0.78) {
+      capturedChars.delete(id);
+      char._inTornado = false;
+      char._falling   = true;
+      char._fallVy    = 1.5 + Math.random() * 2.5;  // upward burst then fall
+      char.group.rotation.z = 0;
+      return;
+    }
+
+    const liftT = Math.min((now - data.captureTime) / 550, 1.0);
+    data.angle += data.orbitSpd * dt * 0.001;
+
+    char.group.position.x = group.position.x + Math.cos(data.angle) * data.orbitR;
+    char.group.position.z = group.position.z + Math.sin(data.angle) * data.orbitR;
+    char.group.position.y = data.orbitH * liftT + Math.sin(time * 4.5 + data.angle) * 0.28;
+    char.group.rotation.z = data.angle + Math.PI * 0.5;
+    char.group.rotation.x = Math.sin(time * 6.5 + data.angle) * 0.65;
+  });
+}
+
 // ─── MAIN LOOP ────────────────────────────────────────────────────────────────
 let lastTime = 0;
 
@@ -2102,6 +2341,7 @@ function gameLoop(ts) {
   camera.lookAt(0, 2 + _ms.scale * 2.8, -16);
 
   characters.forEach(c => c.update(dt));
+  updateTornado(dt);
 
   renderer.render(scene, camera);
   drawNicknames();
