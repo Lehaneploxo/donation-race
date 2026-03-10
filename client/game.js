@@ -3,7 +3,7 @@ const renderer = new THREE.WebGLRenderer({
   canvas: document.getElementById('gameCanvas'),
   antialias: true
 });
-renderer.setSize(1920, 1080);
+renderer.setSize(1080, 1920);
 renderer.setPixelRatio(1);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -13,9 +13,9 @@ const scene = new THREE.Scene();
 scene.fog = new THREE.Fog(0xffcc88, 60, 180); // updated dynamically
 
 // ─── CAMERA ──────────────────────────────────────────────────────────────────
-const camera = new THREE.PerspectiveCamera(64, 1920 / 1080, 0.1, 320);
-camera.position.set(-2, 9, 16);
-camera.lookAt(0, 2, -16);
+const camera = new THREE.PerspectiveCamera(75, 1080 / 1920, 0.1, 320);
+camera.position.set(0, 10, 18);
+camera.lookAt(0, 2, -10);
 
 // ─── DAY/NIGHT CYCLE ─────────────────────────────────────────────────────────
 const PHASE_MS    = 15 * 60 * 1000;  // 15 min per phase
@@ -1130,7 +1130,7 @@ const nameCtx    = nameCanvas.getContext('2d');
 const _tmpVec    = new THREE.Vector3();
 
 function drawNicknames() {
-  nameCtx.clearRect(0, 0, 1920, 1080);
+  nameCtx.clearRect(0, 0, 1080, 1920);
   const labels = [];
 
   characters.forEach(char => {
@@ -1141,8 +1141,8 @@ function drawNicknames() {
     if (ndc.x < -2 || ndc.x > 2) return;
 
     // Raw screen position of the character's head — used for the dot & line
-    const anchorX = (ndc.x  + 1) / 2 * 1920;
-    const anchorY = (-ndc.y + 1) / 2 * 1080;
+    const anchorX = (ndc.x  + 1) / 2 * 1080;
+    const anchorY = (-ndc.y + 1) / 2 * 1920;
 
     const dist     = camera.position.distanceTo(_tmpVec);
     const fontSize = Math.round(Math.max(15, Math.min(36, 680 / dist)));
@@ -1154,8 +1154,8 @@ function drawNicknames() {
     const th = fontSize + 6;
     const MARGIN = 12;
     // Label starts above the anchor; clamped inside screen
-    let sx = Math.max(MARGIN + tw/2, Math.min(1920 - MARGIN - tw/2, anchorX));
-    let sy = Math.max(MARGIN + th/2, Math.min(1080 - MARGIN - th/2, anchorY));
+    let sx = Math.max(MARGIN + tw/2, Math.min(1080 - MARGIN - tw/2, anchorX));
+    let sy = Math.max(MARGIN + th/2, Math.min(1920 - MARGIN - th/2, anchorY));
     labels.push({ sx, sy, tw, th, fontSize, name, color, anchorX, anchorY });
   });
 
@@ -1187,8 +1187,8 @@ function drawNicknames() {
 
   labels.forEach(({ sx, sy, tw, th, fontSize, name, color, anchorX, anchorY }) => {
     const MARGIN = 12;
-    sx = Math.max(MARGIN + tw/2, Math.min(1920 - MARGIN - tw/2, sx));
-    sy = Math.max(MARGIN + th/2, Math.min(1080 - MARGIN - th/2, sy));
+    sx = Math.max(MARGIN + tw/2, Math.min(1080 - MARGIN - tw/2, sx));
+    sy = Math.max(MARGIN + th/2, Math.min(1920 - MARGIN - th/2, sy));
 
     const lineDist = Math.hypot(sx - anchorX, sy - anchorY);
 
