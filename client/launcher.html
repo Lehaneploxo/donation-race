@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Гонка Донатов — Запуск</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: #0a0a1a;
+      color: #fff;
+      font-family: 'Segoe UI', sans-serif;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+
+    /* Анимированный фон */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background:
+        radial-gradient(ellipse at 20% 50%, rgba(99,102,241,0.15) 0%, transparent 60%),
+        radial-gradient(ellipse at 80% 50%, rgba(236,72,153,0.15) 0%, transparent 60%);
+      pointer-events: none;
+    }
+
+    .card {
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 24px;
+      padding: 40px 40px;
+      max-width: 480px;
+      width: 92%;
+      backdrop-filter: blur(20px);
+      box-shadow: 0 40px 80px rgba(0,0,0,0.5);
+      animation: fadeIn 0.4s ease;
+    }
+
+    @media (max-width: 480px) {
+      .card { padding: 28px 20px; border-radius: 16px; }
+      .logo .icon { font-size: 42px; }
+      .logo h1 { font-size: 20px; }
+      input[type="text"] { font-size: 16px; padding: 14px 16px 14px 38px; }
+      .btn { font-size: 15px; padding: 14px; }
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(20px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .logo {
+      text-align: center;
+      margin-bottom: 36px;
+    }
+
+    .logo .icon {
+      font-size: 56px;
+      line-height: 1;
+      margin-bottom: 12px;
+    }
+
+    .logo h1 {
+      font-size: 26px;
+      font-weight: 700;
+      background: linear-gradient(135deg, #818cf8, #e879f9);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .logo p {
+      color: rgba(255,255,255,0.45);
+      font-size: 13px;
+      margin-top: 6px;
+    }
+
+    label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      color: rgba(255,255,255,0.6);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 10px;
+    }
+
+    .input-wrap {
+      position: relative;
+      margin-bottom: 16px;
+    }
+
+    .input-wrap .at {
+      position: absolute;
+      left: 18px;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 20px;
+      color: rgba(255,255,255,0.3);
+      pointer-events: none;
+      font-weight: 600;
+    }
+
+    input[type="text"] {
+      width: 100%;
+      background: rgba(255,255,255,0.07);
+      border: 1.5px solid rgba(255,255,255,0.12);
+      border-radius: 14px;
+      padding: 16px 18px 16px 40px;
+      font-size: 18px;
+      color: #fff;
+      font-weight: 500;
+      transition: border-color 0.2s, background 0.2s;
+      outline: none;
+    }
+
+    input[type="text"]::placeholder {
+      color: rgba(255,255,255,0.2);
+    }
+
+    input[type="text"]:focus {
+      border-color: rgba(129,140,248,0.7);
+      background: rgba(255,255,255,0.09);
+    }
+
+    .hint {
+      font-size: 12px;
+      color: rgba(255,255,255,0.3);
+      margin-bottom: 28px;
+      padding-left: 4px;
+    }
+
+    .btn-group {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .btn {
+      width: 100%;
+      padding: 16px;
+      border-radius: 14px;
+      font-size: 16px;
+      font-weight: 700;
+      cursor: pointer;
+      border: none;
+      transition: all 0.2s;
+      letter-spacing: 0.02em;
+    }
+
+    .btn-connect {
+      background: linear-gradient(135deg, #6366f1, #ec4899);
+      color: #fff;
+      box-shadow: 0 4px 24px rgba(99,102,241,0.4);
+    }
+
+    .btn-connect:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 32px rgba(99,102,241,0.5);
+    }
+
+    .btn-connect:active { transform: translateY(0); }
+
+    .btn-demo {
+      background: rgba(255,255,255,0.07);
+      border: 1.5px solid rgba(255,255,255,0.1);
+      color: rgba(255,255,255,0.6);
+    }
+
+    .btn-demo:hover {
+      background: rgba(255,255,255,0.11);
+      color: #fff;
+      border-color: rgba(255,255,255,0.2);
+    }
+
+    .error {
+      display: none;
+      background: rgba(239,68,68,0.15);
+      border: 1px solid rgba(239,68,68,0.3);
+      border-radius: 10px;
+      padding: 10px 14px;
+      font-size: 13px;
+      color: #fca5a5;
+      margin-bottom: 14px;
+      text-align: center;
+    }
+
+    .status {
+      display: none;
+      text-align: center;
+      padding-top: 8px;
+      font-size: 13px;
+      color: rgba(255,255,255,0.4);
+    }
+
+    .status .dot {
+      display: inline-block;
+      width: 8px; height: 8px;
+      background: #22c55e;
+      border-radius: 50%;
+      margin-right: 6px;
+      animation: pulse 1.2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+
+    /* Дорожка снизу */
+    .road {
+      position: fixed;
+      bottom: 0;
+      left: 0; right: 0;
+      height: 6px;
+      background: linear-gradient(90deg, #6366f1, #ec4899, #6366f1);
+      background-size: 200%;
+      animation: road 3s linear infinite;
+    }
+
+    @keyframes road {
+      from { background-position: 0%; }
+      to   { background-position: 200%; }
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo">
+      <div class="icon">🏎️</div>
+      <h1>Гонка Донатов</h1>
+      <p>TikTok Live — введи никнейм стримера</p>
+    </div>
+
+    <label for="username">TikTok аккаунт</label>
+    <div class="input-wrap">
+      <span class="at">@</span>
+      <input
+        type="text"
+        id="username"
+        placeholder="nickname"
+        autocomplete="off"
+        autocorrect="off"
+        spellcheck="false"
+      >
+    </div>
+    <div class="hint">Стример должен быть онлайн в TikTok Live</div>
+
+    <div class="error" id="error">Введи никнейм TikTok</div>
+
+    <div class="btn-group">
+      <button class="btn btn-connect" id="btnConnect">Подключиться к TikTok Live</button>
+      <button class="btn btn-demo" id="btnDemo">Демо-режим (без TikTok)</button>
+    </div>
+
+    <div class="status" id="status">
+      <span class="dot"></span>Открываю игру…
+    </div>
+  </div>
+
+  <div class="road"></div>
+
+  <script>
+    const input    = document.getElementById('username');
+    const btnConn  = document.getElementById('btnConnect');
+    const btnDemo  = document.getElementById('btnDemo');
+    const errorEl  = document.getElementById('error');
+    const statusEl = document.getElementById('status');
+
+    // Сохраняем последний ник
+    const saved = localStorage.getItem('tiktok_username');
+    if (saved) input.value = saved;
+
+    input.focus();
+
+    function showError(msg) {
+      errorEl.textContent = msg;
+      errorEl.style.display = 'block';
+      setTimeout(() => errorEl.style.display = 'none', 3000);
+    }
+
+    function go(username) {
+      statusEl.style.display = 'block';
+      btnConn.disabled = true;
+      btnDemo.disabled = true;
+      setTimeout(() => {
+        window.location.href = `/game?username=${encodeURIComponent(username)}`;
+      }, 300);
+    }
+
+    btnConn.addEventListener('click', () => {
+      const val = input.value.replace(/^@/, '').trim();
+      if (!val) { showError('Введи никнейм TikTok'); input.focus(); return; }
+      localStorage.setItem('tiktok_username', val);
+      go(val);
+    });
+
+    btnDemo.addEventListener('click', () => {
+      go('demo');
+    });
+
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') btnConn.click();
+    });
+
+    // Убираем @ если пользователь вставил
+    input.addEventListener('input', () => {
+      if (input.value.startsWith('@')) {
+        input.value = input.value.slice(1);
+      }
+    });
+  </script>
+</body>
+</html>

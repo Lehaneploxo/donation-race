@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Reach the Mountain!</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body {
+      width: 100%;
+      height: 100%;
+      background: #000;
+      overflow: hidden;
+      font-family: 'Arial Black', 'Arial', sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    #scaleWrapper {
+      width: 1920px;
+      height: 1080px;
+      position: relative;
+      transform-origin: top left;
+      flex-shrink: 0;
+    }
+    #gameCanvas {
+      position: absolute;
+      top: 0; left: 0;
+      display: block;
+    }
+    #ui {
+      position: absolute;
+      top: 0; left: 0;
+      width: 1920px;
+      height: 1080px;
+      pointer-events: none;
+    }
+
+    /* Title */
+    #title {
+      position: absolute;
+      top: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 54px;
+      font-weight: 900;
+      color: #FFD700;
+      text-shadow: 0 0 8px #FF6600, 0 0 28px #FF4400, 2px 2px 0 #000;
+      letter-spacing: 6px;
+      white-space: nowrap;
+    }
+
+    /* Winners / player count */
+    #playerCount {
+      position: absolute;
+      top: 18px;
+      right: 28px;
+      font-size: 26px;
+      font-weight: bold;
+      color: #00FF88;
+      background: rgba(0,0,0,0.68);
+      padding: 8px 20px;
+      border-radius: 10px;
+      border: 2px solid #00FF88;
+      box-shadow: 0 0 14px rgba(0,255,136,0.35);
+    }
+
+    /* Status badge */
+    #statusBadge {
+      position: absolute;
+      top: 18px;
+      left: 28px;
+      font-size: 18px;
+      font-weight: bold;
+      padding: 7px 16px;
+      border-radius: 10px;
+      border: 2px solid #555;
+      background: rgba(0,0,0,0.7);
+      color: #AAA;
+      white-space: nowrap;
+      transition: color 0.4s, border-color 0.4s;
+    }
+    #statusBadge.live  { color: #00FF88; border-color: #00FF88; box-shadow: 0 0 10px rgba(0,255,136,0.35); }
+    #statusBadge.demo  { color: #FF9900; border-color: #FF9900; box-shadow: 0 0 10px rgba(255,153,0,0.35); }
+    #statusBadge.error { color: #FF4444; border-color: #FF4444; box-shadow: 0 0 10px rgba(255,68,68,0.35); }
+
+    /* Time of day badge */
+    #timeOfDay {
+      position: absolute;
+      top: 64px;
+      left: 28px;
+      font-size: 20px;
+      font-weight: bold;
+      padding: 6px 16px;
+      border-radius: 10px;
+      border: 2px solid rgba(255,255,255,0.3);
+      background: rgba(0,0,0,0.55);
+      color: #FFE;
+      letter-spacing: 1px;
+      transition: color 2s, border-color 2s;
+    }
+
+    /* Username input overlay */
+    #usernameOverlay {
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.88);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+    }
+    #usernameOverlay h2 {
+      color: #FFD700;
+      font-size: 42px;
+      font-weight: 900;
+      text-shadow: 0 0 20px #FF6600;
+      margin-bottom: 10px;
+    }
+    #usernameOverlay p {
+      color: #AAA;
+      font-size: 20px;
+      margin-bottom: 28px;
+    }
+    #usernameInput {
+      font-size: 28px;
+      padding: 14px 22px;
+      border-radius: 12px;
+      border: 3px solid #FFD700;
+      background: #111;
+      color: #FFF;
+      text-align: center;
+      width: 420px;
+      outline: none;
+    }
+    #usernameInput:focus { border-color: #00FF88; }
+    #usernameBtn {
+      margin-top: 18px;
+      font-size: 24px;
+      font-weight: bold;
+      padding: 14px 48px;
+      border-radius: 12px;
+      border: none;
+      background: linear-gradient(90deg, #FF6600, #FFD700);
+      color: #000;
+      cursor: pointer;
+      transition: transform 0.1s;
+    }
+    #usernameBtn:hover { transform: scale(1.04); }
+    #demoBtn {
+      margin-top: 10px;
+      font-size: 16px;
+      color: #888;
+      background: none;
+      border: none;
+      cursor: pointer;
+      text-decoration: underline;
+    }
+    #demoBtn:hover { color: #CCC; }
+
+    /* Progress bar */
+    #progressWrap {
+      position: absolute;
+      top: 18px;
+      left: 50%;
+      transform: translateX(-50%);
+      margin-top: 80px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+    }
+    #progressLabel {
+      color: #0FF;
+      font-size: 20px;
+      font-weight: bold;
+      text-shadow: 0 0 8px #0FF;
+      letter-spacing: 2px;
+    }
+    #progressBarOuter {
+      width: 500px;
+      height: 18px;
+      background: rgba(0,0,0,0.6);
+      border: 2px solid #0FF;
+      border-radius: 9px;
+      overflow: hidden;
+    }
+    #progressBarInner {
+      height: 100%;
+      background: linear-gradient(90deg, #00BFFF, #00FF88);
+      border-radius: 9px;
+      width: 0%;
+      transition: width 0.5s ease;
+      box-shadow: 0 0 8px #00FF88;
+    }
+
+    /* Leaderboard */
+    #leaderboard {
+      position: absolute;
+      top: 110px;
+      left: 22px;
+      background: rgba(0,0,0,0.85);
+      border: 2px solid #FFD700;
+      border-radius: 14px;
+      padding: 8px 14px 10px;
+      min-width: 270px;
+      box-shadow: 0 0 22px rgba(255,215,0,0.22);
+    }
+    #leaderboard h3 {
+      color: #FFD700;
+      font-size: 17px;
+      text-align: center;
+      margin-bottom: 6px;
+      text-shadow: 0 0 8px #FFD700;
+      letter-spacing: 2px;
+    }
+    .lb-item {
+      display: flex;
+      align-items: center;
+      padding: 3px 2px;
+      color: #FFF;
+      font-size: 13px;
+      border-bottom: 1px solid rgba(255,255,255,0.07);
+    }
+    .lb-item:last-child { border-bottom: none; }
+    .lb-rank { width: 34px; font-weight: bold; color: #AAA; font-size: 12px; }
+    .lb-rank.rank-1 { color: #FFD700; font-size: 17px; }
+    .lb-rank.rank-2 { color: #C0C0C0; font-size: 15px; }
+    .lb-rank.rank-3 { color: #CD7F32; font-size: 14px; }
+    .lb-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-right: 6px; }
+    .lb-coins { color: #FFD700; font-weight: bold; font-size: 12px; white-space: nowrap; }
+  </style>
+</head>
+<body>
+<div id="scaleWrapper">
+  <canvas id="gameCanvas" width="1920" height="1080"></canvas>
+  <!-- Nickname labels layer — above 3D, no fog/depth -->
+  <canvas id="nameCanvas" width="1920" height="1080" style="position:absolute;top:0;left:0;pointer-events:none;"></canvas>
+
+  <!-- Username entry overlay — shown only when no username in URL -->
+  <div id="usernameOverlay" style="display:none">
+    <h2>🏔️ REACH THE MOUNTAIN! 🏔️</h2>
+    <p>Enter your TikTok username to connect to the stream</p>
+    <input id="usernameInput" type="text" placeholder="@your_username" autocomplete="off" spellcheck="false">
+    <button id="usernameBtn">▶ START</button>
+    <button id="demoBtn">Run in demo mode</button>
+  </div>
+
+  <div id="ui">
+    <div id="title">🏔️ REACH THE MOUNTAIN! 🏔️</div>
+
+    <div id="statusBadge">⏳ Connecting…</div>
+    <div id="timeOfDay">🌅 MORNING</div>
+    <div id="timeSpeedBadge" style="
+      position:absolute; top:112px; left:28px;
+      font-size:16px; font-weight:bold;
+      padding:5px 14px; border-radius:10px;
+      border:2px solid #AAA; background:rgba(0,0,0,0.65);
+      color:#AAA; white-space:nowrap; letter-spacing:1px;
+    ">⏱ 1× (real time)</div>
+
+    <div id="playerCount">PLAYERS: <span id="playerCountNum">0</span></div>
+
+    <div id="progressWrap">
+      <div id="progressLabel">PROGRESS: <span id="progressPct">0.00%</span></div>
+      <div id="progressBarOuter"><div id="progressBarInner"></div></div>
+    </div>
+
+    <div id="leaderboard">
+      <h3>🏆 TOP 10</h3>
+      <div id="leaderboardList"></div>
+    </div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
+  <script src="websocket.js"></script>
+  <script src="leaderboard.js"></script>
+  <script src="characters.js"></script>
+  <script src="game.js"></script>
+</div>
+
+<script>
+  (function() {
+    var wrapper = document.getElementById('scaleWrapper');
+    function resize() {
+      var scaleX = window.innerWidth  / 1920;
+      var scaleY = window.innerHeight / 1080;
+      var scale  = Math.min(scaleX, scaleY);
+      var offsetX = (window.innerWidth  - 1920 * scale) / 2;
+      var offsetY = (window.innerHeight - 1080 * scale) / 2;
+      wrapper.style.transform = 'translate(' + offsetX + 'px, ' + offsetY + 'px) scale(' + scale + ')';
+    }
+    window.addEventListener('resize', resize);
+    resize();
+  })();
+</script>
+</body>
+</html>

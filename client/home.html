@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Гонка Донатов — TikTok Live Game</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      min-height: 100vh;
+      background: linear-gradient(160deg, #0a0a2e 0%, #1a0555 40%, #7b2d00 80%, #ff5500 100%);
+      font-family: 'Arial Black', Arial, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+    }
+
+    .card {
+      background: rgba(0,0,0,0.60);
+      border: 2px solid rgba(255,215,0,0.4);
+      border-radius: 24px;
+      padding: 48px 56px;
+      max-width: 520px;
+      width: 90%;
+      text-align: center;
+      box-shadow: 0 0 60px rgba(255,100,0,0.25);
+    }
+
+    .emoji { font-size: 64px; margin-bottom: 12px; display: block; }
+
+    h1 {
+      font-size: 36px;
+      color: #FFD700;
+      text-shadow: 0 0 20px #FF6600, 0 0 40px #FF4400;
+      letter-spacing: 3px;
+      margin-bottom: 10px;
+    }
+
+    .subtitle {
+      color: rgba(255,255,255,0.65);
+      font-size: 15px;
+      margin-bottom: 36px;
+      font-weight: normal;
+      line-height: 1.5;
+    }
+
+    .input-wrap {
+      position: relative;
+      margin-bottom: 16px;
+    }
+
+    .at-sign {
+      position: absolute;
+      left: 18px;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 22px;
+      color: #FFD700;
+      pointer-events: none;
+    }
+
+    input {
+      width: 100%;
+      padding: 16px 18px 16px 42px;
+      font-size: 20px;
+      border-radius: 12px;
+      border: 2px solid rgba(255,215,0,0.5);
+      background: rgba(255,255,255,0.08);
+      color: #fff;
+      outline: none;
+      transition: border-color 0.2s;
+      letter-spacing: 1px;
+    }
+
+    input::placeholder { color: rgba(255,255,255,0.35); }
+    input:focus { border-color: #FFD700; background: rgba(255,255,255,0.12); }
+
+    .error {
+      color: #FF4444;
+      font-size: 13px;
+      margin-bottom: 10px;
+      min-height: 18px;
+    }
+
+    button {
+      width: 100%;
+      padding: 16px;
+      font-size: 20px;
+      font-weight: 900;
+      letter-spacing: 2px;
+      border: none;
+      border-radius: 12px;
+      background: linear-gradient(135deg, #FF6600, #FFD700);
+      color: #000;
+      cursor: pointer;
+      transition: transform 0.15s, box-shadow 0.15s;
+      box-shadow: 0 4px 20px rgba(255,150,0,0.45);
+    }
+
+    button:hover  { transform: translateY(-2px); box-shadow: 0 6px 28px rgba(255,150,0,0.6); }
+    button:active { transform: translateY(0); }
+
+    .divider {
+      border: none;
+      border-top: 1px solid rgba(255,255,255,0.12);
+      margin: 32px 0;
+    }
+
+    .how-title {
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      color: rgba(255,255,255,0.45);
+      margin-bottom: 18px;
+    }
+
+    .steps {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      text-align: left;
+    }
+
+    .step {
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+    }
+
+    .step-num {
+      background: rgba(255,215,0,0.15);
+      border: 1px solid rgba(255,215,0,0.4);
+      color: #FFD700;
+      font-size: 13px;
+      font-weight: bold;
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+
+    .step p { font-size: 14px; color: rgba(255,255,255,0.75); line-height: 1.5; }
+    .step strong { color: #fff; }
+
+    .tiktok-note {
+      margin-top: 24px;
+      font-size: 12px;
+      color: rgba(255,255,255,0.35);
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <span class="emoji">🏁</span>
+    <h1>ГОНКА ДОНАТОВ</h1>
+    <p class="subtitle">
+      Интерактивная гонка для TikTok Live.<br>
+      Кто больше задонатил — тот впереди!
+    </p>
+
+    <form id="form">
+      <div class="input-wrap">
+        <span class="at-sign">@</span>
+        <input
+          id="username"
+          type="text"
+          placeholder="твой_тикток_ник"
+          autocomplete="off"
+          spellcheck="false"
+        />
+      </div>
+      <div class="error" id="error"></div>
+      <button type="submit">▶ ЗАПУСТИТЬ ИГРУ</button>
+    </form>
+
+    <hr class="divider">
+
+    <p class="how-title">Как использовать</p>
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <p>Введи свой TikTok никнейм и нажми <strong>Запустить</strong></p>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <p>Скопируй ссылку из адресной строки</p>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <p>В OBS добавь <strong>Browser Source</strong> → вставь ссылку → размер <strong>1920×1080</strong></p>
+      </div>
+      <div class="step">
+        <div class="step-num">4</div>
+        <p>Запусти TikTok Live — донаты зрителей двигают персонажей!</p>
+      </div>
+    </div>
+
+    <p class="tiktok-note">
+      Если стрим не запущен — игра включит демо-режим для предпросмотра
+    </p>
+  </div>
+
+  <script>
+    const form     = document.getElementById('form');
+    const input    = document.getElementById('username');
+    const errorEl  = document.getElementById('error');
+
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      errorEl.textContent = '';
+
+      let username = input.value.trim().replace(/^@/, '');
+      if (!username) {
+        errorEl.textContent = 'Введи TikTok никнейм';
+        return;
+      }
+      if (!/^[\w.]+$/.test(username)) {
+        errorEl.textContent = 'Никнейм может содержать только буквы, цифры и _';
+        return;
+      }
+
+      window.location.href = `/game?username=${encodeURIComponent(username)}`;
+    });
+
+    // Auto-focus
+    input.focus();
+  </script>
+</body>
+</html>
