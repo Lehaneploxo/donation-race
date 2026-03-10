@@ -2542,12 +2542,8 @@ document.addEventListener('keydown', e => {
   }
   // Y — test tornado
   if (e.key === 'y' || e.key === 'Y') spawnTornado('Test (Y key)');
-  // 1-5 — force specific world (override)
-  if (e.key === '1') { _worldOverride = 0; _showWorldBadge('⛰️ MOUNTAINS'); }
-  if (e.key === '2') { _worldOverride = 1; _showWorldBadge('🏖️ BEACH'); }
-  if (e.key === '3') { _worldOverride = 2; _showWorldBadge('🌊 SEA'); }
-  if (e.key === '4') { _worldOverride = 3; _showWorldBadge('🏙️ CITY'); }
-  if (e.key === '5' || e.key === 'm' || e.key === 'M') { _worldOverride = 4; _showWorldBadge('🌙 MOON WORLD'); }
+  // M — test moon world; 0 — back to auto sequence
+  if (e.key === 'm' || e.key === 'M') { _worldOverride = 4; _showWorldBadge('🌙 MOON WORLD'); }
   if (e.key === '0') { _worldOverride = -1; _showWorldBadge('⏱ AUTO'); }
 });
 
