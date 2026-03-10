@@ -45,7 +45,7 @@ const PHASE_DATA = [
     fogColor:    new THREE.Color(0xb8e0ff), fogNear: 80,  fogFar: 210,
     ambColor:    new THREE.Color(0xfff5e0), ambInt:  0.9,
     sunLColor:   new THREE.Color(0xffffff), sunLInt: 2.2,
-    sunDiskColor:new THREE.Color(0xfffff0),
+    sunDiskColor:new THREE.Color(0xFFD700),
     starAlpha:   0.0,
   },
   {
@@ -543,8 +543,8 @@ window._beachWaterUniforms = null;
         sfoam *= sfoam * max(0.0, sin(vHeight * 2.2 + 1.0));
         col = mix(col, uFoam, clamp(sfoam * 0.52, 0.0, 0.82));
 
-        // Sun sparkle on moving crests
-        float spark = pow(clamp(vHeight * 0.38 + 0.15, 0.0, 1.0), 14.0) * 0.82;
+        // Sun sparkle on moving crests (subtle)
+        float spark = pow(clamp(vHeight * 0.38 + 0.15, 0.0, 1.0), 14.0) * 0.18;
         col += vec3(0.82, 0.96, 1.0) * spark * (1.0 - d * 0.5);
 
         gl_FragColor = vec4(col, 1.0);
@@ -896,13 +896,285 @@ for (let i = 0; i < 30; i++) {
   beachPooledObjects.push({ mesh: b, z: baseZ });
 }
 
+// ─── SEA WORLD OBJECTS ───────────────────────────────────────────────────────
+const seaPooledObjects = [];
+
+// Sea water ground — deep ocean blue
+const seaGroundMesh = new THREE.Mesh(
+  new THREE.PlaneGeometry(160, 500),
+  new THREE.MeshLambertMaterial({ color: 0x083a6c })
+);
+seaGroundMesh.rotation.x = -Math.PI / 2;
+seaGroundMesh.position.set(0, -0.1, -180);
+seaGroundMesh.receiveShadow = false;
+seaGroundMesh.visible = false;
+scene.add(seaGroundMesh);
+
+// Sea trail — dark teal wake
+const seaTrailMeshes = [];
+[
+  { w: 5.2, color: 0x0a4a7a, y: 0.005 },
+  { w: 1.8, color: 0x0e6090, y: 0.010 },
+].forEach(({ w, color, y }) => {
+  const m = new THREE.Mesh(
+    new THREE.PlaneGeometry(w, 500),
+    new THREE.MeshLambertMaterial({ color })
+  );
+  m.rotation.x = -Math.PI / 2;
+  m.position.set(0, y, -180);
+  m.visible = false;
+  scene.add(m);
+  seaTrailMeshes.push(m);
+});
+
+function makeShip(x, z, sc, seed) {
+  const _r = s => { const v = Math.sin(s * 127.1 + 13.7) * 43758.5; return v - Math.floor(v); };
+  const g = new THREE.Group();
+  // Hull
+  const hull = new THREE.Mesh(
+    new THREE.BoxGeometry(sc * 1.2, sc * 0.5, sc * 4.0),
+    new THREE.MeshLambertMaterial({ color: 0x4a2c0a, flatShading: true })
+  );
+  hull.position.set(0, sc * 0.25, 0);
+  g.add(hull);
+  // Hull sides (lighter wood stripe)
+  const stripe = new THREE.Mesh(
+    new THREE.BoxGeometry(sc * 1.22, sc * 0.12, sc * 4.02),
+    new THREE.MeshLambertMaterial({ color: 0x7a5020, flatShading: true })
+  );
+  stripe.position.set(0, sc * 0.42, 0);
+  g.add(stripe);
+  // Mast
+  const mast = new THREE.Mesh(
+    new THREE.CylinderGeometry(sc * 0.05, sc * 0.07, sc * 5.5, 6),
+    new THREE.MeshLambertMaterial({ color: 0x5a3a10 })
+  );
+  mast.position.set(0, sc * 3.25, 0);
+  g.add(mast);
+  // Main sail
+  const sailVerts = new Float32Array([
+    0, 0, -sc * 1.6,
+    0, sc * 4.5, 0,
+    0, 0,  sc * 1.6,
+  ]);
+  const sailGeo = new THREE.BufferGeometry();
+  sailGeo.setAttribute('position', new THREE.Float32BufferAttribute(sailVerts, 3));
+  sailGeo.setIndex([0, 1, 2]);
+  sailGeo.computeVertexNormals();
+  const sail = new THREE.Mesh(sailGeo,
+    new THREE.MeshLambertMaterial({ color: 0xf0e8d0, side: THREE.DoubleSide, flatShading: true }));
+  sail.position.set(sc * 0.6, sc * 0.7, 0);
+  g.add(sail);
+  // Flag
+  const flag = new THREE.Mesh(
+    new THREE.BoxGeometry(sc * 0.6, sc * 0.3, sc * 0.04),
+    new THREE.MeshLambertMaterial({ color: _r(seed) > 0.5 ? 0xcc2200 : 0x002288 })
+  );
+  flag.position.set(sc * 0.3, sc * 5.8, 0);
+  g.add(flag);
+  g.position.set(x, 0, z);
+  return g;
+}
+
+function makeWhale(x, z, sc, seed) {
+  const g = new THREE.Group();
+  // Body — elongated sphere
+  const bodyGeo = new THREE.SphereGeometry(sc, 10, 7);
+  const bodyPos = bodyGeo.attributes.position;
+  for (let vi = 0; vi < bodyPos.count; vi++) {
+    bodyPos.setZ(vi, bodyPos.getZ(vi) * 3.5);
+    bodyPos.setX(vi, bodyPos.getX(vi) * 0.7);
+  }
+  bodyPos.needsUpdate = true; bodyGeo.computeVertexNormals();
+  const body = new THREE.Mesh(bodyGeo,
+    new THREE.MeshLambertMaterial({ color: 0x1a2a3a, flatShading: true }));
+  body.position.set(0, sc * 0.3, 0);
+  g.add(body);
+  // Belly (lighter underbelly)
+  const belly = new THREE.Mesh(
+    new THREE.SphereGeometry(sc * 0.55, 8, 5),
+    new THREE.MeshLambertMaterial({ color: 0x8898a8, flatShading: true })
+  );
+  belly.scale.set(0.9, 0.5, 2.8);
+  belly.position.set(0, sc * 0.1, 0);
+  g.add(belly);
+  // Dorsal fin
+  const finVerts = new Float32Array([
+    0, 0, -sc * 0.2,
+    sc * 0.5, sc * 1.2, 0,
+    0, 0,  sc * 0.2,
+  ]);
+  const finGeo = new THREE.BufferGeometry();
+  finGeo.setAttribute('position', new THREE.Float32BufferAttribute(finVerts, 3));
+  finGeo.setIndex([0, 1, 2]);
+  finGeo.computeVertexNormals();
+  const fin = new THREE.Mesh(finGeo,
+    new THREE.MeshLambertMaterial({ color: 0x111e28, side: THREE.DoubleSide }));
+  fin.position.set(0, sc * 0.9, -sc * 0.5);
+  g.add(fin);
+  // Tail flukes
+  [-1, 1].forEach(side => {
+    const flukeVerts = new Float32Array([
+      0, 0, 0,
+      side * sc * 1.4, -sc * 0.3, sc * 0.2,
+      side * sc * 1.4, -sc * 0.3, -sc * 0.2,
+    ]);
+    const flukeGeo = new THREE.BufferGeometry();
+    flukeGeo.setAttribute('position', new THREE.Float32BufferAttribute(flukeVerts, 3));
+    flukeGeo.setIndex([0, 1, 2]);
+    flukeGeo.computeVertexNormals();
+    const fluke = new THREE.Mesh(flukeGeo,
+      new THREE.MeshLambertMaterial({ color: 0x1a2a3a, side: THREE.DoubleSide }));
+    fluke.position.set(0, sc * 0.3, sc * 3.2);
+    g.add(fluke);
+  });
+  g.position.set(x, 0, z);
+  return g;
+}
+
+// Sea island goal group (players swim toward an island)
+const seaIslandGroup = new THREE.Group();
+(function buildSeaIsland() {
+  // Island base — flat sandy mound
+  const islandGeo = new THREE.CylinderGeometry(18, 22, 3, 12);
+  const island = new THREE.Mesh(islandGeo,
+    new THREE.MeshLambertMaterial({ color: 0xd4aa60, flatShading: true }));
+  island.position.set(0, -1, 0);
+  seaIslandGroup.add(island);
+  // Grassy top
+  const grassGeo = new THREE.CylinderGeometry(12, 18, 1.5, 12);
+  const grass = new THREE.Mesh(grassGeo,
+    new THREE.MeshLambertMaterial({ color: 0x3a7020, flatShading: true }));
+  grass.position.set(0, 1.5, 0);
+  seaIslandGroup.add(grass);
+  // Palm tree on island
+  const trunk = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.5, 0.8, 14, 7),
+    new THREE.MeshLambertMaterial({ color: 0x7c5c12 })
+  );
+  trunk.position.set(2, 9, 0);
+  trunk.rotation.z = 0.2;
+  seaIslandGroup.add(trunk);
+  // Palm crown leaves
+  for (let i = 0; i < 7; i++) {
+    const angle = (i / 7) * Math.PI * 2;
+    const leaf = new THREE.Mesh(
+      new THREE.BoxGeometry(0.4, 0.2, 6),
+      new THREE.MeshLambertMaterial({ color: 0x2a7018 })
+    );
+    leaf.position.set(2 + Math.cos(angle) * 3, 15, Math.sin(angle) * 3);
+    leaf.rotation.y = angle;
+    leaf.rotation.z = -0.4;
+    seaIslandGroup.add(leaf);
+  }
+  // Lighthouse
+  const ltBase = new THREE.Mesh(
+    new THREE.CylinderGeometry(1.5, 2.0, 10, 8),
+    new THREE.MeshLambertMaterial({ color: 0xe8e8e8, flatShading: true })
+  );
+  ltBase.position.set(-4, 7, 2);
+  seaIslandGroup.add(ltBase);
+  // Red stripes
+  [2, 5, 8].forEach(h => {
+    const stripe = new THREE.Mesh(
+      new THREE.CylinderGeometry(1.52, 1.82 - h * 0.03, 1.2, 8),
+      new THREE.MeshLambertMaterial({ color: 0xcc2200 })
+    );
+    stripe.position.set(-4, h + 0.8, 2);
+    seaIslandGroup.add(stripe);
+  });
+  // Light dome
+  const dome = new THREE.Mesh(
+    new THREE.SphereGeometry(1.8, 8, 6),
+    new THREE.MeshBasicMaterial({ color: 0xffee88 })
+  );
+  dome.position.set(-4, 13, 2);
+  seaIslandGroup.add(dome);
+})();
+seaIslandGroup.position.set(0, 0, -155);
+seaIslandGroup.visible = false;
+scene.add(seaIslandGroup);
+
+// Ships — left side
+for (let i = 0; i < 14; i++) {
+  const baseZ = -(rng(i * 7 + 600) * POOL_SPAN);
+  const ship = makeShip(
+    -(10 + rng(i * 3 + 600) * 35),
+    baseZ,
+    1.2 + rng(i * 11 + 600) * 1.4,
+    i
+  );
+  ship.visible = false;
+  scene.add(ship);
+  seaPooledObjects.push({ mesh: ship, z: baseZ });
+}
+// Whales — right side
+for (let i = 0; i < 12; i++) {
+  const baseZ = -(rng(i * 7 + 700) * POOL_SPAN);
+  const whale = makeWhale(
+    10 + rng(i * 3 + 700) * 35,
+    baseZ,
+    1.0 + rng(i * 5 + 700) * 0.8,
+    i
+  );
+  whale.visible = false;
+  scene.add(whale);
+  seaPooledObjects.push({ mesh: whale, z: baseZ });
+}
+
+// Player boats — one per possible player slot (10 max)
+const playerBoatPool = [];
+for (let i = 0; i < 10; i++) {
+  const boat = new THREE.Group();
+  // Hull
+  const bHull = new THREE.Mesh(
+    new THREE.BoxGeometry(0.7, 0.25, 1.4),
+    new THREE.MeshLambertMaterial({ color: 0x5a3010, flatShading: true })
+  );
+  bHull.position.y = 0.12;
+  boat.add(bHull);
+  // Rim
+  const bRim = new THREE.Mesh(
+    new THREE.BoxGeometry(0.72, 0.08, 1.42),
+    new THREE.MeshLambertMaterial({ color: 0x8a5028, flatShading: true })
+  );
+  bRim.position.y = 0.26;
+  boat.add(bRim);
+  // Tiny mast
+  const bMast = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.03, 0.04, 1.4, 5),
+    new THREE.MeshLambertMaterial({ color: 0x4a2808 })
+  );
+  bMast.position.set(0, 0.95, -0.1);
+  boat.add(bMast);
+  // Tiny sail
+  const bSailVerts = new Float32Array([
+    0.04, 0.0, -0.45,
+    0.04, 1.2, 0,
+    0.04, 0.0, 0.45,
+  ]);
+  const bSailGeo = new THREE.BufferGeometry();
+  bSailGeo.setAttribute('position', new THREE.Float32BufferAttribute(bSailVerts, 3));
+  bSailGeo.setIndex([0, 1, 2]);
+  bSailGeo.computeVertexNormals();
+  const bSail = new THREE.Mesh(bSailGeo,
+    new THREE.MeshLambertMaterial({ color: 0xf8f0e0, side: THREE.DoubleSide }));
+  bSail.position.set(0, 0.25, -0.1);
+  boat.add(bSail);
+
+  boat.visible = false;
+  scene.add(boat);
+  playerBoatPool.push(boat);
+}
+
 // ─── WORLD TRACKER ────────────────────────────────────────────────────────────
 let _currentWorld = 0; // 0=mountains, 1=beach — set each frame in updateDayNight
 
 function scrollWorld(dt) {
-  const step = SCROLL_SPD * dt / 1000;
+  const step    = SCROLL_SPD * dt / 1000;
   const isMtn   = (_currentWorld === 0);
   const isBeach = (_currentWorld === 1);
+  const isSea   = (_currentWorld === 2);
   pooledObjects.forEach(o => {
     o.z += step;
     if (o.z > 22) o.z -= POOL_SPAN;
@@ -915,6 +1187,12 @@ function scrollWorld(dt) {
     o.mesh.position.z = o.z;
     o.mesh.visible = isBeach;
   });
+  seaPooledObjects.forEach(o => {
+    o.z += step;
+    if (o.z > 22) o.z -= POOL_SPAN;
+    o.mesh.position.z = o.z;
+    o.mesh.visible = isSea;
+  });
 }
 
 // ─── MOUNTAIN APPROACH CYCLE ─────────────────────────────────────────────────
@@ -924,7 +1202,7 @@ const MTN_CYCLE_MS = 5 * 60 * 1000;
 function getMtnState(elapsedMs) {
   const cycleNum = Math.floor(elapsedMs / MTN_CYCLE_MS);
   const progress = (elapsedMs % MTN_CYCLE_MS) / MTN_CYCLE_MS; // 0..1, loops
-  const world    = cycleNum % 2; // 0=mountains, 1=beach — alternates each cycle
+  const world    = cycleNum % 3; // 0=mountains, 1=beach, 2=sea
   // 0→88%: approach   88→100%: pass-through transition
   const ap    = Math.min(progress / 0.88, 1.0);
   const eased = ap * ap * (3.0 - 2.0 * ap); // smoothstep — slow start, fast arrival
@@ -985,32 +1263,39 @@ function updateDayNight(nowMs) {
   // Show/hide world-specific objects
   const isMtn   = (world === 0);
   const isBeach = (world === 1);
-  goalMtnGroup.visible   = isMtn;
+  const isSea   = (world === 2);
+  goalMtnGroup.visible    = isMtn;
   beachOceanGroup.visible = isBeach;
+  seaIslandGroup.visible  = isSea;
   bgMountains.forEach(({ mesh }) => { mesh.visible = isMtn; });
-  groundMesh.visible     = isMtn;
-  sandGroundMesh.visible = isBeach;
+  groundMesh.visible      = isMtn;
+  sandGroundMesh.visible  = isBeach;
+  seaGroundMesh.visible   = isSea;
+  seaTrailMeshes.forEach(m => { m.visible = isSea; });
 
   if (isMtn) {
-    // Restore default camera range for mountains
     if (camera.far !== 320) { camera.far = 320; camera.updateProjectionMatrix(); }
-    // Mountains: scale + parallax
     goalMtnGroup.scale.setScalar(mtnScale);
     goalMtnGroup.position.z = -155 + mtnZOff;
     bgMountains.forEach(({ mesh, homeZ }) => {
       mesh.scale.setScalar(mtnScale * 0.85);
       mesh.position.z = homeZ + mtnZOff * 0.52;
     });
-  } else {
-    // Same approach logic as mountains: scale 0.04→1.10, same z travel
+  } else if (isBeach) {
     if (camera.far !== 320) { camera.far = 320; camera.updateProjectionMatrix(); }
-    beachOceanGroup.scale.setScalar(mtnScale);     // tiny dot → full ocean
-    beachOceanGroup.position.z = -155 + mtnZOff;  // -155 → +13, same as mountains
-
-    // Ocean atmosphere fog: blue haze, extended range for hazy horizon effect
+    beachOceanGroup.scale.setScalar(mtnScale);
+    beachOceanGroup.position.z = -155 + mtnZOff;
     scene.fog.near = 40;
     scene.fog.far  = 350;
     scene.fog.color.set(0x78c8e8);
+  } else {
+    // Sea world — deep ocean, island on horizon
+    if (camera.far !== 320) { camera.far = 320; camera.updateProjectionMatrix(); }
+    seaIslandGroup.scale.setScalar(mtnScale);
+    seaIslandGroup.position.z = -155 + mtnZOff;
+    scene.fog.near = 35;
+    scene.fog.far  = 260;
+    scene.fog.color.set(0x0a2040);
   }
 
   // Pass-through: rock cave darkness OR deep-ocean blue immersion
@@ -1285,6 +1570,27 @@ function gameLoop(ts) {
 
   // Animate ocean water shader
   if (window._beachWaterUniforms) window._beachWaterUniforms.uTime.value += dt * 0.0014;
+
+  // Player boats in sea world
+  const isSea = (_currentWorld === 2);
+  let boatIdx = 0;
+  if (isSea) {
+    characters.forEach((char) => {
+      if (boatIdx < playerBoatPool.length) {
+        const boat = playerBoatPool[boatIdx++];
+        boat.visible = true;
+        boat.position.set(
+          char.group.position.x,
+          char.group.position.y - 0.3 + Math.sin(Date.now() * 0.002 + char.group.position.z) * 0.08,
+          char.group.position.z
+        );
+        boat.rotation.z = Math.sin(Date.now() * 0.0018 + char.group.position.z * 0.5) * 0.06;
+      }
+    });
+  }
+  for (let bi = boatIdx; bi < playerBoatPool.length; bi++) {
+    playerBoatPool[bi].visible = false;
+  }
 
   scrollWorld(dt);
   updateDayNight(gameStartMs + scaledElapsedMs);
