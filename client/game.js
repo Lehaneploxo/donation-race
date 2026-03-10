@@ -1644,6 +1644,423 @@ cityGoalGroup.position.set(0, 0, -155);
 cityGoalGroup.visible = false;
 scene.add(cityGoalGroup);
 
+// ─── MOON WORLD (WORLD 4) ─────────────────────────────────────────────────────
+const moonWorldPooled = [];
+const moonWorldMeshes = []; // non-pooled static meshes
+
+// Moon surface ground — pale grey regolith
+const moonGroundMesh = new THREE.Mesh(
+  new THREE.PlaneGeometry(160, 500),
+  new THREE.MeshLambertMaterial({ color: 0xc8c4b8 })
+);
+moonGroundMesh.rotation.x = -Math.PI / 2;
+moonGroundMesh.position.set(0, -0.02, -180);
+moonGroundMesh.receiveShadow = true;
+moonGroundMesh.visible = false;
+scene.add(moonGroundMesh);
+
+// ── Earth planet (large sphere in sky, visible from far) ──────────────────────
+const earthGeo = new THREE.SphereGeometry(18, 32, 32);
+const earthMat = new THREE.MeshLambertMaterial({ color: 0x2255aa });
+const earthMesh = new THREE.Mesh(earthGeo, earthMat);
+// Add continents as slightly raised patches
+const earthGroup = new THREE.Group();
+earthGroup.add(earthMesh);
+// Green continent patches
+const contData = [
+  [0,0,8,6], [-6,4,5,4], [5,-3,6,5], [-3,-5,4,3], [7,6,3,3]
+];
+contData.forEach(([rx,ry,rw,rh]) => {
+  const cMesh = new THREE.Mesh(
+    new THREE.SphereGeometry(18.1, 16, 16),
+    new THREE.MeshLambertMaterial({ color: 0x228833 })
+  );
+  // clip to patch by scaling
+  cMesh.scale.set(rw / 18, rh / 18, 1.05);
+  cMesh.position.set(rx, ry, 0);
+  earthGroup.add(cMesh);
+});
+// Cloud layer
+const cloudMesh = new THREE.Mesh(
+  new THREE.SphereGeometry(18.6, 24, 24),
+  new THREE.MeshLambertMaterial({ color: 0xffffff, transparent: true, opacity: 0.35 })
+);
+earthGroup.add(cloudMesh);
+earthGroup.position.set(-38, 55, -150);
+earthGroup.visible = false;
+scene.add(earthGroup);
+moonWorldMeshes.push(earthGroup);
+
+// ── Craters on the ground ─────────────────────────────────────────────────────
+const craterMeshes = [];
+function makeCrater(x, z, r) {
+  // Crater rim ring
+  const rim = new THREE.Mesh(
+    new THREE.TorusGeometry(r, r * 0.18, 8, 20),
+    new THREE.MeshLambertMaterial({ color: 0xb0ac9e })
+  );
+  rim.rotation.x = Math.PI / 2;
+  rim.position.set(x, 0.05, z);
+  rim.visible = false;
+  scene.add(rim);
+  craterMeshes.push(rim);
+  moonWorldMeshes.push(rim);
+
+  // Dark crater floor
+  const floor = new THREE.Mesh(
+    new THREE.CircleGeometry(r * 0.82, 14),
+    new THREE.MeshLambertMaterial({ color: 0x888480 })
+  );
+  floor.rotation.x = -Math.PI / 2;
+  floor.position.set(x, 0.01, z);
+  floor.visible = false;
+  scene.add(floor);
+  craterMeshes.push(floor);
+  moonWorldMeshes.push(floor);
+}
+
+// Place craters across the surface
+const craterDefs = [
+  [-8, -20, 3.5], [6, -35, 2.2], [-3, -55, 5.0], [10, -70, 1.8],
+  [-12, -90, 4.2], [4, -110, 2.8], [-6, -130, 3.0], [9, -145, 6.0],
+  [-14, -160, 2.5], [2, -175, 3.8], [-9, -190, 4.5], [11, -210, 2.0],
+  [-4, -225, 5.5], [7, -240, 1.5], [-11, -255, 3.2],
+];
+craterDefs.forEach(([x,z,r]) => makeCrater(x, z, r));
+
+// ── Moon rocks / boulders ─────────────────────────────────────────────────────
+const moonRockDefs = [
+  [-7,  -15, 0.6], [8,  -28, 0.4], [-4, -48, 0.9], [11, -62, 0.5],
+  [-9,  -80, 0.7], [5,  -95, 1.1], [-2,-115, 0.5], [12,-128, 0.8],
+  [-6, -142, 0.6], [9, -158, 0.4], [-3,-172, 1.0], [7, -188, 0.6],
+];
+const MOON_SPAN = 260;
+moonRockDefs.forEach(([x, z, s]) => {
+  const rock = new THREE.Mesh(
+    new THREE.DodecahedronGeometry(s, 0),
+    new THREE.MeshLambertMaterial({ color: 0xaaa89a, flatShading: true })
+  );
+  rock.position.set(x, s * 0.5, z);
+  rock.rotation.set(Math.random()*Math.PI, Math.random()*Math.PI, Math.random()*Math.PI);
+  rock.castShadow = true;
+  rock.visible = false;
+  scene.add(rock);
+  moonWorldPooled.push({ mesh: rock, z: z, baseX: x });
+  moonWorldMeshes.push(rock);
+});
+
+// ── NASA flags / equipment (static scene dressing) ────────────────────────────
+function makeLunarFlag(x, z) {
+  const g = new THREE.Group();
+  const pole = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.04, 0.04, 2.2, 6),
+    new THREE.MeshLambertMaterial({ color: 0xdddddd })
+  );
+  pole.position.y = 1.1;
+  g.add(pole);
+  const flag = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.9, 0.55),
+    new THREE.MeshLambertMaterial({ color: 0xcc2222, side: THREE.DoubleSide })
+  );
+  flag.position.set(0.45, 2.05, 0);
+  g.add(flag);
+  // Stars on flag (simple white dots)
+  const starDot = new THREE.Mesh(
+    new THREE.CircleGeometry(0.06, 5),
+    new THREE.MeshLambertMaterial({ color: 0xffffff, side: THREE.DoubleSide })
+  );
+  starDot.position.set(0.15, 2.1, 0.01);
+  g.add(starDot);
+  g.position.set(x, 0, z);
+  g.visible = false;
+  scene.add(g);
+  moonWorldMeshes.push(g);
+  return g;
+}
+makeLunarFlag(-5, -40);
+makeLunarFlag(7, -120);
+makeLunarFlag(-8, -200);
+
+// ── Lunar Rovers — scroll from right, moving left ─────────────────────────────
+const lunarRovers = [];
+
+function makeLunarRover(startZ) {
+  const g = new THREE.Group();
+
+  // Chassis
+  const chassis = new THREE.Mesh(
+    new THREE.BoxGeometry(1.8, 0.4, 0.9),
+    new THREE.MeshLambertMaterial({ color: 0xddcc88 })
+  );
+  chassis.position.y = 0.55;
+  chassis.castShadow = true;
+  g.add(chassis);
+
+  // Wheels (4 corners)
+  const wheelGeo = new THREE.CylinderGeometry(0.22, 0.22, 0.18, 10);
+  const wheelMat = new THREE.MeshLambertMaterial({ color: 0x888888 });
+  [[-0.8, -0.35], [0.8, -0.35], [-0.8, 0.35], [0.8, 0.35]].forEach(([wx, wz]) => {
+    const wh = new THREE.Mesh(wheelGeo, wheelMat);
+    wh.rotation.z = Math.PI / 2;
+    wh.position.set(wx, 0.22, wz);
+    g.add(wh);
+  });
+
+  // Solar panels (flat wings)
+  [-1.4, 1.4].forEach(px => {
+    const panel = new THREE.Mesh(
+      new THREE.BoxGeometry(0.8, 0.04, 0.65),
+      new THREE.MeshLambertMaterial({ color: 0x3355cc })
+    );
+    panel.position.set(px, 0.82, 0);
+    g.add(panel);
+  });
+
+  // Antenna dish
+  const dish = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.28, 0.05, 0.08, 12),
+    new THREE.MeshLambertMaterial({ color: 0xcccccc })
+  );
+  dish.position.set(0.2, 1.05, 0);
+  dish.rotation.z = -0.4;
+  g.add(dish);
+
+  // Camera mast
+  const mast = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.04, 0.04, 0.7, 6),
+    new THREE.MeshLambertMaterial({ color: 0xaaaaaa })
+  );
+  mast.position.set(-0.1, 1.1, 0);
+  g.add(mast);
+
+  g.position.set(18, 0, startZ); // start off screen right
+  g.rotation.y = Math.PI / 2;   // face along Z axis
+  g.visible = false;
+  scene.add(g);
+  lunarRovers.push({ group: g, z: startZ, speed: 4 + Math.random() * 3 });
+  moonWorldMeshes.push(g);
+  return g;
+}
+
+makeLunarRover(-10);
+makeLunarRover(-60);
+makeLunarRover(-120);
+
+// ── Comets — fly across sky ──────────────────────────────────────────────────
+const comets = [];
+
+function makeComet() {
+  const g = new THREE.Group();
+  // Comet head
+  const head = new THREE.Mesh(
+    new THREE.SphereGeometry(0.35, 8, 8),
+    new THREE.MeshLambertMaterial({ color: 0xffffff, emissive: new THREE.Color(0xaaccff), emissiveIntensity: 0.8 })
+  );
+  g.add(head);
+  // Tail (stretched cone)
+  const tail = new THREE.Mesh(
+    new THREE.ConeGeometry(0.25, 6, 8),
+    new THREE.MeshLambertMaterial({ color: 0x88bbff, transparent: true, opacity: 0.6 })
+  );
+  tail.rotation.z = Math.PI / 2;
+  tail.position.x = 3.5;
+  g.add(tail);
+  // Inner bright core of tail
+  const core = new THREE.Mesh(
+    new THREE.ConeGeometry(0.10, 4, 6),
+    new THREE.MeshLambertMaterial({ color: 0xffffff, transparent: true, opacity: 0.8 })
+  );
+  core.rotation.z = Math.PI / 2;
+  core.position.x = 2.5;
+  g.add(core);
+
+  // Random starting position (high up, off to one side)
+  const side = Math.random() > 0.5 ? 1 : -1;
+  g.position.set(side * 80, 30 + Math.random() * 40, -60 - Math.random() * 80);
+  g.rotation.z = side > 0 ? 0.3 : -0.3;
+
+  g.visible = false;
+  scene.add(g);
+  comets.push({
+    group: g,
+    vx: -side * (12 + Math.random() * 8),
+    vy: -(2 + Math.random() * 3),
+    vz: 3 + Math.random() * 4,
+    life: 0,
+    maxLife: 4000 + Math.random() * 3000,
+    nextSpawn: Math.random() * 8000
+  });
+  moonWorldMeshes.push(g);
+}
+
+for (let i = 0; i < 5; i++) makeComet();
+
+// ── Stars (moon world specific — bright, close) ───────────────────────────────
+const moonStarGeo = new THREE.BufferGeometry();
+const moonStarCount = 800;
+const moonStarPos = new Float32Array(moonStarCount * 3);
+for (let i = 0; i < moonStarCount; i++) {
+  const theta = Math.random() * Math.PI * 2;
+  const phi   = Math.acos(2 * Math.random() - 1);
+  const r     = 200 + Math.random() * 100;
+  moonStarPos[i * 3]     = r * Math.sin(phi) * Math.cos(theta);
+  moonStarPos[i * 3 + 1] = Math.abs(r * Math.cos(phi)) + 5;
+  moonStarPos[i * 3 + 2] = r * Math.sin(phi) * Math.sin(theta);
+}
+moonStarGeo.setAttribute('position', new THREE.BufferAttribute(moonStarPos, 3));
+const moonStarMat = new THREE.PointsMaterial({ color: 0xffffff, size: 0.8, transparent: true, opacity: 0 });
+const moonStarField = new THREE.Points(moonStarGeo, moonStarMat);
+moonStarField.visible = false;
+scene.add(moonStarField);
+moonWorldMeshes.push(moonStarField);
+
+// ── Sun (bright, in space — no atmosphere scattering) ─────────────────────────
+const moonSunGroup = new THREE.Group();
+const moonSunCore = new THREE.Mesh(
+  new THREE.SphereGeometry(4.5, 16, 16),
+  new THREE.MeshLambertMaterial({ color: 0xffffff, emissive: new THREE.Color(0xffffcc), emissiveIntensity: 1.0 })
+);
+moonSunGroup.add(moonSunCore);
+// Rays
+for (let i = 0; i < 8; i++) {
+  const ray = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.15, 0.05, 6, 5),
+    new THREE.MeshLambertMaterial({ color: 0xffffaa, transparent: true, opacity: 0.6 })
+  );
+  ray.rotation.z = (i / 8) * Math.PI * 2;
+  ray.position.set(Math.cos((i/8)*Math.PI*2) * 6, Math.sin((i/8)*Math.PI*2) * 6, 0);
+  moonSunGroup.add(ray);
+}
+moonSunGroup.position.set(50, 60, -180);
+moonSunGroup.visible = false;
+scene.add(moonSunGroup);
+moonWorldMeshes.push(moonSunGroup);
+
+// Goal marker for moon world — lunar base dome
+const lunarBaseGroup = new THREE.Group();
+// Main dome
+const baseDome = new THREE.Mesh(
+  new THREE.SphereGeometry(8, 20, 12, 0, Math.PI * 2, 0, Math.PI / 2),
+  new THREE.MeshLambertMaterial({ color: 0xddddcc })
+);
+baseDome.position.y = 0;
+lunarBaseGroup.add(baseDome);
+// Base ring
+const baseRing = new THREE.Mesh(
+  new THREE.CylinderGeometry(8.2, 8.2, 1.2, 20, 1, true),
+  new THREE.MeshLambertMaterial({ color: 0xccccbb })
+);
+baseRing.position.y = 0.6;
+lunarBaseGroup.add(baseRing);
+// Windows (glowing blue dots around dome)
+for (let i = 0; i < 8; i++) {
+  const a = (i / 8) * Math.PI * 2;
+  const win = new THREE.Mesh(
+    new THREE.CircleGeometry(0.8, 8),
+    new THREE.MeshLambertMaterial({ color: 0x88ccff, emissive: new THREE.Color(0x4488cc), emissiveIntensity: 0.5 })
+  );
+  win.position.set(Math.cos(a) * 7.5, 3.5, Math.sin(a) * 7.5);
+  win.lookAt(Math.cos(a) * 20, 3.5, Math.sin(a) * 20);
+  lunarBaseGroup.add(win);
+}
+// Antenna tower
+const lbAntenna = new THREE.Mesh(
+  new THREE.CylinderGeometry(0.2, 0.3, 12, 8),
+  new THREE.MeshLambertMaterial({ color: 0xaaaaaa })
+);
+lbAntenna.position.set(0, 12, 0);
+lunarBaseGroup.add(lbAntenna);
+const lbDish = new THREE.Mesh(
+  new THREE.CylinderGeometry(3, 0.3, 1.5, 12),
+  new THREE.MeshLambertMaterial({ color: 0xdddddd })
+);
+lbDish.position.set(0, 19, 0);
+lbDish.rotation.x = 0.5;
+lunarBaseGroup.add(lbDish);
+
+lunarBaseGroup.position.set(0, 0, -155);
+lunarBaseGroup.visible = false;
+scene.add(lunarBaseGroup);
+
+// ── Update function for moon world (called each frame) ────────────────────────
+let _moonTime = 0;
+function updateMoonWorld(dt, isActive) {
+  _moonTime += dt;
+
+  moonWorldMeshes.forEach(m => { if (m.visible !== isActive) m.visible = isActive; });
+  moonGroundMesh.visible = isActive;
+
+  if (!isActive) {
+    comets.forEach(c => { c.group.visible = false; });
+    lunarRovers.forEach(r => { r.group.visible = false; });
+    moonStarMat.opacity = 0;
+    return;
+  }
+
+  // Stars always visible on moon
+  moonStarField.visible = true;
+  moonStarMat.opacity = 0.9;
+
+  // Rotate Earth slowly
+  earthMesh.rotation.y += dt * 0.0001;
+  cloudMesh.rotation.y += dt * 0.00015;
+
+  // Moon sun rays rotate
+  moonSunGroup.rotation.z += dt * 0.0002;
+
+  // ── Comets ────────────────────────────────────────────────────────────────
+  comets.forEach(c => {
+    c.nextSpawn -= dt;
+    if (c.nextSpawn > 0) { c.group.visible = false; return; }
+
+    c.life += dt;
+    if (c.life >= c.maxLife) {
+      // respawn
+      c.life = 0;
+      c.nextSpawn = 3000 + Math.random() * 6000;
+      const side = Math.random() > 0.5 ? 1 : -1;
+      c.group.position.set(side * 80, 30 + Math.random() * 40, -60 - Math.random() * 60);
+      c.vx = -side * (12 + Math.random() * 8);
+      c.vy = -(1.5 + Math.random() * 2.5);
+      c.vz = 2 + Math.random() * 4;
+      c.maxLife = 4000 + Math.random() * 3000;
+      c.group.visible = false;
+      return;
+    }
+
+    c.group.visible = true;
+    c.group.position.x += c.vx * dt * 0.001;
+    c.group.position.y += c.vy * dt * 0.001;
+    c.group.position.z += c.vz * dt * 0.001;
+    // Tail always points away from direction of travel
+    c.group.rotation.y = Math.atan2(c.vx, c.vz);
+  });
+
+  // ── Lunar rovers — scroll in from right, move left ────────────────────────
+  lunarRovers.forEach(r => {
+    r.group.visible = true;
+    r.group.position.x -= r.speed * dt * 0.001;
+    // When gone off left side, reset to right
+    if (r.group.position.x < -22) {
+      r.group.position.x = 22;
+      r.group.position.z = -5 - Math.random() * 30;
+    }
+    // Animate wheels rotating
+    r.group.children.forEach((child, i) => {
+      if (i >= 1 && i <= 4) child.rotation.x += dt * 0.004; // wheels
+    });
+  });
+
+  // ── Pool: scroll rocks with world ────────────────────────────────────────
+  const step = SCROLL_SPD * dt / 1000;
+  moonWorldPooled.forEach(o => {
+    o.z += step;
+    if (o.z > 22) o.z -= MOON_SPAN;
+    o.mesh.position.z = o.z;
+    o.mesh.visible = true;
+  });
+}
+
 // ─── WORLD TRACKER ────────────────────────────────────────────────────────────
 let _currentWorld = 0; // 0=mountains, 1=beach — set each frame in updateDayNight
 
@@ -1681,6 +2098,7 @@ function scrollWorld(dt) {
   if (cityPooledObjects._sidewalks) {
     cityPooledObjects._sidewalks.forEach(m => { m.visible = (_currentWorld === 3); });
   }
+  // Moon world scrolling is handled inside updateMoonWorld()
 }
 
 // ─── MOUNTAIN APPROACH CYCLE ─────────────────────────────────────────────────
@@ -1690,7 +2108,7 @@ const MTN_CYCLE_MS = 5 * 60 * 1000;
 function getMtnState(elapsedMs) {
   const cycleNum = Math.floor(elapsedMs / MTN_CYCLE_MS);
   const progress = (elapsedMs % MTN_CYCLE_MS) / MTN_CYCLE_MS; // 0..1, loops
-  const world    = cycleNum % 4; // 0=mountains, 1=beach, 2=sea, 3=city
+  const world    = cycleNum % 5; // 0=mountains, 1=beach, 2=sea, 3=city, 4=moon
   // 0→88%: approach   88→100%: pass-through transition
   const ap    = Math.min(progress / 0.88, 1.0);
   const eased = ap * ap * (3.0 - 2.0 * ap); // smoothstep — slow start, fast arrival
@@ -1753,15 +2171,18 @@ function updateDayNight(nowMs) {
   const isBeach = (world === 1);
   const isSea   = (world === 2);
   const isCity  = (world === 3);
+  const isMoonW = (world === 4);
   goalMtnGroup.visible    = isMtn;
   beachOceanGroup.visible = isBeach;
   seaIslandGroup.visible  = isSea;
   cityGoalGroup.visible   = isCity;
+  lunarBaseGroup.visible  = isMoonW;
   bgMountains.forEach(({ mesh }) => { mesh.visible = isMtn; });
   groundMesh.visible      = isMtn;
   sandGroundMesh.visible  = isBeach;
   seaGroundMesh.visible   = isSea;
   cityGroundMesh.visible  = isCity;
+  moonGroundMesh.visible  = isMoonW;
   seaTrailMeshes.forEach(m => { m.visible = false; });
   seaBridgeGroup.visible  = isSea;
 
@@ -1788,7 +2209,7 @@ function updateDayNight(nowMs) {
     scene.fog.near = 35;
     scene.fog.far  = 260;
     scene.fog.color.set(0x0a2040);
-  } else {
+  } else if (isCity) {
     // City world — urban haze
     if (camera.far !== 400) { camera.far = 400; camera.updateProjectionMatrix(); }
     cityGoalGroup.scale.setScalar(mtnScale);
@@ -1796,12 +2217,26 @@ function updateDayNight(nowMs) {
     scene.fog.near = 50;
     scene.fog.far  = 320;
     scene.fog.color.set(0x8890a0);
+  } else if (isMoonW) {
+    // Moon world — no atmosphere, very far visibility, bright
+    if (camera.far !== 500) { camera.far = 500; camera.updateProjectionMatrix(); }
+    lunarBaseGroup.scale.setScalar(mtnScale);
+    lunarBaseGroup.position.z = -155 + mtnZOff;
+    scene.fog.near = 200;
+    scene.fog.far  = 500;
+    scene.fog.color.set(0x000008);
+    // Override lights for bright moon daylight
+    ambientLight.color.set(0xfff8ee);
+    ambientLight.intensity = 1.2;
+    sunLight.color.set(0xffffff);
+    sunLight.intensity = 2.8;
+    sunLight.position.set(50, 60, -80);
   }
 
   // Pass-through: rock cave darkness OR deep-ocean blue immersion
   if (passPhase > 0) {
     const pa        = Math.sin(passPhase * Math.PI);
-    const throughCol = isMtn ? 0x160602 : 0x041428;
+    const throughCol = isMtn ? 0x160602 : isMoonW ? 0x000008 : 0x041428;
     scene.fog.near  = Math.max(4,  scene.fog.near  * (1 - pa * 0.62));
     scene.fog.far   = Math.max(15, scene.fog.far   * (1 - pa * 0.50));
     scene.fog.color.lerp(new THREE.Color(throughCol), pa * 0.78);
@@ -2369,6 +2804,7 @@ function gameLoop(ts) {
 
   characters.forEach(c => c.update(dt));
   updateTornado(dt);
+  updateMoonWorld(dt, _currentWorld === 4);
 
   renderer.render(scene, camera);
   drawNicknames();
