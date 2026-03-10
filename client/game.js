@@ -1648,10 +1648,10 @@ scene.add(cityGoalGroup);
 const moonWorldPooled = [];
 const moonWorldMeshes = []; // non-pooled static meshes
 
-// Moon surface ground — pale grey regolith
+// Moon surface ground — grey regolith
 const moonGroundMesh = new THREE.Mesh(
   new THREE.PlaneGeometry(160, 500),
-  new THREE.MeshLambertMaterial({ color: 0xc8c4b8 })
+  new THREE.MeshLambertMaterial({ color: 0x888888 })
 );
 moonGroundMesh.rotation.x = -Math.PI / 2;
 moonGroundMesh.position.set(0, -0.02, -180);
@@ -1659,33 +1659,55 @@ moonGroundMesh.receiveShadow = true;
 moonGroundMesh.visible = false;
 scene.add(moonGroundMesh);
 
-// ── Earth planet (large sphere in sky, visible from far) ──────────────────────
-const earthGeo = new THREE.SphereGeometry(18, 32, 32);
-const earthMat = new THREE.MeshLambertMaterial({ color: 0x2255aa });
-const earthMesh = new THREE.Mesh(earthGeo, earthMat);
-// Add continents as slightly raised patches
+// ── Earth planet ──────────────────────────────────────────────────────────────
 const earthGroup = new THREE.Group();
+// Ocean base — deep blue
+const earthMesh = new THREE.Mesh(
+  new THREE.SphereGeometry(18, 32, 32),
+  new THREE.MeshLambertMaterial({ color: 0x1a4a8a })
+);
 earthGroup.add(earthMesh);
-// Green continent patches
-const contData = [
-  [0,0,8,6], [-6,4,5,4], [5,-3,6,5], [-3,-5,4,3], [7,6,3,3]
+
+// Continents — partial spheres using phi/theta arcs positioned on surface
+// Each: [phiStart, phiLen, thetaStart, thetaLen, rotY, rotX, color]
+const continentDefs = [
+  // Americas (left side)
+  [0, Math.PI*2, 0.35, 1.1,  0.8,  0.1,  0x2d8a3e],
+  [0, Math.PI*2, 0.5,  0.7, -0.3,  0.2,  0x3a9a45],
+  // Europe + Africa (centre-right)
+  [0, Math.PI*2, 0.4,  0.9,  2.0, -0.1,  0x2d8a3e],
+  [0, Math.PI*2, 0.55, 0.8,  2.2,  0.3,  0x8a7a2e],
+  // Asia (right)
+  [0, Math.PI*2, 0.3,  1.2,  3.5,  0.0,  0x2d8a3e],
+  // Australia
+  [0, Math.PI*2, 0.7,  0.5,  4.0,  0.5,  0x9a7a2e],
+  // Antarctica
+  [0, Math.PI*2, 0.0,  0.25, 0.0,  1.45, 0xdddddd],
 ];
-contData.forEach(([rx,ry,rw,rh]) => {
-  const cMesh = new THREE.Mesh(
-    new THREE.SphereGeometry(18.1, 16, 16),
-    new THREE.MeshLambertMaterial({ color: 0x228833 })
+continentDefs.forEach(([ps, pl, ts, tl, ry, rx, col]) => {
+  const cont = new THREE.Mesh(
+    new THREE.SphereGeometry(18.08, 20, 16, ps, pl, ts, tl),
+    new THREE.MeshLambertMaterial({ color: col, side: THREE.FrontSide })
   );
-  // clip to patch by scaling
-  cMesh.scale.set(rw / 18, rh / 18, 1.05);
-  cMesh.position.set(rx, ry, 0);
-  earthGroup.add(cMesh);
+  cont.rotation.y = ry;
+  cont.rotation.x = rx;
+  earthGroup.add(cont);
 });
-// Cloud layer
+
+// Cloud layer — white wisps
 const cloudMesh = new THREE.Mesh(
-  new THREE.SphereGeometry(18.6, 24, 24),
-  new THREE.MeshLambertMaterial({ color: 0xffffff, transparent: true, opacity: 0.35 })
+  new THREE.SphereGeometry(18.55, 28, 28),
+  new THREE.MeshLambertMaterial({ color: 0xffffff, transparent: true, opacity: 0.28 })
 );
 earthGroup.add(cloudMesh);
+
+// Atmosphere glow ring
+const atmMesh = new THREE.Mesh(
+  new THREE.SphereGeometry(19.2, 24, 24),
+  new THREE.MeshLambertMaterial({ color: 0x5599ff, transparent: true, opacity: 0.12 })
+);
+earthGroup.add(atmMesh);
+
 earthGroup.position.set(-38, 55, -150);
 earthGroup.visible = false;
 scene.add(earthGroup);
@@ -1781,8 +1803,10 @@ makeLunarFlag(-5, -40);
 makeLunarFlag(7, -120);
 makeLunarFlag(-8, -200);
 
-// ── Lunar Rovers — scroll from right, moving left ─────────────────────────────
+// ── Lunar Rovers — right side of road, scroll toward camera like trees ─────────
 const lunarRovers = [];
+const ROVER_LANE_X = 7.5; // right side, away from player path (~±2)
+const ROVER_SPAN   = 80;
 
 function makeLunarRover(startZ) {
   const g = new THREE.Group();
@@ -1833,18 +1857,20 @@ function makeLunarRover(startZ) {
   mast.position.set(-0.1, 1.1, 0);
   g.add(mast);
 
-  g.position.set(18, 0, startZ); // start off screen right
-  g.rotation.y = Math.PI / 2;   // face along Z axis
+  // Positioned to the RIGHT of the player road, facing forward (along -Z)
+  g.position.set(ROVER_LANE_X, 0, startZ);
+  g.rotation.y = 0; // face same direction as players
   g.visible = false;
   scene.add(g);
-  lunarRovers.push({ group: g, z: startZ, speed: 4 + Math.random() * 3 });
+  lunarRovers.push({ group: g, z: startZ });
   moonWorldMeshes.push(g);
   return g;
 }
 
-makeLunarRover(-10);
-makeLunarRover(-60);
-makeLunarRover(-120);
+makeLunarRover(-5);
+makeLunarRover(-28);
+makeLunarRover(-52);
+makeLunarRover(-70);
 
 // ── Comets — fly across sky ──────────────────────────────────────────────────
 const comets = [];
@@ -2036,18 +2062,17 @@ function updateMoonWorld(dt, isActive) {
     c.group.rotation.y = Math.atan2(c.vx, c.vz);
   });
 
-  // ── Lunar rovers — scroll in from right, move left ────────────────────────
+  // ── Lunar rovers — scroll toward camera (parallel to player road, right side)
+  const rStep = SCROLL_SPD * dt / 1000;
   lunarRovers.forEach(r => {
     r.group.visible = true;
-    r.group.position.x -= r.speed * dt * 0.001;
-    // When gone off left side, reset to right
-    if (r.group.position.x < -22) {
-      r.group.position.x = 22;
-      r.group.position.z = -5 - Math.random() * 30;
-    }
+    r.z += rStep;
+    if (r.z > 22) r.z -= ROVER_SPAN;
+    r.group.position.z = r.z;
+    r.group.position.x = ROVER_LANE_X;
     // Animate wheels rotating
     r.group.children.forEach((child, i) => {
-      if (i >= 1 && i <= 4) child.rotation.x += dt * 0.004; // wheels
+      if (i >= 1 && i <= 4) child.rotation.x += dt * 0.004;
     });
   });
 
