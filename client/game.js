@@ -2060,6 +2060,11 @@ document.addEventListener('keydown', e => {
   }
 });
 
+// ─── DEV HOTKEYS ─────────────────────────────────────────────────────────────
+window.addEventListener('keydown', e => {
+  if (e.key === 'y' || e.key === 'Y') spawnTornado('Test (Y key)');
+});
+
 // ─── TORNADO SYSTEM ──────────────────────────────────────────────────────────
 let _tornado = null;
 
