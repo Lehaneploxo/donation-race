@@ -268,44 +268,17 @@
     .info-desc { flex: 1; color: rgba(255,255,255,0.75); font-size: 42px; padding: 0 8px; }
     .info-val  { color: #FFD700; font-weight: 900; font-size: 48px; white-space: nowrap; }
 
-    /* Tornado hint card */
+    /* Tornado hint — no box, just floating icons */
     #tornadoHint {
       position: absolute;
-      top: 430px;
+      top: 480px;
       right: 18px;
-      width: 340px;
-      background: rgba(0,0,0,0.85);
-      border: 2px solid rgba(140,110,60,0.65);
-      border-radius: 16px;
-      padding: 16px 20px 20px;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 10px;
-      box-shadow: 0 0 22px rgba(120,90,30,0.35);
-    }
-    .th-title {
-      color: rgba(255,210,80,0.75);
-      font-size: 30px;
-      letter-spacing: 3px;
-      text-transform: uppercase;
-      font-weight: 900;
-    }
-    .th-row {
       display: flex;
       align-items: center;
-      justify-content: center;
-      gap: 14px;
+      gap: 16px;
     }
-    .th-donut  { font-size: 88px; line-height: 1; }
-    .th-eq     { font-size: 54px; color: #888; font-weight: 900; }
-    .th-caption {
-      color: #bbb;
-      font-size: 36px;
-      font-weight: bold;
-      letter-spacing: 3px;
-      text-shadow: 0 0 10px rgba(180,140,60,0.5);
-    }
+    .th-donut { font-size: 90px; line-height: 1; }
+    .th-eq    { font-size: 64px; color: #ccc; font-weight: 900; line-height: 1; }
 
     /* Fixed UI buttons */
     .ui-btn {
@@ -387,47 +360,35 @@
       </div>
     </div>
 
-    <!-- Tornado hint: donut gift = tornado event -->
+    <!-- Tornado hint: donut = tornado, no box -->
     <div id="tornadoHint">
-      <div class="th-title">⚡ SPECIAL GIFT</div>
-      <div class="th-row">
-        <span class="th-donut">🍩</span>
-        <span class="th-eq">=</span>
-        <!-- SVG tornado drawing -->
-        <svg width="78" height="98" viewBox="0 0 70 90" xmlns="http://www.w3.org/2000/svg">
-          <defs>
-            <linearGradient id="tfg" x1="50%" y1="0%" x2="50%" y2="100%">
-              <stop offset="0%"   stop-color="#222220"/>
-              <stop offset="60%"  stop-color="#3a3830"/>
-              <stop offset="100%" stop-color="#504838"/>
-            </linearGradient>
-          </defs>
-          <!-- Outer funnel body -->
-          <path d="M4,6 C35,-5 35,-5 66,6 L43,76 C37,88 33,88 27,76 Z"
-                fill="url(#tfg)" opacity="0.92"/>
-          <!-- Inner dark core -->
-          <path d="M27,7 C35,2 35,2 43,7 L37,75 C36,81 34,81 33,75 Z"
-                fill="#0c0c0a" opacity="0.80"/>
-          <!-- Swirl bands (horizontal ellipses narrowing toward ground) -->
-          <ellipse cx="35" cy="17" rx="26" ry="5.5" fill="none" stroke="#6e6458" stroke-width="2.8"/>
-          <ellipse cx="35" cy="29" rx="20" ry="4.5" fill="none" stroke="#6e6458" stroke-width="2.5"/>
-          <ellipse cx="35" cy="40" rx="14" ry="3.8" fill="none" stroke="#625c50" stroke-width="2.2"/>
-          <ellipse cx="35" cy="51" rx="9"  ry="3.2" fill="none" stroke="#585248" stroke-width="2.0"/>
-          <ellipse cx="35" cy="61" rx="5.5" ry="2.5" fill="none" stroke="#504a40" stroke-width="1.8"/>
-          <ellipse cx="35" cy="70" rx="3"  ry="2.0" fill="none" stroke="#484240" stroke-width="1.5"/>
-          <!-- Ground dust cloud -->
-          <ellipse cx="35" cy="83" rx="22" ry="7"   fill="#7a6030" opacity="0.55"/>
-          <ellipse cx="35" cy="87" rx="14" ry="4.5" fill="#6a5028" opacity="0.45"/>
-          <!-- Flying debris specks -->
-          <circle cx="11" cy="30" r="2.0" fill="#9a8868"/>
-          <circle cx="63" cy="24" r="2.0" fill="#9a8868"/>
-          <circle cx="6"  cy="48" r="1.6" fill="#888060"/>
-          <circle cx="66" cy="43" r="1.6" fill="#888060"/>
-          <circle cx="14" cy="60" r="1.3" fill="#706050"/>
-          <circle cx="59" cy="56" r="1.3" fill="#706050"/>
-        </svg>
-      </div>
-      <div class="th-caption">🌪 TORNADO!</div>
+      <span class="th-donut">🍩</span>
+      <span class="th-eq">=</span>
+      <svg width="82" height="100" viewBox="0 0 70 90" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="tfg" x1="50%" y1="0%" x2="50%" y2="100%">
+            <stop offset="0%"   stop-color="#222220"/>
+            <stop offset="60%"  stop-color="#3a3830"/>
+            <stop offset="100%" stop-color="#504838"/>
+          </linearGradient>
+        </defs>
+        <path d="M4,6 C35,-5 35,-5 66,6 L43,76 C37,88 33,88 27,76 Z" fill="url(#tfg)" opacity="0.92"/>
+        <path d="M27,7 C35,2 35,2 43,7 L37,75 C36,81 34,81 33,75 Z" fill="#0c0c0a" opacity="0.80"/>
+        <ellipse cx="35" cy="17" rx="26" ry="5.5" fill="none" stroke="#6e6458" stroke-width="2.8"/>
+        <ellipse cx="35" cy="29" rx="20" ry="4.5" fill="none" stroke="#6e6458" stroke-width="2.5"/>
+        <ellipse cx="35" cy="40" rx="14" ry="3.8" fill="none" stroke="#625c50" stroke-width="2.2"/>
+        <ellipse cx="35" cy="51" rx="9"  ry="3.2" fill="none" stroke="#585248" stroke-width="2.0"/>
+        <ellipse cx="35" cy="61" rx="5.5" ry="2.5" fill="none" stroke="#504a40" stroke-width="1.8"/>
+        <ellipse cx="35" cy="70" rx="3"  ry="2.0" fill="none" stroke="#484240" stroke-width="1.5"/>
+        <ellipse cx="35" cy="83" rx="22" ry="7"   fill="#7a6030" opacity="0.55"/>
+        <ellipse cx="35" cy="87" rx="14" ry="4.5" fill="#6a5028" opacity="0.45"/>
+        <circle cx="11" cy="30" r="2.0" fill="#9a8868"/>
+        <circle cx="63" cy="24" r="2.0" fill="#9a8868"/>
+        <circle cx="6"  cy="48" r="1.6" fill="#888060"/>
+        <circle cx="66" cy="43" r="1.6" fill="#888060"/>
+        <circle cx="14" cy="60" r="1.3" fill="#706050"/>
+        <circle cx="59" cy="56" r="1.3" fill="#706050"/>
+      </svg>
     </div>
   </div>
 
