@@ -361,6 +361,9 @@ class Car3D {
 // Keep Character3D as alias so any leftover references still work
 const Character3D = Car3D;
 
+// game.js uses SHIRT_COLORS for nickname label colour — point it at car body colours
+const SHIRT_COLORS = CAR_BODY_COLORS;
+
 function _rrect(ctx, x, y, w, h, r) {
   ctx.beginPath();
   ctx.moveTo(x+r, y);
