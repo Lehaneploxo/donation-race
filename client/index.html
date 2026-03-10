@@ -331,14 +331,7 @@
     window.addEventListener('resize', resize);
 
     window.addEventListener('orientationchange', function() {
-      // При повороте на горизонталь — автоматически фулскрин
-      setTimeout(function() {
-        var isLandscape = window.innerWidth > window.innerHeight;
-        if (isLandscape && !isFullscreen()) {
-          enterFullscreen();
-        }
-        resize();
-      }, 300);
+      setTimeout(resize, 300);
     });
 
     resize();
@@ -423,7 +416,7 @@
       if (req) {
         req.call(el).then(function() {
           if (screen.orientation && screen.orientation.lock) {
-            screen.orientation.lock('landscape').catch(function(){});
+            screen.orientation.lock('portrait').catch(function(){});
           }
           setTimeout(resize, 300);
         }).catch(function(e) {
