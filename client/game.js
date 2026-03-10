@@ -2175,62 +2175,77 @@ function spawnTornado(triggerUsername) {
   cap.rotation.x = Math.PI;
   group.add(cap);
 
-  group.position.set(startX, 0, -14 + (Math.random() - 0.5) * 3);
-  group.scale.y = 0;   // funnel descends from sky
+  // Tornado appears CENTER of the scene — where players are walking
+  // Slight random X offset so it doesn't always land on same spot
+  const centerX = (Math.random() - 0.5) * 3;
+  group.position.set(centerX, 0, -13);
+  group.scale.y = 0;   // funnel descends from sky at start
   scene.add(group);
 
   _tornado = {
     group, rings, shells, pts, pPos, pDat, pGeo, dust, chunks,
-    startX, endX, FUNNEL_H,
-    startTime:     Date.now(),
-    duration:      7000,
+    centerX, FUNNEL_H,
+    startTime:    Date.now(),
+    duration:     8500,   // total: 1s down + 6s spin + 1.5s up
     capturedChars: new Map(),
+    allCaptured:  false,  // flag: have we swept up all players yet?
     triggerUsername,
   };
-  console.log(`[Tornado] spawned by ${triggerUsername}`);
+  console.log(`[Tornado] spawned by ${triggerUsername} at x=${centerX.toFixed(1)}`);
 }
 
 function updateTornado(dt) {
   if (!_tornado) return;
   const { group, rings, shells, pts, pPos, pDat, pGeo, dust, chunks,
-          startX, endX, FUNNEL_H, capturedChars } = _tornado;
+          centerX, FUNNEL_H, capturedChars } = _tornado;
 
   const now     = Date.now();
   const elapsed = now - _tornado.startTime;
   const rawT    = Math.min(elapsed / _tornado.duration, 1.0);
   const time    = elapsed / 1000;
 
-  // ── End: release all players and despawn ────────────────────────────────────
+  // ── End: release all and despawn ────────────────────────────────────────────
   if (rawT >= 1.0) {
     capturedChars.forEach((data, id) => {
       const c = characters.get(id);
-      if (c) { c._inTornado = false; c._falling = true; c._fallVy = 1.5 + Math.random() * 2; c.group.rotation.z = 0; }
+      if (c) {
+        c._inTornado = false;
+        c._falling   = true;
+        c._fallVy    = 2 + Math.random() * 3;
+        c.group.rotation.z = 0;
+      }
     });
     scene.remove(group);
     _tornado = null;
     return;
   }
 
-  // ── Scale Y: funnel descends (0→0.14) and ascends (0.86→1) ────────────────
-  const scaleY = rawT < 0.14 ? rawT / 0.14 : rawT > 0.86 ? (1 - rawT) / 0.14 : 1.0;
+  // ── Phases ──────────────────────────────────────────────────────────────────
+  // 0.00 – 0.12  : funnel descends from sky
+  // 0.12 – 0.82  : full tornado, players spin  (≈ 5.9 seconds)
+  // 0.82 – 1.00  : funnel lifts back to sky
+
+  // ScaleY: 0→1 on descent, 1 during spin, 1→0 on ascent
+  const scaleY = rawT < 0.12 ? rawT / 0.12
+               : rawT > 0.82 ? (1.0 - rawT) / 0.18
+               : 1.0;
   group.scale.y = scaleY;
 
-  // ── Position: traverse across scene with organic wobble ────────────────────
-  const travelT = Math.max(0, Math.min((rawT - 0.10) / 0.80, 1));
-  group.position.x = startX + (endX - startX) * travelT;
-  group.position.z = -14 + Math.sin(time * 0.85) * 1.5 + Math.sin(time * 1.9) * 0.55;
+  // Position: STAYS at center with small organic sway (no side-to-side travel)
+  group.position.x = centerX + Math.sin(time * 0.55) * 1.8 + Math.sin(time * 1.3) * 0.6;
+  group.position.z = -13    + Math.sin(time * 0.42) * 1.2;
 
-  // ── Rotate rings ───────────────────────────────────────────────────────────
+  // ── Rotate rings ────────────────────────────────────────────────────────────
   rings.forEach(ring => {
     ring.rotation.z = time * ring._rSpeed + ring._rPhase;
     ring.position.x = Math.sin(time * ring._wobFreq + ring._rPhase) * ring._wobAmp;
     ring.position.z = Math.cos(time * ring._wobFreq * 0.72 + ring._rPhase) * ring._wobAmp * 0.75;
   });
 
-  // ── Rotate outer shells (counter-rotation effect) ──────────────────────────
+  // ── Outer shells counter-rotation ───────────────────────────────────────────
   shells.forEach(s => { s.rotation.y += s._sRotSpd * dt * 0.001; });
 
-  // ── Animate spiral particles ───────────────────────────────────────────────
+  // ── Spiral particles ────────────────────────────────────────────────────────
   for (let i = 0; i < pDat.length; i++) {
     const d = pDat[i];
     d.ang += (5.0 - d.t * 3.0) * dt * 0.001;
@@ -2241,11 +2256,11 @@ function updateTornado(dt) {
   }
   pGeo.attributes.position.needsUpdate = true;
 
-  // ── Dust ring pulse ────────────────────────────────────────────────────────
+  // ── Dust pulse ──────────────────────────────────────────────────────────────
   dust.rotation.z = time * 2.5;
-  dust.scale.setScalar(0.88 + Math.sin(time * 6) * 0.13);
+  dust.scale.setScalar(0.88 + Math.sin(time * 6) * 0.14);
 
-  // ── Debris orbit ──────────────────────────────────────────────────────────
+  // ── Debris chunks orbit ─────────────────────────────────────────────────────
   chunks.forEach(ch => {
     ch._ca += ch._cs * dt * 0.001;
     ch.position.x = Math.cos(ch._ca) * ch._cr;
@@ -2253,48 +2268,55 @@ function updateTornado(dt) {
     ch.rotation.x += 0.045; ch.rotation.y += 0.065;
   });
 
-  // ── Capture players within reach (main traversal phase only) ───────────────
-  if (rawT > 0.14 && rawT < 0.80) {
+  // ── Capture ALL players the moment funnel fully lands ───────────────────────
+  if (rawT > 0.13 && !_tornado.allCaptured) {
+    _tornado.allCaptured = true;
+    let slot = 0;
     characters.forEach((char, id) => {
-      if (capturedChars.has(id) || char._inTornado || char._falling) return;
-      const dx = char.group.position.x - group.position.x;
-      const dz = char.group.position.z - group.position.z;
-      if (Math.sqrt(dx * dx + dz * dz) < 5.5) {
-        capturedChars.set(id, {
-          captureTime: now,
-          angle:    Math.atan2(dz, dx),
-          orbitR:   1.0 + Math.random() * 1.8,
-          orbitSpd: 4.2 + Math.random() * 3.2,
-          orbitH:   3.5 + Math.random() * 5.5,
-        });
-        char._inTornado = true;
-      }
+      if (char._inTornado || char._falling) return;
+      // Each player gets a unique orbit slot for visual spread
+      capturedChars.set(id, {
+        captureTime: now,
+        angle:    (slot / Math.max(characters.size, 1)) * Math.PI * 2,  // evenly spread
+        orbitR:   1.5 + (slot % 3) * 0.9,                               // 3 orbit rings
+        orbitSpd: 3.5 + (slot % 5) * 0.6,                              // varied speeds
+        orbitH:   3.0 + (slot % 4) * 1.6,                              // varied heights
+      });
+      char._inTornado = true;
+      slot++;
     });
+    console.log(`[Tornado] captured ${slot} players`);
   }
 
-  // ── Update captured players: orbit tornado, lift into air ──────────────────
+  // ── Animate orbiting players ─────────────────────────────────────────────────
   capturedChars.forEach((data, id) => {
     const char = characters.get(id);
     if (!char) { capturedChars.delete(id); return; }
 
-    // Release just before tornado lifts
-    if (rawT > 0.78) {
+    // Release players just before tornado lifts (rawT > 0.80)
+    if (rawT > 0.80) {
       capturedChars.delete(id);
       char._inTornado = false;
       char._falling   = true;
-      char._fallVy    = 1.5 + Math.random() * 2.5;  // upward burst then fall
+      char._fallVy    = 1.5 + Math.random() * 2.5;
       char.group.rotation.z = 0;
+      char.group.rotation.x = 0;
       return;
     }
 
-    const liftT = Math.min((now - data.captureTime) / 550, 1.0);
-    data.angle += data.orbitSpd * dt * 0.001;
+    // Smooth lift: 0→orbitH over 0.6s
+    const liftT = Math.min((now - data.captureTime) / 600, 1.0);
 
+    // Orbit around tornado center
+    data.angle += data.orbitSpd * dt * 0.001;
     char.group.position.x = group.position.x + Math.cos(data.angle) * data.orbitR;
     char.group.position.z = group.position.z + Math.sin(data.angle) * data.orbitR;
-    char.group.position.y = data.orbitH * liftT + Math.sin(time * 4.5 + data.angle) * 0.28;
+    char.group.position.y = data.orbitH * liftT
+                          + Math.sin(time * 4.5 + data.angle) * 0.35;  // bobbing
+
+    // Tumbling rotation while spinning
     char.group.rotation.z = data.angle + Math.PI * 0.5;
-    char.group.rotation.x = Math.sin(time * 6.5 + data.angle) * 0.65;
+    char.group.rotation.x = Math.sin(time * 6.0 + data.angle) * 0.70;
   });
 }
 
