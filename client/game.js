@@ -1901,10 +1901,10 @@ function applyUpdate(newPlayers, total) {
   positionCharacters();
 }
 
-const GOAL_COINS = 1000;
+const GOAL_POINTS = 2000;   // ~1000 coins × 2pts  or  200 000 likes
 function updateProgressUI(pl) {
   if (!pl?.length) return;
-  const pct = Math.min((pl[0].totalCoins / GOAL_COINS) * 100, 100);
+  const pct = Math.min((pl[0].totalPoints / GOAL_POINTS) * 100, 100);
   document.getElementById('progressPct').textContent      = pct.toFixed(2) + '%';
   document.getElementById('progressBarInner').style.width = pct + '%';
 }

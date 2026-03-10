@@ -78,10 +78,19 @@ class PlayersManager {
   }
 
   getTop10() {
-    return Array.from(this.players.values())
-      .filter(p => p.active)
-      .sort((a, b) => b.totalPoints - a.totalPoints)
-      .slice(0, 10);
+    const now      = Date.now();
+    const active   = Array.from(this.players.values()).filter(p => p.active);
+    active.sort((a, b) => b.totalPoints - a.totalPoints);
+
+    // Always include top-10 by score
+    const top10    = active.slice(0, 10);
+    const top10Ids = new Set(top10.map(p => p.playerId));
+
+    // Also include players who joined in the last 90 seconds (newcomers)
+    const newbies  = active.filter(p => now - p.joinTime < 90_000 && !top10Ids.has(p.playerId));
+
+    // Return top-10 (sorted) + newcomers, cap at 20 total
+    return [...top10, ...newbies].slice(0, 20);
   }
 
   getTotalCount() {

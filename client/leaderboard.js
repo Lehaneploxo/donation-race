@@ -8,7 +8,7 @@ const Leaderboard = {
     const list = document.getElementById('leaderboardList');
     list.innerHTML = '';
 
-    players.forEach((player, index) => {
+    players.slice(0, 10).forEach((player, index) => {
       const rank   = index + 1;
       const pts    = player.totalPoints !== undefined ? player.totalPoints : player.totalCoins;
       const item   = document.createElement('div');
