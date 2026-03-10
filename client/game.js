@@ -2298,11 +2298,11 @@ function updateDayNight(nowMs) {
 // ─── CHARACTER POSITIONING ───────────────────────────────────────────────────
 const FRONT_Z   = -30;
 const BACK_Z    = -4;
-const MIN_GAP   = 2.2;
+const MIN_GAP   = 5.5;   // longest car (truck) ≈5.4 + clearance
 const EXTRA_GAP = 6;
 
-const LANES      = [-1.9, -0.85, 0, 0.85, 1.9];
-const LANE_ORDER = [2, 0, 4, 1, 3];
+const LANES      = [-1.5, 0, 1.5];   // 3 lanes — car width ≈1.85, gap between sides ≈1.1
+const LANE_ORDER = [1, 0, 2];
 
 const playerLanes = new Map();
 
@@ -2338,7 +2338,7 @@ function positionCharacters() {
     char.targetZ = scaledZ;
     if (!playerLanes.has(player.playerId)) {
       const laneIdx = LANE_ORDER[index % LANE_ORDER.length];
-      playerLanes.set(player.playerId, LANES[laneIdx] + (Math.random() - 0.5) * 0.25);
+      playerLanes.set(player.playerId, LANES[laneIdx]); // no random wobble — cars need clean lanes
     }
     char.targetX = playerLanes.get(player.playerId);
   });
