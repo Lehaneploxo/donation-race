@@ -62,8 +62,8 @@ class Car3D {
       case 'sports': this._buildSports(bodyMat, glassMat, wheelMat, rimMat); break;
     }
 
-    // All cars face forward (away from camera, toward finish)
-    this.group.rotation.y = Math.PI;
+    // All cars face forward (front = -Z model space, toward finish = -Z world)
+    this.group.rotation.y = 0;
   }
 
   // Helper: create a wheel group and register it for spinning
@@ -331,7 +331,7 @@ class Car3D {
         this._falling = false;
         this._fallVy  = 0;
         // Fully restore car orientation so it drives straight after landing
-        this.group.rotation.set(0, Math.PI, 0);
+        this.group.rotation.set(0, 0, 0);
       }
       return;
     }
@@ -340,7 +340,7 @@ class Car3D {
     this.group.position.z += (this.targetZ - this.group.position.z) * 0.055;
     this.group.position.x += (this.targetX - this.group.position.x) * 0.055;
     this.group.rotation.x = 0;
-    this.group.rotation.y = Math.PI;
+    this.group.rotation.y = 0;
     this.group.rotation.z = 0;
 
     // Spin wheels
