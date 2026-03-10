@@ -3,6 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="manifest" href="/manifest.json">
   <title>Reach the Mountain!</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -251,9 +255,43 @@
     #fsBtn    { bottom: 16px; right: 16px; }
     #musicBtn { bottom: 16px; right: 72px; }
     #musicBtn.on { border-color: #00FF88; color: #00FF88; }
+
+    /* Fullscreen tap overlay for mobile */
+    #fsOverlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 999998;
+      background: rgba(0,0,0,0.75);
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+    }
+    #fsOverlay.show { display: flex; }
+    #fsOverlay .fs-icon { font-size: 64px; margin-bottom: 16px; }
+    #fsOverlay .fs-text {
+      color: #FFF;
+      font-size: 22px;
+      font-weight: bold;
+      letter-spacing: 2px;
+      text-align: center;
+      text-shadow: 0 0 20px rgba(255,255,255,0.5);
+    }
+    #fsOverlay .fs-sub {
+      color: rgba(255,255,255,0.5);
+      font-size: 13px;
+      margin-top: 8px;
+    }
   </style>
 </head>
 <body>
+<!-- Mobile fullscreen tap overlay -->
+<div id="fsOverlay">
+  <div class="fs-icon">⛶</div>
+  <div class="fs-text">НАЖМИТЕ ДЛЯ<br>ПОЛНОГО ЭКРАНА</div>
+  <div class="fs-sub">TAP FOR FULLSCREEN</div>
+</div>
 <button id="musicBtn" class="ui-btn" title="Music">🎵</button>
 <button id="fsBtn"    class="ui-btn" title="Fullscreen">⛶</button>
 <div id="scaleWrapper">
@@ -333,6 +371,33 @@
     });
 
     resize();
+
+    // Fullscreen overlay (mobile prompt)
+    var fsOverlay = document.getElementById('fsOverlay');
+    var isMobile  = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
+
+    function showFsOverlay() {
+      if (isMobile && !isFullscreen()) fsOverlay.classList.add('show');
+    }
+    function hideFsOverlay() {
+      fsOverlay.classList.remove('show');
+    }
+
+    fsOverlay.addEventListener('click', function() {
+      enterFullscreen();
+      hideFsOverlay();
+    });
+
+    // Show overlay on mobile after 1 second
+    if (isMobile) setTimeout(showFsOverlay, 1000);
+
+    // Re-show overlay if user exits fullscreen on mobile
+    document.addEventListener('fullscreenchange', function() {
+      if (!isFullscreen() && isMobile) setTimeout(showFsOverlay, 500);
+    });
+    document.addEventListener('webkitfullscreenchange', function() {
+      if (!isFullscreen() && isMobile) setTimeout(showFsOverlay, 500);
+    });
 
     // Music button
     var musicBtn = document.getElementById('musicBtn');
