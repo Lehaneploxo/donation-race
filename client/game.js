@@ -2494,7 +2494,9 @@ const TIME_SPEEDS   = [1, 10, 60, 300];
 let   timeSpeedIdx  = 0;
 let   scaledElapsedMs = 0;
 
+// ─── DEV HOTKEYS ─────────────────────────────────────────────────────────────
 document.addEventListener('keydown', e => {
+  // T — cycle time speed
   if (e.key === 'T' || e.key === 't') {
     timeSpeedIdx = (timeSpeedIdx + 1) % TIME_SPEEDS.length;
     const speed = TIME_SPEEDS[timeSpeedIdx];
@@ -2506,16 +2508,20 @@ document.addEventListener('keydown', e => {
       el.style.borderColor = el.style.color;
     }
   }
-});
-
-// ─── DEV HOTKEYS ─────────────────────────────────────────────────────────────
-window.addEventListener('keydown', e => {
+  // Y — test tornado
   if (e.key === 'y' || e.key === 'Y') spawnTornado('Test (Y key)');
-  // M — jump to moon world instantly for testing
+  // M — jump to moon world instantly
   if (e.key === 'm' || e.key === 'M') {
-    // Moon world = world index 4, so we need cycleNum=4 → elapsedMs = 4 * MTN_CYCLE_MS
-    scaledElapsedMs = 4 * MTN_CYCLE_MS + 30000; // 30s into moon world
+    scaledElapsedMs = 4 * MTN_CYCLE_MS + 30000;
+    console.log('[DEV] Jumped to Moon world, scaledElapsedMs=', scaledElapsedMs);
+    const el = document.getElementById('timeSpeedBadge');
+    if (el) { el.textContent = '🌙 MOON WORLD'; el.style.color = '#aaf'; el.style.borderColor = '#aaf'; }
   }
+  // 1-4 — jump to specific world
+  if (e.key === '1') scaledElapsedMs = 0;
+  if (e.key === '2') scaledElapsedMs = MTN_CYCLE_MS + 30000;
+  if (e.key === '3') scaledElapsedMs = 2 * MTN_CYCLE_MS + 30000;
+  if (e.key === '4') scaledElapsedMs = 3 * MTN_CYCLE_MS + 30000;
 });
 
 // ─── TORNADO SYSTEM ──────────────────────────────────────────────────────────
