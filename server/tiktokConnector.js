@@ -38,8 +38,12 @@ function connectToTikTok(username, onGift, onStatus, onMember, onLike) {
     });
 
   conn.on('gift', data => {
-    if (data.giftType === 1 || data.repeatEnd) {
-      const coins = (data.diamondCount || data.giftDetails?.diamondCount || 1) * (data.repeatCount || 1);
+    // Accept: non-streakable gifts (giftType !== 2) OR end of a streak (repeatEnd)
+    // Skip: intermediate events of an ongoing streak (giftType === 2 && !repeatEnd)
+    if (data.giftType !== 2 || data.repeatEnd) {
+      const perGift = data.diamondCount ?? data.giftDetails?.diamondCount ?? 1;
+      const coins   = Math.max(1, perGift) * (data.repeatCount || 1);
+      console.log(`[Gift] ${data.nickname || data.uniqueId} → ${coins} coins (type=${data.giftType}, repeatEnd=${data.repeatEnd})`);
       onGift({
         userId:    String(data.userId),
         username:  data.nickname || data.uniqueId || 'Unknown',
@@ -52,7 +56,9 @@ function connectToTikTok(username, onGift, onStatus, onMember, onLike) {
   // Лайки
   conn.on('like', data => {
     if (!onLike) return;
-    const count = data.likeCount || data.totalLikeCount || 1;
+    // likeCount = likes in THIS batch; totalLikeCount is cumulative — use likeCount only
+    const count = data.likeCount || 1;
+    console.log(`[Like] ${data.nickname || data.uniqueId} → +${count} likes`);
     onLike({
       userId:    String(data.userId),
       username:  data.nickname || data.uniqueId || 'Unknown',

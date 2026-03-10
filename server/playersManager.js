@@ -31,7 +31,7 @@ class PlayersManager {
 
   addCoins(userId, username, avatarUrl, coins) {
     const p = this._ensurePlayer(userId, username, avatarUrl);
-    p.totalCoins += coins;
+    p.totalCoins += (Number(coins) || 0);
     p.username    = username || p.username;
     p.active      = true;
     p.lastSeen    = Date.now();
@@ -42,7 +42,7 @@ class PlayersManager {
 
   addLikes(userId, username, avatarUrl, likes) {
     const p = this._ensurePlayer(userId, username, avatarUrl);
-    p.totalLikes += likes;
+    p.totalLikes += (Number(likes) || 0);
     p.username    = username || p.username;
     p.active      = true;
     p.lastSeen    = Date.now();
