@@ -357,8 +357,11 @@
       return { x: (t1.clientX + t2.clientX) / 2, y: (t1.clientY + t2.clientY) / 2 };
     }
 
+    var wasPinching = false;
+
     document.addEventListener('touchstart', function(e) {
       if (e.touches.length === 2) {
+        wasPinching = true;
         lastDist = dist(e.touches[0], e.touches[1]);
         lastMid  = mid(e.touches[0], e.touches[1]);
         isDragging = false;
@@ -387,17 +390,13 @@
       }
     }, { passive: true });
 
-    // Double-tap to reset zoom
-    var lastTap = 0;
     document.addEventListener('touchend', function(e) {
-      if (e.touches.length === 0) isDragging = false;
-      var now = Date.now();
-      if (now - lastTap < 300 && e.changedTouches.length === 1) {
-        pinchScale  = 1;
-        pinchOffset = { x: 0, y: 0 };
-        applyTransform();
+      if (e.touches.length === 0) {
+        isDragging = false;
+        // Сбросить флаг пинча только когда все пальцы убраны
+        // НЕ сбрасываем масштаб автоматически — фиксируем текущее положение
+        setTimeout(function() { wasPinching = false; }, 400);
       }
-      lastTap = now;
     }, { passive: true });
 
     // Music button
