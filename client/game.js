@@ -2218,19 +2218,32 @@ function updateDayNight(nowMs) {
     scene.fog.far  = 320;
     scene.fog.color.set(0x8890a0);
   } else if (isMoonW) {
-    // Moon world — no atmosphere, very far visibility, bright
+    // Moon world — space sky, bright sun from upper-right
     if (camera.far !== 500) { camera.far = 500; camera.updateProjectionMatrix(); }
     lunarBaseGroup.scale.setScalar(mtnScale);
     lunarBaseGroup.position.z = -155 + mtnZOff;
-    scene.fog.near = 200;
+    // Black space sky
+    skyUniforms.uZenith.value.set(0.0, 0.0, 0.02);
+    skyUniforms.uMidSky.value.set(0.0, 0.0, 0.015);
+    skyUniforms.uHorizon.value.set(0.02, 0.02, 0.04);
+    skyUniforms.uGlow.value.set(0.05, 0.05, 0.1);
+    skyUniforms.uSunVisible.value = 0.0; // hide day/night sun disk
+    sunGroup.visible = false;
+    moonGroup.visible = false;
+    if (window._starMat) window._starMat.opacity = 0; // hide day/night stars (use moon world stars)
+    // No fog (space is clear)
+    scene.fog.near = 300;
     scene.fog.far  = 500;
     scene.fog.color.set(0x000008);
-    // Override lights for bright moon daylight
+    // Bright hard sunlight from upper-right (no atmosphere diffusion)
     ambientLight.color.set(0xfff8ee);
     ambientLight.intensity = 1.2;
     sunLight.color.set(0xffffff);
     sunLight.intensity = 2.8;
     sunLight.position.set(50, 60, -80);
+    // Show moon world label
+    const moonEl = document.getElementById('timeOfDay');
+    if (moonEl) moonEl.textContent = '🌙 MOON';
   }
 
   // Pass-through: rock cave darkness OR deep-ocean blue immersion
