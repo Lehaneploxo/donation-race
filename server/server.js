@@ -58,13 +58,22 @@ class Room {
       (data) => {
         const cameBack = this.players.updatePresence(data.userId, data.username, data.avatarUrl);
         if (cameBack) {
-          // Игрок вернулся после отсутствия — обновить всех
           this.broadcast({
             type:         'update',
             players:      this.players.getTop10(),
             totalPlayers: this.players.getTotalCount()
           });
         }
+      },
+      // onLike — лайки
+      (data) => {
+        this.players.addLikes(data.userId, data.username, data.avatarUrl, data.likes);
+        this.broadcast({
+          type:         'update',
+          players:      this.players.getTop10(),
+          totalPlayers: this.players.getTotalCount(),
+          event:        { type: 'like', username: data.username, likes: data.likes }
+        });
       }
     );
 

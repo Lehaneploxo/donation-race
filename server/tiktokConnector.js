@@ -17,7 +17,7 @@ const DEMO_USERS = [
  * @param {Function} onMember   called with { userId, username, avatarUrl } when viewer joins
  * @returns {object} connection
  */
-function connectToTikTok(username, onGift, onStatus, onMember) {
+function connectToTikTok(username, onGift, onStatus, onMember, onLike) {
   const notify = onStatus || (() => {});
   const conn   = new WebcastPushConnection(username);
   conn._tiktokMode = 'connecting';
@@ -34,7 +34,7 @@ function connectToTikTok(username, onGift, onStatus, onMember) {
       console.error(`[TikTok][${username}] Ошибка: ${msg}`);
       console.log(`[TikTok][${username}] Переключение на демо-режим`);
       notify({ connected: false, mode: 'demo', message: `Не удалось подключить @${username}: ${msg}` });
-      _startDemo(onGift, conn);
+      _startDemo(onGift, conn, onLike);
     });
 
   conn.on('gift', data => {
@@ -47,6 +47,18 @@ function connectToTikTok(username, onGift, onStatus, onMember) {
         coins
       });
     }
+  });
+
+  // Лайки
+  conn.on('like', data => {
+    if (!onLike) return;
+    const count = data.likeCount || data.totalLikeCount || 1;
+    onLike({
+      userId:    String(data.userId),
+      username:  data.nickname || data.uniqueId || 'Unknown',
+      avatarUrl: data.profilePictureUrl || '',
+      likes:     count
+    });
   });
 
   // Зритель зашёл в стрим → обновить присутствие
@@ -67,11 +79,17 @@ function connectToTikTok(username, onGift, onStatus, onMember) {
   return conn;
 }
 
-function _startDemo(onGift, conn) {
+function _startDemo(onGift, conn, onLike) {
   const iv = setInterval(() => {
-    const u     = DEMO_USERS[Math.floor(Math.random() * DEMO_USERS.length)];
-    const coins = Math.floor(Math.random() * 100) + 1;
-    onGift({ userId: u.id, username: u.name, avatarUrl: '', coins });
+    const u = DEMO_USERS[Math.floor(Math.random() * DEMO_USERS.length)];
+    if (Math.random() < 0.4 && onLike) {
+      // 40% chance — лайки (5–50 за раз)
+      const likes = (Math.floor(Math.random() * 10) + 1) * 5;
+      onLike({ userId: u.id, username: u.name, avatarUrl: '', likes });
+    } else {
+      const coins = Math.floor(Math.random() * 50) + 1;
+      onGift({ userId: u.id, username: u.name, avatarUrl: '', coins });
+    }
   }, 800);
 
   // Attach cleanup to the connection object so the room can clear it

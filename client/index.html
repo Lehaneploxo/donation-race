@@ -198,42 +198,75 @@
       box-shadow: 0 0 8px #00FF88;
     }
 
-    /* Leaderboard — снизу экрана */
+    /* Leaderboard — верхний левый угол */
     #leaderboard {
       position: absolute;
-      bottom: 30px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: rgba(0,0,0,0.85);
+      top: 220px;
+      left: 18px;
+      background: rgba(0,0,0,0.80);
       border: 2px solid #FFD700;
       border-radius: 16px;
-      padding: 12px 24px 14px;
-      width: 900px;
-      box-shadow: 0 0 22px rgba(255,215,0,0.22);
+      padding: 10px 16px 12px;
+      width: 480px;
+      box-shadow: 0 0 22px rgba(255,215,0,0.25);
     }
     #leaderboard h3 {
       color: #FFD700;
-      font-size: 22px;
+      font-size: 20px;
       text-align: center;
-      margin-bottom: 10px;
+      margin-bottom: 8px;
       text-shadow: 0 0 8px #FFD700;
-      letter-spacing: 2px;
+      letter-spacing: 3px;
     }
     .lb-item {
       display: flex;
       align-items: center;
-      padding: 5px 4px;
+      padding: 4px 2px;
       color: #FFF;
-      font-size: 18px;
-      border-bottom: 1px solid rgba(255,255,255,0.07);
+      font-size: 17px;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
     }
     .lb-item:last-child { border-bottom: none; }
-    .lb-rank { width: 44px; font-weight: bold; color: #AAA; font-size: 16px; }
-    .lb-rank.rank-1 { color: #FFD700; font-size: 22px; }
-    .lb-rank.rank-2 { color: #C0C0C0; font-size: 20px; }
-    .lb-rank.rank-3 { color: #CD7F32; font-size: 18px; }
-    .lb-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-right: 8px; }
-    .lb-coins { color: #FFD700; font-weight: bold; font-size: 16px; white-space: nowrap; }
+    .lb-rank { width: 38px; font-weight: bold; color: #AAA; font-size: 15px; text-align:center; }
+    .lb-rank.rank-1 { color: #FFD700; font-size: 20px; }
+    .lb-rank.rank-2 { color: #C0C0C0; font-size: 18px; }
+    .lb-rank.rank-3 { color: #CD7F32; font-size: 17px; }
+    .lb-rank.rank-other { color: #888; font-size: 14px; }
+    .lb-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-right: 6px; font-size: 16px; }
+    .lb-pts { color: #FFD700; font-weight: 900; font-size: 17px; white-space: nowrap; }
+    .lb-pts-label { color: #AAA; font-weight: normal; font-size: 12px; }
+
+    /* Info panel — правый край */
+    #infoPanel {
+      position: absolute;
+      top: 220px;
+      right: 18px;
+      background: rgba(0,0,0,0.75);
+      border: 2px solid rgba(255,255,255,0.2);
+      border-radius: 16px;
+      padding: 14px 18px;
+      width: 340px;
+      box-shadow: 0 0 16px rgba(255,255,255,0.08);
+    }
+    .info-title {
+      color: rgba(255,255,255,0.5);
+      font-size: 13px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      margin-bottom: 12px;
+      text-align: center;
+    }
+    .info-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+    }
+    .info-row:last-child { border-bottom: none; }
+    .info-icon { font-size: 24px; width: 36px; text-align: center; }
+    .info-desc { flex: 1; color: rgba(255,255,255,0.75); font-size: 15px; padding: 0 8px; }
+    .info-val  { color: #FFD700; font-weight: 900; font-size: 18px; white-space: nowrap; }
 
     /* Fixed UI buttons */
     .ui-btn {
@@ -299,6 +332,20 @@
     <div id="leaderboard">
       <h3>🏆 TOP 10</h3>
       <div id="leaderboardList"></div>
+    </div>
+
+    <div id="infoPanel">
+      <div class="info-title">HOW TO SCORE</div>
+      <div class="info-row">
+        <span class="info-icon">❤️</span>
+        <span class="info-desc">100 likes</span>
+        <span class="info-val">= 1 PT</span>
+      </div>
+      <div class="info-row">
+        <span class="info-icon">🎁</span>
+        <span class="info-desc">1 coin</span>
+        <span class="info-val">= 2 PTS</span>
+      </div>
     </div>
   </div>
 

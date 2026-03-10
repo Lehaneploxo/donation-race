@@ -1,31 +1,54 @@
-const INACTIVE_TIMEOUT_MS = 30 * 60 * 1000; // 30 минут без активности → скрыть
+const INACTIVE_TIMEOUT_MS = 30 * 60 * 1000;
+const COINS_PER_POINT = 1;   // 1 coin  = 2 pts  (coins * 2)
+const LIKES_PER_POINT = 100; // 100 likes = 1 pt
 
 class PlayersManager {
   constructor() {
     this.players = new Map();
   }
 
-  addCoins(userId, username, avatarUrl, coins) {
-    if (this.players.has(userId)) {
-      const p = this.players.get(userId);
-      p.totalCoins += coins;
-      p.distance   += coins;
-      p.username    = username;
-      p.active      = true;
-      p.lastSeen    = Date.now();
-    } else {
+  _ensurePlayer(userId, username, avatarUrl) {
+    if (!this.players.has(userId)) {
       this.players.set(userId, {
-        playerId:   userId,
-        username,
-        avatarUrl:  avatarUrl || '',
-        totalCoins: coins,
-        distance:   coins,
-        joinTime:   Date.now(),
-        active:     true,
-        lastSeen:   Date.now()
+        playerId:    userId,
+        username:    username || 'Unknown',
+        avatarUrl:   avatarUrl || '',
+        totalCoins:  0,
+        totalLikes:  0,
+        totalPoints: 0,
+        distance:    0,
+        joinTime:    Date.now(),
+        active:      true,
+        lastSeen:    Date.now()
       });
     }
     return this.players.get(userId);
+  }
+
+  _calcPoints(coins, likes) {
+    return coins * 2 + Math.floor(likes / LIKES_PER_POINT);
+  }
+
+  addCoins(userId, username, avatarUrl, coins) {
+    const p = this._ensurePlayer(userId, username, avatarUrl);
+    p.totalCoins += coins;
+    p.username    = username || p.username;
+    p.active      = true;
+    p.lastSeen    = Date.now();
+    p.totalPoints = this._calcPoints(p.totalCoins, p.totalLikes);
+    p.distance    = p.totalPoints;
+    return p;
+  }
+
+  addLikes(userId, username, avatarUrl, likes) {
+    const p = this._ensurePlayer(userId, username, avatarUrl);
+    p.totalLikes += likes;
+    p.username    = username || p.username;
+    p.active      = true;
+    p.lastSeen    = Date.now();
+    p.totalPoints = this._calcPoints(p.totalCoins, p.totalLikes);
+    p.distance    = p.totalPoints;
+    return p;
   }
 
   // Обновить присутствие без монет (когда зритель заходит в стрим)
@@ -57,7 +80,7 @@ class PlayersManager {
   getTop10() {
     return Array.from(this.players.values())
       .filter(p => p.active)
-      .sort((a, b) => b.distance - a.distance)
+      .sort((a, b) => b.totalPoints - a.totalPoints)
       .slice(0, 10);
   }
 
