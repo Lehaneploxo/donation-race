@@ -256,42 +256,9 @@
     #musicBtn { bottom: 16px; right: 72px; }
     #musicBtn.on { border-color: #00FF88; color: #00FF88; }
 
-    /* Fullscreen tap overlay for mobile */
-    #fsOverlay {
-      display: none;
-      position: fixed;
-      inset: 0;
-      z-index: 999998;
-      background: rgba(0,0,0,0.75);
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-    }
-    #fsOverlay.show { display: flex; }
-    #fsOverlay .fs-icon { font-size: 64px; margin-bottom: 16px; }
-    #fsOverlay .fs-text {
-      color: #FFF;
-      font-size: 22px;
-      font-weight: bold;
-      letter-spacing: 2px;
-      text-align: center;
-      text-shadow: 0 0 20px rgba(255,255,255,0.5);
-    }
-    #fsOverlay .fs-sub {
-      color: rgba(255,255,255,0.5);
-      font-size: 13px;
-      margin-top: 8px;
-    }
   </style>
 </head>
 <body>
-<!-- Mobile fullscreen tap overlay -->
-<div id="fsOverlay">
-  <div class="fs-icon">⛶</div>
-  <div class="fs-text">НАЖМИТЕ ДЛЯ<br>ПОЛНОГО ЭКРАНА</div>
-  <div class="fs-sub">TAP FOR FULLSCREEN</div>
-</div>
 <button id="musicBtn" class="ui-btn" title="Music">🎵</button>
 <button id="fsBtn"    class="ui-btn" title="Fullscreen">⛶</button>
 <div id="scaleWrapper">
@@ -346,16 +313,18 @@
   (function() {
     var wrapper = document.getElementById('scaleWrapper');
 
-    function resize() {
+    function resize() { applyTransform(); }
+    function applyTransform() {
       var w = document.documentElement.clientWidth  || window.innerWidth;
       var h = document.documentElement.clientHeight || window.innerHeight;
-      var scaleX = w / 1920;
-      var scaleY = h / 1080;
-      var scale  = Math.min(scaleX, scaleY);
-      var offsetX = (w - 1920 * scale) / 2;
-      var offsetY = (h - 1080 * scale) / 2;
-      wrapper.style.transform = 'translate(' + offsetX + 'px, ' + offsetY + 'px) scale(' + scale + ')';
+      var baseScale  = Math.min(w / 1920, h / 1080);
+      var totalScale = baseScale * pinchScale;
+      var cx = (w - 1920 * totalScale) / 2 + pinchOffset.x;
+      var cy = (h - 1080 * totalScale) / 2 + pinchOffset.y;
+      wrapper.style.transform = 'translate(' + cx + 'px, ' + cy + 'px) scale(' + totalScale + ')';
     }
+    var pinchScale  = 1;
+    var pinchOffset = { x: 0, y: 0 };
 
     window.addEventListener('resize', resize);
 
@@ -372,32 +341,64 @@
 
     resize();
 
-    // Fullscreen overlay (mobile prompt)
-    var fsOverlay = document.getElementById('fsOverlay');
-    var isMobile  = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
+    // ── Pinch-to-zoom ─────────────────────────────────────────────────────────
+    var lastDist    = 0;
+    var lastMid     = { x: 0, y: 0 };
+    var isDragging  = false;
+    var dragStart   = { x: 0, y: 0 };
+    var MIN_ZOOM = 0.5, MAX_ZOOM = 3.0;
 
-    function showFsOverlay() {
-      if (isMobile && !isFullscreen()) fsOverlay.classList.add('show');
+    function dist(t1, t2) {
+      var dx = t1.clientX - t2.clientX;
+      var dy = t1.clientY - t2.clientY;
+      return Math.sqrt(dx * dx + dy * dy);
     }
-    function hideFsOverlay() {
-      fsOverlay.classList.remove('show');
+    function mid(t1, t2) {
+      return { x: (t1.clientX + t2.clientX) / 2, y: (t1.clientY + t2.clientY) / 2 };
     }
 
-    fsOverlay.addEventListener('click', function() {
-      enterFullscreen();
-      hideFsOverlay();
-    });
+    document.addEventListener('touchstart', function(e) {
+      if (e.touches.length === 2) {
+        lastDist = dist(e.touches[0], e.touches[1]);
+        lastMid  = mid(e.touches[0], e.touches[1]);
+        isDragging = false;
+      } else if (e.touches.length === 1 && pinchScale > 1.05) {
+        isDragging = true;
+        dragStart  = { x: e.touches[0].clientX - pinchOffset.x, y: e.touches[0].clientY - pinchOffset.y };
+      }
+    }, { passive: true });
 
-    // Show overlay on mobile after 1 second
-    if (isMobile) setTimeout(showFsOverlay, 1000);
+    document.addEventListener('touchmove', function(e) {
+      if (e.touches.length === 2) {
+        isDragging = false;
+        var d = dist(e.touches[0], e.touches[1]);
+        var m = mid(e.touches[0], e.touches[1]);
+        var delta = d / lastDist;
+        pinchScale = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, pinchScale * delta));
+        pinchOffset.x += (m.x - lastMid.x);
+        pinchOffset.y += (m.y - lastMid.y);
+        lastDist = d;
+        lastMid  = m;
+        applyTransform();
+      } else if (e.touches.length === 1 && isDragging) {
+        pinchOffset.x = e.touches[0].clientX - dragStart.x;
+        pinchOffset.y = e.touches[0].clientY - dragStart.y;
+        applyTransform();
+      }
+    }, { passive: true });
 
-    // Re-show overlay if user exits fullscreen on mobile
-    document.addEventListener('fullscreenchange', function() {
-      if (!isFullscreen() && isMobile) setTimeout(showFsOverlay, 500);
-    });
-    document.addEventListener('webkitfullscreenchange', function() {
-      if (!isFullscreen() && isMobile) setTimeout(showFsOverlay, 500);
-    });
+    // Double-tap to reset zoom
+    var lastTap = 0;
+    document.addEventListener('touchend', function(e) {
+      if (e.touches.length === 0) isDragging = false;
+      var now = Date.now();
+      if (now - lastTap < 300 && e.changedTouches.length === 1) {
+        pinchScale  = 1;
+        pinchOffset = { x: 0, y: 0 };
+        applyTransform();
+      }
+      lastTap = now;
+    }, { passive: true });
 
     // Music button
     var musicBtn = document.getElementById('musicBtn');
