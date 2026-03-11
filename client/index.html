@@ -203,109 +203,105 @@
     /* ── TOP BARS ── */
     #topBars {
       position: absolute;
-      top: 0; left: 0;
-      width: 1080px;
-      padding: 14px 20px 10px;
+      top: 12px; left: 16px;
+      width: 1048px;
       display: flex;
       flex-direction: column;
-      gap: 10px;
-      background: linear-gradient(180deg, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0) 100%);
+      gap: 12px;
     }
     .top-bar-row {
+      background: rgba(0,0,0,0.55);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 16px;
+      padding: 12px 18px 14px;
       display: flex;
       flex-direction: column;
-      gap: 5px;
+      gap: 8px;
     }
     .top-bar-header {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      font-size: 30px;
+      font-size: 32px;
       font-weight: 900;
       color: #fff;
-      text-shadow: 1px 1px 4px #000;
+      text-shadow: 1px 1px 6px rgba(0,0,0,0.8);
       letter-spacing: 1px;
     }
     .top-bar-track {
       width: 100%;
-      height: 26px;
-      background: rgba(0,0,0,0.5);
-      border-radius: 13px;
+      height: 32px;
+      background: rgba(0,0,0,0.6);
+      border-radius: 16px;
       overflow: hidden;
-      border: 1px solid rgba(255,255,255,0.15);
     }
     #progressBarInner {
       height: 100%;
-      background: linear-gradient(90deg, #00FF88, #AAFF00, #FFD700, #FF6600, #FF2200);
-      border-radius: 13px;
+      background: linear-gradient(90deg, #00FF88 0%, #AAFF00 25%, #FFD700 50%, #FF8800 75%, #FF2200 100%);
+      border-radius: 16px;
       width: 0%;
       transition: width 0.5s ease;
-      box-shadow: 0 0 10px rgba(255,200,0,0.5);
+      box-shadow: 0 0 14px rgba(255,180,0,0.7);
     }
     #chaosBarInner {
       height: 100%;
-      background: linear-gradient(90deg, #FF2200, #FF6600, #FFCC00, #FF44AA);
-      border-radius: 13px;
+      background: linear-gradient(90deg, #FF6600 0%, #FF9900 40%, #FFCC00 70%, #FF4488 100%);
+      border-radius: 16px;
       width: 0%;
       transition: width 0.4s ease;
-      box-shadow: 0 0 10px rgba(255,80,0,0.5);
+      box-shadow: 0 0 14px rgba(255,100,0,0.7);
     }
 
     /* Leaderboard */
     #leaderboard {
       position: absolute;
-      top: 185px;
-      left: 14px;
+      top: 210px;
+      left: 16px;
       background: transparent;
       padding: 0;
-      width: 500px;
+      width: 520px;
     }
     #leaderboard h3 {
-      color: #FFD700;
-      font-size: 34px;
+      color: #fff;
+      font-size: 40px;
       font-weight: 900;
-      margin-bottom: 6px;
-      text-shadow: 0 0 12px rgba(255,215,0,0.6);
-      letter-spacing: 4px;
+      margin-bottom: 4px;
+      letter-spacing: 3px;
+      text-shadow: 0 0 16px rgba(255,255,255,0.3);
     }
     .lb-item {
       display: flex;
       align-items: center;
-      padding: 3px 0;
-      color: #FFF;
+      padding: 5px 0;
       border-bottom: 1px solid rgba(255,255,255,0.07);
     }
     .lb-item:last-child { border-bottom: none; }
-    .lb-rank { width: 58px; font-weight: bold; color: #AAA; font-size: 40px; text-align:center; }
-    .lb-rank.rank-1 { color: #FFD700; font-size: 52px; }
-    .lb-rank.rank-2 { color: #C0C0C0; font-size: 46px; }
-    .lb-rank.rank-3 { color: #CD7F32; font-size: 43px; }
-    .lb-rank.rank-other { color: #777; font-size: 36px; }
-    .lb-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-right: 6px; font-size: 32px; }
-    .lb-pts  { color: #FFD700; font-weight: 900; font-size: 42px; white-space: nowrap; padding-right: 6px; }
+    .lb-rank { width: 54px; font-weight: bold; font-size: 36px; text-align:center; flex-shrink:0; }
+    .lb-rank.rank-1 { color: #FFD700; font-size: 46px; }
+    .lb-rank.rank-2 { color: #C0C0C0; font-size: 42px; }
+    .lb-rank.rank-3 { color: #CD7F32; font-size: 40px; }
+    .lb-rank.rank-other { color: #888; font-size: 34px; }
+    .lb-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 34px; font-weight: 700; }
+    .lb-pts  { color: #fff; font-weight: 900; font-size: 38px; white-space: nowrap; padding: 0 8px; }
     .lb-icon { display: flex; align-items: center; flex-shrink: 0; }
 
-    /* Info panel */
+    /* Info panel — no card, just text */
     #infoPanel {
       position: absolute;
-      top: 185px;
-      right: 14px;
-      background: rgba(0,0,0,0.35);
-      border: 1px solid rgba(255,255,255,0.1);
-      border-radius: 18px;
-      padding: 16px 20px;
-      width: 300px;
+      top: 210px;
+      right: 16px;
+      background: transparent;
+      padding: 0;
+      width: 280px;
     }
     .info-row {
       display: flex;
       align-items: center;
-      padding: 10px 0;
-      border-bottom: 1px solid rgba(255,255,255,0.08);
+      padding: 12px 0;
     }
-    .info-row:last-child { border-bottom: none; }
-    .info-icon { font-size: 52px; width: 64px; text-align: center; }
-    .info-desc { flex: 1; color: rgba(255,255,255,0.85); font-size: 36px; padding: 0 6px; }
-    .info-val  { color: #FFD700; font-weight: 900; font-size: 40px; white-space: nowrap; }
+    .info-icon { font-size: 48px; width: 58px; text-align: center; flex-shrink:0; }
+    .info-desc { flex: 1; color: rgba(255,255,255,0.9); font-size: 34px; font-weight: 700; padding: 0 6px; }
+    .info-val  { color: #FFD700; font-weight: 900; font-size: 38px; white-space: nowrap; }
 
     /* Fixed UI buttons */
     .ui-btn {
@@ -395,7 +391,7 @@
     <div id="timeSpeedBadge" style="display:none">⚡</div>
 
     <div id="leaderboard">
-      <h3>🏆 ТОП 10</h3>
+      <h3>ТОП 10</h3>
       <div id="leaderboardList"></div>
     </div>
 
@@ -429,12 +425,12 @@
   </div>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
-  <script src="websocket.js?v=20250311_16"></script>
-  <script src="leaderboard.js?v=20250311_16"></script>
-  <script src="characters.js?v=20250311_16"></script>
-  <script src="game.js?v=20250311_16"></script>
-  <script src="music.js?v=20250311_16"></script>
-  <script src="devtools.js?v=20250311_16"></script>
+  <script src="websocket.js?v=20250311_17"></script>
+  <script src="leaderboard.js?v=20250311_17"></script>
+  <script src="characters.js?v=20250311_17"></script>
+  <script src="game.js?v=20250311_17"></script>
+  <script src="music.js?v=20250311_17"></script>
+  <script src="devtools.js?v=20250311_17"></script>
 </div>
 
 <script>
