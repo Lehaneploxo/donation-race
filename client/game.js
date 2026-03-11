@@ -1,12 +1,15 @@
+// ─── LITE MODE ───────────────────────────────────────────────────────────────
+const LITE_MODE = new URLSearchParams(window.location.search).has('lite');
+
 // ─── Renderer ────────────────────────────────────────────────────────────────
 const renderer = new THREE.WebGLRenderer({
   canvas: document.getElementById('gameCanvas'),
-  antialias: true
+  antialias: !LITE_MODE
 });
 renderer.setSize(1080, 1920);
-renderer.setPixelRatio(1);
-renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.setPixelRatio(LITE_MODE ? 0.75 : 1);
+renderer.shadowMap.enabled = !LITE_MODE;
+if (!LITE_MODE) renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
 // ─── Scene ───────────────────────────────────────────────────────────────────
 const scene = new THREE.Scene();
@@ -370,7 +373,7 @@ scene.add(goalMtnGroup);
 
 // ─── BACKGROUND MOUNTAINS — realistic displaced multi-cone ───────────────────
 const bgMountains = [];
-(function buildMountains() {
+if (!LITE_MODE) (function buildMountains() {
   const _r = s => { const x = Math.sin(s * 91.3 + 7.77) * 43758.5; return x - Math.floor(x); };
 
   function buildBgMtn(x, z, W, H, seed) {
@@ -421,15 +424,13 @@ const bgMountains = [];
     scene.add(mesh);
     bgMountains.push({ mesh, homeZ: z });
   });
-})();
+})(/* LITE_MODE guard above */);
 
 // ─── BEACH OCEAN GROUP — same scale-approach logic as mountains ───────────────
-// Geometry is 2200 wide: at scale=0.04 it spans ~88 world units at distance 171
-// — wide enough to fill the horizon from the very start of the beach world.
 const beachOceanGroup = new THREE.Group();
 window._beachWaterUniforms = null;
 
-(function buildBeachOcean() {
+if (!LITE_MODE) (function buildBeachOcean() {
   const _r = s => { const x = Math.sin(s * 73.1 + 91.7) * 43758.5; return x - Math.floor(x); };
 
   // ── ANIMATED WAVE SURFACE — 2200 × 800, fills horizon at every scale ────────
@@ -603,7 +604,7 @@ window._beachWaterUniforms = null;
     m.rotation.set(_r(i)*5, _r(i*2)*5, _r(i*3)*5);
     beachOceanGroup.add(m);
   }
-})();
+})(/* LITE_MODE guard above */);
 beachOceanGroup.position.set(0, -2, -155);
 beachOceanGroup.visible = false;
 scene.add(beachOceanGroup);
@@ -3256,7 +3257,7 @@ function gameLoop(ts) {
   scaledElapsedMs += dt * TIME_SPEEDS[timeSpeedIdx];
 
   // Animate ocean water shader
-  if (window._beachWaterUniforms) window._beachWaterUniforms.uTime.value += dt * 0.0014;
+  if (!LITE_MODE && window._beachWaterUniforms) window._beachWaterUniforms.uTime.value += dt * 0.0014;
 
   // Player boats in sea world
   const isSea = (_currentWorld === 2);
@@ -3280,7 +3281,7 @@ function gameLoop(ts) {
   }
 
   scrollWorld(dt);
-  updateDayNight(gameStartMs + scaledElapsedMs);
+  if (!LITE_MODE) updateDayNight(gameStartMs + scaledElapsedMs);
 
   camera.position.x = -2 + Math.sin(ts * 0.00022) * 0.30;
   camera.position.y =  9 + Math.sin(ts * 0.00017) * 0.18;

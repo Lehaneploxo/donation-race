@@ -182,6 +182,31 @@
       border-color: rgba(255,255,255,0.2);
     }
 
+    .mode-toggle {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 20px;
+    }
+
+    .mode-btn {
+      flex: 1;
+      padding: 10px;
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      border: 1.5px solid rgba(255,255,255,0.15);
+      background: rgba(255,255,255,0.05);
+      color: rgba(255,255,255,0.5);
+      transition: all 0.2s;
+    }
+
+    .mode-btn.active {
+      border-color: #818cf8;
+      background: rgba(129,140,248,0.2);
+      color: #fff;
+    }
+
     .error {
       display: none;
       background: rgba(239,68,68,0.15);
@@ -255,6 +280,11 @@
     </div>
     <div class="hint">Стример должен быть онлайн в TikTok Live</div>
 
+    <div class="mode-toggle">
+      <button class="mode-btn active" id="modeHigh">🖥️ Полная графика<br><small>iPhone / ПК</small></button>
+      <button class="mode-btn" id="modeLite">📱 Лёгкая версия<br><small>Android / слабые устройства</small></button>
+    </div>
+
     <div class="error" id="error">Введи никнейм TikTok</div>
 
     <div class="btn-group">
@@ -275,6 +305,19 @@
     const btnDemo  = document.getElementById('btnDemo');
     const errorEl  = document.getElementById('error');
     const statusEl = document.getElementById('status');
+    const modeHigh = document.getElementById('modeHigh');
+    const modeLite = document.getElementById('modeLite');
+
+    let liteMode = localStorage.getItem('lite_mode') === '1';
+
+    function updateModeButtons() {
+      modeHigh.classList.toggle('active', !liteMode);
+      modeLite.classList.toggle('active', liteMode);
+    }
+    updateModeButtons();
+
+    modeHigh.addEventListener('click', () => { liteMode = false; localStorage.setItem('lite_mode', '0'); updateModeButtons(); });
+    modeLite.addEventListener('click', () => { liteMode = true;  localStorage.setItem('lite_mode', '1'); updateModeButtons(); });
 
     // Сохраняем последний ник
     const saved = localStorage.getItem('tiktok_username');
@@ -292,8 +335,9 @@
       statusEl.style.display = 'block';
       btnConn.disabled = true;
       btnDemo.disabled = true;
+      const liteSuffix = liteMode ? '&lite=1' : '';
       setTimeout(() => {
-        window.location.href = `/game?username=${encodeURIComponent(username)}`;
+        window.location.href = `/game?username=${encodeURIComponent(username)}${liteSuffix}`;
       }, 300);
     }
 
