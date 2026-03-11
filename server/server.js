@@ -199,6 +199,16 @@ class Room {
 
   removeClient(ws) { this.clients.delete(ws); }
 
+  destroy() {
+    clearInterval(this._inactiveCheck);
+    const c = this.connection;
+    if (c) {
+      clearInterval(c._demoInterval);
+      clearInterval(c._demoTornadoIv);
+      clearInterval(c._demoGoIv);
+    }
+  }
+
   broadcast(data) {
     const msg = JSON.stringify(data);
     this.clients.forEach(ws => {
@@ -235,6 +245,7 @@ wss.on('connection', (ws, req) => {
     // Если клиентов не осталось — удаляем комнату, чтобы при следующем
     // подключении TikTok-соединение создавалось заново (не застревало в демо)
     if (room.clients.size === 0) {
+      room.destroy();
       rooms.delete(username.toLowerCase());
       console.log(`[Room] @${username} удалена (нет клиентов)`);
     }

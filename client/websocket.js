@@ -15,6 +15,11 @@ const GameWebSocket = {
 
     _hideUsernameOverlay();
 
+    if (this.socket && this.socket.readyState < 2) {
+      this.socket.onclose = null;
+      this.socket.close();
+    }
+
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     this.socket = new WebSocket(
       `${protocol}//${window.location.host}?username=${encodeURIComponent(this.username)}`
@@ -31,12 +36,12 @@ const GameWebSocket = {
         // Update status from init message
         if (data.type === 'init') {
           const mode = data.tiktokMode;
-          if (mode === 'tiktok')     { _setStatus('live',  `🔴 LIVE @${data.username}`); _resetTimeSpeed(); }
+          if (mode === 'tiktok')     { _setStatus('live',  `🔴 LIVE @${data.username}`); if (typeof _resetTimeSpeed === 'function') _resetTimeSpeed(); }
           else if (mode === 'demo')  _setStatus('demo',  `🟡 DEMO @${data.username}`);
           else                       _setStatus('connecting', `⏳ @${this.username}…`);
         }
         if (data.type === 'status') {
-          if (data.mode === 'tiktok') { _setStatus('live', `🔴 LIVE @${this.username}`); _resetTimeSpeed(); }
+          if (data.mode === 'tiktok') { _setStatus('live', `🔴 LIVE @${this.username}`); if (typeof _resetTimeSpeed === 'function') _resetTimeSpeed(); }
           else if (data.mode === 'demo') _setStatus('demo', `🟡 DEMO: ${data.message || 'TikTok unavailable'}`);
           else _setStatus('error', `❌ ${data.message}`);
         }
