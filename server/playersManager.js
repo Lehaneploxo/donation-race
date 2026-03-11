@@ -108,6 +108,25 @@ class PlayersManager {
   getTotalCount() {
     return Array.from(this.players.values()).filter(p => p.active).length;
   }
+
+  // Сброс всех очков для новой гонки
+  reset() {
+    this.players.forEach(p => {
+      p.totalCoins      = 0;
+      p.totalLikes      = 0;
+      p.totalChatPoints = 0;
+      p.totalPoints     = 0;
+      p.distance        = 0;
+      p.joinTime        = Date.now();
+    });
+  }
+
+  // Сумма монет всех игроков
+  getTotalCoins() {
+    let total = 0;
+    this.players.forEach(p => { total += p.totalCoins; });
+    return total;
+  }
 }
 
 module.exports = PlayersManager;

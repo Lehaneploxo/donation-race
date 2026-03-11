@@ -2352,16 +2352,33 @@ let totalPlayers = 0;
 
 GameWebSocket.on('init', d => {
   applyUpdate(d.players, d.totalPlayers);
+  updateProgressUI(d.totalCoins || 0);
   if (d.totalLikes !== undefined) updateDisasterCounter(d.totalLikes);
 });
 GameWebSocket.on('update', d => {
+  if (d.event?.type === 'race_end') {
+    applyUpdate(d.players, d.totalPlayers);
+    updateProgressUI(d.totalCoins || 0);
+    showWinner(d.event.winner);
+    return;
+  }
+  if (d.event?.type === 'race_start') {
+    hideWinner();
+    // Сброс машин и счётчиков
+    characters.forEach(c => c.remove());
+    characters.clear();
+    playerLanes.clear();
+    players = [];
+    updateProgressUI(0);
+    return;
+  }
   applyUpdate(d.players, d.totalPlayers);
-  if (d.event?.type === 'donation') updateProgressUI(d.players);
   if (d.event?.type === 'tornado')  spawnTornado(d.event.username || 'Someone');
   if (d.event?.type === 'tsunami')  spawnTsunami();
   if (d.event?.type === 'meteor')   spawnMeteors();
   if (d.event?.type === 'crash')    spawnMassCrash();
-  if (d.totalLikes !== undefined)   updateDisasterCounter(d.totalLikes);
+  if (d.totalCoins  !== undefined)  updateProgressUI(d.totalCoins);
+  if (d.totalLikes  !== undefined)  updateDisasterCounter(d.totalLikes);
 });
 
 function applyUpdate(newPlayers, total) {
@@ -2390,12 +2407,33 @@ function applyUpdate(newPlayers, total) {
   positionCharacters();
 }
 
-const GOAL_POINTS = 2000;   // ~1000 coins × 2pts  or  200 000 likes
-function updateProgressUI(pl) {
-  if (!pl?.length) return;
-  const pct = Math.min((pl[0].totalPoints / GOAL_POINTS) * 100, 100);
-  document.getElementById('progressPct').textContent      = pct.toFixed(2) + '%';
+const RACE_GOAL = 1000; // монет до конца гонки
+let   _raceCoins = 0;
+
+function updateProgressUI(coins) {
+  if (coins === undefined) return;
+  _raceCoins = coins;
+  const pct = Math.min((_raceCoins / RACE_GOAL) * 100, 100);
+  document.getElementById('progressPct').textContent      = Math.min(_raceCoins, RACE_GOAL);
   document.getElementById('progressBarInner').style.width = pct + '%';
+}
+
+function showWinner(username) {
+  const el = document.getElementById('winnerOverlay');
+  const nm = document.getElementById('winnerName');
+  if (!el || !nm) return;
+  nm.textContent = username || '???';
+  el.classList.add('show');
+  // Победный звук
+  _tone(523, 'sine', 0.15, 0.3, 0);
+  _tone(659, 'sine', 0.15, 0.3, 0.15);
+  _tone(784, 'sine', 0.15, 0.3, 0.30);
+  _tone(1047,'sine', 0.4,  0.4, 0.45);
+}
+
+function hideWinner() {
+  const el = document.getElementById('winnerOverlay');
+  if (el) el.classList.remove('show');
 }
 
 // ─── 2D NICKNAME OVERLAY ──────────────────────────────────────────────────────

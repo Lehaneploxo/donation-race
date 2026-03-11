@@ -50,6 +50,8 @@ class Room {
     this.connection = null;
     this._totalLikes = 0;
     this._lastEventThreshold = 0;
+    this._totalCoins = 0;
+    this._raceEnded  = false;
     this._connect();
   }
 
@@ -58,7 +60,10 @@ class Room {
       this.username,
       // onGift — донат
       (data) => {
+        if (this._raceEnded) return; // не считаем во время перерыва
         this.players.addCoins(data.userId, data.username, data.avatarUrl, data.coins);
+        this._totalCoins += (Number(data.coins) || 0);
+
         const giftLower = (data.giftName || '').toLowerCase();
         const isDonut   = giftLower.includes('donut') || giftLower.includes('doughnut');
         let   eventType = 'donation';
@@ -67,10 +72,45 @@ class Room {
           eventType = chaosTypes[Math.floor(Math.random() * chaosTypes.length)];
           console.log(`[Donut] ${data.username} → ${eventType}`);
         }
+
+        // Проверяем цель — 1000 монет
+        if (this._totalCoins >= 1000 && !this._raceEnded) {
+          this._raceEnded = true;
+          const top = this.players.getTop10();
+          const winner = top[0] || { username: 'Неизвестный' };
+          console.log(`[Race End] Победитель: ${winner.username} | Монеты: ${this._totalCoins}`);
+          this.broadcast({
+            type:         'update',
+            players:      top,
+            totalPlayers: this.players.getTotalCount(),
+            totalCoins:   this._totalCoins,
+            totalLikes:   this._totalLikes,
+            event:        { type: 'race_end', winner: winner.username }
+          });
+          // Сброс через 10 секунд
+          setTimeout(() => {
+            this._totalCoins         = 0;
+            this._raceEnded          = false;
+            this._lastEventThreshold = 0;
+            this.players.reset();
+            console.log('[Race] Новая гонка началась!');
+            this.broadcast({
+              type:         'update',
+              players:      this.players.getTop10(),
+              totalPlayers: this.players.getTotalCount(),
+              totalCoins:   0,
+              totalLikes:   this._totalLikes,
+              event:        { type: 'race_start' }
+            });
+          }, 10000);
+          return;
+        }
+
         this.broadcast({
           type:         'update',
           players:      this.players.getTop10(),
           totalPlayers: this.players.getTotalCount(),
+          totalCoins:   this._totalCoins,
           totalLikes:   this._totalLikes,
           event:        { type: eventType, username: data.username, coins: data.coins }
         });
@@ -85,12 +125,14 @@ class Room {
             type:         'update',
             players:      this.players.getTop10(),
             totalPlayers: this.players.getTotalCount(),
+            totalCoins:   this._totalCoins,
             totalLikes:   this._totalLikes
           });
         }
       },
       // onLike — лайки
       (data) => {
+        if (this._raceEnded) return;
         this.players.addLikes(data.userId, data.username, data.avatarUrl, data.likes);
         this._totalLikes += (data.likes || 0);
         const threshold = Math.floor(this._totalLikes / 1000);
@@ -106,17 +148,20 @@ class Room {
           type:         'update',
           players:      this.players.getTop10(),
           totalPlayers: this.players.getTotalCount(),
+          totalCoins:   this._totalCoins,
           totalLikes:   this._totalLikes,
           event:        chaosEvent || { type: 'like', username: data.username, likes: data.likes }
         });
       },
       // onChat — GO сообщения в чате
       (data) => {
+        if (this._raceEnded) return;
         this.players.addChatGo(data.userId, data.username, data.avatarUrl);
         this.broadcast({
           type:         'update',
           players:      this.players.getTop10(),
           totalPlayers: this.players.getTotalCount(),
+          totalCoins:   this._totalCoins,
           totalLikes:   this._totalLikes,
           event:        { type: 'chatgo', username: data.username }
         });
@@ -131,6 +176,7 @@ class Room {
           type:         'update',
           players:      this.players.getTop10(),
           totalPlayers: this.players.getTotalCount(),
+          totalCoins:   this._totalCoins,
           totalLikes:   this._totalLikes
         });
       }
@@ -143,6 +189,7 @@ class Room {
       type:         'init',
       players:      this.players.getTop10(),
       totalPlayers: this.players.getTotalCount(),
+      totalCoins:   this._totalCoins,
       totalLikes:   this._totalLikes,
       username:     this.username,
       tiktokMode:   this.connection?._tiktokMode || 'connecting'
