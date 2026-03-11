@@ -2346,14 +2346,22 @@ function positionCharacters() {
 
 // ─── PLAYERS & WEBSOCKET ─────────────────────────────────────────────────────
 let characters   = new Map();
+window.characters = characters;
 let players      = [];
 let totalPlayers = 0;
 
-GameWebSocket.on('init',   d => applyUpdate(d.players, d.totalPlayers));
+GameWebSocket.on('init', d => {
+  applyUpdate(d.players, d.totalPlayers);
+  if (d.totalLikes !== undefined) updateDisasterCounter(d.totalLikes);
+});
 GameWebSocket.on('update', d => {
   applyUpdate(d.players, d.totalPlayers);
   if (d.event?.type === 'donation') updateProgressUI(d.players);
   if (d.event?.type === 'tornado')  spawnTornado(d.event.username || 'Someone');
+  if (d.event?.type === 'tsunami')  spawnTsunami();
+  if (d.event?.type === 'meteor')   spawnMeteors();
+  if (d.event?.type === 'crash')    spawnMassCrash();
+  if (d.totalLikes !== undefined)   updateDisasterCounter(d.totalLikes);
 });
 
 function applyUpdate(newPlayers, total) {
@@ -2397,113 +2405,27 @@ const _tmpVec    = new THREE.Vector3();
 
 function drawNicknames() {
   nameCtx.clearRect(0, 0, 1080, 1920);
-  const labels = [];
-
   characters.forEach(char => {
     char.group.getWorldPosition(_tmpVec);
-    _tmpVec.y += 3.5;
+    _tmpVec.y += 0.8;
     const ndc = _tmpVec.clone().project(camera);
     if (ndc.z > 1) return;
-    if (ndc.x < -2 || ndc.x > 2) return;
-
-    // Raw screen position of the character's head — used for the dot & line
-    const anchorX = (ndc.x  + 1) / 2 * 1080;
-    const anchorY = (-ndc.y + 1) / 2 * 1920;
-
-    const dist     = camera.position.distanceTo(_tmpVec);
-    const fontSize = Math.round(Math.max(15, Math.min(36, 680 / dist)));
-    const name     = char.player.username;
-    const color    = '#' + SHIRT_COLORS[char.colorIndex % SHIRT_COLORS.length].toString(16).padStart(6, '0');
-
-    nameCtx.font = `bold ${fontSize}px Arial`;
-    const tw = nameCtx.measureText(name).width + 8;
-    const th = fontSize + 6;
-    const MARGIN = 12;
-    // Label starts above the anchor; clamped inside screen
-    let sx = Math.max(MARGIN + tw/2, Math.min(1080 - MARGIN - tw/2, anchorX));
-    let sy = Math.max(MARGIN + th/2, Math.min(1920 - MARGIN - th/2, anchorY));
-    labels.push({ sx, sy, tw, th, fontSize, name, color, anchorX, anchorY });
-  });
-
-  // Separate overlapping labels — push both horizontally AND vertically
-  const PAD = 8;
-  for (let iter = 0; iter < 40; iter++) {
-    let moved = false;
-    for (let i = 0; i < labels.length; i++) {
-      for (let j = i + 1; j < labels.length; j++) {
-        const a = labels[i], b = labels[j];
-        const ox = (a.tw + b.tw) / 2 + PAD - Math.abs(a.sx - b.sx);
-        const oy = (a.th + b.th) / 2 + PAD - Math.abs(a.sy - b.sy);
-        if (ox > 0 && oy > 0) {
-          if (oy <= ox) {
-            const p = oy / 2 + 1;
-            if (a.sy <= b.sy) { a.sy -= p; b.sy += p; }
-            else              { a.sy += p; b.sy -= p; }
-          } else {
-            const p = ox / 2 + 1;
-            if (a.sx <= b.sx) { a.sx -= p; b.sx += p; }
-            else              { a.sx += p; b.sx -= p; }
-          }
-          moved = true;
-        }
-      }
-    }
-    if (!moved) break;
-  }
-
-  labels.forEach(({ sx, sy, tw, th, fontSize, name, color, anchorX, anchorY }) => {
-    const MARGIN = 12;
-    sx = Math.max(MARGIN + tw/2, Math.min(1080 - MARGIN - tw/2, sx));
-    sy = Math.max(MARGIN + th/2, Math.min(1920 - MARGIN - th/2, sy));
-
-    const lineDist = Math.hypot(sx - anchorX, sy - anchorY);
-
-    // ── Dot at character head ─────────────────────────────────────────────────
+    const sx = (ndc.x  + 1) / 2 * 1080;
+    const sy = (-ndc.y + 1) / 2 * 1920;
+    const color = '#' + SHIRT_COLORS[char.colorIndex % SHIRT_COLORS.length].toString(16).padStart(6, '0');
     nameCtx.save();
     nameCtx.shadowColor = color;
-    nameCtx.shadowBlur  = 8;
+    nameCtx.shadowBlur  = 10;
     nameCtx.fillStyle   = color;
     nameCtx.beginPath();
-    nameCtx.arc(anchorX, anchorY, 5, 0, Math.PI * 2);
+    nameCtx.arc(sx, sy, 7, 0, Math.PI * 2);
     nameCtx.fill();
-    // White center of dot
     nameCtx.shadowBlur  = 0;
     nameCtx.fillStyle   = '#ffffff';
     nameCtx.beginPath();
-    nameCtx.arc(anchorX, anchorY, 2, 0, Math.PI * 2);
+    nameCtx.arc(sx, sy, 3, 0, Math.PI * 2);
     nameCtx.fill();
     nameCtx.restore();
-
-    // ── Dashed line from label bottom to dot ─────────────────────────────────
-    if (lineDist > 12) {
-      // Line end-point stops just before the dot
-      const ratio = (lineDist - 7) / lineDist;
-      const lineEndX = anchorX + (sx - anchorX) * (1 - ratio);
-      const lineEndY = anchorY + (sy - anchorY) * (1 - ratio);
-
-      nameCtx.save();
-      nameCtx.strokeStyle  = color;
-      nameCtx.lineWidth    = 1.8;
-      nameCtx.globalAlpha  = 0.70;
-      nameCtx.setLineDash([5, 5]);
-      nameCtx.beginPath();
-      nameCtx.moveTo(sx, sy + th / 2);
-      nameCtx.lineTo(lineEndX, lineEndY);
-      nameCtx.stroke();
-      nameCtx.setLineDash([]);
-      nameCtx.restore();
-    }
-
-    // ── Text: thick dark outline + colored fill ───────────────────────────────
-    nameCtx.font          = `bold ${fontSize}px Arial`;
-    nameCtx.textAlign     = 'center';
-    nameCtx.textBaseline  = 'middle';
-    nameCtx.lineJoin      = 'round';
-    nameCtx.strokeStyle   = 'rgba(0,0,0,0.96)';
-    nameCtx.lineWidth     = fontSize * 0.30;
-    nameCtx.strokeText(name, sx, sy);
-    nameCtx.fillStyle     = color;
-    nameCtx.fillText(name, sx, sy);
   });
 }
 
@@ -2542,6 +2464,12 @@ document.addEventListener('keydown', e => {
   }
   // Y — test tornado
   if (e.key === 'y' || e.key === 'Y') spawnTornado('Test (Y key)');
+  // U — test tsunami
+  if (e.key === 'u' || e.key === 'U') spawnTsunami();
+  // I — test meteors
+  if (e.key === 'i' || e.key === 'I') spawnMeteors();
+  // O — test mass crash
+  if (e.key === 'o' || e.key === 'O') spawnMassCrash();
   // M — test moon world; 0 — back to auto sequence
   if (e.key === 'm' || e.key === 'M') { _worldOverride = 4; _showWorldBadge('🌙 MOON WORLD'); }
   if (e.key === '0') { _worldOverride = -1; _showWorldBadge('⏱ AUTO'); }
@@ -2807,6 +2735,349 @@ function updateTornado(dt) {
   });
 }
 
+// ─── SOUND SYSTEM ─────────────────────────────────────────────────────────────
+let _audioCtx = null;
+function _getAC() {
+  if (!_audioCtx) {
+    try { _audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e) {}
+  }
+  return _audioCtx;
+}
+function _tone(freq, type, dur, vol, delay) {
+  try {
+    const ctx = _getAC(); if (!ctx) return;
+    const osc = ctx.createOscillator(), gain = ctx.createGain();
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.type = type || 'sine'; osc.frequency.value = freq;
+    const t = ctx.currentTime + (delay || 0);
+    gain.gain.setValueAtTime(vol || 0.25, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    osc.start(t); osc.stop(t + dur + 0.05);
+  } catch(e) {}
+}
+function _noise(dur, ffreq, vol, delay) {
+  try {
+    const ctx = _getAC(); if (!ctx) return;
+    const sr = ctx.sampleRate;
+    const buf = ctx.createBuffer(1, Math.ceil(sr * dur), sr);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    const src = ctx.createBufferSource(); src.buffer = buf;
+    const flt = ctx.createBiquadFilter(); flt.type = 'lowpass'; flt.frequency.value = ffreq || 500;
+    const gain = ctx.createGain();
+    const t = ctx.currentTime + (delay || 0);
+    gain.gain.setValueAtTime(vol || 0.2, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    src.connect(flt); flt.connect(gain); gain.connect(ctx.destination); src.start(t);
+  } catch(e) {}
+}
+function _playWarningBeep() {
+  _tone(440, 'sine', 0.12, 0.45, 0);
+  _tone(660, 'sine', 0.12, 0.45, 0.18);
+  _tone(880, 'sine', 0.18, 0.5,  0.36);
+}
+function _soundTornado()  { _noise(7, 280, 0.12); _noise(7, 90, 0.08); }
+function _soundTsunami()  { _noise(5, 180, 0.18); _tone(52, 'sine', 4.5, 0.22); }
+function _soundMeteor() {
+  try {
+    const ctx = _getAC(); if (!ctx) return;
+    const osc = ctx.createOscillator(), gain = ctx.createGain();
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.type = 'sawtooth';
+    const t = ctx.currentTime;
+    osc.frequency.setValueAtTime(1400, t);
+    osc.frequency.exponentialRampToValueAtTime(160, t + 1.1);
+    gain.gain.setValueAtTime(0.22, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 1.1);
+    osc.start(t); osc.stop(t + 1.15);
+  } catch(e) {}
+  _noise(0.5, 1400, 0.45, 1.1);
+}
+function _soundCrash() { _noise(0.4, 1600, 0.5); _tone(110, 'sawtooth', 0.35, 0.3, 0.08); }
+
+// ─── EVENT ANNOUNCEMENT ───────────────────────────────────────────────────────
+function showEventAnnouncement(text, color) {
+  const el = document.getElementById('eventAnnouncement');
+  if (!el) return;
+  el.textContent = text;
+  el.style.color  = color || '#FF4444';
+  el.style.opacity = '1';
+  el.style.transform = 'translate(-50%, -50%) scale(1.15)';
+  setTimeout(() => {
+    el.style.opacity   = '0';
+    el.style.transform = 'translate(-50%, -50%) scale(1)';
+  }, 2800);
+}
+
+// ─── DISASTER COUNTER ─────────────────────────────────────────────────────────
+let _clientTotalLikes = 0;
+function updateDisasterCounter(total) {
+  _clientTotalLikes = total || 0;
+  const cur = _clientTotalLikes % 1000;
+  const pct = (cur / 1000) * 100;
+  const barEl   = document.getElementById('chaosBarInner');
+  const countEl = document.getElementById('chaosCount');
+  if (barEl)   barEl.style.width   = pct + '%';
+  if (countEl) countEl.textContent = cur + ' / 1000 ❤️';
+}
+
+// ─── TSUNAMI ──────────────────────────────────────────────────────────────────
+let _tsunami = null;
+function spawnTsunami() {
+  if (_tsunami) return;
+  _playWarningBeep();
+  showEventAnnouncement('🌊 ЦУНАМИ!', '#00AAFF');
+  setTimeout(() => {
+    _soundTsunami();
+    const group = new THREE.Group();
+
+    // Main wave body
+    const waveMat = new THREE.MeshLambertMaterial({ color: 0x0044BB, transparent: true, opacity: 0.88 });
+    const waveGeo = new THREE.BoxGeometry(42, 13, 7);
+    const waveMesh = new THREE.Mesh(waveGeo, waveMat);
+    waveMesh.position.set(0, 6.5, 0);
+    group.add(waveMesh);
+
+    // Foam / crest
+    const foamMat = new THREE.MeshLambertMaterial({ color: 0x88CCFF, transparent: true, opacity: 0.75 });
+    const foamMesh = new THREE.Mesh(new THREE.BoxGeometry(42, 3.5, 4), foamMat);
+    foamMesh.position.set(0, 14, -1.5);
+    group.add(foamMesh);
+
+    // White tip
+    const tipMat = new THREE.MeshLambertMaterial({ color: 0xFFFFFF, transparent: true, opacity: 0.9 });
+    const tipMesh = new THREE.Mesh(new THREE.BoxGeometry(42, 1.5, 2.5), tipMat);
+    tipMesh.position.set(0, 16.5, -3);
+    group.add(tipMesh);
+
+    // Underwater base (darkens as wave passes)
+    const baseMat = new THREE.MeshLambertMaterial({ color: 0x001166, transparent: true, opacity: 0.6 });
+    const baseMesh = new THREE.Mesh(new THREE.BoxGeometry(42, 4, 60), baseMat);
+    baseMesh.position.set(0, 0, 30);
+    group.add(baseMesh);
+
+    group.position.set(0, 0, -95);
+    scene.add(group);
+
+    _tsunami = { group, baseMesh, startTime: Date.now(), duration: 5800, hasCaptured: false, hasReleased: false };
+    console.log('[Tsunami] spawned');
+  }, 900);
+}
+
+function updateTsunami(dt) {
+  if (!_tsunami) return;
+  const elapsed = Date.now() - _tsunami.startTime;
+  const rawT = Math.min(elapsed / _tsunami.duration, 1.0);
+
+  // Wave travels from Z=-95 to Z=+40
+  const z = -95 + rawT * 135;
+  _tsunami.group.position.z = z;
+
+  // Wave height animation (slight wobble)
+  _tsunami.group.position.y = Math.sin(elapsed * 0.004) * 0.4;
+
+  // When wave front (~z+3) reaches where cars are, sweep them
+  if (z > -38 && !_tsunami.hasCaptured) {
+    _tsunami.hasCaptured = true;
+    characters.forEach(char => {
+      if (!char._inTornado && !char._falling) {
+        char._falling = true;
+        char._fallVy  = 6 + Math.random() * 5;
+      }
+    });
+  }
+
+  if (rawT >= 1.0) {
+    scene.remove(_tsunami.group);
+    _tsunami = null;
+  }
+}
+
+// ─── METEOR RAIN ──────────────────────────────────────────────────────────────
+let _meteorRain = null;
+function spawnMeteors() {
+  if (_meteorRain) return;
+  _playWarningBeep();
+  showEventAnnouncement('☄️ МЕТЕОРИТЫ!', '#FF8800');
+  setTimeout(() => {
+    const meteors = [];
+    const explosions = [];
+    const count = 14;
+    for (let i = 0; i < count; i++) {
+      const g = new THREE.Group();
+      // Meteorite body
+      const r = 0.25 + Math.random() * 0.22;
+      const mat = new THREE.MeshLambertMaterial({ color: new THREE.Color(0.4 + Math.random()*0.2, 0.2, 0.05) });
+      const body = new THREE.Mesh(new THREE.SphereGeometry(r, 7, 5), mat);
+      g.add(body);
+      // Glow
+      const glowMat = new THREE.MeshBasicMaterial({ color: 0xFF6600, transparent: true, opacity: 0.55 });
+      const glow = new THREE.Mesh(new THREE.SphereGeometry(r * 1.6, 6, 4), glowMat);
+      g.add(glow);
+      // Trail
+      const trailMat = new THREE.MeshBasicMaterial({ color: 0xFF4400, transparent: true, opacity: 0.4, side: THREE.DoubleSide });
+      const trail = new THREE.Mesh(new THREE.CylinderGeometry(0.05, r * 0.8, 2.5 + Math.random(), 6, 1, true), trailMat);
+      trail.position.y = 1.5;
+      trail.rotation.x = Math.PI;
+      g.add(trail);
+
+      const startX = (Math.random() - 0.5) * 7;
+      const startZ = -30 + Math.random() * 25;
+      const startY = 40 + Math.random() * 20;
+      g.position.set(startX, startY, startZ);
+      scene.add(g);
+
+      const delay = i * 300 + Math.random() * 200;
+      const speed = 18 + Math.random() * 14;
+      meteors.push({ g, startX, startZ, startY, vy: speed, delay, hit: false });
+    }
+
+    _meteorRain = { meteors, explosions, startTime: Date.now(), duration: 6000 };
+    console.log('[Meteors] spawned');
+  }, 900);
+}
+
+function updateMeteors(dt) {
+  if (!_meteorRain) return;
+  const elapsed = Date.now() - _meteorRain.startTime;
+  const dtS = dt / 1000;
+
+  _meteorRain.meteors.forEach(m => {
+    if (elapsed < m.delay) return;
+    if (m.hit) { scene.remove(m.g); return; }
+
+    m.g.position.y -= m.vy * dtS;
+    m.g.rotation.x += dtS * 2;
+
+    // Impact
+    if (m.g.position.y <= 0 && !m.hit) {
+      m.hit = true;
+      _soundMeteor();
+      // Spawn explosion particles
+      const eGroup = new THREE.Group();
+      for (let p = 0; p < 18; p++) {
+        const ps = 0.08 + Math.random() * 0.18;
+        const pm = new THREE.MeshBasicMaterial({ color: new THREE.Color(1, 0.3 + Math.random()*0.5, 0) });
+        const pp = new THREE.Mesh(new THREE.SphereGeometry(ps, 4, 3), pm);
+        const ang = Math.random() * Math.PI * 2, spd = 3 + Math.random() * 5;
+        pp._vx = Math.cos(ang) * spd; pp._vy = 4 + Math.random() * 6; pp._vz = Math.sin(ang) * spd;
+        eGroup.add(pp);
+      }
+      eGroup.position.copy(m.g.position);
+      eGroup.position.y = 0;
+      eGroup._born = Date.now();
+      scene.add(eGroup);
+      _meteorRain.explosions.push(eGroup);
+      // Knock nearby cars
+      characters.forEach(char => {
+        const dx = char.group.position.x - m.g.position.x;
+        const dz = char.group.position.z - m.g.position.z;
+        if (Math.sqrt(dx*dx + dz*dz) < 3.5) {
+          char._falling = true;
+          char._fallVy  = 5 + Math.random() * 4;
+        }
+      });
+      scene.remove(m.g);
+    }
+  });
+
+  // Animate explosions
+  _meteorRain.explosions.forEach(eg => {
+    const age = (Date.now() - eg._born) / 1000;
+    eg.children.forEach(p => {
+      p.position.x += p._vx * dtS;
+      p.position.y = Math.max(0, p.position.y + p._vy * dtS);
+      p.position.z += p._vz * dtS;
+      p._vy -= 12 * dtS;
+      p.material.opacity = Math.max(0, 1 - age * 1.5);
+    });
+    if (age > 0.8) { scene.remove(eg); }
+  });
+  _meteorRain.explosions = _meteorRain.explosions.filter(eg => eg.parent !== null);
+
+  if (elapsed >= _meteorRain.duration) {
+    _meteorRain.meteors.forEach(m => { if (m.g.parent) scene.remove(m.g); });
+    _meteorRain.explosions.forEach(eg => { if (eg.parent) scene.remove(eg); });
+    _meteorRain = null;
+  }
+}
+
+// ─── MASS CRASH ───────────────────────────────────────────────────────────────
+let _massCrash = null;
+function spawnMassCrash() {
+  if (_massCrash) return;
+  _playWarningBeep();
+  showEventAnnouncement('💥 АВАРИЯ!', '#FF2200');
+  setTimeout(() => {
+    const cars = [];
+    characters.forEach((char, id) => {
+      if (char._inTornado || char._falling) return;
+      _soundCrash();
+      cars.push({
+        id,
+        x: char.group.position.x,
+        y: char.group.position.y,
+        z: char.group.position.z,
+        vx: (Math.random() - 0.5) * 16,
+        vy: 4 + Math.random() * 7,
+        vz: (Math.random() - 0.5) * 10,
+        ay: -18,
+        bounces: 0
+      });
+      char._inTornado = true;
+    });
+    _massCrash = { cars, startTime: Date.now(), duration: 6000 };
+    console.log('[MassCrash] cars:', cars.length);
+  }, 900);
+}
+
+function updateMassCrash(dt) {
+  if (!_massCrash) return;
+  const elapsed = Date.now() - _massCrash.startTime;
+  const dtS = dt / 1000;
+
+  _massCrash.cars.forEach(data => {
+    const char = characters.get(data.id);
+    if (!char) return;
+
+    data.vy += data.ay * dtS;
+    data.x  += data.vx * dtS;
+    data.y  += data.vy * dtS;
+    data.z  += data.vz * dtS;
+
+    if (data.y < 0) {
+      data.y = 0;
+      if (data.vy < -1) {
+        data.vy = -data.vy * 0.45;
+        data.vx *= 0.7;
+        data.vz *= 0.7;
+        data.bounces++;
+        if (data.bounces === 1) _soundCrash();
+      } else {
+        data.vy = 0;
+      }
+    }
+    if (Math.abs(data.x) > 5) { data.vx *= -0.7; data.x = Math.sign(data.x) * 5; }
+    if (data.z < -38)          { data.vz *= -0.7; data.z = -38; }
+    if (data.z > 2)            { data.vz *= -0.7; data.z = 2; }
+
+    // Override position (char.update() has already set _inTornado spin)
+    char.group.position.set(data.x, data.y, data.z);
+  });
+
+  if (elapsed >= _massCrash.duration) {
+    _massCrash.cars.forEach(data => {
+      const char = characters.get(data.id);
+      if (char) {
+        char._inTornado = false;
+        char._falling   = true;
+        char._fallVy    = 1.5;
+      }
+    });
+    _massCrash = null;
+  }
+}
+
 // ─── MAIN LOOP ────────────────────────────────────────────────────────────────
 let lastTime = 0;
 
@@ -2851,6 +3122,9 @@ function gameLoop(ts) {
 
   characters.forEach(c => c.update(dt));
   updateTornado(dt);
+  updateTsunami(dt);
+  updateMeteors(dt);
+  updateMassCrash(dt);
   updateMoonWorld(dt, _currentWorld === 4);
 
   renderer.render(scene, camera);

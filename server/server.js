@@ -36,6 +36,8 @@ class Room {
     this.players    = new PlayersManager();
     this.clients    = new Set();
     this.connection = null;
+    this._totalLikes = 0;
+    this._lastEventThreshold = 0;
     this._connect();
   }
 
@@ -51,6 +53,7 @@ class Room {
           type:         'update',
           players:      this.players.getTop10(),
           totalPlayers: this.players.getTotalCount(),
+          totalLikes:   this._totalLikes,
           event:        { type: isTornado ? 'tornado' : 'donation', username: data.username, coins: data.coins }
         });
       },
@@ -63,18 +66,41 @@ class Room {
           this.broadcast({
             type:         'update',
             players:      this.players.getTop10(),
-            totalPlayers: this.players.getTotalCount()
+            totalPlayers: this.players.getTotalCount(),
+            totalLikes:   this._totalLikes
           });
         }
       },
       // onLike — лайки
       (data) => {
         this.players.addLikes(data.userId, data.username, data.avatarUrl, data.likes);
+        this._totalLikes += (data.likes || 0);
+        const threshold = Math.floor(this._totalLikes / 1000);
+        let chaosEvent = null;
+        if (threshold > this._lastEventThreshold) {
+          this._lastEventThreshold = threshold;
+          const types = ['tornado', 'tsunami', 'meteor', 'crash'];
+          const picked = types[Math.floor(Math.random() * types.length)];
+          chaosEvent = { type: picked, username: 'Лайк-шторм' };
+          console.log(`[Chaos] ${picked} triggered at ${this._totalLikes} likes`);
+        }
         this.broadcast({
           type:         'update',
           players:      this.players.getTop10(),
           totalPlayers: this.players.getTotalCount(),
-          event:        { type: 'like', username: data.username, likes: data.likes }
+          totalLikes:   this._totalLikes,
+          event:        chaosEvent || { type: 'like', username: data.username, likes: data.likes }
+        });
+      },
+      // onChat — GO сообщения в чате
+      (data) => {
+        this.players.addChatGo(data.userId, data.username, data.avatarUrl);
+        this.broadcast({
+          type:         'update',
+          players:      this.players.getTop10(),
+          totalPlayers: this.players.getTotalCount(),
+          totalLikes:   this._totalLikes,
+          event:        { type: 'chatgo', username: data.username }
         });
       }
     );
@@ -86,7 +112,8 @@ class Room {
         this.broadcast({
           type:         'update',
           players:      this.players.getTop10(),
-          totalPlayers: this.players.getTotalCount()
+          totalPlayers: this.players.getTotalCount(),
+          totalLikes:   this._totalLikes
         });
       }
     }, 60 * 1000);
@@ -98,6 +125,7 @@ class Room {
       type:         'init',
       players:      this.players.getTop10(),
       totalPlayers: this.players.getTotalCount(),
+      totalLikes:   this._totalLikes,
       username:     this.username,
       tiktokMode:   this.connection?._tiktokMode || 'connecting'
     }));

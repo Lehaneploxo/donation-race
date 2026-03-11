@@ -13,9 +13,10 @@ class PlayersManager {
         playerId:    userId,
         username:    username || 'Unknown',
         avatarUrl:   avatarUrl || '',
-        totalCoins:  0,
-        totalLikes:  0,
-        totalPoints: 0,
+        totalCoins:      0,
+        totalLikes:      0,
+        totalChatPoints: 0,
+        totalPoints:     0,
         distance:    0,
         joinTime:    Date.now(),
         active:      true,
@@ -25,8 +26,8 @@ class PlayersManager {
     return this.players.get(userId);
   }
 
-  _calcPoints(coins, likes) {
-    return coins * 2 + Math.floor(likes / LIKES_PER_POINT);
+  _calcPoints(coins, likes, chatPoints) {
+    return coins * 2 + Math.floor(likes / LIKES_PER_POINT) + (chatPoints || 0);
   }
 
   addCoins(userId, username, avatarUrl, coins) {
@@ -35,7 +36,7 @@ class PlayersManager {
     p.username    = username || p.username;
     p.active      = true;
     p.lastSeen    = Date.now();
-    p.totalPoints = this._calcPoints(p.totalCoins, p.totalLikes);
+    p.totalPoints = this._calcPoints(p.totalCoins, p.totalLikes, p.totalChatPoints);
     p.distance    = p.totalPoints;
     return p;
   }
@@ -46,7 +47,18 @@ class PlayersManager {
     p.username    = username || p.username;
     p.active      = true;
     p.lastSeen    = Date.now();
-    p.totalPoints = this._calcPoints(p.totalCoins, p.totalLikes);
+    p.totalPoints = this._calcPoints(p.totalCoins, p.totalLikes, p.totalChatPoints);
+    p.distance    = p.totalPoints;
+    return p;
+  }
+
+  addChatGo(userId, username, avatarUrl) {
+    const p = this._ensurePlayer(userId, username, avatarUrl);
+    p.totalChatPoints += 1;
+    p.username  = username || p.username;
+    p.active    = true;
+    p.lastSeen  = Date.now();
+    p.totalPoints = this._calcPoints(p.totalCoins, p.totalLikes, p.totalChatPoints);
     p.distance    = p.totalPoints;
     return p;
   }

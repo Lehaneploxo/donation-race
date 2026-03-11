@@ -232,7 +232,7 @@
     .lb-rank.rank-2 { color: #C0C0C0; font-size: 48px; }
     .lb-rank.rank-3 { color: #CD7F32; font-size: 45px; }
     .lb-rank.rank-other { color: #888; font-size: 39px; }
-    .lb-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-right: 6px; font-size: 42px; }
+    .lb-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-right: 6px; font-size: 34px; }
     .lb-pts { color: #FFD700; font-weight: 900; font-size: 45px; white-space: nowrap; }
     .lb-pts-label { color: #AAA; font-weight: normal; font-size: 30px; }
 
@@ -289,6 +289,84 @@
     #fsBtn    { top: 16px; right: 16px; }
     #musicBtn { top: 16px; right: 72px; }
     #musicBtn.on { border-color: #00FF88; color: #00FF88; }
+
+    /* Event announcement overlay */
+    #eventAnnouncement {
+      position: absolute;
+      top: 42%;
+      left: 50%;
+      transform: translate(-50%, -50%) scale(1);
+      font-size: 88px;
+      font-weight: 900;
+      color: #FF4444;
+      text-shadow: 0 0 30px currentColor, 0 0 60px currentColor, 3px 3px 0 #000;
+      letter-spacing: 4px;
+      opacity: 0;
+      transition: opacity 0.25s, transform 0.25s;
+      pointer-events: none;
+      z-index: 200;
+      white-space: nowrap;
+      text-align: center;
+    }
+    /* Disaster counter */
+    #chaosWrap {
+      position: absolute;
+      bottom: 120px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+    }
+    #chaosLabel {
+      color: #FF4444;
+      font-size: 28px;
+      font-weight: 900;
+      text-shadow: 0 0 10px #FF4444;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+    }
+    #chaosBarOuter {
+      width: 640px;
+      height: 22px;
+      background: rgba(0,0,0,0.6);
+      border: 2px solid #FF4444;
+      border-radius: 11px;
+      overflow: hidden;
+    }
+    #chaosBarInner {
+      height: 100%;
+      background: linear-gradient(90deg, #FF2200, #FF6600, #FFCC00);
+      border-radius: 11px;
+      width: 0%;
+      transition: width 0.4s ease;
+      box-shadow: 0 0 8px #FF4400;
+    }
+    #chaosCount {
+      color: #FF8800;
+      font-size: 24px;
+      font-weight: bold;
+      text-shadow: 0 0 6px #FF4400;
+    }
+    /* Like hint */
+    #likeHint {
+      position: absolute;
+      bottom: 70px;
+      left: 50%;
+      transform: translateX(-50%);
+      color: #FF6688;
+      font-size: 30px;
+      font-weight: 900;
+      text-shadow: 0 0 12px rgba(255,100,136,0.8), 2px 2px 0 #000;
+      letter-spacing: 2px;
+      white-space: nowrap;
+      animation: likeHintPulse 2s ease-in-out infinite;
+    }
+    @keyframes likeHintPulse {
+      0%,100% { opacity: 0.7; transform: translateX(-50%) scale(1); }
+      50%      { opacity: 1.0; transform: translateX(-50%) scale(1.04); }
+    }
 
   </style>
 </head>
@@ -376,6 +454,17 @@
         </svg>
       </div>
     </div>
+
+    <!-- Event announcement -->
+    <div id="eventAnnouncement"></div>
+    <!-- Disaster counter -->
+    <div id="chaosWrap">
+      <div id="chaosLabel">💥 КАТАСТРОФА</div>
+      <div id="chaosBarOuter"><div id="chaosBarInner"></div></div>
+      <div id="chaosCount">0 / 1000 ❤️</div>
+    </div>
+    <!-- Like hint -->
+    <div id="likeHint">❤️ ЖМИ ЛАЙК — ВЫЗОВИ КАТАСТРОФУ ❤️</div>
   </div>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>

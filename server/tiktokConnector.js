@@ -17,7 +17,7 @@ const DEMO_USERS = [
  * @param {Function} onMember   called with { userId, username, avatarUrl } when viewer joins
  * @returns {object} connection
  */
-function connectToTikTok(username, onGift, onStatus, onMember, onLike) {
+function connectToTikTok(username, onGift, onStatus, onMember, onLike, onChat) {
   const notify = onStatus || (() => {});
   const conn   = new WebcastPushConnection(username);
   conn._tiktokMode = 'connecting';
@@ -34,7 +34,7 @@ function connectToTikTok(username, onGift, onStatus, onMember, onLike) {
       console.error(`[TikTok][${username}] Ошибка: ${msg}`);
       console.log(`[TikTok][${username}] Переключение на демо-режим`);
       notify({ connected: false, mode: 'demo', message: `Не удалось подключить @${username}: ${msg}` });
-      _startDemo(onGift, conn, onLike);
+      _startDemo(onGift, conn, onLike, onChat);
     });
 
   conn.on('gift', data => {
@@ -69,6 +69,19 @@ function connectToTikTok(username, onGift, onStatus, onMember, onLike) {
     });
   });
 
+  conn.on('chat', data => {
+    if (!onChat) return;
+    const msg = (data.comment || '').trim().toUpperCase();
+    if (msg === 'GO') {
+      console.log('[Chat GO] ' + (data.nickname || data.uniqueId));
+      onChat({
+        userId:    String(data.userId),
+        username:  data.nickname || data.uniqueId || 'Unknown',
+        avatarUrl: data.profilePictureUrl || ''
+      });
+    }
+  });
+
   // Зритель зашёл в стрим → обновить присутствие
   conn.on('member', data => {
     onMember?.({
@@ -87,7 +100,7 @@ function connectToTikTok(username, onGift, onStatus, onMember, onLike) {
   return conn;
 }
 
-function _startDemo(onGift, conn, onLike) {
+function _startDemo(onGift, conn, onLike, onChat) {
   const iv = setInterval(() => {
     const u = DEMO_USERS[Math.floor(Math.random() * DEMO_USERS.length)];
     if (Math.random() < 0.4 && onLike) {
@@ -107,9 +120,15 @@ function _startDemo(onGift, conn, onLike) {
     onGift({ userId: u.id, username: u.name, avatarUrl: '', giftName: 'Donut', coins: 30 });
   }, 50000);
 
+  const goIv = setInterval(() => {
+    const u = DEMO_USERS[Math.floor(Math.random() * DEMO_USERS.length)];
+    if (onChat) onChat({ userId: u.id, username: u.name, avatarUrl: '' });
+  }, 4000);
+
   // Attach cleanup to the connection object so the room can clear it
   conn._demoInterval  = iv;
   conn._demoTornadoIv = tornadoIv;
+  conn._demoGoIv      = goIv;
 }
 
 module.exports = { connectToTikTok };
