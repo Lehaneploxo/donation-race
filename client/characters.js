@@ -226,7 +226,7 @@ class Car3D {
     // Tracks
     [-0.98, 0.98].forEach(tx => {
       const track = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.44, 3.8), trackMat);
-      track.position.set(tx, 0.28, 0);
+      track.position.set(tx, 0.22, 0); // 0.22 = half-height, so bottom sits at Y=0
       track.castShadow = true;
       this.group.add(track);
     });
@@ -255,10 +255,10 @@ class Car3D {
     gun.position.set(0, 1.42, -1.2);
     this.group.add(gun);
 
-    // Small road wheels (decorative, they spin too)
+    // Small road wheels (decorative, they spin too) — Y=0.22 = radius, so bottom at Y=0
     for (let i = -1.4; i <= 1.4; i += 0.7) {
-      this._addWheel(-1.05, 0.24, i, 0.22, 0.16, trackMat, rimMat);
-      this._addWheel( 1.05, 0.24, i, 0.22, 0.16, trackMat, rimMat);
+      this._addWheel(-1.05, 0.22, i, 0.22, 0.16, trackMat, rimMat);
+      this._addWheel( 1.05, 0.22, i, 0.22, 0.16, trackMat, rimMat);
     }
   }
 

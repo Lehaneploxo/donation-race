@@ -1022,7 +1022,8 @@ const seaBridgeGroup = new THREE.Group();
     }
   }
 })();
-seaBridgeGroup.position.set(0, 0, -180);
+// Lowered by 0.21 so deck top (0.12+0.09=0.21) lands at world Y=0 where cars drive
+seaBridgeGroup.position.set(0, -0.21, -180);
 seaBridgeGroup.visible = false;
 scene.add(seaBridgeGroup);
 
