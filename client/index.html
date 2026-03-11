@@ -39,33 +39,9 @@
       pointer-events: none;
     }
 
-    /* Title */
-    #title {
-      position: absolute;
-      top: 24px;
-      left: 50%;
-      transform: translateX(-50%);
-      font-size: 48px;
-      font-weight: 900;
-      color: #FFD700;
-      text-shadow: 0 0 8px #FF6600, 0 0 28px #FF4400, 2px 2px 0 #000;
-      letter-spacing: 4px;
-      white-space: nowrap;
-    }
-
-    /* Subtitle */
-    #subtitle {
-      position: absolute;
-      top: 78px;
-      left: 50%;
-      transform: translateX(-50%);
-      font-size: 26px;
-      font-weight: 900;
-      color: #FF6600;
-      text-shadow: 0 0 10px rgba(255,102,0,0.7), 1px 1px 0 #000;
-      letter-spacing: 3px;
-      white-space: nowrap;
-    }
+    /* Title — hidden, replaced by top bars */
+    #title   { display: none; }
+    #subtitle { display: none; }
 
     /* Winner overlay */
     #winnerOverlay {
@@ -138,29 +114,28 @@
     /* Winners / player count */
     #playerCount {
       position: absolute;
-      top: 24px;
-      right: 24px;
-      font-size: 22px;
+      top: 135px;
+      right: 14px;
+      font-size: 20px;
       font-weight: bold;
       color: #00FF88;
-      background: rgba(0,0,0,0.68);
-      padding: 8px 16px;
+      background: rgba(0,0,0,0.55);
+      padding: 6px 14px;
       border-radius: 10px;
-      border: 2px solid #00FF88;
-      box-shadow: 0 0 14px rgba(0,255,136,0.35);
+      border: 1px solid rgba(0,255,136,0.4);
     }
 
     /* Time of day badge */
     #timeOfDay {
       position: absolute;
-      top: 24px;
-      left: 24px;
-      font-size: 20px;
+      top: 135px;
+      left: 14px;
+      font-size: 18px;
       font-weight: bold;
-      padding: 8px 14px;
+      padding: 6px 12px;
       border-radius: 10px;
-      border: 2px solid rgba(255,255,255,0.3);
-      background: rgba(0,0,0,0.55);
+      border: 1px solid rgba(255,255,255,0.2);
+      background: rgba(0,0,0,0.45);
       color: #FFE;
       letter-spacing: 1px;
       transition: color 2s, border-color 2s;
@@ -225,110 +200,112 @@
     }
     #demoBtn:hover { color: #CCC; }
 
-    /* Progress bar */
-    #progressWrap {
+    /* ── TOP BARS ── */
+    #topBars {
       position: absolute;
-      top: 155px;
-      left: 50%;
-      transform: translateX(-50%);
+      top: 0; left: 0;
+      width: 1080px;
+      padding: 14px 20px 10px;
       display: flex;
       flex-direction: column;
+      gap: 10px;
+      background: linear-gradient(180deg, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0) 100%);
+    }
+    .top-bar-row {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+    .top-bar-header {
+      display: flex;
+      justify-content: space-between;
       align-items: center;
-      gap: 6px;
+      font-size: 30px;
+      font-weight: 900;
+      color: #fff;
+      text-shadow: 1px 1px 4px #000;
+      letter-spacing: 1px;
     }
-    #progressLabel {
-      color: #0FF;
-      font-size: 22px;
-      font-weight: bold;
-      text-shadow: 0 0 8px #0FF;
-      letter-spacing: 2px;
-    }
-    #progressBarOuter {
-      width: 700px;
-      height: 20px;
-      background: rgba(0,0,0,0.6);
-      border: 2px solid #0FF;
-      border-radius: 10px;
+    .top-bar-track {
+      width: 100%;
+      height: 26px;
+      background: rgba(0,0,0,0.5);
+      border-radius: 13px;
       overflow: hidden;
+      border: 1px solid rgba(255,255,255,0.15);
     }
     #progressBarInner {
       height: 100%;
-      background: linear-gradient(90deg, #00BFFF, #00FF88);
-      border-radius: 10px;
+      background: linear-gradient(90deg, #00FF88, #AAFF00, #FFD700, #FF6600, #FF2200);
+      border-radius: 13px;
       width: 0%;
       transition: width 0.5s ease;
-      box-shadow: 0 0 8px #00FF88;
+      box-shadow: 0 0 10px rgba(255,200,0,0.5);
+    }
+    #chaosBarInner {
+      height: 100%;
+      background: linear-gradient(90deg, #FF2200, #FF6600, #FFCC00, #FF44AA);
+      border-radius: 13px;
+      width: 0%;
+      transition: width 0.4s ease;
+      box-shadow: 0 0 10px rgba(255,80,0,0.5);
     }
 
-    /* Leaderboard — верхний левый угол */
+    /* Leaderboard */
     #leaderboard {
       position: absolute;
-      top: 220px;
-      left: 18px;
+      top: 185px;
+      left: 14px;
       background: transparent;
-      border: none;
-      border-radius: 0;
-      padding: 10px 16px 12px;
-      width: 480px;
-      box-shadow: none;
+      padding: 0;
+      width: 500px;
     }
     #leaderboard h3 {
       color: #FFD700;
-      font-size: 20px;
-      text-align: center;
-      margin-bottom: 8px;
-      text-shadow: 0 0 8px #FFD700;
-      letter-spacing: 3px;
+      font-size: 34px;
+      font-weight: 900;
+      margin-bottom: 6px;
+      text-shadow: 0 0 12px rgba(255,215,0,0.6);
+      letter-spacing: 4px;
     }
     .lb-item {
       display: flex;
       align-items: center;
-      padding: 4px 2px;
+      padding: 3px 0;
       color: #FFF;
-      font-size: 17px;
-      border-bottom: 1px solid rgba(255,255,255,0.08);
+      border-bottom: 1px solid rgba(255,255,255,0.07);
     }
     .lb-item:last-child { border-bottom: none; }
-    .lb-rank { width: 60px; font-weight: bold; color: #AAA; font-size: 42px; text-align:center; }
-    .lb-rank.rank-1 { color: #FFD700; font-size: 54px; }
-    .lb-rank.rank-2 { color: #C0C0C0; font-size: 48px; }
-    .lb-rank.rank-3 { color: #CD7F32; font-size: 45px; }
-    .lb-rank.rank-other { color: #888; font-size: 39px; }
-    .lb-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-right: 6px; font-size: 34px; }
-    .lb-pts  { color: #FFD700; font-weight: 900; font-size: 45px; white-space: nowrap; padding-right: 8px; }
+    .lb-rank { width: 58px; font-weight: bold; color: #AAA; font-size: 40px; text-align:center; }
+    .lb-rank.rank-1 { color: #FFD700; font-size: 52px; }
+    .lb-rank.rank-2 { color: #C0C0C0; font-size: 46px; }
+    .lb-rank.rank-3 { color: #CD7F32; font-size: 43px; }
+    .lb-rank.rank-other { color: #777; font-size: 36px; }
+    .lb-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-right: 6px; font-size: 32px; }
+    .lb-pts  { color: #FFD700; font-weight: 900; font-size: 42px; white-space: nowrap; padding-right: 6px; }
     .lb-icon { display: flex; align-items: center; flex-shrink: 0; }
 
-    /* Info panel — правый край */
+    /* Info panel */
     #infoPanel {
       position: absolute;
-      top: 220px;
-      right: 18px;
-      background: transparent;
-      border: none;
-      border-radius: 0;
-      padding: 14px 18px;
-      width: 340px;
-      box-shadow: none;
-    }
-    .info-title {
-      color: rgba(255,255,255,0.5);
-      font-size: 36px;
-      letter-spacing: 2px;
-      text-transform: uppercase;
-      margin-bottom: 12px;
-      text-align: center;
+      top: 185px;
+      right: 14px;
+      background: rgba(0,0,0,0.35);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 18px;
+      padding: 16px 20px;
+      width: 300px;
     }
     .info-row {
       display: flex;
       align-items: center;
-      justify-content: space-between;
-      padding: 8px 0;
+      padding: 10px 0;
       border-bottom: 1px solid rgba(255,255,255,0.08);
     }
     .info-row:last-child { border-bottom: none; }
-    .info-icon { font-size: 60px; width: 72px; text-align: center; }
-    .info-desc { flex: 1; color: rgba(255,255,255,0.75); font-size: 42px; padding: 0 8px; }
-    .info-val  { color: #FFD700; font-weight: 900; font-size: 48px; white-space: nowrap; }
+    .info-icon { font-size: 52px; width: 64px; text-align: center; }
+    .info-desc { flex: 1; color: rgba(255,255,255,0.85); font-size: 36px; padding: 0 6px; }
+    .info-val  { color: #FFD700; font-weight: 900; font-size: 40px; white-space: nowrap; }
 
     /* Fixed UI buttons */
     .ui-btn {
@@ -372,65 +349,6 @@
       white-space: nowrap;
       text-align: center;
     }
-    /* Disaster counter */
-    #chaosWrap {
-      position: absolute;
-      bottom: 120px;
-      left: 50%;
-      transform: translateX(-50%);
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 8px;
-    }
-    #chaosLabel {
-      color: #FF4444;
-      font-size: 28px;
-      font-weight: 900;
-      text-shadow: 0 0 10px #FF4444;
-      letter-spacing: 3px;
-      text-transform: uppercase;
-    }
-    #chaosBarOuter {
-      width: 640px;
-      height: 22px;
-      background: rgba(0,0,0,0.6);
-      border: 2px solid #FF4444;
-      border-radius: 11px;
-      overflow: hidden;
-    }
-    #chaosBarInner {
-      height: 100%;
-      background: linear-gradient(90deg, #FF2200, #FF6600, #FFCC00);
-      border-radius: 11px;
-      width: 0%;
-      transition: width 0.4s ease;
-      box-shadow: 0 0 8px #FF4400;
-    }
-    #chaosCount {
-      color: #FF8800;
-      font-size: 24px;
-      font-weight: bold;
-      text-shadow: 0 0 6px #FF4400;
-    }
-    /* Like hint */
-    #likeHint {
-      position: absolute;
-      bottom: 70px;
-      left: 50%;
-      transform: translateX(-50%);
-      color: #FF6688;
-      font-size: 30px;
-      font-weight: 900;
-      text-shadow: 0 0 12px rgba(255,100,136,0.8), 2px 2px 0 #000;
-      letter-spacing: 2px;
-      white-space: nowrap;
-      animation: likeHintPulse 2s ease-in-out infinite;
-    }
-    @keyframes likeHintPulse {
-      0%,100% { opacity: 0.7; transform: translateX(-50%) scale(1); }
-      50%      { opacity: 1.0; transform: translateX(-50%) scale(1.04); }
-    }
 
   </style>
 </head>
@@ -453,29 +371,31 @@
   </div>
 
   <div id="ui">
-    <div id="title">🏁 STREET RACE! 🏁</div>
-    <div id="subtitle">ЗРИТЕЛИ УПРАВЛЯЮТ ГОНКОЙ!</div>
-
-    <div id="statusBadge" style="display:none">⏳ Connecting…</div>
-    <div id="timeOfDay">🌅 MORNING</div>
-    <div id="timeSpeedBadge" style="
-      position:absolute; top:80px; left:24px;
-      font-size:18px; font-weight:bold;
-      padding:6px 14px; border-radius:10px;
-      border:2px solid #AAA; background:rgba(0,0,0,0.65);
-      color:#AAA; white-space:nowrap; letter-spacing:1px;
-      display:none;
-    ">⏱ 1× (real time)</div>
-
-    <div id="playerCount">PLAYERS: <span id="playerCountNum">0</span></div>
-
-    <div id="progressWrap">
-      <div id="progressLabel">🏁 ФИНИШ: <span id="progressPct">0</span> / 1000</div>
-      <div id="progressBarOuter"><div id="progressBarInner"></div></div>
+    <!-- Two full-width bars at the top -->
+    <div id="topBars">
+      <div class="top-bar-row">
+        <div class="top-bar-header">
+          <span>🏁 ФИНИШ</span>
+          <span><span id="progressPct">0</span> / 1000</span>
+        </div>
+        <div class="top-bar-track"><div id="progressBarInner"></div></div>
+      </div>
+      <div class="top-bar-row">
+        <div class="top-bar-header">
+          <span>❤️ КАТАСТРОФА</span>
+          <span id="chaosCount">0 / 1000</span>
+        </div>
+        <div class="top-bar-track"><div id="chaosBarInner"></div></div>
+      </div>
     </div>
 
+    <div id="playerCount">PLAYERS: <span id="playerCountNum">0</span></div>
+    <div id="timeOfDay">🌅 MORNING</div>
+    <div id="statusBadge" style="display:none">⏳ Connecting…</div>
+    <div id="timeSpeedBadge" style="display:none">⚡</div>
+
     <div id="leaderboard">
-      <h3>🏆 TOP 10</h3>
+      <h3>🏆 ТОП 10</h3>
       <div id="leaderboardList"></div>
     </div>
 
@@ -483,16 +403,16 @@
       <div class="info-row">
         <span class="info-icon">❤️</span>
         <span class="info-desc">100 лайков</span>
-        <span class="info-val">= +1</span>
+        <span class="info-val">= 1</span>
       </div>
       <div class="info-row">
         <span class="info-icon">🎁</span>
-        <span class="info-desc">1 монета</span>
-        <span class="info-val">= +2</span>
+        <span class="info-desc">подарок</span>
+        <span class="info-val">= 2</span>
       </div>
       <div class="info-row">
         <span class="info-icon">🍩</span>
-        <span class="info-desc">Пончик</span>
+        <span class="info-desc">пончик</span>
         <span class="info-val">= 💥</span>
       </div>
     </div>
@@ -506,23 +426,15 @@
 
     <!-- Event announcement -->
     <div id="eventAnnouncement"></div>
-    <!-- Disaster counter -->
-    <div id="chaosWrap">
-      <div id="chaosLabel">💥 КАТАСТРОФА</div>
-      <div id="chaosBarOuter"><div id="chaosBarInner"></div></div>
-      <div id="chaosCount">0 / 1000 ❤️</div>
-    </div>
-    <!-- Like hint -->
-    <div id="likeHint">❤️ ЖМИ ЛАЙК — ВЫЗОВИ КАТАСТРОФУ ❤️</div>
   </div>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
-  <script src="websocket.js?v=20250311_15"></script>
-  <script src="leaderboard.js?v=20250311_15"></script>
-  <script src="characters.js?v=20250311_15"></script>
-  <script src="game.js?v=20250311_15"></script>
-  <script src="music.js?v=20250311_15"></script>
-  <script src="devtools.js?v=20250311_15"></script>
+  <script src="websocket.js?v=20250311_16"></script>
+  <script src="leaderboard.js?v=20250311_16"></script>
+  <script src="characters.js?v=20250311_16"></script>
+  <script src="game.js?v=20250311_16"></script>
+  <script src="music.js?v=20250311_16"></script>
+  <script src="devtools.js?v=20250311_16"></script>
 </div>
 
 <script>
