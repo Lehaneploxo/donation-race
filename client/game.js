@@ -2749,110 +2749,178 @@ function updateTornado(dt) {
 
 // ─── SOUND SYSTEM ─────────────────────────────────────────────────────────────
 let _audioCtx = null;
+let _masterComp = null;  // global compressor — prevents harsh peaks
+
 function _getAC() {
   if (!_audioCtx) {
-    try { _audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e) {}
+    try {
+      _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      // Soft compressor so nothing ever clips or stings the ears
+      _masterComp = _audioCtx.createDynamicsCompressor();
+      _masterComp.threshold.value = -18;
+      _masterComp.knee.value      =  12;
+      _masterComp.ratio.value     =   4;
+      _masterComp.attack.value    = 0.008;
+      _masterComp.release.value   = 0.22;
+      _masterComp.connect(_audioCtx.destination);
+    } catch(e) {}
   }
   return _audioCtx;
 }
+
+function _out() { return _masterComp || (_audioCtx && _audioCtx.destination); }
+
+// Smooth sine/triangle tone with soft attack
 function _tone(freq, type, dur, vol, delay) {
   try {
     const ctx = _getAC(); if (!ctx) return;
     const osc = ctx.createOscillator(), gain = ctx.createGain();
-    osc.connect(gain); gain.connect(ctx.destination);
-    osc.type = type || 'sine'; osc.frequency.value = freq;
+    osc.connect(gain); gain.connect(_out());
+    osc.type = type || 'sine';
+    osc.frequency.value = freq;
     const t = ctx.currentTime + (delay || 0);
-    gain.gain.setValueAtTime(vol || 0.25, t);
-    gain.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    gain.gain.setValueAtTime(0.0001, t);
+    gain.gain.linearRampToValueAtTime(vol * 0.55, t + 0.04);   // soft attack
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + dur);
     osc.start(t); osc.stop(t + dur + 0.05);
   } catch(e) {}
 }
-function _noise(dur, ffreq, vol, delay) {
+
+// Warm filtered noise — bandpass for coloured wind/rumble
+function _noise(dur, ffreq, vol, delay, bpQ) {
   try {
     const ctx = _getAC(); if (!ctx) return;
-    const sr = ctx.sampleRate;
+    const sr  = ctx.sampleRate;
     const buf = ctx.createBuffer(1, Math.ceil(sr * dur), sr);
-    const d = buf.getChannelData(0);
+    const d   = buf.getChannelData(0);
     for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
-    const src = ctx.createBufferSource(); src.buffer = buf;
-    const flt = ctx.createBiquadFilter(); flt.type = 'lowpass'; flt.frequency.value = ffreq || 500;
+    const src  = ctx.createBufferSource(); src.buffer = buf;
+    const flt  = ctx.createBiquadFilter();
+    flt.type            = bpQ ? 'bandpass' : 'lowpass';
+    flt.frequency.value = ffreq || 400;
+    if (bpQ) flt.Q.value = bpQ;
     const gain = ctx.createGain();
     const t = ctx.currentTime + (delay || 0);
-    gain.gain.setValueAtTime(vol || 0.2, t);
-    gain.gain.exponentialRampToValueAtTime(0.001, t + dur);
-    src.connect(flt); flt.connect(gain); gain.connect(ctx.destination); src.start(t);
+    gain.gain.setValueAtTime(0.0001, t);
+    gain.gain.linearRampToValueAtTime(vol * 0.5, t + 0.08);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    src.connect(flt); flt.connect(gain); gain.connect(_out()); src.start(t);
   } catch(e) {}
 }
+
 // ─── ENGINE SOUND ─────────────────────────────────────────────────────────────
-let _engineOsc = null, _engineGain = null, _engineOsc2 = null;
+let _engineOsc = null, _engineGain = null;
 function _startEngine() {
   if (_engineOsc) return;
   try {
     const ctx = _getAC(); if (!ctx) return;
+
+    // Low-pass filter for warmth — cuts all harsh harmonics
+    const flt = ctx.createBiquadFilter();
+    flt.type = 'lowpass'; flt.frequency.value = 160; flt.Q.value = 0.8;
+
     _engineGain = ctx.createGain();
-    _engineGain.gain.value = 0.055;
-    _engineGain.connect(ctx.destination);
-    _engineOsc = ctx.createOscillator();
-    _engineOsc.type = 'sawtooth';
-    _engineOsc.frequency.value = 72;
-    _engineOsc.connect(_engineGain);
-    _engineOsc.start();
-    _engineOsc2 = ctx.createOscillator();
-    _engineOsc2.type = 'sawtooth';
-    _engineOsc2.frequency.value = 78;
-    _engineOsc2.connect(_engineGain);
-    _engineOsc2.start();
+    _engineGain.gain.value = 0.038;
+    flt.connect(_engineGain); _engineGain.connect(_out());
+
+    // Two slightly detuned triangle oscillators (triangle = much softer than sawtooth)
+    [76, 82].forEach(f => {
+      const o = ctx.createOscillator();
+      o.type = 'triangle'; o.frequency.value = f;
+      o.connect(flt); o.start();
+    });
+
+    // Very gentle tremolo (organic pulsing feel)
+    const lfo = ctx.createOscillator();
+    lfo.frequency.value = 4.5;
+    const lfoGain = ctx.createGain(); lfoGain.gain.value = 0.006;
+    lfo.connect(lfoGain); lfoGain.connect(_engineGain.gain);
+    lfo.start();
+
+    _engineOsc = true; // flag: engine running
   } catch(e) {}
 }
+
 function _playAccel() {
-  // Quick rev-up "вжжж"
   try {
     const ctx = _getAC(); if (!ctx) return;
-    const osc = ctx.createOscillator(), g = ctx.createGain();
-    osc.connect(g); g.connect(ctx.destination);
-    osc.type = 'sawtooth';
+    // Smooth sine rev: 110 → 260 → 120 Hz — no harsh sawtooth
+    const osc = ctx.createOscillator(), flt = ctx.createBiquadFilter(), g = ctx.createGain();
+    flt.type = 'lowpass'; flt.frequency.value = 600;
+    osc.connect(flt); flt.connect(g); g.connect(_out());
+    osc.type = 'sine';
     const t = ctx.currentTime;
-    osc.frequency.setValueAtTime(120, t);
-    osc.frequency.exponentialRampToValueAtTime(380, t + 0.35);
-    osc.frequency.exponentialRampToValueAtTime(140, t + 0.7);
-    g.gain.setValueAtTime(0.12, t);
-    g.gain.exponentialRampToValueAtTime(0.001, t + 0.75);
-    osc.start(t); osc.stop(t + 0.78);
+    osc.frequency.setValueAtTime(110, t);
+    osc.frequency.exponentialRampToValueAtTime(260, t + 0.4);
+    osc.frequency.exponentialRampToValueAtTime(120, t + 0.9);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(0.07, t + 0.05);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.95);
+    osc.start(t); osc.stop(t + 1.0);
   } catch(e) {}
 }
+
 let _lastAccelTime = 0;
 function _tickEngineSound(ts) {
   if (!_engineOsc) _startEngine();
-  // Random acceleration rev every 4-7 seconds
-  if (ts - _lastAccelTime > 4000 + Math.random() * 3000) {
+  if (ts - _lastAccelTime > 5000 + Math.random() * 4000) {
     _lastAccelTime = ts;
     _playAccel();
   }
 }
 
 function _playWarningBeep() {
-  _tone(440, 'sine', 0.12, 0.45, 0);
-  _tone(660, 'sine', 0.12, 0.45, 0.18);
-  _tone(880, 'sine', 0.18, 0.5,  0.36);
+  // Removed — events start silently
 }
-function _soundTornado()  { _noise(7, 280, 0.12); _noise(7, 90, 0.08); }
-function _soundTsunami()  { _noise(5, 180, 0.18); _tone(52, 'sine', 4.5, 0.22); }
+
+// ─── TORNADO: deep howling wind ───────────────────────────────────────────────
+function _soundTornado() {
+  // Low bandpass whoosh (100-300 Hz) — deep wind, not hiss
+  _noise(8, 180, 0.16, 0, 1.8);
+  _noise(8, 320, 0.10, 0.2, 3.0);
+  // Sub-bass rumble
+  _tone(48, 'sine', 7, 0.12);
+}
+
+// ─── TSUNAMI: deep ocean roar ────────────────────────────────────────────────
+function _soundTsunami() {
+  // Deep rumble — very low sine
+  _tone(38, 'sine', 6, 0.18);
+  _tone(55, 'sine', 5, 0.10, 0.3);
+  // Filtered rush of water (warm, not hissy)
+  _noise(5.5, 220, 0.14, 0.1);
+  _noise(4.0, 130, 0.10, 0.5);
+}
+
+// ─── METEOR: soft whistle + muffled thud ─────────────────────────────────────
 function _soundMeteor() {
   try {
     const ctx = _getAC(); if (!ctx) return;
-    const osc = ctx.createOscillator(), gain = ctx.createGain();
-    osc.connect(gain); gain.connect(ctx.destination);
-    osc.type = 'sawtooth';
+    // Gentle descending sine whistle (not harsh sawtooth)
+    const osc = ctx.createOscillator(), g = ctx.createGain();
+    osc.connect(g); g.connect(_out());
+    osc.type = 'sine';
     const t = ctx.currentTime;
-    osc.frequency.setValueAtTime(1400, t);
-    osc.frequency.exponentialRampToValueAtTime(160, t + 1.1);
-    gain.gain.setValueAtTime(0.22, t);
-    gain.gain.exponentialRampToValueAtTime(0.001, t + 1.1);
-    osc.start(t); osc.stop(t + 1.15);
+    osc.frequency.setValueAtTime(680, t);
+    osc.frequency.exponentialRampToValueAtTime(90, t + 1.3);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(0.09, t + 0.06);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 1.3);
+    osc.start(t); osc.stop(t + 1.35);
   } catch(e) {}
-  _noise(0.5, 1400, 0.45, 1.1);
+  // Muffled low-frequency thud on impact (not piercing)
+  _noise(0.7, 280, 0.18, 1.3);
+  _tone(65, 'sine', 0.5, 0.15, 1.3);
 }
-function _soundCrash() { _noise(0.4, 1600, 0.5); _tone(110, 'sawtooth', 0.35, 0.3, 0.08); }
+
+// ─── CRASH: metallic clunk, no harsh noise ────────────────────────────────────
+function _soundCrash() {
+  // Low metallic thud
+  _tone(130, 'triangle', 0.5, 0.14);
+  _tone(88,  'sine',     0.6, 0.10, 0.05);
+  // Warm crunch noise (low-pass at 350 Hz — no high-pitch sting)
+  _noise(0.5, 350, 0.12, 0.02);
+}
 
 // ─── EVENT ANNOUNCEMENT ───────────────────────────────────────────────────────
 function showEventAnnouncement(text, color) {
