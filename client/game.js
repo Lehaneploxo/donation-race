@@ -1027,6 +1027,22 @@ seaBridgeGroup.position.set(0, -0.21, -180);
 seaBridgeGroup.visible = false;
 scene.add(seaBridgeGroup);
 
+// ── Scrolling bridge plank lines — give sense of speed while on the bridge ──
+// 50 planks evenly spaced over POOL_SPAN (200 units) → one passes every ~0.5s at SCROLL_SPD
+for (let i = 0; i < 50; i++) {
+  const col = i % 3 === 0 ? 0x3e2610 : i % 3 === 1 ? 0x5a3e1e : 0x6b4c2a;
+  const plank = new THREE.Mesh(
+    new THREE.PlaneGeometry(5.2, 0.28),
+    new THREE.MeshLambertMaterial({ color: col })
+  );
+  plank.rotation.x = -Math.PI / 2;
+  const baseZ = -(i / 50) * POOL_SPAN;
+  plank.position.set(0, 0.006, baseZ); // just above deck surface
+  plank.visible = false;
+  scene.add(plank);
+  seaPooledObjects.push({ mesh: plank, z: baseZ });
+}
+
 function makeShip(x, z, sc, seed) {
   const _r = s => { const v = Math.sin(s * 127.1 + 13.7) * 43758.5; return v - Math.floor(v); };
   const g = new THREE.Group();
