@@ -121,10 +121,10 @@ class PlayersManager {
     });
   }
 
-  // Сумма монет всех игроков
-  getTotalCoins() {
+  // Сумма очков всех активных игроков
+  getTotalPoints() {
     let total = 0;
-    this.players.forEach(p => { total += p.totalCoins; });
+    this.players.forEach(p => { if (p.active) total += p.totalPoints; });
     return total;
   }
 }

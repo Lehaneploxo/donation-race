@@ -2352,13 +2352,13 @@ let totalPlayers = 0;
 
 GameWebSocket.on('init', d => {
   applyUpdate(d.players, d.totalPlayers);
-  updateProgressUI(d.totalCoins || 0);
+  updateProgressUI(d.racePoints || 0);
   if (d.totalLikes !== undefined) updateDisasterCounter(d.totalLikes);
 });
 GameWebSocket.on('update', d => {
   if (d.event?.type === 'race_end') {
     applyUpdate(d.players, d.totalPlayers);
-    updateProgressUI(d.totalCoins || 0);
+    updateProgressUI(d.racePoints || 0);
     showWinner(d.event.winner);
     return;
   }
@@ -2377,7 +2377,7 @@ GameWebSocket.on('update', d => {
   if (d.event?.type === 'tsunami')  spawnTsunami();
   if (d.event?.type === 'meteor')   spawnMeteors();
   if (d.event?.type === 'crash')    spawnMassCrash();
-  if (d.totalCoins  !== undefined)  updateProgressUI(d.totalCoins);
+  if (d.racePoints  !== undefined)  updateProgressUI(d.racePoints);
   if (d.totalLikes  !== undefined)  updateDisasterCounter(d.totalLikes);
 });
 
@@ -2387,7 +2387,6 @@ function applyUpdate(newPlayers, total) {
 
   document.getElementById('playerCountNum').textContent = total;
   Leaderboard.update(players, total);
-  updateProgressUI(players);
 
   const topIds = new Set(players.map(p => p.playerId));
   characters.forEach((c, id) => {

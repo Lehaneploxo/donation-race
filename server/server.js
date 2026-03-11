@@ -73,17 +73,18 @@ class Room {
           console.log(`[Donut] ${data.username} → ${eventType}`);
         }
 
-        // Проверяем цель — 1000 монет
-        if (this._totalCoins >= 1000 && !this._raceEnded) {
+        // Проверяем цель — 1000 очков
+        const racePoints = this.players.getTotalPoints();
+        if (racePoints >= 1000 && !this._raceEnded) {
           this._raceEnded = true;
           const top = this.players.getTop10();
           const winner = top[0] || { username: 'Неизвестный' };
-          console.log(`[Race End] Победитель: ${winner.username} | Монеты: ${this._totalCoins}`);
+          console.log(`[Race End] Победитель: ${winner.username} | Очки: ${racePoints}`);
           this.broadcast({
             type:         'update',
             players:      top,
             totalPlayers: this.players.getTotalCount(),
-            totalCoins:   this._totalCoins,
+            racePoints:   racePoints,
             totalLikes:   this._totalLikes,
             event:        { type: 'race_end', winner: winner.username }
           });
@@ -98,7 +99,7 @@ class Room {
               type:         'update',
               players:      this.players.getTop10(),
               totalPlayers: this.players.getTotalCount(),
-              totalCoins:   0,
+              racePoints:   0,
               totalLikes:   this._totalLikes,
               event:        { type: 'race_start' }
             });
@@ -110,7 +111,7 @@ class Room {
           type:         'update',
           players:      this.players.getTop10(),
           totalPlayers: this.players.getTotalCount(),
-          totalCoins:   this._totalCoins,
+          racePoints:   this.players.getTotalPoints(),
           totalLikes:   this._totalLikes,
           event:        { type: eventType, username: data.username, coins: data.coins }
         });
@@ -125,7 +126,7 @@ class Room {
             type:         'update',
             players:      this.players.getTop10(),
             totalPlayers: this.players.getTotalCount(),
-            totalCoins:   this._totalCoins,
+            racePoints:   this.players.getTotalPoints(),
             totalLikes:   this._totalLikes
           });
         }
@@ -189,7 +190,7 @@ class Room {
       type:         'init',
       players:      this.players.getTop10(),
       totalPlayers: this.players.getTotalCount(),
-      totalCoins:   this._totalCoins,
+      racePoints:   this.players.getTotalPoints(),
       totalLikes:   this._totalLikes,
       username:     this.username,
       tiktokMode:   this.connection?._tiktokMode || 'connecting'
