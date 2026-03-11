@@ -17,13 +17,25 @@ console.log(`\n[Server] Никнейм: @${DEFAULT_USERNAME}`);
 const app    = express();
 const server = http.createServer(app);
 
+// No-cache headers for HTML and JS so browsers always get the latest version
+app.use((req, res, next) => {
+  if (/\.(html|js)(\?.*)?$/.test(req.path)) {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+  }
+  next();
+});
+
 app.use(express.static(path.join(__dirname, '../client')));
 
 app.get('/', (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
   res.sendFile(path.join(__dirname, '../client/launcher.html'));
 });
 
 app.get('/game', (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
   res.sendFile(path.join(__dirname, '../client/index.html'));
 });
 
