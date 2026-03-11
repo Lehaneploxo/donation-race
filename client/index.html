@@ -444,16 +444,12 @@
   </div>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
-  <script>
-    // Cache-bust: append build timestamp to all local scripts
-    (function() {
-      var v = '?v=20250311_03';
-      ['websocket.js','leaderboard.js','characters.js','game.js','music.js','devtools.js'].forEach(function(s) {
-        var el = document.createElement('script'); el.src = s + v;
-        document.currentScript.parentNode.appendChild(el);
-      });
-    })();
-  </script>
+  <script src="websocket.js?v=20250311_04"></script>
+  <script src="leaderboard.js?v=20250311_04"></script>
+  <script src="characters.js?v=20250311_04"></script>
+  <script src="game.js?v=20250311_04"></script>
+  <script src="music.js?v=20250311_04"></script>
+  <script src="devtools.js?v=20250311_04"></script>
 </div>
 
 <script>
