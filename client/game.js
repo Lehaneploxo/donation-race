@@ -2497,6 +2497,12 @@ const TIME_SPEEDS   = [1, 10, 60, 300];
 let   timeSpeedIdx  = 0;
 let   scaledElapsedMs = 0;
 
+function _resetTimeSpeed() {
+  timeSpeedIdx = 0;
+  const el = document.getElementById('timeSpeedBadge');
+  if (el) el.style.display = 'none';
+}
+
 // ─── DEV HOTKEYS ─────────────────────────────────────────────────────────────
 document.addEventListener('keydown', e => {
   // T — cycle time speed

@@ -31,12 +31,12 @@ const GameWebSocket = {
         // Update status from init message
         if (data.type === 'init') {
           const mode = data.tiktokMode;
-          if (mode === 'tiktok')     _setStatus('live',  `🔴 LIVE @${data.username}`);
+          if (mode === 'tiktok')     { _setStatus('live',  `🔴 LIVE @${data.username}`); _resetTimeSpeed(); }
           else if (mode === 'demo')  _setStatus('demo',  `🟡 DEMO @${data.username}`);
           else                       _setStatus('connecting', `⏳ @${this.username}…`);
         }
         if (data.type === 'status') {
-          if (data.mode === 'tiktok') _setStatus('live', `🔴 LIVE @${this.username}`);
+          if (data.mode === 'tiktok') { _setStatus('live', `🔴 LIVE @${this.username}`); _resetTimeSpeed(); }
           else if (data.mode === 'demo') _setStatus('demo', `🟡 DEMO: ${data.message || 'TikTok unavailable'}`);
           else _setStatus('error', `❌ ${data.message}`);
         }
