@@ -2547,6 +2547,12 @@ document.addEventListener('keydown', e => {
   if (e.key === 'i' || e.key === 'I') spawnMeteors();
   // O — test mass crash
   if (e.key === 'o' || e.key === 'O') spawnMassCrash();
+  // N — test nitro boost
+  if (e.key === 'n' || e.key === 'N') spawnNitroBoost();
+  // F — test flood
+  if (e.key === 'f' || e.key === 'F') spawnFlood();
+  // G — test UFO abduction
+  if (e.key === 'g' || e.key === 'G') spawnUFO();
   // M — test moon world; 0 — back to auto sequence
   if (e.key === 'm' || e.key === 'M') { _worldOverride = 4; _showWorldBadge('🌙 MOON WORLD'); }
   if (e.key === '0') { _worldOverride = -1; _showWorldBadge('⏱ AUTO'); }
@@ -3264,6 +3270,329 @@ function updateMassCrash(dt) {
   }
 }
 
+// ─── NITRO BOOST ──────────────────────────────────────────────────────────────
+let _nitro = null;
+
+function spawnNitroBoost() {
+  if (_nitro) return;
+  const list = [...characters.values()].filter(c => !c._inTornado && !c._falling);
+  if (list.length === 0) return;
+  const char = list[Math.floor(Math.random() * list.length)];
+
+  // Exhaust / flame particles group
+  const exGroup = new THREE.Group();
+  scene.add(exGroup);
+  const flames = [];
+  for (let i = 0; i < 16; i++) {
+    const m = new THREE.Mesh(
+      new THREE.SphereGeometry(0.07 + Math.random() * 0.12, 4, 4),
+      new THREE.MeshBasicMaterial({
+        color: Math.random() < 0.5 ? 0xff4400 : 0xffdd00,
+        transparent: true, opacity: 1
+      })
+    );
+    exGroup.add(m);
+    flames.push({ mesh: m, phase: Math.random() });
+  }
+
+  char._inTornado = true; // freeze normal car.update() movement
+  _nitro = {
+    char,
+    origTargetZ: char.targetZ,
+    origTargetX: char.targetX,
+    exGroup, flames,
+    startTime: Date.now(),
+    duration: 5000
+  };
+}
+
+function updateNitroBoost(dt) {
+  if (!_nitro) return;
+  const elapsed = Date.now() - _nitro.startTime;
+  const dtS = dt / 1000;
+  const { char, exGroup, flames } = _nitro;
+
+  // Override spin from _inTornado: keep car straight and boost forward
+  char.group.rotation.set(0, 0, 0);
+  char.group.position.z -= 22 * dtS;          // blast forward
+  char.group.position.x += (_nitro.origTargetX - char.group.position.x) * 0.08;
+  char.group.position.y = 0;
+
+  // Spin wheels fast
+  for (const w of char._wheels) w.rotation.x += dtS * 25;
+
+  // Exhaust flames behind car (in world space)
+  exGroup.position.set(
+    char.group.position.x,
+    char.group.position.y + 0.15,
+    char.group.position.z + 0.9   // rear of car
+  );
+  flames.forEach(f => {
+    f.phase = (f.phase + dtS * 4) % 1;
+    f.mesh.position.set(
+      (Math.random() - 0.5) * 0.35,
+      (Math.random() - 0.5) * 0.2,
+      f.phase * 1.8
+    );
+    f.mesh.material.opacity = Math.max(0, 1 - f.phase);
+    f.mesh.scale.setScalar(Math.max(0.1, 1 - f.phase));
+  });
+
+  if (elapsed >= _nitro.duration) {
+    scene.remove(exGroup);
+    char._inTornado = false;
+    char.targetZ    = _nitro.origTargetZ;
+    char.targetX    = _nitro.origTargetX;
+    char._falling   = true;
+    char._fallVy    = 1.5;
+    _nitro = null;
+  }
+}
+
+// ─── FLOOD ────────────────────────────────────────────────────────────────────
+let _flood = null;
+
+function spawnFlood() {
+  if (_flood) return;
+
+  // Rain particles
+  const rainGeo = new THREE.BufferGeometry();
+  const rainCount = 600;
+  const rainPos = new Float32Array(rainCount * 3);
+  for (let i = 0; i < rainCount; i++) {
+    rainPos[i * 3]     = (Math.random() - 0.5) * 18;
+    rainPos[i * 3 + 1] = Math.random() * 20;
+    rainPos[i * 3 + 2] = -35 + Math.random() * 45;
+  }
+  rainGeo.setAttribute('position', new THREE.Float32BufferAttribute(rainPos, 3));
+  const rainMat  = new THREE.PointsMaterial({ color: 0xaaddff, size: 0.12, transparent: true, opacity: 0.7 });
+  const rainMesh = new THREE.Points(rainGeo, rainMat);
+  scene.add(rainMesh);
+
+  // Rising water plane
+  const waterGeo = new THREE.PlaneGeometry(20, 60);
+  const waterMat = new THREE.MeshBasicMaterial({ color: 0x1166bb, transparent: true, opacity: 0.55, side: THREE.DoubleSide });
+  const waterPlane = new THREE.Mesh(waterGeo, waterMat);
+  waterPlane.rotation.x = -Math.PI / 2;
+  waterPlane.position.set(0, -0.5, -12);
+  scene.add(waterPlane);
+
+  _flood = {
+    rainMesh, rainGeo, waterPlane,
+    startTime: Date.now(),
+    duration: 6500,
+    phase: 'rising'   // rising → hold → receding
+  };
+}
+
+function updateFlood(dt) {
+  if (!_flood) return;
+  const elapsed = Date.now() - _flood.startTime;
+  const dtS = dt / 1000;
+
+  // Animate rain — fall down, wrap
+  const pos = _flood.rainGeo.attributes.position;
+  for (let i = 0; i < pos.count; i++) {
+    pos.setY(i, pos.getY(i) - 14 * dtS);
+    if (pos.getY(i) < -1) pos.setY(i, 20);
+  }
+  pos.needsUpdate = true;
+
+  // Water level animation
+  const riseTime = 1800, holdTime = 3000, recessTime = 1700;
+  let waterY = -0.5;
+  if (elapsed < riseTime) {
+    waterY = -0.5 + (elapsed / riseTime) * 1.1;
+  } else if (elapsed < riseTime + holdTime) {
+    waterY = 0.6 + Math.sin(elapsed * 0.003) * 0.07;
+  } else {
+    const rt = elapsed - riseTime - holdTime;
+    waterY = 0.6 - (rt / recessTime) * 1.1;
+  }
+  _flood.waterPlane.position.y = waterY;
+
+  if (elapsed >= _flood.duration) {
+    scene.remove(_flood.rainMesh);
+    scene.remove(_flood.waterPlane);
+    _flood = null;
+  }
+}
+
+// ─── UFO ABDUCTION ────────────────────────────────────────────────────────────
+let _ufo = null;
+
+function _buildUFO() {
+  const g = new THREE.Group();
+  // Disc body
+  const disc = new THREE.Mesh(
+    new THREE.CylinderGeometry(2.2, 2.2, 0.45, 20),
+    new THREE.MeshLambertMaterial({ color: 0xaaaacc })
+  );
+  g.add(disc);
+  // Dome
+  const dome = new THREE.Mesh(
+    new THREE.SphereGeometry(1.0, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2),
+    new THREE.MeshLambertMaterial({ color: 0x88eeff, transparent: true, opacity: 0.7 })
+  );
+  dome.position.y = 0.22;
+  g.add(dome);
+  // Rim lights
+  for (let i = 0; i < 8; i++) {
+    const ang = (i / 8) * Math.PI * 2;
+    const light = new THREE.Mesh(
+      new THREE.SphereGeometry(0.14, 6, 6),
+      new THREE.MeshBasicMaterial({ color: i % 2 === 0 ? 0xff4400 : 0x44ffaa })
+    );
+    light.position.set(Math.cos(ang) * 2.0, -0.18, Math.sin(ang) * 2.0);
+    g.add(light);
+  }
+  return g;
+}
+
+function spawnUFO() {
+  if (_ufo) return;
+  const ufoGroup = _buildUFO();
+  ufoGroup.position.set(0, 22, -10);
+  scene.add(ufoGroup);
+
+  _ufo = {
+    ufoGroup,
+    targetChar: null,
+    beam: null,
+    startTime: Date.now(),
+    phase: 'descend',   // descend → hover → beam → lift → flee
+    phaseStart: Date.now(),
+    origCharY: 0,
+    origTargetX: 0,
+    origTargetZ: 0
+  };
+}
+
+function updateUFO(dt) {
+  if (!_ufo) return;
+  const now = Date.now();
+  const { ufoGroup } = _ufo;
+  const phaseElapsed = now - _ufo.phaseStart;
+
+  // Slowly rotate UFO
+  ufoGroup.rotation.y += dt * 0.002;
+
+  if (_ufo.phase === 'descend') {
+    // Descend to Y=7 over 2s
+    const t = Math.min(phaseElapsed / 2000, 1);
+    ufoGroup.position.y = 22 - t * 15;
+    if (t >= 1) {
+      _ufo.phase = 'hover';
+      _ufo.phaseStart = now;
+    }
+
+  } else if (_ufo.phase === 'hover') {
+    ufoGroup.position.y = 7 + Math.sin(now * 0.004) * 0.3;
+    if (phaseElapsed > 1500) {
+      // Pick target car
+      const list = [...characters.values()].filter(c => !c._inTornado && !c._falling);
+      if (list.length === 0) {
+        // No cars — skip to flee
+        _ufo.phase = 'flee';
+        _ufo.phaseStart = now;
+      } else {
+        const char = list[Math.floor(Math.random() * list.length)];
+        _ufo.targetChar   = char;
+        _ufo.origTargetX  = char.targetX;
+        _ufo.origTargetZ  = char.targetZ;
+        _ufo.origCharY    = char.group.position.y;
+        char._inTornado   = true;
+
+        // Build beam
+        const beamGeo = new THREE.CylinderGeometry(0.05, 0.8, 8, 10);
+        const beamMat = new THREE.MeshBasicMaterial({ color: 0xaaffee, transparent: true, opacity: 0.45 });
+        _ufo.beam = new THREE.Mesh(beamGeo, beamMat);
+        scene.add(_ufo.beam);
+
+        _ufo.phase = 'beam';
+        _ufo.phaseStart = now;
+      }
+    }
+
+  } else if (_ufo.phase === 'beam') {
+    const char = _ufo.targetChar;
+    ufoGroup.position.y = 7 + Math.sin(now * 0.004) * 0.3;
+    // Align UFO X over car
+    ufoGroup.position.x += (char.group.position.x - ufoGroup.position.x) * 0.08;
+    ufoGroup.position.z += (char.group.position.z - ufoGroup.position.z) * 0.04;
+
+    // Position beam between UFO and car
+    const bx = (ufoGroup.position.x + char.group.position.x) / 2;
+    const by = (ufoGroup.position.y + char.group.position.y) / 2;
+    const bz = (ufoGroup.position.z + char.group.position.z) / 2;
+    _ufo.beam.position.set(bx, by, bz);
+    const dist = ufoGroup.position.y - char.group.position.y;
+    _ufo.beam.scale.y = dist / 8;
+    _ufo.beam.material.opacity = 0.35 + Math.sin(now * 0.008) * 0.15;
+
+    // Keep car spinning (via _inTornado) but also lift it
+    char.group.rotation.y += dt * 0.004;
+    char.group.position.y += dt * 0.003;
+
+    if (phaseElapsed > 2000) {
+      _ufo.phase = 'lift';
+      _ufo.phaseStart = now;
+    }
+
+  } else if (_ufo.phase === 'lift') {
+    const char = _ufo.targetChar;
+    // Car rapidly rises to UFO
+    char.group.rotation.y += dt * 0.006;
+    char.group.position.y += dt * 0.012;
+
+    // UFO starts moving sideways to flee
+    ufoGroup.position.x += dt * 0.01;
+    ufoGroup.position.y += dt * 0.005;
+
+    if (phaseElapsed > 1800) {
+      // Release car back
+      if (_ufo.beam) { scene.remove(_ufo.beam); _ufo.beam = null; }
+      char._inTornado = false;
+      char.targetX    = _ufo.origTargetX;
+      char.targetZ    = _ufo.origTargetZ;
+      char._falling   = true;
+      char._fallVy    = 0.5;
+      _ufo.phase = 'flee';
+      _ufo.phaseStart = now;
+    }
+
+  } else if (_ufo.phase === 'flee') {
+    // UFO flies away fast
+    ufoGroup.position.x += dt * 0.04;
+    ufoGroup.position.y += dt * 0.015;
+
+    if (phaseElapsed > 2500 || ufoGroup.position.x > 60) {
+      scene.remove(ufoGroup);
+      if (_ufo.beam) scene.remove(_ufo.beam);
+      _ufo = null;
+    }
+  }
+}
+
+// ─── RANDOM AUTO EVENTS ───────────────────────────────────────────────────────
+let _lastAutoEvent = Date.now();
+const AUTO_EVENT_INTERVAL = 30000; // 30 seconds
+
+function tickAutoEvents() {
+  if (Date.now() - _lastAutoEvent < AUTO_EVENT_INTERVAL) return;
+  // Don't start a new event if one is still running
+  if (_nitro || _flood || _ufo || _massCrash) return;
+  if (characters.size === 0) return;
+
+  _lastAutoEvent = Date.now();
+  const events = ['nitro', 'flood', 'ufo', 'crash'];
+  const pick = events[Math.floor(Math.random() * events.length)];
+  if (pick === 'nitro') spawnNitroBoost();
+  else if (pick === 'flood') spawnFlood();
+  else if (pick === 'ufo')   spawnUFO();
+  else                        spawnMassCrash();
+}
+
 // ─── MAIN LOOP ────────────────────────────────────────────────────────────────
 let lastTime = 0;
 
@@ -3312,6 +3641,10 @@ function gameLoop(ts) {
   updateTsunami(dt);
   updateMeteors(dt);
   updateMassCrash(dt);
+  updateNitroBoost(dt);
+  updateFlood(dt);
+  updateUFO(dt);
+  tickAutoEvents();
   updateMoonWorld(dt, _currentWorld === 4);
 
   renderer.render(scene, camera);
