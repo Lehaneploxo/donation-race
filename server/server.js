@@ -232,6 +232,12 @@ wss.on('connection', (ws, req) => {
   ws.on('close', () => {
     room.removeClient(ws);
     console.log(`[WS] -клиент @${username} (всего: ${room.clients.size})`);
+    // Если клиентов не осталось — удаляем комнату, чтобы при следующем
+    // подключении TikTok-соединение создавалось заново (не застревало в демо)
+    if (room.clients.size === 0) {
+      rooms.delete(username.toLowerCase());
+      console.log(`[Room] @${username} удалена (нет клиентов)`);
+    }
   });
   ws.on('error', err => console.error('[WS]', err.message));
 });
