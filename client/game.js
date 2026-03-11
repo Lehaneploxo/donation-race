@@ -2505,10 +2505,14 @@ document.addEventListener('keydown', e => {
     const speed = TIME_SPEEDS[timeSpeedIdx];
     const el = document.getElementById('timeSpeedBadge');
     if (el) {
-      el.textContent = speed === 1 ? '⏱ 1× (real time)' : `⚡ ${speed}× speed`;
-      el.style.display = 'block';
-      el.style.color   = speed === 1 ? '#AAA' : speed < 100 ? '#FFD700' : '#FF4444';
-      el.style.borderColor = el.style.color;
+      if (speed === 1) {
+        el.style.display = 'none';
+      } else {
+        el.textContent = `⚡ ${speed}× speed`;
+        el.style.display = 'block';
+        el.style.color   = speed < 100 ? '#FFD700' : '#FF4444';
+        el.style.borderColor = el.style.color;
+      }
     }
   }
   // Y — test tornado
