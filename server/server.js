@@ -149,7 +149,7 @@ class Room {
           type:         'update',
           players:      this.players.getTop10(),
           totalPlayers: this.players.getTotalCount(),
-          totalCoins:   this._totalCoins,
+          racePoints:   this.players.getTotalPoints(),
           totalLikes:   this._totalLikes,
           event:        chaosEvent || { type: 'like', username: data.username, likes: data.likes }
         });
@@ -162,7 +162,7 @@ class Room {
           type:         'update',
           players:      this.players.getTop10(),
           totalPlayers: this.players.getTotalCount(),
-          totalCoins:   this._totalCoins,
+          racePoints:   this.players.getTotalPoints(),
           totalLikes:   this._totalLikes,
           event:        { type: 'chatgo', username: data.username }
         });
@@ -177,7 +177,7 @@ class Room {
           type:         'update',
           players:      this.players.getTop10(),
           totalPlayers: this.players.getTotalCount(),
-          totalCoins:   this._totalCoins,
+          racePoints:   this.players.getTotalPoints(),
           totalLikes:   this._totalLikes
         });
       }
