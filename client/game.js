@@ -2405,7 +2405,40 @@ const _tmpVec    = new THREE.Vector3();
 
 function drawNicknames() {
   nameCtx.clearRect(0, 0, 1080, 1920);
-  // Dots removed — players identified via TOP-10 leaderboard
+
+  // Draw rank number above each car
+  players.forEach((player, index) => {
+    const rank = index + 1;
+    const char = characters.get(player.playerId);
+    if (!char) return;
+
+    char.group.getWorldPosition(_tmpVec);
+    _tmpVec.y += 1.2;
+    const ndc = _tmpVec.clone().project(camera);
+    if (ndc.z > 1) return;
+
+    const sx = (ndc.x  + 1) / 2 * 1080;
+    const sy = (-ndc.y + 1) / 2 * 1920;
+
+    const dist     = camera.position.distanceTo(_tmpVec);
+    const fontSize = Math.round(Math.max(18, Math.min(48, 800 / dist)));
+    const color    = '#' + SHIRT_COLORS[char.colorIndex % SHIRT_COLORS.length].toString(16).padStart(6, '0');
+    const label    = String(rank);
+
+    nameCtx.font      = `900 ${fontSize}px Arial Black, Arial`;
+    nameCtx.textAlign = 'center';
+    nameCtx.textBaseline = 'middle';
+    nameCtx.lineJoin  = 'round';
+
+    // Dark outline
+    nameCtx.strokeStyle = 'rgba(0,0,0,0.95)';
+    nameCtx.lineWidth   = fontSize * 0.35;
+    nameCtx.strokeText(label, sx, sy);
+
+    // Colored fill
+    nameCtx.fillStyle = color;
+    nameCtx.fillText(label, sx, sy);
+  });
 }
 
 function _pill(ctx, x, y, w, h, r) {
