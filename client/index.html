@@ -350,7 +350,9 @@
     .ui-btn:hover { background: rgba(255,255,255,0.15); }
     #fsBtn    { top: 16px; right: 16px; }
     #musicBtn { top: 16px; right: 72px; }
+    #liteBtn  { top: 16px; right: 128px; font-size: 16px; }
     #musicBtn.on { border-color: #00FF88; color: #00FF88; }
+    #liteBtn.on  { border-color: #FF9900; color: #FF9900; }
 
     /* Event announcement overlay */
     #eventAnnouncement {
@@ -433,6 +435,7 @@
   </style>
 </head>
 <body>
+<button id="liteBtn"  class="ui-btn" title="Lite mode">🐢</button>
 <button id="musicBtn" class="ui-btn" title="Music">🎵</button>
 <button id="fsBtn"    class="ui-btn" title="Fullscreen">⛶</button>
 <div id="scaleWrapper">
@@ -514,12 +517,12 @@
   </div>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
-  <script src="websocket.js?v=20250311_13"></script>
-  <script src="leaderboard.js?v=20250311_13"></script>
-  <script src="characters.js?v=20250311_13"></script>
-  <script src="game.js?v=20250311_13"></script>
-  <script src="music.js?v=20250311_13"></script>
-  <script src="devtools.js?v=20250311_13"></script>
+  <script src="websocket.js?v=20250311_14"></script>
+  <script src="leaderboard.js?v=20250311_14"></script>
+  <script src="characters.js?v=20250311_14"></script>
+  <script src="game.js?v=20250311_14"></script>
+  <script src="music.js?v=20250311_14"></script>
+  <script src="devtools.js?v=20250311_14"></script>
 </div>
 
 <script>
@@ -605,6 +608,22 @@
         setTimeout(function() { wasPinching = false; }, 400);
       }
     }, { passive: true });
+
+    // Lite mode button
+    var liteBtn = document.getElementById('liteBtn');
+    var params  = new URLSearchParams(window.location.search);
+    var isLite  = params.has('lite');
+    if (isLite) liteBtn.classList.add('on');
+    liteBtn.title = isLite ? '🐢 Лёгкий режим (нажми для полной графики)' : '🐢 Нажми для лёгкого режима';
+    liteBtn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      if (isLite) {
+        params.delete('lite');
+      } else {
+        params.set('lite', '1');
+      }
+      window.location.search = params.toString();
+    });
 
     // Music button
     var musicBtn = document.getElementById('musicBtn');
