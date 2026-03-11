@@ -33,6 +33,7 @@ class Car3D {
     this._wheels     = [];
 
     this._build();
+    this.group.scale.setScalar(0.5);  // cars are half-scale
     scene.add(this.group);
 
     // Start off-screen so it slides in
@@ -344,7 +345,7 @@ class Car3D {
     this.group.rotation.z = 0;
 
     // Spin wheels
-    this._wheelAngle += dt * 0.006;
+    this._wheelAngle += dt * 0.012;
     for (const w of this._wheels) w.rotation.x = this._wheelAngle;
 
     // Slight body bounce

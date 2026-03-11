@@ -657,7 +657,7 @@ scene.add(sandGroundMesh);
 const rng = s => { const x = Math.sin(s) * 10000; return x - Math.floor(x); };
 
 const POOL_SPAN  = 200;
-const SCROLL_SPD = 4.2;
+const SCROLL_SPD = 8.4;
 const pooledObjects = [];
 
 function makeTree(x, z, scale, type) {
