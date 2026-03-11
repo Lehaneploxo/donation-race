@@ -37,7 +37,7 @@ const GameWebSocket = {
         }
         if (data.type === 'status') {
           if (data.mode === 'tiktok') _setStatus('live', `🔴 LIVE @${this.username}`);
-          else if (data.mode === 'demo') _setStatus('demo', `🟡 DEMO — TikTok unavailable`);
+          else if (data.mode === 'demo') _setStatus('demo', `🟡 DEMO: ${data.message || 'TikTok unavailable'}`);
           else _setStatus('error', `❌ ${data.message}`);
         }
         if (this.handlers[data.type]) this.handlers[data.type](data);
