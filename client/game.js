@@ -2405,28 +2405,7 @@ const _tmpVec    = new THREE.Vector3();
 
 function drawNicknames() {
   nameCtx.clearRect(0, 0, 1080, 1920);
-  characters.forEach(char => {
-    char.group.getWorldPosition(_tmpVec);
-    _tmpVec.y += 0.8;
-    const ndc = _tmpVec.clone().project(camera);
-    if (ndc.z > 1) return;
-    const sx = (ndc.x  + 1) / 2 * 1080;
-    const sy = (-ndc.y + 1) / 2 * 1920;
-    const color = '#' + SHIRT_COLORS[char.colorIndex % SHIRT_COLORS.length].toString(16).padStart(6, '0');
-    nameCtx.save();
-    nameCtx.shadowColor = color;
-    nameCtx.shadowBlur  = 10;
-    nameCtx.fillStyle   = color;
-    nameCtx.beginPath();
-    nameCtx.arc(sx, sy, 7, 0, Math.PI * 2);
-    nameCtx.fill();
-    nameCtx.shadowBlur  = 0;
-    nameCtx.fillStyle   = '#ffffff';
-    nameCtx.beginPath();
-    nameCtx.arc(sx, sy, 3, 0, Math.PI * 2);
-    nameCtx.fill();
-    nameCtx.restore();
-  });
+  // Dots removed — players identified via TOP-10 leaderboard
 }
 
 function _pill(ctx, x, y, w, h, r) {
@@ -2771,6 +2750,53 @@ function _noise(dur, ffreq, vol, delay) {
     src.connect(flt); flt.connect(gain); gain.connect(ctx.destination); src.start(t);
   } catch(e) {}
 }
+// ─── ENGINE SOUND ─────────────────────────────────────────────────────────────
+let _engineOsc = null, _engineGain = null, _engineOsc2 = null;
+function _startEngine() {
+  if (_engineOsc) return;
+  try {
+    const ctx = _getAC(); if (!ctx) return;
+    _engineGain = ctx.createGain();
+    _engineGain.gain.value = 0.055;
+    _engineGain.connect(ctx.destination);
+    _engineOsc = ctx.createOscillator();
+    _engineOsc.type = 'sawtooth';
+    _engineOsc.frequency.value = 72;
+    _engineOsc.connect(_engineGain);
+    _engineOsc.start();
+    _engineOsc2 = ctx.createOscillator();
+    _engineOsc2.type = 'sawtooth';
+    _engineOsc2.frequency.value = 78;
+    _engineOsc2.connect(_engineGain);
+    _engineOsc2.start();
+  } catch(e) {}
+}
+function _playAccel() {
+  // Quick rev-up "вжжж"
+  try {
+    const ctx = _getAC(); if (!ctx) return;
+    const osc = ctx.createOscillator(), g = ctx.createGain();
+    osc.connect(g); g.connect(ctx.destination);
+    osc.type = 'sawtooth';
+    const t = ctx.currentTime;
+    osc.frequency.setValueAtTime(120, t);
+    osc.frequency.exponentialRampToValueAtTime(380, t + 0.35);
+    osc.frequency.exponentialRampToValueAtTime(140, t + 0.7);
+    g.gain.setValueAtTime(0.12, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.75);
+    osc.start(t); osc.stop(t + 0.78);
+  } catch(e) {}
+}
+let _lastAccelTime = 0;
+function _tickEngineSound(ts) {
+  if (!_engineOsc) _startEngine();
+  // Random acceleration rev every 4-7 seconds
+  if (ts - _lastAccelTime > 4000 + Math.random() * 3000) {
+    _lastAccelTime = ts;
+    _playAccel();
+  }
+}
+
 function _playWarningBeep() {
   _tone(440, 'sine', 0.12, 0.45, 0);
   _tone(660, 'sine', 0.12, 0.45, 0.18);
@@ -2825,8 +2851,6 @@ function updateDisasterCounter(total) {
 let _tsunami = null;
 function spawnTsunami() {
   if (_tsunami) return;
-  _playWarningBeep();
-  showEventAnnouncement('🌊 ЦУНАМИ!', '#00AAFF');
   setTimeout(() => {
     _soundTsunami();
     const group = new THREE.Group();
@@ -2897,8 +2921,6 @@ function updateTsunami(dt) {
 let _meteorRain = null;
 function spawnMeteors() {
   if (_meteorRain) return;
-  _playWarningBeep();
-  showEventAnnouncement('☄️ МЕТЕОРИТЫ!', '#FF8800');
   setTimeout(() => {
     const meteors = [];
     const explosions = [];
@@ -3006,8 +3028,6 @@ function updateMeteors(dt) {
 let _massCrash = null;
 function spawnMassCrash() {
   if (_massCrash) return;
-  _playWarningBeep();
-  showEventAnnouncement('💥 АВАРИЯ!', '#FF2200');
   setTimeout(() => {
     const cars = [];
     characters.forEach((char, id) => {
@@ -3120,6 +3140,7 @@ function gameLoop(ts) {
   const _ms = getMtnState(scaledElapsedMs);
   camera.lookAt(0, 2 + _ms.scale * 2.8, -16);
 
+  _tickEngineSound(ts);
   characters.forEach(c => c.update(dt));
   updateTornado(dt);
   updateTsunami(dt);

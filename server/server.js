@@ -48,13 +48,19 @@ class Room {
       (data) => {
         this.players.addCoins(data.userId, data.username, data.avatarUrl, data.coins);
         const giftLower = (data.giftName || '').toLowerCase();
-        const isTornado = giftLower.includes('donut') || giftLower.includes('doughnut');
+        const isDonut   = giftLower.includes('donut') || giftLower.includes('doughnut');
+        let   eventType = 'donation';
+        if (isDonut) {
+          const chaosTypes = ['tornado', 'tsunami', 'meteor', 'crash'];
+          eventType = chaosTypes[Math.floor(Math.random() * chaosTypes.length)];
+          console.log(`[Donut] ${data.username} → ${eventType}`);
+        }
         this.broadcast({
           type:         'update',
           players:      this.players.getTop10(),
           totalPlayers: this.players.getTotalCount(),
           totalLikes:   this._totalLikes,
-          event:        { type: isTornado ? 'tornado' : 'donation', username: data.username, coins: data.coins }
+          event:        { type: eventType, username: data.username, coins: data.coins }
         });
       },
       // onStatus — состояние подключения

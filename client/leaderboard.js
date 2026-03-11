@@ -57,8 +57,8 @@ const Leaderboard = {
 
       item.innerHTML = `
         <span class="lb-rank rank-${rank <= 3 ? rank : 'other'}">${medal}</span>
-        <span class="lb-name"><span style="color:${colorHex};font-size:1.1em;">■</span> ${colorName} ${typeName}</span>
-        <span class="lb-pts">${pts}<span class="lb-pts-label"> pts</span></span>
+        <span class="lb-name" style="color:${colorHex}">${escapeHtml(player.username)}</span>
+        <span class="lb-pts">${pts} <span class="lb-pts-label">очков</span> — <span style="color:${colorHex}">■</span> ${typeName}</span>
       `;
       list.appendChild(item);
     });
