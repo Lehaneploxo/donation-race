@@ -573,12 +573,7 @@ function drawWarrior(w,now){
 
 function _drawLabels(sx,labelY,w){
   ctx.textAlign='center';
-  // Background pill
-  const pw=120, ph=56;
-  ctx.fillStyle='rgba(0,0,0,0.72)';
-  const rx=sx-pw/2, ry=labelY-6;
-  if(ctx.roundRect) ctx.roundRect(rx,ry,pw,ph,8); else ctx.rect(rx,ry,pw,ph);
-  ctx.fill();
+  ctx.lineWidth=3;
 
   // Username
   ctx.font='bold 15px Arial';
@@ -587,22 +582,15 @@ function _drawLabels(sx,labelY,w){
   ctx.strokeText(nick,sx,labelY+8);
   ctx.fillStyle='#FFD700'; ctx.fillText(nick,sx,labelY+8);
 
-  // HP bar
-  const bw=96,bh=7,bx=sx-bw/2,by=labelY+14;
-  const hpR=Math.max(0,w.hp/w.maxHp);
-  ctx.fillStyle='rgba(0,0,0,0.8)'; ctx.fillRect(bx,by,bw,bh);
-  ctx.fillStyle=hpR>0.55?'#22EE44':hpR>0.28?'#FF8800':'#FF2222';
-  ctx.fillRect(bx,by,bw*hpR,bh);
-  ctx.strokeStyle='rgba(255,255,255,0.18)'; ctx.lineWidth=1; ctx.strokeRect(bx,by,bw,bh);
-
-  // HP line
+  // HP
   ctx.font='bold 12px Arial';
   ctx.strokeStyle='rgba(0,0,0,0.9)'; ctx.lineWidth=2.5;
   const hpTxt=`❤️ ${Math.ceil(w.hp)}`;
-  ctx.strokeText(hpTxt,sx,labelY+32); ctx.fillStyle='#FF6688'; ctx.fillText(hpTxt,sx,labelY+32);
-  // DMG line
+  ctx.strokeText(hpTxt,sx,labelY+25); ctx.fillStyle='#FF6688'; ctx.fillText(hpTxt,sx,labelY+25);
+
+  // DMG
   const dmgTxt=`⚔️ ${w.damage}`;
-  ctx.strokeText(dmgTxt,sx,labelY+47); ctx.fillStyle='#88CCFF'; ctx.fillText(dmgTxt,sx,labelY+47);
+  ctx.strokeText(dmgTxt,sx,labelY+40); ctx.fillStyle='#88CCFF'; ctx.fillText(dmgTxt,sx,labelY+40);
 }
 
 // ── Characters ──────────────────────────────────────────────
