@@ -218,8 +218,15 @@ function checkVictory(){
 }
 
 function startNewRound(){
+  const prev = victoryState?.warrior || null;
   warriors=[]; particles=[]; dmgNums=[]; meteors=[]; armageddon=null;
   victoryState=null;
+  // Winner stays — re-spawn with same coins, full HP
+  if(prev){
+    const w = makeWarrior(prev.username, prev.coins);
+    warriors.push(w);
+    spawnSpawnFX(w);
+  }
   eventLabel='⚔️ NEW ROUND!'; eventLabelTimer=2500;
 }
 
