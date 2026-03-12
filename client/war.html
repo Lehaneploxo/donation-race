@@ -227,7 +227,7 @@ function playVictory() {
 // CONSTANTS
 // ═══════════════════════════════════════════════════════════
 const CW = 1000, CH = 1000;
-const BATTLE_Y   = 490;
+const BATTLE_Y   = 650;   // уровень ворот крепости
 const UNIT_SPEED = 72;    // px/sec
 const UNIT_HP    = 100;
 const UNIT_DMG   = 20;
@@ -238,8 +238,8 @@ const BASE_HP    = 2000;
 const BASE_DMG   = 30;
 const BASE_X_L   = 20;    // blue base left edge
 const BASE_W     = 148;
-const BASE_Y     = 210;
-const BASE_H     = 510;
+const BASE_Y     = 80;    // крепость от верха
+const BASE_H     = 600;   // высота — ворота на уровне BATTLE_Y
 const BASE_X_R   = CW - BASE_X_L - BASE_W; // 832
 const VICTORY_MS = 7000;
 
@@ -268,14 +268,15 @@ function spawnUnit(team, username) {
     team,
     username:   username || 'viewer',
     x:          isBlue ? blueBase.x + blueBase.w + 6 : redBase.x - 6,
-    y:          BATTLE_Y + (Math.random() * 22 - 11),
+    y:          BATTLE_Y + (Math.random() * 16 - 8),
     hp:         UNIT_HP, maxHp: UNIT_HP,
     dmg:        UNIT_DMG,
     atkTimer:   ATK_CD * 0.5,
     state:      'moving',  // 'moving' | 'fighting' | 'atk_base'
     target:     null,
     flashTimer: 0,
-    deathTimer: -1,  // ≥0 = dying
+    dead:       false,     // флаг смерти
+    deathTimer: 0,         // таймер анимации смерти (>0 пока падает)
   });
 }
 
@@ -302,24 +303,37 @@ function resetRound() {
 // ═══════════════════════════════════════════════════════════
 // UPDATE — UNITS
 // ═══════════════════════════════════════════════════════════
+function killUnit(u) {
+  u.dead = true;
+  u.hp = 0;
+  u.deathTimer = 400;
+  u.state = 'dead';
+  playDeath();
+  spawnDeathFX(u.x, u.y, u.team);
+}
+
 function updateUnits(dt) {
   for (const u of units) {
-    if (u.deathTimer >= 0) { u.deathTimer -= dt; continue; }
+    // Мёртвый юнит — только анимация падения, потом удаляем
+    if (u.dead) {
+      u.deathTimer -= dt;
+      continue;
+    }
+
     u.flashTimer = Math.max(0, u.flashTimer - dt);
     u.atkTimer   = Math.max(0, u.atkTimer - dt);
 
     if (u.state === 'fighting') {
       const tgt = u.target;
-      if (!tgt || tgt.deathTimer >= 0 || tgt.hp <= 0) {
+      // Цель умерла или мертва — ищем нового врага
+      if (!tgt || tgt.dead || tgt.hp <= 0) {
         u.state = 'moving'; u.target = null;
       } else if (u.atkTimer <= 0) {
         tgt.hp -= u.dmg;
         u.atkTimer = ATK_CD;
         u.flashTimer = 120;
         if (tgt.hp <= 0) {
-          tgt.hp = 0; tgt.deathTimer = 380;
-          playDeath();
-          spawnDeathFX(tgt.x, tgt.y, tgt.team);
+          killUnit(tgt);
           u.state = 'moving'; u.target = null;
         } else {
           playAttack();
@@ -338,7 +352,7 @@ function updateUnits(dt) {
         u.atkTimer = ATK_CD; u.flashTimer = 120;
         playBaseHit();
         spawnHitFX(u.x, u.y);
-        if (u.hp <= 0) { u.deathTimer = 380; playDeath(); spawnDeathFX(u.x, u.y, u.team); }
+        if (u.hp <= 0) { killUnit(u); }
         if (base.hp <= 0) triggerVictory(u.team);
       }
       continue;
@@ -355,10 +369,10 @@ function updateUnits(dt) {
       u.state = 'atk_base'; u.atkTimer = 0; continue;
     }
 
-    // Find nearest enemy
+    // Ближайший живой враг
     let nearestEnemy = null, nearestED = Infinity;
     for (const o of units) {
-      if (o === u || o.team === u.team || o.deathTimer >= 0) continue;
+      if (o === u || o.team === u.team || o.dead) continue;
       const d = Math.abs(u.x - o.x);
       if (d < nearestED) { nearestED = d; nearestEnemy = o; }
     }
@@ -366,15 +380,14 @@ function updateUnits(dt) {
       u.state = 'fighting'; u.target = nearestEnemy; u.atkTimer = 280; continue;
     }
 
-    // Check queue gap with closest ally ahead
+    // Очередь — держать дистанцию от союзника впереди
     let frontDist = Infinity;
     for (const a of units) {
-      if (a === u || a.team !== u.team || a.deathTimer >= 0) continue;
+      if (a === u || a.team !== u.team || a.dead) continue;
       const d = dir > 0 ? (a.x - u.x) : (u.x - a.x);
       if (d > 0 && d < frontDist) frontDist = d;
     }
     if (frontDist < SPACING) {
-      // slide up to fill gap gently
       const gap = Math.max(0, frontDist - SPACING + 1);
       u.x += dir * Math.min(UNIT_SPEED * dt / 1000, gap);
       continue;
@@ -383,8 +396,8 @@ function updateUnits(dt) {
     u.x += dir * UNIT_SPEED * dt / 1000;
   }
 
-  // Remove finished death animations
-  units = units.filter(u => u.deathTimer < 0 || u.deathTimer > 0);
+  // Удаляем тех у кого кончилась анимация смерти
+  units = units.filter(u => !u.dead || u.deathTimer > 0);
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -485,11 +498,11 @@ function drawBackground() {
   ctx.fillStyle = sky;
   ctx.fillRect(0, 0, CW, CH);
 
-  // Ground
-  const gr = ctx.createLinearGradient(0, CH * 0.54, 0, CH);
+  // Ground — на уровне ворот
+  const gr = ctx.createLinearGradient(0, 660, 0, CH);
   gr.addColorStop(0, '#3a2508'); gr.addColorStop(1, '#1e1200');
   ctx.fillStyle = gr;
-  ctx.fillRect(0, CH * 0.54, CW, CH * 0.46);
+  ctx.fillRect(0, 660, CW, CH - 660);
 
   // Dashed battle line
   ctx.strokeStyle = 'rgba(255,120,0,0.25)';
@@ -562,8 +575,8 @@ function drawBase(base, team) {
   ctx.fillRect(base.x - tw / 2 - 6,          base.y - 68, tw + 12, 20);
   ctx.fillRect(base.x + base.w - tw / 2 - 6, base.y - 68, tw + 12, 20);
 
-  // Gate arch
-  const gw = 58, gh = 86;
+  // Gate arch — большие ворота на уровне земли
+  const gw = 68, gh = 120;
   const gx = base.x + (base.w - gw) / 2;
   const gy = base.y + base.h - gh;
   ctx.fillStyle = '#111';
@@ -632,8 +645,8 @@ function drawBases() {
 }
 
 function drawUnit(u, now) {
-  const dying  = u.deathTimer >= 0;
-  const alpha  = dying ? Math.max(0, u.deathTimer / 380) : 1;
+  const dying  = u.dead;
+  const alpha  = dying ? Math.max(0, u.deathTimer / 400) : 1;
   const flash  = u.flashTimer > 0;
   const isBlue = u.team === 'blue';
   const dir    = isBlue ? 1 : -1;
@@ -647,7 +660,7 @@ function drawUnit(u, now) {
 
   if (dying) {
     // Fall over
-    const angle = dir * (Math.PI / 2) * (1 - u.deathTimer / 380);
+    const angle = dir * (Math.PI / 2) * (1 - u.deathTimer / 400);
     ctx.translate(x, y); ctx.rotate(angle);
     ctx.strokeStyle = dark; ctx.lineWidth = 5; ctx.lineCap = 'round';
     ctx.beginPath(); ctx.moveTo(0, -34); ctx.lineTo(0, 10); ctx.stroke();
@@ -761,17 +774,38 @@ function drawHUD() {
   ctx.fillStyle = '#FF4444'; ctx.font = 'bold 44px Arial Black';
   ctx.fillText('RED ' + redWins, CW * 0.78, 60);
 
-  // Unit counts bottom
-  const bc = units.filter(u => u.team === 'blue' && u.deathTimer < 0).length;
-  const rc = units.filter(u => u.team === 'red'  && u.deathTimer < 0).length;
-  ctx.fillStyle = 'rgba(68,136,255,0.85)'; ctx.font = 'bold 22px Arial'; ctx.textAlign = 'left';
-  ctx.fillText('⚔ ' + bc + ' units', 28, CH - 22);
-  ctx.fillStyle = 'rgba(255,68,68,0.85)'; ctx.textAlign = 'right';
-  ctx.fillText(rc + ' units ⚔', CW - 28, CH - 22);
+  // Количество юнитов
+  const bc = units.filter(u => u.team === 'blue' && !u.dead).length;
+  const rc = units.filter(u => u.team === 'red'  && !u.dead).length;
+  ctx.fillStyle = 'rgba(68,136,255,0.9)'; ctx.font = 'bold 22px Arial'; ctx.textAlign = 'left';
+  ctx.fillText('⚔ ' + bc + ' воинов', 28, CH - 12);
+  ctx.fillStyle = 'rgba(255,68,68,0.9)'; ctx.textAlign = 'right';
+  ctx.fillText(rc + ' воинов ⚔', CW - 28, CH - 12);
 
-  // Hint
-  ctx.fillStyle = 'rgba(255,255,255,0.35)'; ctx.font = '18px Arial'; ctx.textAlign = 'center';
-  ctx.fillText('Type "blue" or "red" in TikTok chat!', CW / 2, CH - 22);
+  // ── КРУПНЫЕ ПОДСКАЗКИ ДЛЯ ЗРИТЕЛЕЙ ──
+  // Левая сторона — BLUE
+  ctx.save();
+  ctx.fillStyle = 'rgba(0,0,0,0.55)';
+  ctx.beginPath(); ctx.roundRect(14, 740, 200, 88, 12); ctx.fill();
+  ctx.fillStyle = '#55AAFF';
+  ctx.font = 'bold 28px Arial Black'; ctx.textAlign = 'center';
+  ctx.fillText('Пиши в чат:', 114, 770);
+  ctx.fillStyle = '#FFFFFF';
+  ctx.font = 'bold 38px Arial Black';
+  ctx.fillText('"blue"', 114, 812);
+  ctx.restore();
+
+  // Правая сторона — RED
+  ctx.save();
+  ctx.fillStyle = 'rgba(0,0,0,0.55)';
+  ctx.beginPath(); ctx.roundRect(786, 740, 200, 88, 12); ctx.fill();
+  ctx.fillStyle = '#FF6666';
+  ctx.font = 'bold 28px Arial Black'; ctx.textAlign = 'center';
+  ctx.fillText('Пиши в чат:', 886, 770);
+  ctx.fillStyle = '#FFFFFF';
+  ctx.font = 'bold 38px Arial Black';
+  ctx.fillText('"red"', 886, 812);
+  ctx.restore();
 }
 
 function drawVictoryScreen() {
