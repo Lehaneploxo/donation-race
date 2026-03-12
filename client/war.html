@@ -339,6 +339,16 @@ function updateUnits(dt) {
           playAttack();
           spawnHitFX(tgt.x, tgt.y);
         }
+        // Если юнит стоит у вражеской базы — бьёт и по базе тоже
+        const eBase = u.team === 'blue' ? redBase : blueBase;
+        const distToBase = u.team === 'blue'
+          ? eBase.x - u.x
+          : u.x - (eBase.x + eBase.w);
+        if (distToBase <= ATK_RANGE + 5) {
+          eBase.hp = Math.max(0, eBase.hp - u.dmg);
+          playBaseHit();
+          if (eBase.hp <= 0) triggerVictory(u.team);
+        }
       }
       continue;
     }
