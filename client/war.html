@@ -1,0 +1,989 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <title>⚔️ Blue vs Red War!</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body {
+      width: 100vw; height: 100vh; height: 100dvh;
+      background: #0a0a14;
+      overflow: hidden;
+      font-family: 'Arial Black', Arial, sans-serif;
+    }
+    #scaleWrapper {
+      position: absolute;
+      top: 0; left: 0;
+      width: 1000px; height: 1000px;
+      transform-origin: top left;
+    }
+    #gameCanvas { position: absolute; top: 0; left: 0; display: block; }
+
+    /* Username overlay */
+    #usernameOverlay {
+      position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.92);
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+      gap: 14px;
+    }
+    #usernameOverlay h2 {
+      color: #FFD700; font-size: 38px;
+      text-shadow: 0 0 24px #FF6600;
+      text-align: center;
+    }
+    #usernameOverlay p { color: #AAA; font-size: 18px; }
+    #usernameInput {
+      font-size: 24px; padding: 12px 20px;
+      border-radius: 10px; border: 3px solid #FFD700;
+      background: #111; color: #FFF;
+      text-align: center; width: 380px; outline: none;
+    }
+    #usernameInput:focus { border-color: #4488FF; }
+    #usernameBtn {
+      font-size: 20px; font-weight: bold;
+      padding: 12px 44px; border-radius: 10px; border: none;
+      background: linear-gradient(90deg, #1133CC, #3388FF);
+      color: #FFF; cursor: pointer; transition: transform 0.1s;
+    }
+    #usernameBtn:hover { transform: scale(1.04); }
+    #demoWarBtn {
+      font-size: 14px; color: #888; background: none;
+      border: none; cursor: pointer; text-decoration: underline;
+    }
+    #demoWarBtn:hover { color: #CCC; }
+
+    /* Status */
+    #statusBadge {
+      position: absolute; bottom: 14px; left: 50%;
+      transform: translateX(-50%);
+      font-size: 15px; padding: 5px 14px;
+      border-radius: 8px; border: 2px solid #555;
+      background: rgba(0,0,0,0.75); color: #AAA;
+      white-space: nowrap; z-index: 100; display: none;
+    }
+    #statusBadge.live  { color: #00FF88; border-color: #00FF88; }
+    #statusBadge.demo  { color: #FF9900; border-color: #FF9900; }
+    #statusBadge.error { color: #FF4444; border-color: #FF4444; }
+
+    /* UI buttons */
+    .ui-btn {
+      position: fixed; z-index: 99999;
+      width: 24px; height: 24px; font-size: 11px;
+      background: rgba(0,0,0,0.5); color: rgba(255,255,255,0.5);
+      border: 1px solid rgba(255,255,255,0.2);
+      border-radius: 6px; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: background 0.2s;
+    }
+    .ui-btn:hover { background: rgba(255,255,255,0.15); }
+    #fsBtn  { top: calc(50% + 34px); right: 10px; }
+    #backBtn { top: calc(50% - 12px); right: 10px; }
+  </style>
+</head>
+<body>
+<button id="fsBtn"  class="ui-btn" title="Fullscreen">⛶</button>
+<button id="backBtn" class="ui-btn" title="Back to menu">⌂</button>
+
+<div id="scaleWrapper">
+  <canvas id="gameCanvas" width="1000" height="1000"></canvas>
+
+  <div id="usernameOverlay">
+    <h2>⚔️ BLUE vs RED WAR ⚔️</h2>
+    <p>Enter TikTok username for stream</p>
+    <input id="usernameInput" type="text" placeholder="@your_username" autocomplete="off" spellcheck="false">
+    <button id="usernameBtn">▶ START</button>
+    <button id="demoWarBtn">Demo mode (no TikTok)</button>
+  </div>
+
+  <div id="statusBadge">⏳ Connecting…</div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════
+// SOUND ENGINE (Web Audio API — synthesized, no files)
+// ═══════════════════════════════════════════════════════════
+let _actx = null;
+let _lastAttack = 0, _lastDeath = 0, _lastBaseHit = 0;
+
+function getACtx() {
+  if (!_actx) _actx = new (window.AudioContext || window.webkitAudioContext)();
+  if (_actx.state === 'suspended') _actx.resume();
+  return _actx;
+}
+
+function playAttack() {
+  const now = Date.now();
+  if (now - _lastAttack < 160) return;
+  _lastAttack = now;
+  try {
+    const ctx = getACtx(), t = ctx.currentTime;
+    const osc = ctx.createOscillator(), gain = ctx.createGain();
+    const flt = ctx.createBiquadFilter();
+    flt.type = 'bandpass'; flt.frequency.value = 800; flt.Q.value = 4;
+    osc.connect(flt); flt.connect(gain); gain.connect(ctx.destination);
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(650, t);
+    osc.frequency.exponentialRampToValueAtTime(220, t + 0.07);
+    gain.gain.setValueAtTime(0.18, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.11);
+    osc.start(t); osc.stop(t + 0.13);
+  } catch(e) {}
+}
+
+function playDeath() {
+  const now = Date.now();
+  if (now - _lastDeath < 220) return;
+  _lastDeath = now;
+  try {
+    const ctx = getACtx(), t = ctx.currentTime;
+    const bufSz = Math.floor(ctx.sampleRate * 0.18);
+    const buf = ctx.createBuffer(1, bufSz, ctx.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < bufSz; i++) d[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufSz * 0.25));
+    const src = ctx.createBufferSource(), g = ctx.createGain();
+    const f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 380;
+    src.buffer = buf; src.connect(f); f.connect(g); g.connect(ctx.destination);
+    g.gain.setValueAtTime(0.28, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
+    src.start(t);
+  } catch(e) {}
+}
+
+function playBaseHit() {
+  const now = Date.now();
+  if (now - _lastBaseHit < 300) return;
+  _lastBaseHit = now;
+  try {
+    const ctx = getACtx(), t = ctx.currentTime;
+    const osc = ctx.createOscillator(), g = ctx.createGain();
+    osc.connect(g); g.connect(ctx.destination);
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(110, t);
+    osc.frequency.exponentialRampToValueAtTime(55, t + 0.22);
+    g.gain.setValueAtTime(0.32, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.28);
+    osc.start(t); osc.stop(t + 0.32);
+  } catch(e) {}
+}
+
+function playTowerCollapse() {
+  try {
+    const ctx = getACtx(), t = ctx.currentTime;
+    // Low boom
+    const osc = ctx.createOscillator(), g1 = ctx.createGain();
+    osc.connect(g1); g1.connect(ctx.destination);
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(90, t); osc.frequency.exponentialRampToValueAtTime(18, t + 1.8);
+    g1.gain.setValueAtTime(0.55, t); g1.gain.exponentialRampToValueAtTime(0.001, t + 2.2);
+    osc.start(t); osc.stop(t + 2.5);
+    // Rumble noise
+    const bufSz = Math.floor(ctx.sampleRate * 2.0);
+    const buf = ctx.createBuffer(1, bufSz, ctx.sampleRate);
+    const nd = buf.getChannelData(0);
+    for (let i = 0; i < bufSz; i++) nd[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufSz * 0.55));
+    const src = ctx.createBufferSource(), g2 = ctx.createGain();
+    const flt = ctx.createBiquadFilter(); flt.type = 'lowpass'; flt.frequency.value = 280;
+    src.buffer = buf; src.connect(flt); flt.connect(g2); g2.connect(ctx.destination);
+    g2.gain.setValueAtTime(0.45, t); g2.gain.exponentialRampToValueAtTime(0.001, t + 2.0);
+    src.start(t);
+  } catch(e) {}
+}
+
+function playVictory() {
+  try {
+    const ctx = getACtx();
+    // C-E-G-C ascending fanfare
+    [261.63, 329.63, 392.00, 523.25].forEach((freq, i) => {
+      const t = ctx.currentTime + i * 0.17;
+      const osc = ctx.createOscillator(), g = ctx.createGain();
+      osc.connect(g); g.connect(ctx.destination);
+      osc.type = 'triangle'; osc.frequency.value = freq;
+      g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.28, t + 0.04);
+      g.gain.exponentialRampToValueAtTime(0.001, t + 0.38);
+      osc.start(t); osc.stop(t + 0.42);
+    });
+    // Second phrase after 0.8s
+    setTimeout(() => {
+      try {
+        [523.25, 659.25, 783.99, 1046.5].forEach((freq, i) => {
+          const t2 = ctx.currentTime + i * 0.15;
+          const osc2 = ctx.createOscillator(), g2 = ctx.createGain();
+          osc2.connect(g2); g2.connect(ctx.destination);
+          osc2.type = 'triangle'; osc2.frequency.value = freq;
+          g2.gain.setValueAtTime(0.22, t2); g2.gain.exponentialRampToValueAtTime(0.001, t2 + 0.55);
+          osc2.start(t2); osc2.stop(t2 + 0.6);
+        });
+      } catch(e) {}
+    }, 800);
+  } catch(e) {}
+}
+
+// ═══════════════════════════════════════════════════════════
+// CONSTANTS
+// ═══════════════════════════════════════════════════════════
+const CW = 1000, CH = 1000;
+const BATTLE_Y   = 490;
+const UNIT_SPEED = 72;    // px/sec
+const UNIT_HP    = 100;
+const UNIT_DMG   = 20;
+const ATK_CD     = 1000;  // ms between attacks
+const ATK_RANGE  = 40;    // px — enemy detection
+const SPACING    = 50;    // px — ally queue gap
+const BASE_HP    = 2000;
+const BASE_DMG   = 30;
+const BASE_X_L   = 20;    // blue base left edge
+const BASE_W     = 148;
+const BASE_Y     = 210;
+const BASE_H     = 510;
+const BASE_X_R   = CW - BASE_X_L - BASE_W; // 832
+const VICTORY_MS = 7000;
+
+// ═══════════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════════
+let units = [], uidSeq = 0;
+let particles = [], debris = [];
+let playerStats = {};   // username → { blue, red, total }
+let blueWins = 0, redWins = 0;
+let phase = 'playing';  // 'playing' | 'victory'
+let victoryTeam = '';
+let victoryTimer = 0;
+
+let blueBase = { x: BASE_X_L, y: BASE_Y, w: BASE_W, h: BASE_H, hp: BASE_HP, maxHp: BASE_HP, dmg: BASE_DMG };
+let redBase  = { x: BASE_X_R, y: BASE_Y, w: BASE_W, h: BASE_H, hp: BASE_HP, maxHp: BASE_HP, dmg: BASE_DMG };
+
+// ═══════════════════════════════════════════════════════════
+// SPAWN / RESET
+// ═══════════════════════════════════════════════════════════
+function spawnUnit(team, username) {
+  if (phase !== 'playing') return;
+  const isBlue = team === 'blue';
+  units.push({
+    id:         ++uidSeq,
+    team,
+    username:   username || 'viewer',
+    x:          isBlue ? blueBase.x + blueBase.w + 6 : redBase.x - 6,
+    y:          BATTLE_Y + (Math.random() * 22 - 11),
+    hp:         UNIT_HP, maxHp: UNIT_HP,
+    dmg:        UNIT_DMG,
+    atkTimer:   ATK_CD * 0.5,
+    state:      'moving',  // 'moving' | 'fighting' | 'atk_base'
+    target:     null,
+    flashTimer: 0,
+    deathTimer: -1,  // ≥0 = dying
+  });
+}
+
+function handleChatMessage(username, team) {
+  if (phase !== 'playing') return;
+  const t = (team || '').toLowerCase();
+  if (t !== 'blue' && t !== 'red') return;
+  if (!playerStats[username]) playerStats[username] = { blue: 0, red: 0, total: 0 };
+  playerStats[username][t]++;
+  playerStats[username].total++;
+  spawnUnit(t, username);
+}
+
+function resetRound() {
+  units = []; particles = []; debris = [];
+  playerStats = {};
+  blueBase.hp = BASE_HP;
+  redBase.hp  = BASE_HP;
+  phase = 'playing';
+  victoryTeam = '';
+  victoryTimer = 0;
+}
+
+// ═══════════════════════════════════════════════════════════
+// UPDATE — UNITS
+// ═══════════════════════════════════════════════════════════
+function updateUnits(dt) {
+  for (const u of units) {
+    if (u.deathTimer >= 0) { u.deathTimer -= dt; continue; }
+    u.flashTimer = Math.max(0, u.flashTimer - dt);
+    u.atkTimer   = Math.max(0, u.atkTimer - dt);
+
+    if (u.state === 'fighting') {
+      const tgt = u.target;
+      if (!tgt || tgt.deathTimer >= 0 || tgt.hp <= 0) {
+        u.state = 'moving'; u.target = null;
+      } else if (u.atkTimer <= 0) {
+        tgt.hp -= u.dmg;
+        u.atkTimer = ATK_CD;
+        u.flashTimer = 120;
+        if (tgt.hp <= 0) {
+          tgt.hp = 0; tgt.deathTimer = 380;
+          playDeath();
+          spawnDeathFX(tgt.x, tgt.y, tgt.team);
+          u.state = 'moving'; u.target = null;
+        } else {
+          playAttack();
+          spawnHitFX(tgt.x, tgt.y);
+        }
+      }
+      continue;
+    }
+
+    if (u.state === 'atk_base') {
+      const base = u.team === 'blue' ? redBase : blueBase;
+      if (base.hp <= 0) { u.state = 'moving'; continue; }
+      if (u.atkTimer <= 0) {
+        base.hp = Math.max(0, base.hp - u.dmg);
+        u.hp    = Math.max(0, u.hp - base.dmg);
+        u.atkTimer = ATK_CD; u.flashTimer = 120;
+        playBaseHit();
+        spawnHitFX(u.x, u.y);
+        if (u.hp <= 0) { u.deathTimer = 380; playDeath(); spawnDeathFX(u.x, u.y, u.team); }
+        if (base.hp <= 0) triggerVictory(u.team);
+      }
+      continue;
+    }
+
+    // state === 'moving'
+    const dir = u.team === 'blue' ? 1 : -1;
+    const eBase = u.team === 'blue' ? redBase : blueBase;
+    const distToBase = u.team === 'blue'
+      ? eBase.x - u.x
+      : u.x - (eBase.x + eBase.w);
+
+    if (distToBase <= ATK_RANGE + 5) {
+      u.state = 'atk_base'; u.atkTimer = 0; continue;
+    }
+
+    // Find nearest enemy
+    let nearestEnemy = null, nearestED = Infinity;
+    for (const o of units) {
+      if (o === u || o.team === u.team || o.deathTimer >= 0) continue;
+      const d = Math.abs(u.x - o.x);
+      if (d < nearestED) { nearestED = d; nearestEnemy = o; }
+    }
+    if (nearestEnemy && nearestED < ATK_RANGE) {
+      u.state = 'fighting'; u.target = nearestEnemy; u.atkTimer = 280; continue;
+    }
+
+    // Check queue gap with closest ally ahead
+    let frontDist = Infinity;
+    for (const a of units) {
+      if (a === u || a.team !== u.team || a.deathTimer >= 0) continue;
+      const d = dir > 0 ? (a.x - u.x) : (u.x - a.x);
+      if (d > 0 && d < frontDist) frontDist = d;
+    }
+    if (frontDist < SPACING) {
+      // slide up to fill gap gently
+      const gap = Math.max(0, frontDist - SPACING + 1);
+      u.x += dir * Math.min(UNIT_SPEED * dt / 1000, gap);
+      continue;
+    }
+
+    u.x += dir * UNIT_SPEED * dt / 1000;
+  }
+
+  // Remove finished death animations
+  units = units.filter(u => u.deathTimer < 0 || u.deathTimer > 0);
+}
+
+// ═══════════════════════════════════════════════════════════
+// PARTICLES & DEBRIS
+// ═══════════════════════════════════════════════════════════
+function spawnHitFX(x, y) {
+  for (let i = 0; i < 5; i++) {
+    particles.push({ x, y,
+      vx: (Math.random() - 0.5) * 90, vy: (Math.random() - 0.5) * 90 - 25,
+      life: 350, max: 350, r: 2 + Math.random() * 3, col: '#FFD700' });
+  }
+}
+
+function spawnDeathFX(x, y, team) {
+  const col = team === 'blue' ? '#3388FF' : '#FF3333';
+  for (let i = 0; i < 14; i++) {
+    particles.push({ x, y,
+      vx: (Math.random() - 0.5) * 140, vy: (Math.random() - 0.5) * 110 - 40,
+      life: 600, max: 600, r: 3 + Math.random() * 5, col });
+  }
+}
+
+function spawnBaseCollapseFX(base) {
+  const stoneCol = ['#888', '#666', '#999', '#555'];
+  const woodCol  = ['#8B4513', '#A0522D', '#6B3410'];
+  for (let i = 0; i < 40; i++) {
+    const isStone = i < 25;
+    debris.push({
+      x: base.x + Math.random() * base.w,
+      y: base.y + Math.random() * base.h * 0.6,
+      vx: (Math.random() - 0.5) * 260,
+      vy: -Math.random() * 320 - 80,
+      rot: Math.random() * Math.PI * 2,
+      rotV: (Math.random() - 0.5) * 9,
+      life: 1600 + Math.random() * 1200,
+      max:  2800,
+      w: isStone ? 8 + Math.random() * 28 : 10 + Math.random() * 36,
+      h: isStone ? 8 + Math.random() * 22 : 5  + Math.random() * 16,
+      col: isStone ? stoneCol[i % stoneCol.length] : woodCol[i % woodCol.length],
+    });
+  }
+}
+
+function updateFX(dt) {
+  const g = 220;
+  for (const p of particles) {
+    p.x += p.vx * dt / 1000; p.y += p.vy * dt / 1000;
+    p.vy += g * dt / 1000;   p.life -= dt;
+  }
+  particles = particles.filter(p => p.life > 0);
+
+  for (const d of debris) {
+    d.x += d.vx * dt / 1000; d.y += d.vy * dt / 1000;
+    d.vy += g * 1.8 * dt / 1000;
+    d.rot += d.rotV * dt / 1000; d.life -= dt;
+    if (d.y > CH + 100) d.life = 0;
+  }
+  debris = debris.filter(d => d.life > 0);
+}
+
+// ═══════════════════════════════════════════════════════════
+// VICTORY
+// ═══════════════════════════════════════════════════════════
+function triggerVictory(team) {
+  if (phase !== 'playing') return;
+  phase = 'victory';
+  victoryTeam = team;
+  victoryTimer = VICTORY_MS;
+  if (team === 'blue') blueWins++; else redWins++;
+  const losingBase = team === 'blue' ? redBase : blueBase;
+  playTowerCollapse();
+  spawnBaseCollapseFX(losingBase);
+  setTimeout(playVictory, 900);
+}
+
+// ═══════════════════════════════════════════════════════════
+// DRAW
+// ═══════════════════════════════════════════════════════════
+const cvs = document.getElementById('gameCanvas');
+const ctx = cvs.getContext('2d');
+
+function draw(now) {
+  ctx.clearRect(0, 0, CW, CH);
+  drawBackground();
+  drawBases();
+  drawParticles();
+  drawDebris();
+  drawUnits(now);
+  drawHUD();
+  if (phase === 'victory') drawVictoryScreen();
+}
+
+function drawBackground() {
+  const sky = ctx.createLinearGradient(0, 0, 0, CH);
+  sky.addColorStop(0,   '#0a0a2e');
+  sky.addColorStop(0.5, '#1a0e00');
+  sky.addColorStop(1,   '#3d2200');
+  ctx.fillStyle = sky;
+  ctx.fillRect(0, 0, CW, CH);
+
+  // Ground
+  const gr = ctx.createLinearGradient(0, CH * 0.54, 0, CH);
+  gr.addColorStop(0, '#3a2508'); gr.addColorStop(1, '#1e1200');
+  ctx.fillStyle = gr;
+  ctx.fillRect(0, CH * 0.54, CW, CH * 0.46);
+
+  // Dashed battle line
+  ctx.strokeStyle = 'rgba(255,120,0,0.25)';
+  ctx.lineWidth = 2; ctx.setLineDash([12, 8]);
+  ctx.beginPath();
+  ctx.moveTo(blueBase.x + blueBase.w + 10, BATTLE_Y);
+  ctx.lineTo(redBase.x - 10, BATTLE_Y);
+  ctx.stroke(); ctx.setLineDash([]);
+
+  // Center glow divider
+  ctx.fillStyle = 'rgba(255,140,0,0.1)';
+  ctx.fillRect(CW / 2 - 4, CH * 0.08, 8, CH * 0.84);
+}
+
+function drawBase(base, team) {
+  const isBlue = team === 'blue';
+  const col    = isBlue ? '#1a55ee' : '#ee1515';
+  const dark   = isBlue ? '#0a2b8a' : '#8a0a0a';
+  const hp     = base.hp / base.maxHp;
+  const dead   = base.hp <= 0;
+
+  // Shake when damaged
+  let sx = 0, sy = 0;
+  if (hp < 0.3 && !dead) { sx = (Math.random() - 0.5) * 5; sy = (Math.random() - 0.5) * 5; }
+  ctx.save(); ctx.translate(sx, sy);
+
+  if (dead) {
+    // Rubble heap
+    ctx.fillStyle = '#444';
+    ctx.beginPath();
+    ctx.moveTo(base.x, base.y + base.h);
+    ctx.lineTo(base.x + base.w / 2, base.y + base.h * 0.75);
+    ctx.lineTo(base.x + base.w, base.y + base.h);
+    ctx.fill();
+    ctx.fillStyle = '#555';
+    for (let i = 0; i < 5; i++) {
+      ctx.fillRect(base.x + i * 28, base.y + base.h * 0.78 + i * 5, 20, 14);
+    }
+    ctx.restore(); return;
+  }
+
+  // Main wall
+  const grd = ctx.createLinearGradient(base.x, 0, base.x + base.w, 0);
+  grd.addColorStop(0, dark); grd.addColorStop(0.5, col); grd.addColorStop(1, dark);
+  ctx.fillStyle = grd;
+  ctx.fillRect(base.x, base.y, base.w, base.h);
+
+  // Stone texture lines
+  ctx.strokeStyle = 'rgba(0,0,0,0.25)'; ctx.lineWidth = 1;
+  for (let row = 0; row < 10; row++) {
+    const ry = base.y + row * (base.h / 10);
+    ctx.beginPath(); ctx.moveTo(base.x, ry); ctx.lineTo(base.x + base.w, ry); ctx.stroke();
+  }
+
+  // Battlements (crenellations) at top
+  const bmW = 20, bmH = 28, bmGap = 10;
+  const numBm = Math.floor(base.w / (bmW + bmGap));
+  ctx.fillStyle = col;
+  for (let i = 0; i < numBm; i++) {
+    ctx.fillRect(base.x + i * (bmW + bmGap), base.y - bmH, bmW, bmH);
+  }
+
+  // Corner towers
+  const tw = 36;
+  ctx.fillStyle = dark;
+  ctx.fillRect(base.x - tw / 2,           base.y - 50, tw, base.h * 0.45 + 50);
+  ctx.fillRect(base.x + base.w - tw / 2,  base.y - 50, tw, base.h * 0.45 + 50);
+  // Tower caps
+  ctx.fillStyle = col;
+  ctx.fillRect(base.x - tw / 2 - 6,          base.y - 68, tw + 12, 20);
+  ctx.fillRect(base.x + base.w - tw / 2 - 6, base.y - 68, tw + 12, 20);
+
+  // Gate arch
+  const gw = 58, gh = 86;
+  const gx = base.x + (base.w - gw) / 2;
+  const gy = base.y + base.h - gh;
+  ctx.fillStyle = '#111';
+  ctx.beginPath();
+  ctx.rect(gx, gy + gh * 0.35, gw, gh * 0.65);
+  ctx.arc(gx + gw / 2, gy + gh * 0.35, gw / 2, Math.PI, 0);
+  ctx.fill();
+
+  // Flag pole + flag
+  const fpx = base.x + base.w / 2;
+  const fpy = base.y - 90;
+  ctx.strokeStyle = '#AAA'; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(fpx, fpy); ctx.lineTo(fpx, fpy + 65); ctx.stroke();
+  const wave = Math.sin(Date.now() / 400) * 4;
+  ctx.fillStyle = isBlue ? '#44AAFF' : '#FF4444';
+  ctx.beginPath();
+  ctx.moveTo(fpx, fpy);
+  ctx.lineTo(fpx + 38 + wave, fpy + 12);
+  ctx.lineTo(fpx, fpy + 26);
+  ctx.fill();
+
+  // Fire effects at low HP
+  if (hp < 0.6) {
+    drawFire(base.x + base.w * 0.28, base.y + 30, 1 - hp);
+    drawFire(base.x + base.w * 0.72, base.y + 60, 1 - hp);
+    if (hp < 0.3) drawFire(base.x + base.w * 0.5, base.y + 10, 1 - hp);
+  }
+
+  ctx.restore();
+
+  // HP bar (outside shake so it stays readable)
+  const bx = base.x - 10, by = base.y + base.h + 18;
+  const bw = base.w + 20, bh = 22;
+  ctx.fillStyle = '#1a1a1a'; ctx.fillRect(bx, by, bw, bh);
+  ctx.fillStyle = hp > 0.5 ? '#00cc44' : hp > 0.25 ? '#FF8800' : '#FF2222';
+  ctx.fillRect(bx, by, bw * hp, bh);
+  ctx.strokeStyle = '#444'; ctx.lineWidth = 1; ctx.strokeRect(bx, by, bw, bh);
+  ctx.fillStyle = '#FFF'; ctx.font = 'bold 14px Arial';
+  ctx.textAlign = 'center';
+  ctx.fillText(Math.ceil(base.hp) + ' HP', base.x + base.w / 2, by + bh - 4);
+
+  // Team label above flag
+  ctx.fillStyle = isBlue ? '#66BBFF' : '#FF7777';
+  ctx.font = 'bold 26px Arial Black'; ctx.textAlign = 'center';
+  ctx.fillText(isBlue ? 'BLUE' : 'RED', base.x + base.w / 2, base.y - 110);
+}
+
+function drawFire(x, y, intensity) {
+  const t = Date.now() / 200;
+  const h = 25 + intensity * 45;
+  for (let i = 0; i < 6; i++) {
+    const fx = x + Math.sin(t + i * 1.3) * 8 - 4;
+    const fy = y - i * h / 6;
+    const r  = (6 - i) * 3.5 * intensity;
+    if (r <= 0) continue;
+    const a  = (1 - i / 6) * 0.85;
+    ctx.beginPath(); ctx.arc(fx, fy, r, 0, Math.PI * 2);
+    ctx.fillStyle = i < 3 ? `rgba(255,200,0,${a})` : `rgba(255,50,0,${a})`;
+    ctx.fill();
+  }
+}
+
+function drawBases() {
+  drawBase(blueBase, 'blue');
+  drawBase(redBase,  'red');
+}
+
+function drawUnit(u, now) {
+  const dying  = u.deathTimer >= 0;
+  const alpha  = dying ? Math.max(0, u.deathTimer / 380) : 1;
+  const flash  = u.flashTimer > 0;
+  const isBlue = u.team === 'blue';
+  const dir    = isBlue ? 1 : -1;
+
+  ctx.save();
+  ctx.globalAlpha = alpha;
+
+  const x = u.x, y = u.y;
+  const body = flash ? '#FFFFFF' : (isBlue ? '#3388FF' : '#FF3333');
+  const dark = isBlue ? '#0a2fcc' : '#cc0a0a';
+
+  if (dying) {
+    // Fall over
+    const angle = dir * (Math.PI / 2) * (1 - u.deathTimer / 380);
+    ctx.translate(x, y); ctx.rotate(angle);
+    ctx.strokeStyle = dark; ctx.lineWidth = 5; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(0, -34); ctx.lineTo(0, 10); ctx.stroke();
+    ctx.restore(); return;
+  }
+
+  // Shadow
+  ctx.fillStyle = 'rgba(0,0,0,0.3)';
+  ctx.beginPath(); ctx.ellipse(x, y + 10, 15, 5, 0, 0, Math.PI * 2); ctx.fill();
+
+  const legSwing = u.state === 'moving' ? Math.sin(now / 115 + u.id * 0.8) * 9 : 0;
+  const atkBob   = u.state === 'fighting' ? Math.sin(now / 70 + u.id) * 5 : 0;
+
+  // Body
+  ctx.strokeStyle = dark; ctx.lineWidth = 5; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(x, y - 22); ctx.lineTo(x, y - 2); ctx.stroke();
+
+  // Legs
+  ctx.lineWidth = 4;
+  ctx.beginPath(); ctx.moveTo(x, y - 2); ctx.lineTo(x - 7 + legSwing, y + 15); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x, y - 2); ctx.lineTo(x + 7 - legSwing, y + 15); ctx.stroke();
+
+  // Back arm
+  ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(x, y - 18); ctx.lineTo(x - dir * 14, y - 9); ctx.stroke();
+
+  // Front arm + spear
+  const ax = x + dir * 18, ay = y - 18 + atkBob;
+  ctx.beginPath(); ctx.moveTo(x, y - 18); ctx.lineTo(ax, ay); ctx.stroke();
+
+  // Spear shaft
+  ctx.strokeStyle = '#7a5200'; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(ax + dir * 28, ay - 14); ctx.stroke();
+
+  // Spear tip (triangle)
+  const tx = ax + dir * 28, ty = ay - 14;
+  ctx.fillStyle = '#D0D0D0';
+  ctx.beginPath();
+  ctx.moveTo(tx + dir * 10, ty - 4);
+  ctx.lineTo(tx - dir * 2, ty + 4);
+  ctx.lineTo(tx - dir * 2, ty - 10);
+  ctx.fill();
+
+  // Head
+  ctx.beginPath(); ctx.arc(x, y - 32, 9, 0, Math.PI * 2);
+  ctx.fillStyle = body; ctx.fill();
+  ctx.strokeStyle = dark; ctx.lineWidth = 2; ctx.stroke();
+
+  // Helmet
+  ctx.fillStyle = dark;
+  ctx.beginPath(); ctx.arc(x, y - 34, 10, Math.PI, 0); ctx.fill();
+  // Plume
+  ctx.fillStyle = isBlue ? '#88CCFF' : '#FF9999';
+  ctx.fillRect(x - 3, y - 47, 6, 13);
+
+  // HP pip above head
+  const hpR = u.hp / u.maxHp;
+  const pw = 28;
+  ctx.fillStyle = '#222'; ctx.fillRect(x - pw / 2, y - 56, pw, 5);
+  ctx.fillStyle = hpR > 0.5 ? '#00cc44' : hpR > 0.25 ? '#FF8800' : '#FF2222';
+  ctx.fillRect(x - pw / 2, y - 56, pw * hpR, 5);
+
+  ctx.restore();
+}
+
+function drawUnits(now) {
+  // Draw in order (furthest from their base first for correct overlap)
+  const sorted = [...units].sort((a, b) => {
+    const da = a.team === 'blue' ? a.x : CW - a.x;
+    const db = b.team === 'blue' ? b.x : CW - b.x;
+    return db - da;
+  });
+  for (const u of sorted) drawUnit(u, now);
+}
+
+function drawParticles() {
+  for (const p of particles) {
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, p.life / p.max);
+    ctx.fillStyle = p.col;
+    ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  }
+}
+
+function drawDebris() {
+  for (const d of debris) {
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, d.life / d.max);
+    ctx.translate(d.x, d.y); ctx.rotate(d.rot);
+    ctx.fillStyle = d.col;
+    ctx.fillRect(-d.w / 2, -d.h / 2, d.w, d.h);
+    ctx.restore();
+  }
+}
+
+function drawHUD() {
+  // Top bar
+  ctx.fillStyle = 'rgba(0,0,0,0.72)';
+  ctx.fillRect(0, 0, CW, 88);
+
+  // Blue wins
+  ctx.fillStyle = '#4488FF'; ctx.font = 'bold 44px Arial Black'; ctx.textAlign = 'center';
+  ctx.fillText('BLUE ' + blueWins, CW * 0.22, 60);
+
+  // VS
+  ctx.fillStyle = '#FFD700'; ctx.font = 'bold 34px Arial Black';
+  ctx.fillText('VS', CW / 2, 58);
+
+  // Red wins
+  ctx.fillStyle = '#FF4444'; ctx.font = 'bold 44px Arial Black';
+  ctx.fillText('RED ' + redWins, CW * 0.78, 60);
+
+  // Unit counts bottom
+  const bc = units.filter(u => u.team === 'blue' && u.deathTimer < 0).length;
+  const rc = units.filter(u => u.team === 'red'  && u.deathTimer < 0).length;
+  ctx.fillStyle = 'rgba(68,136,255,0.85)'; ctx.font = 'bold 22px Arial'; ctx.textAlign = 'left';
+  ctx.fillText('⚔ ' + bc + ' units', 28, CH - 22);
+  ctx.fillStyle = 'rgba(255,68,68,0.85)'; ctx.textAlign = 'right';
+  ctx.fillText(rc + ' units ⚔', CW - 28, CH - 22);
+
+  // Hint
+  ctx.fillStyle = 'rgba(255,255,255,0.35)'; ctx.font = '18px Arial'; ctx.textAlign = 'center';
+  ctx.fillText('Type "blue" or "red" in TikTok chat!', CW / 2, CH - 22);
+}
+
+function drawVictoryScreen() {
+  const winCol = victoryTeam === 'blue' ? '#4488FF' : '#FF4444';
+  const elapsed = VICTORY_MS - victoryTimer;
+  const fadeIn  = Math.min(1, elapsed / 600);
+
+  ctx.save();
+  ctx.globalAlpha = fadeIn * 0.86;
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, CW, CH);
+  ctx.restore();
+
+  ctx.save();
+  ctx.globalAlpha = fadeIn;
+
+  // Victory headline
+  ctx.font = 'bold 82px Arial Black'; ctx.textAlign = 'center';
+  ctx.shadowColor = winCol; ctx.shadowBlur = 40;
+  ctx.fillStyle = winCol;
+  const pulse = Math.sin(Date.now() / 280) * 4;
+  ctx.fillText('TEAM ' + victoryTeam.toUpperCase() + ' WINS!', CW / 2, 185 + pulse);
+  ctx.shadowBlur = 0;
+
+  // Top players header
+  ctx.fillStyle = '#FFD700'; ctx.font = 'bold 38px Arial Black';
+  ctx.fillText('TOP PLAYERS', CW / 2, 268);
+
+  // Separator
+  ctx.strokeStyle = 'rgba(255,215,0,0.4)'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(CW / 2 - 260, 282); ctx.lineTo(CW / 2 + 260, 282); ctx.stroke();
+
+  // Players list
+  const top = Object.entries(playerStats)
+    .sort((a, b) => b[1].total - a[1].total)
+    .slice(0, 8);
+
+  top.forEach(([name, stats], i) => {
+    const py = 336 + i * 64;
+    const rankCol = ['#FFD700', '#C0C0C0', '#CD7F32'][i] || '#FFFFFF';
+    const medal   = ['🥇', '🥈', '🥉'][i] || (i + 1) + '.';
+    ctx.font = `bold ${i < 3 ? 32 : 27}px Arial`; ctx.fillStyle = rankCol;
+    ctx.textAlign = 'left';
+    ctx.fillText(medal + ' ' + name, CW / 2 - 275, py);
+    ctx.fillStyle = winCol; ctx.textAlign = 'right'; ctx.font = 'bold 28px Arial';
+    ctx.fillText(stats[victoryTeam] + ' ' + victoryTeam + ' / ' + stats.total + ' total', CW / 2 + 275, py);
+  });
+
+  if (top.length === 0) {
+    ctx.fillStyle = 'rgba(255,255,255,0.5)'; ctx.font = '26px Arial'; ctx.textAlign = 'center';
+    ctx.fillText('No players this round', CW / 2, 400);
+  }
+
+  // Countdown
+  const secs = Math.ceil(victoryTimer / 1000);
+  ctx.fillStyle = '#FFFFFF'; ctx.font = 'bold 30px Arial'; ctx.textAlign = 'center';
+  ctx.fillText('New round in ' + secs + 's…', CW / 2, 908);
+
+  ctx.restore();
+}
+
+// ═══════════════════════════════════════════════════════════
+// GAME LOOP
+// ═══════════════════════════════════════════════════════════
+let lastT = 0;
+
+function gameLoop(now) {
+  requestAnimationFrame(gameLoop);
+  const dt = Math.min(now - (lastT || now), 100);
+  lastT = now;
+
+  if (phase === 'playing') updateUnits(dt);
+  updateFX(dt);
+
+  if (phase === 'victory') {
+    victoryTimer -= dt;
+    if (victoryTimer <= 0) resetRound();
+  }
+
+  draw(now);
+}
+
+requestAnimationFrame(gameLoop);
+
+// ═══════════════════════════════════════════════════════════
+// WEBSOCKET
+// ═══════════════════════════════════════════════════════════
+let _ws = null, _wsUser = '';
+
+function wsConnect(username) {
+  _wsUser = username;
+  if (_ws && _ws.readyState < 2) { _ws.onclose = null; _ws.close(); }
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  _ws = new WebSocket(`${proto}//${location.host}?username=${encodeURIComponent(username)}`);
+
+  _ws.onopen = () => {
+    console.log('[War WS] connected @' + username);
+    setStatus('connecting', '⏳ @' + username + '…');
+  };
+
+  _ws.onmessage = (e) => {
+    try {
+      const data = JSON.parse(e.data);
+      if (data.type === 'war_chat') {
+        handleChatMessage(data.username, data.team);
+      }
+      if (data.type === 'init' || data.type === 'status') {
+        if (data.mode === 'tiktok') setStatus('live', '🔴 LIVE @' + (data.username || username));
+        else if (data.mode === 'demo') setStatus('demo', '🟡 DEMO — type blue/red in chat sim');
+        else setStatus('connecting', '⏳ @' + username + '…');
+      }
+    } catch(e) {}
+  };
+
+  _ws.onclose = () => {
+    setStatus('error', '❌ Disconnected — reconnecting…');
+    setTimeout(() => wsConnect(_wsUser), 3000);
+  };
+
+  _ws.onerror = () => {};
+}
+
+function setStatus(cls, text) {
+  const el = document.getElementById('statusBadge');
+  if (!el) return;
+  el.style.display = 'block';
+  el.className = cls;
+  el.textContent = text;
+}
+
+// ═══════════════════════════════════════════════════════════
+// INIT — USERNAME / URL PARAMS
+// ═══════════════════════════════════════════════════════════
+(function init() {
+  const params = new URLSearchParams(location.search);
+  const username = (params.get('username') || '').replace(/^@/, '').trim();
+
+  if (username) {
+    wsConnect(username);
+    document.getElementById('usernameOverlay').style.display = 'none';
+  } else {
+    document.getElementById('usernameOverlay').style.display = 'flex';
+  }
+
+  // Start button
+  document.getElementById('usernameBtn').addEventListener('click', () => {
+    const val = document.getElementById('usernameInput').value.replace(/^@/, '').trim();
+    if (!val) return;
+    localStorage.setItem('tiktok_username', val);
+    const u = new URL(location.href);
+    u.searchParams.set('username', val);
+    history.replaceState({}, '', u);
+    document.getElementById('usernameOverlay').style.display = 'none';
+    wsConnect(val);
+  });
+
+  document.getElementById('usernameInput').addEventListener('keydown', e => {
+    if (e.key === 'Enter') document.getElementById('usernameBtn').click();
+  });
+
+  // Demo button
+  document.getElementById('demoWarBtn').addEventListener('click', () => {
+    const u = new URL(location.href);
+    u.searchParams.set('username', 'demo');
+    history.replaceState({}, '', u);
+    document.getElementById('usernameOverlay').style.display = 'none';
+    wsConnect('demo');
+  });
+
+  // Prefill last saved username
+  const saved = localStorage.getItem('tiktok_username');
+  if (saved) document.getElementById('usernameInput').value = saved;
+
+  // Unlock audio on first user touch
+  document.addEventListener('click',     () => { try { getACtx(); } catch(e) {} }, { once: true });
+  document.addEventListener('touchstart', () => { try { getACtx(); } catch(e) {} }, { once: true });
+})();
+
+// ═══════════════════════════════════════════════════════════
+// SCALE / RESIZE
+// ═══════════════════════════════════════════════════════════
+(function scaleSetup() {
+  const wrapper = document.getElementById('scaleWrapper');
+  function resize() {
+    const w = document.documentElement.clientWidth  || window.innerWidth;
+    const h = document.documentElement.clientHeight || window.innerHeight;
+    const s = Math.min(w / 1000, h / 1000);
+    const cx = (w - 1000 * s) / 2;
+    const cy = (h - 1000 * s) / 2;
+    wrapper.style.transform = `translate(${cx}px,${cy}px) scale(${s})`;
+  }
+  window.addEventListener('resize', resize);
+  window.addEventListener('orientationchange', () => setTimeout(resize, 300));
+  resize();
+})();
+
+// ═══════════════════════════════════════════════════════════
+// FULLSCREEN + BACK BUTTONS
+// ═══════════════════════════════════════════════════════════
+document.getElementById('fsBtn').addEventListener('click', () => {
+  if (document.fullscreenElement) {
+    document.exitFullscreen && document.exitFullscreen();
+  } else {
+    document.documentElement.requestFullscreen && document.documentElement.requestFullscreen()
+      .then(() => { if (screen.orientation && screen.orientation.lock) screen.orientation.lock('landscape').catch(()=>{}); })
+      .catch(() => {});
+  }
+});
+
+document.getElementById('backBtn').addEventListener('click', () => {
+  location.href = '/';
+});
+</script>
+</body>
+</html>

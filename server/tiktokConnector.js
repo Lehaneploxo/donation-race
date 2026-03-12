@@ -79,13 +79,14 @@ function connectToTikTok(username, onGift, onStatus, onMember, onLike, onChat) {
 
   conn.on('chat', data => {
     if (!onChat) return;
-    const msg = (data.comment || '').trim().toUpperCase();
-    if (msg === 'GO') {
-      console.log('[Chat GO] ' + (data.nickname || data.uniqueId));
+    const msg = (data.comment || '').trim().toLowerCase();
+    if (msg === 'go' || msg === 'blue' || msg === 'red') {
+      console.log(`[Chat ${msg.toUpperCase()}] ` + (data.nickname || data.uniqueId));
       onChat({
         userId:    String(data.userId),
         username:  data.nickname || data.uniqueId || 'Unknown',
-        avatarUrl: data.profilePictureUrl || ''
+        avatarUrl: data.profilePictureUrl || '',
+        message:   msg
       });
     }
   });
@@ -130,13 +131,21 @@ function _startDemo(onGift, conn, onLike, onChat) {
 
   const goIv = setInterval(() => {
     const u = DEMO_USERS[Math.floor(Math.random() * DEMO_USERS.length)];
-    if (onChat) onChat({ userId: u.id, username: u.name, avatarUrl: '' });
+    if (onChat) onChat({ userId: u.id, username: u.name, avatarUrl: '', message: 'go' });
   }, 4000);
+
+  // Demo war units — blue/red chat every 2.5s
+  const warIv = setInterval(() => {
+    const u = DEMO_USERS[Math.floor(Math.random() * DEMO_USERS.length)];
+    const team = Math.random() < 0.5 ? 'blue' : 'red';
+    if (onChat) onChat({ userId: u.id, username: u.name, avatarUrl: '', message: team });
+  }, 2500);
 
   // Attach cleanup to the connection object so the room can clear it
   conn._demoInterval  = iv;
   conn._demoTornadoIv = tornadoIv;
   conn._demoGoIv      = goIv;
+  conn._demoWarIv     = warIv;
 }
 
 module.exports = { connectToTikTok };

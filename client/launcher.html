@@ -256,14 +256,70 @@
       from { background-position: 0%; }
       to   { background-position: 200%; }
     }
+
+    /* Game selection cards */
+    .game-select {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+
+    .game-card {
+      flex: 1;
+      background: rgba(255,255,255,0.05);
+      border: 2px solid rgba(255,255,255,0.1);
+      border-radius: 14px;
+      padding: 14px 10px;
+      cursor: pointer;
+      text-align: center;
+      transition: all 0.2s;
+      color: rgba(255,255,255,0.55);
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .game-card:hover {
+      background: rgba(255,255,255,0.1);
+      color: #fff;
+      border-color: rgba(255,255,255,0.25);
+    }
+
+    .game-card.active {
+      border-color: #818cf8;
+      background: rgba(129,140,248,0.18);
+      color: #fff;
+    }
+
+    .game-card.active.war {
+      border-color: #f87171;
+      background: rgba(248,113,113,0.18);
+    }
+
+    .game-card .card-icon { font-size: 36px; display: block; margin-bottom: 6px; }
+    .game-card .card-name { font-size: 14px; font-weight: 700; display: block; }
+    .game-card small { font-size: 11px; color: rgba(255,255,255,0.35); display: block; margin-top: 3px; }
   </style>
 </head>
 <body>
   <div class="card">
     <div class="logo">
-      <div class="icon">🏎️</div>
-      <h1>Гонка Донатов</h1>
+      <div class="icon" id="logoIcon">🏎️</div>
+      <h1 id="logoTitle">Гонка Донатов</h1>
       <p>TikTok Live — введи никнейм стримера</p>
+    </div>
+
+    <label>Выбери игру</label>
+    <div class="game-select">
+      <div class="game-card active" id="cardRace">
+        <span class="card-icon">🏎️</span>
+        <span class="card-name">Гонка Донатов</span>
+        <small>лайки · подарки · GO в чате</small>
+      </div>
+      <div class="game-card war" id="cardWar">
+        <span class="card-icon">⚔️</span>
+        <span class="card-name">Blue vs Red War</span>
+        <small>пиши "blue" или "red" в чате</small>
+      </div>
     </div>
 
     <label for="username">TikTok аккаунт</label>
@@ -291,6 +347,9 @@
       <button class="btn btn-connect" id="btnConnect">Подключиться к TikTok Live</button>
       <button class="btn btn-demo" id="btnDemo">Демо-режим (без TikTok)</button>
     </div>
+    <div id="selectedGameLabel" style="text-align:center;margin-top:10px;font-size:12px;color:rgba(255,255,255,0.3);">
+      Выбрана игра: <span id="gameNameLabel">🏎️ Гонка Донатов</span>
+    </div>
 
     <div class="status" id="status">
       <span class="dot"></span>Открываю игру…
@@ -307,7 +366,37 @@
     const statusEl = document.getElementById('status');
     const modeHigh = document.getElementById('modeHigh');
     const modeLite = document.getElementById('modeLite');
+    const cardRace = document.getElementById('cardRace');
+    const cardWar  = document.getElementById('cardWar');
+    const gameNameLabel = document.getElementById('gameNameLabel');
+    const logoIcon = document.getElementById('logoIcon');
+    const logoTitle = document.getElementById('logoTitle');
 
+    // ── Game selection ───────────────────────────────────────
+    let selectedGame = localStorage.getItem('selected_game') || 'race';
+
+    function updateGameCards() {
+      const isWar = selectedGame === 'war';
+      cardRace.classList.toggle('active', !isWar);
+      cardWar.classList.toggle('active',   isWar);
+      gameNameLabel.textContent = isWar ? '⚔️ Blue vs Red War' : '🏎️ Гонка Донатов';
+      logoIcon.textContent  = isWar ? '⚔️' : '🏎️';
+      logoTitle.textContent = isWar ? 'Blue vs Red War' : 'Гонка Донатов';
+    }
+    updateGameCards();
+
+    cardRace.addEventListener('click', () => {
+      selectedGame = 'race';
+      localStorage.setItem('selected_game', 'race');
+      updateGameCards();
+    });
+    cardWar.addEventListener('click', () => {
+      selectedGame = 'war';
+      localStorage.setItem('selected_game', 'war');
+      updateGameCards();
+    });
+
+    // ── Graphics mode ────────────────────────────────────────
     let liteMode = localStorage.getItem('lite_mode') === '1';
 
     function updateModeButtons() {
@@ -319,10 +408,9 @@
     modeHigh.addEventListener('click', () => { liteMode = false; localStorage.setItem('lite_mode', '0'); updateModeButtons(); });
     modeLite.addEventListener('click', () => { liteMode = true;  localStorage.setItem('lite_mode', '1'); updateModeButtons(); });
 
-    // Сохраняем последний ник
+    // ── Prefill last nick ────────────────────────────────────
     const saved = localStorage.getItem('tiktok_username');
     if (saved) input.value = saved;
-
     input.focus();
 
     function showError(msg) {
@@ -335,9 +423,10 @@
       statusEl.style.display = 'block';
       btnConn.disabled = true;
       btnDemo.disabled = true;
-      const liteSuffix = liteMode ? '&lite=1' : '';
+      const liteSuffix = (liteMode && selectedGame === 'race') ? '&lite=1' : '';
+      const path = selectedGame === 'war' ? '/war' : '/game';
       setTimeout(() => {
-        window.location.href = `/game?username=${encodeURIComponent(username)}${liteSuffix}`;
+        window.location.href = `${path}?username=${encodeURIComponent(username)}${liteSuffix}`;
       }, 300);
     }
 
@@ -348,19 +437,11 @@
       go(val);
     });
 
-    btnDemo.addEventListener('click', () => {
-      go('demo');
-    });
+    btnDemo.addEventListener('click', () => { go('demo'); });
 
-    input.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') btnConn.click();
-    });
-
-    // Убираем @ если пользователь вставил
+    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') btnConn.click(); });
     input.addEventListener('input', () => {
-      if (input.value.startsWith('@')) {
-        input.value = input.value.slice(1);
-      }
+      if (input.value.startsWith('@')) input.value = input.value.slice(1);
     });
   </script>
 </body>

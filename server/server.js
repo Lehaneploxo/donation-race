@@ -39,6 +39,11 @@ app.get('/game', (req, res) => {
   res.sendFile(path.join(__dirname, '../client/index.html'));
 });
 
+app.get('/war', (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  res.sendFile(path.join(__dirname, '../client/war.html'));
+});
+
 // ─── Rooms ───────────────────────────────────────────────────────────────────
 const rooms = new Map();
 
@@ -154,18 +159,27 @@ class Room {
           event:        chaosEvent || { type: 'like', username: data.username, likes: data.likes }
         });
       },
-      // onChat — GO сообщения в чате
+      // onChat — GO / blue / red из чата
       (data) => {
-        if (this._raceEnded) return;
-        this.players.addChatGo(data.userId, data.username, data.avatarUrl);
-        this.broadcast({
-          type:         'update',
-          players:      this.players.getTop10(),
-          totalPlayers: this.players.getTotalCount(),
-          racePoints:   this.players.getTotalPoints(),
-          totalLikes:   this._totalLikes,
-          event:        { type: 'chatgo', username: data.username }
-        });
+        const msg = data.message || '';
+
+        // War game: broadcast team command to all clients
+        if (msg === 'blue' || msg === 'red') {
+          this.broadcast({ type: 'war_chat', team: msg, username: data.username });
+        }
+
+        // Race game: GO command
+        if (msg === 'go' && !this._raceEnded) {
+          this.players.addChatGo(data.userId, data.username, data.avatarUrl);
+          this.broadcast({
+            type:         'update',
+            players:      this.players.getTop10(),
+            totalPlayers: this.players.getTotalCount(),
+            racePoints:   this.players.getTotalPoints(),
+            totalLikes:   this._totalLikes,
+            event:        { type: 'chatgo', username: data.username }
+          });
+        }
       }
     );
 
@@ -206,6 +220,7 @@ class Room {
       clearInterval(c._demoInterval);
       clearInterval(c._demoTornadoIv);
       clearInterval(c._demoGoIv);
+      clearInterval(c._demoWarIv);
     }
   }
 
