@@ -358,11 +358,9 @@ function updateUnits(dt) {
       if (base.hp <= 0) { u.state = 'moving'; continue; }
       if (u.atkTimer <= 0) {
         base.hp = Math.max(0, base.hp - u.dmg);
-        u.hp    = Math.max(0, u.hp - base.dmg);
         u.atkTimer = ATK_CD; u.flashTimer = 120;
         playBaseHit();
         spawnHitFX(u.x, u.y);
-        if (u.hp <= 0) { killUnit(u); }
         if (base.hp <= 0) triggerVictory(u.team);
       }
       continue;
