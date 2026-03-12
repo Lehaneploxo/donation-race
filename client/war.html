@@ -985,21 +985,74 @@ function setStatus(cls, text) {
 })();
 
 // ═══════════════════════════════════════════════════════════
-// SCALE / RESIZE
+// SCALE / RESIZE + PINCH-TO-ZOOM + DRAG
 // ═══════════════════════════════════════════════════════════
 (function scaleSetup() {
-  const wrapper = document.getElementById('scaleWrapper');
-  function resize() {
-    const w = document.documentElement.clientWidth  || window.innerWidth;
-    const h = document.documentElement.clientHeight || window.innerHeight;
-    const s = Math.min(w / 1000, h / 1000);
-    const cx = (w - 1000 * s) / 2;
-    const cy = (h - 1000 * s) / 2;
-    wrapper.style.transform = `translate(${cx}px,${cy}px) scale(${s})`;
+  var wrapper    = document.getElementById('scaleWrapper');
+  var pinchScale  = 1;
+  var pinchOffset = { x: 0, y: 0 };
+
+  function applyTransform() {
+    var w = document.documentElement.clientWidth  || window.innerWidth;
+    var h = document.documentElement.clientHeight || window.innerHeight;
+    var baseScale  = Math.min(w / 1000, h / 1000);
+    var totalScale = baseScale * pinchScale;
+    var cx = (w - 1000 * totalScale) / 2 + pinchOffset.x;
+    var cy = (h - 1000 * totalScale) / 2 + pinchOffset.y;
+    wrapper.style.transform = 'translate(' + cx + 'px,' + cy + 'px) scale(' + totalScale + ')';
   }
-  window.addEventListener('resize', resize);
-  window.addEventListener('orientationchange', () => setTimeout(resize, 300));
-  resize();
+
+  window.addEventListener('resize', applyTransform);
+  window.addEventListener('orientationchange', function() { setTimeout(applyTransform, 300); });
+  applyTransform();
+
+  // ── Pinch-to-zoom ──────────────────────────────────────────
+  var lastDist   = 0;
+  var lastMid    = { x: 0, y: 0 };
+  var isDragging = false;
+  var dragStart  = { x: 0, y: 0 };
+  var MIN_ZOOM = 0.5, MAX_ZOOM = 3.0;
+
+  function touchDist(t1, t2) {
+    var dx = t1.clientX - t2.clientX, dy = t1.clientY - t2.clientY;
+    return Math.sqrt(dx * dx + dy * dy);
+  }
+  function touchMid(t1, t2) {
+    return { x: (t1.clientX + t2.clientX) / 2, y: (t1.clientY + t2.clientY) / 2 };
+  }
+
+  document.addEventListener('touchstart', function(e) {
+    if (e.touches.length === 2) {
+      lastDist   = touchDist(e.touches[0], e.touches[1]);
+      lastMid    = touchMid(e.touches[0], e.touches[1]);
+      isDragging = false;
+    } else if (e.touches.length === 1 && pinchScale > 1.05) {
+      isDragging = true;
+      dragStart  = { x: e.touches[0].clientX - pinchOffset.x,
+                     y: e.touches[0].clientY - pinchOffset.y };
+    }
+  }, { passive: true });
+
+  document.addEventListener('touchmove', function(e) {
+    if (e.touches.length === 2) {
+      isDragging = false;
+      var d = touchDist(e.touches[0], e.touches[1]);
+      var m = touchMid(e.touches[0], e.touches[1]);
+      pinchScale = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, pinchScale * (d / lastDist)));
+      pinchOffset.x += (m.x - lastMid.x);
+      pinchOffset.y += (m.y - lastMid.y);
+      lastDist = d; lastMid = m;
+      applyTransform();
+    } else if (e.touches.length === 1 && isDragging) {
+      pinchOffset.x = e.touches[0].clientX - dragStart.x;
+      pinchOffset.y = e.touches[0].clientY - dragStart.y;
+      applyTransform();
+    }
+  }, { passive: true });
+
+  document.addEventListener('touchend', function(e) {
+    if (e.touches.length === 0) isDragging = false;
+  }, { passive: true });
 })();
 
 // ═══════════════════════════════════════════════════════════
