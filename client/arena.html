@@ -309,7 +309,11 @@ function updateWarriors(dt){
   }
   warriors=warriors.filter(w=>!w.dead||w.deathTimer>0);
 }
-function updateParticles(dt){ for(const p of particles){p.x+=p.vx*dt/1000;p.y+=p.vy*dt/1000;p.vy+=220*dt/1000;p.life-=dt;} particles=particles.filter(p=>p.life>0); }
+function updateParticles(dt){
+  for(const p of particles){p.x+=p.vx*dt/1000;p.y+=p.vy*dt/1000;p.vy+=220*dt/1000;p.life-=dt;}
+  particles=particles.filter(p=>p.life>0);
+  if(particles.length>120) particles.splice(0, particles.length-120);
+}
 function updateDmgNums(dt){ for(const d of dmgNums){d.y+=d.vy*dt/1000;d.vy*=0.94;d.life-=dt;} dmgNums=dmgNums.filter(d=>d.life>0); }
 function updateVictory(dt){ if(!victoryState) return; victoryState.timer-=dt; if(victoryState.timer<=0) startNewRound(); }
 
@@ -338,6 +342,8 @@ const ctx=cvs.getContext('2d');
 
 function draw(now){
   ctx.clearRect(0,0,CW,CH);
+  // Reset expensive state at frame start
+  ctx.shadowBlur=0; ctx.shadowColor='transparent'; ctx.globalAlpha=1; ctx.filter='none';
   drawBackground(now);
   drawArenaFloor();
   if(armageddon?.type==='flood') drawFlood();
@@ -383,14 +389,27 @@ function drawBackground(now){
     ctx.restore();
   }
 
-  // Stars
+  // Stars — two passes (big/small) to minimize state changes
   if(isNight()||isDuskDawn()){
     const sa=isNight()?1:0.4;
+    ctx.fillStyle='#FFF';
+    // Small stars — single alpha pass
+    ctx.globalAlpha=0.45*sa;
+    ctx.beginPath();
     for(let i=0;i<70;i++){
+      if(i%7===0) continue;
       const sx=((i*139+70)%578)+11,sy=((i*101+25)%165)+5;
-      ctx.globalAlpha=(0.35+Math.sin(now/700+i)*0.3)*sa;
-      ctx.fillStyle='#FFF'; ctx.beginPath(); ctx.arc(sx,sy,i%7===0?1.4:0.75,0,Math.PI*2); ctx.fill();
+      ctx.moveTo(sx+0.75,sy); ctx.arc(sx,sy,0.75,0,Math.PI*2);
     }
+    ctx.fill();
+    // Big stars — with twinkle
+    ctx.globalAlpha=(0.55+Math.sin(now/700)*0.25)*sa;
+    ctx.beginPath();
+    for(let i=0;i<70;i+=7){
+      const sx=((i*139+70)%578)+11,sy=((i*101+25)%165)+5;
+      ctx.moveTo(sx+1.4,sy); ctx.arc(sx,sy,1.4,0,Math.PI*2);
+    }
+    ctx.fill();
     ctx.globalAlpha=1;
   }
 
@@ -505,20 +524,26 @@ function drawWarrior(w,now){
 
   ctx.save();
   ctx.globalAlpha=alpha;
-  if(isGlow||w.coins>=40){ const gi=isGlow?0.8:Math.min(1,(w.coins-40)/260); ctx.shadowColor=isGlow?'#AAFFAA':w.armorColor; ctx.shadowBlur=20+gi*25; }
+  // Glow only for big donors (raised threshold, cheaper)
+  if(isGlow||w.coins>=80){ const gi=isGlow?0.7:Math.min(1,(w.coins-80)/220); ctx.shadowColor=isGlow?'#AAFFAA':w.armorColor; ctx.shadowBlur=14+gi*16; }
 
   ctx.save();
   ctx.translate(sx+hitOff+atkOff, sy+idleBob);
   ctx.rotate(idleLean);
   ctx.scale(totalSc,totalSc);
-  if(flash){ ctx.save(); ctx.filter='brightness(2.5) saturate(0.2)'; }
   switch(w.class){
     case 'dwarf':   _drawDwarf(w); break;
     case 'warrior': _drawWarrior(w); break;
     case 'archer':  _drawArcher(w); break;
     case 'mage':    _drawMage(w,now); break;
   }
-  if(flash) ctx.restore();
+  // Flash: cheap white overlay instead of ctx.filter
+  if(flash){
+    ctx.globalAlpha=(w.flashTimer/600)*0.55;
+    ctx.fillStyle='#FFFFFF';
+    ctx.beginPath(); ctx.ellipse(0,-25,18,30,0,0,Math.PI*2); ctx.fill();
+    ctx.globalAlpha=alpha;
+  }
   ctx.restore();
 
   // Weapon swing arc overlay
@@ -680,10 +705,8 @@ function _drawMage(w,now){
   ctx.strokeStyle='rgba(255,220,100,0.4)'; ctx.lineWidth=1.5; ctx.beginPath(); ctx.ellipse(0,-62,17,5,0,0,Math.PI*2); ctx.stroke();
   ctx.strokeStyle='#8B6914'; ctx.lineWidth=4; ctx.beginPath(); ctx.moveTo(20,-26); ctx.lineTo(25,22); ctx.stroke();
   const ot=now/500,hue=(w.id*55+ot*40)%360;
-  ctx.save(); ctx.shadowColor=`hsl(${hue},90%,60%)`; ctx.shadowBlur=12;
   ctx.fillStyle=`hsl(${hue},80%,60%)`; ctx.beginPath(); ctx.arc(20,-30,8,0,Math.PI*2); ctx.fill();
-  ctx.shadowBlur=0; ctx.fillStyle='rgba(255,255,255,0.55)'; ctx.beginPath(); ctx.arc(17,-33,3,0,Math.PI*2); ctx.fill();
-  ctx.restore();
+  ctx.fillStyle='rgba(255,255,255,0.55)'; ctx.beginPath(); ctx.arc(17,-33,3,0,Math.PI*2); ctx.fill();
 }
 
 function _drawHelmet(style,color,cx,cy,r){
