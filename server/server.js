@@ -78,6 +78,22 @@ class Room {
           console.log(`[Donut] ${data.username} → ${eventType}`);
         }
 
+        // War game gift handling
+        let warTeam = null, warUnit = null;
+        if (giftLower === 'tiktok' || giftLower.startsWith('tiktok')) {
+          warTeam = 'blue'; warUnit = 'cavalry';
+        } else if (giftLower === 'rose') {
+          warTeam = 'red'; warUnit = 'cavalry';
+        } else if (giftLower === 'crown') {
+          warTeam = 'blue'; warUnit = 'boss';
+        } else if (giftLower.includes('heart')) {
+          warTeam = 'red'; warUnit = 'boss';
+        }
+        if (warTeam) {
+          console.log(`[WarGift] ${data.username} → ${warUnit} for ${warTeam} (gift="${data.giftName}")`);
+          this.broadcast({ type: 'war_gift', team: warTeam, unitType: warUnit, username: data.username });
+        }
+
         // Проверяем цель — 1000 очков
         const racePoints = this.players.getTotalPoints();
         if (racePoints >= 1000 && !this._raceEnded) {
@@ -138,6 +154,9 @@ class Room {
       },
       // onLike — лайки
       (data) => {
+        // War game: broadcast raw like count regardless of race state
+        this.broadcast({ type: 'war_like', likes: data.likes || 0, username: data.username });
+
         if (this._raceEnded) return;
         this.players.addLikes(data.userId, data.username, data.avatarUrl, data.likes);
         this._totalLikes += (data.likes || 0);
@@ -221,6 +240,7 @@ class Room {
       clearInterval(c._demoTornadoIv);
       clearInterval(c._demoGoIv);
       clearInterval(c._demoWarIv);
+      clearInterval(c._demoWarGiftIv);
     }
   }
 

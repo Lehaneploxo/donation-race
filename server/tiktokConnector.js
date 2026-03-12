@@ -141,11 +141,22 @@ function _startDemo(onGift, conn, onLike, onChat) {
     if (onChat) onChat({ userId: u.id, username: u.name, avatarUrl: '', message: team });
   }, 2500);
 
+  // Demo war gifts — TikTok/Rose/Crown/Heart every ~18s
+  const warGiftNames = ['TikTok', 'Rose', 'Crown', 'Heart Me'];
+  const warGiftIv = setInterval(() => {
+    const u = DEMO_USERS[Math.floor(Math.random() * DEMO_USERS.length)];
+    const giftName = warGiftNames[Math.floor(Math.random() * warGiftNames.length)];
+    const coins = (giftName === 'Crown' || giftName === 'Heart Me') ? 100 : 1;
+    console.log(`[Demo WarGift] ${u.name} → ${giftName}`);
+    onGift({ userId: u.id, username: u.name, avatarUrl: '', giftName, coins });
+  }, 18000);
+
   // Attach cleanup to the connection object so the room can clear it
-  conn._demoInterval  = iv;
-  conn._demoTornadoIv = tornadoIv;
-  conn._demoGoIv      = goIv;
-  conn._demoWarIv     = warIv;
+  conn._demoInterval   = iv;
+  conn._demoTornadoIv  = tornadoIv;
+  conn._demoGoIv       = goIv;
+  conn._demoWarIv      = warIv;
+  conn._demoWarGiftIv  = warGiftIv;
 }
 
 module.exports = { connectToTikTok };

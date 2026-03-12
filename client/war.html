@@ -224,35 +224,56 @@ function playVictory() {
 }
 
 // ═══════════════════════════════════════════════════════════
+// IMAGES
+// ═══════════════════════════════════════════════════════════
+const IMG = {};
+['tiktok_gift','rose_gift','crown_gift','heart_gift'].forEach(name => {
+  const img = new Image(); img.src = '/img/' + name + '.jpg'; IMG[name] = img;
+});
+
+// ═══════════════════════════════════════════════════════════
 // CONSTANTS
 // ═══════════════════════════════════════════════════════════
 const CW = 1000, CH = 1000;
-const BATTLE_Y   = 650;   // уровень ворот крепости
-const UNIT_SPEED = 72;    // px/sec
+const BATTLE_Y   = 650;
+const UNIT_SPEED = 72;
 const UNIT_HP    = 100;
 const UNIT_DMG   = 20;
-const ATK_CD     = 1000;  // ms between attacks
-const ATK_RANGE  = 40;    // px — enemy detection
-const SPACING    = 50;    // px — ally queue gap
+const ATK_CD     = 1000;
+const ATK_RANGE  = 40;
+const SPACING    = 50;
 const BASE_HP    = 2000;
 const BASE_DMG   = 30;
-const BASE_X_L   = 20;    // blue base left edge
+const BASE_X_L   = 20;
 const BASE_W     = 148;
-const BASE_Y     = 80;    // крепость от верха
-const BASE_H     = 600;   // высота — ворота на уровне BATTLE_Y
-const BASE_X_R   = CW - BASE_X_L - BASE_W; // 832
+const BASE_Y     = 80;
+const BASE_H     = 600;
+const BASE_X_R   = CW - BASE_X_L - BASE_W;
 const VICTORY_MS = 7000;
+
+// Конфиги типов юнитов
+const UTYPE = {
+  soldier: { hpM: 1,   dmgM: 1,   spd: 1.0, range: 1.0 },
+  cavalry: { hpM: 4,   dmgM: 4,   spd: 1.3, range: 1.2 },
+  boss:    { hpM: 100, dmgM: 100,  spd: 0.7, range: 1.5 },
+};
 
 // ═══════════════════════════════════════════════════════════
 // STATE
 // ═══════════════════════════════════════════════════════════
 let units = [], uidSeq = 0;
-let particles = [], debris = [];
-let playerStats = {};   // username → { blue, red, total }
+let particles = [], debris = [], meteors = [];
+let playerStats = {};
 let blueWins = 0, redWins = 0;
-let phase = 'playing';  // 'playing' | 'victory'
+let phase = 'playing';
 let victoryTeam = '';
 let victoryTimer = 0;
+
+// Meteor shower
+let totalLikes = 0;
+let meteorShower = false;
+let meteorTimer  = 0;
+let meteorDmgAcc = 0;
 
 let blueBase = { x: BASE_X_L, y: BASE_Y, w: BASE_W, h: BASE_H, hp: BASE_HP, maxHp: BASE_HP, dmg: BASE_DMG };
 let redBase  = { x: BASE_X_R, y: BASE_Y, w: BASE_W, h: BASE_H, hp: BASE_HP, maxHp: BASE_HP, dmg: BASE_DMG };
@@ -260,23 +281,29 @@ let redBase  = { x: BASE_X_R, y: BASE_Y, w: BASE_W, h: BASE_H, hp: BASE_HP, maxH
 // ═══════════════════════════════════════════════════════════
 // SPAWN / RESET
 // ═══════════════════════════════════════════════════════════
-function spawnUnit(team, username) {
+function spawnUnit(team, username, type) {
   if (phase !== 'playing') return;
+  type = type || 'soldier';
+  const cfg    = UTYPE[type] || UTYPE.soldier;
   const isBlue = team === 'blue';
+  const atkR   = ATK_RANGE * cfg.range;
   units.push({
     id:         ++uidSeq,
-    team,
+    team, type,
     username:   username || 'viewer',
     x:          isBlue ? blueBase.x + blueBase.w + 6 : redBase.x - 6,
     y:          BATTLE_Y + (Math.random() * 16 - 8),
-    hp:         UNIT_HP, maxHp: UNIT_HP,
-    dmg:        UNIT_DMG,
+    hp:         UNIT_HP  * cfg.hpM,
+    maxHp:      UNIT_HP  * cfg.hpM,
+    dmg:        UNIT_DMG * cfg.dmgM,
+    speed:      UNIT_SPEED * cfg.spd,
+    atkRange:   atkR,
     atkTimer:   ATK_CD * 0.5,
-    state:      'moving',  // 'moving' | 'fighting' | 'atk_base'
+    state:      'moving',
     target:     null,
     flashTimer: 0,
-    dead:       false,     // флаг смерти
-    deathTimer: 0,         // таймер анимации смерти (>0 пока падает)
+    dead:       false,
+    deathTimer: 0,
   });
 }
 
@@ -287,17 +314,54 @@ function handleChatMessage(username, team) {
   if (!playerStats[username]) playerStats[username] = { blue: 0, red: 0, total: 0 };
   playerStats[username][t]++;
   playerStats[username].total++;
-  spawnUnit(t, username);
+  spawnUnit(t, username, 'soldier');
+}
+
+function handleGiftMessage(username, team, unitType) {
+  if (phase !== 'playing') return;
+  spawnUnit(team, username, unitType);
+}
+
+function handleLikes(count) {
+  totalLikes += count;
+  if (totalLikes >= 1000 && !meteorShower) {
+    totalLikes -= 1000;
+    triggerMeteorShower();
+  }
+}
+
+function triggerMeteorShower() {
+  meteorShower = true;
+  meteorTimer  = 10000;
+  meteorDmgAcc = 0;
+  console.log('[War] Meteor Shower!');
+  for (let i = 0; i < 6; i++) spawnMeteor();
+}
+
+function spawnMeteor() {
+  meteors.push({
+    x: CW * 0.2 + Math.random() * CW * 0.8,
+    y: -40 - Math.random() * 200,
+    vx: -(60 + Math.random() * 80),
+    vy:  350 + Math.random() * 200,
+    r:   9 + Math.random() * 12,
+    trail: [],
+    life: 3000, max: 3000,
+  });
 }
 
 function resetRound() {
-  units = []; particles = []; debris = [];
+  units = []; particles = []; debris = []; meteors = [];
   playerStats = {};
   blueBase.hp = BASE_HP;
   redBase.hp  = BASE_HP;
   phase = 'playing';
   victoryTeam = '';
   victoryTimer = 0;
+  totalLikes = 0;
+  meteorShower = false;
+  meteorTimer  = 0;
+  meteorDmgAcc = 0;
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -384,24 +448,25 @@ function updateUnits(dt) {
       const d = Math.abs(u.x - o.x);
       if (d < nearestED) { nearestED = d; nearestEnemy = o; }
     }
-    if (nearestEnemy && nearestED < ATK_RANGE) {
+    if (nearestEnemy && nearestED < u.atkRange) {
       u.state = 'fighting'; u.target = nearestEnemy; u.atkTimer = 280; continue;
     }
 
     // Очередь — держать дистанцию от союзника впереди
+    const mySpacing = SPACING * (u.type === 'boss' ? 2.5 : u.type === 'cavalry' ? 1.5 : 1);
     let frontDist = Infinity;
     for (const a of units) {
       if (a === u || a.team !== u.team || a.dead) continue;
       const d = dir > 0 ? (a.x - u.x) : (u.x - a.x);
       if (d > 0 && d < frontDist) frontDist = d;
     }
-    if (frontDist < SPACING) {
-      const gap = Math.max(0, frontDist - SPACING + 1);
-      u.x += dir * Math.min(UNIT_SPEED * dt / 1000, gap);
+    if (frontDist < mySpacing) {
+      const gap = Math.max(0, frontDist - mySpacing + 1);
+      u.x += dir * Math.min(u.speed * dt / 1000, gap);
       continue;
     }
 
-    u.x += dir * UNIT_SPEED * dt / 1000;
+    u.x += dir * u.speed * dt / 1000;
   }
 
   // Удаляем тех у кого кончилась анимация смерти
@@ -464,6 +529,43 @@ function updateFX(dt) {
     if (d.y > CH + 100) d.life = 0;
   }
   debris = debris.filter(d => d.life > 0);
+
+  // Meteors
+  for (const m of meteors) {
+    m.trail.push({ x: m.x, y: m.y });
+    if (m.trail.length > 10) m.trail.shift();
+    m.x += m.vx * dt / 1000;
+    m.y += m.vy * dt / 1000;
+    m.life -= dt;
+    if (m.y > CH + 60) m.life = 0;
+  }
+  meteors = meteors.filter(m => m.life > 0);
+}
+
+function updateMeteorShower(dt) {
+  if (!meteorShower) return;
+  meteorTimer  -= dt;
+  meteorDmgAcc += dt;
+
+  // Спавн метеоров
+  if (Math.random() < dt / 300) spawnMeteor();
+
+  // Урон всем юнитам раз в секунду
+  if (meteorDmgAcc >= 1000) {
+    meteorDmgAcc -= 1000;
+    for (const u of units) {
+      if (!u.dead) {
+        u.hp -= 1;
+        if (u.hp <= 0) killUnit(u);
+      }
+    }
+  }
+
+  if (meteorTimer <= 0) {
+    meteorShower = false;
+    meteorTimer  = 0;
+    meteorDmgAcc = 0;
+  }
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -487,14 +589,62 @@ function triggerVictory(team) {
 const cvs = document.getElementById('gameCanvas');
 const ctx = cvs.getContext('2d');
 
+function drawMeteors() {
+  for (const m of meteors) {
+    const baseA = Math.min(1, m.life / 400);
+    // Trail
+    for (let i = 1; i < m.trail.length; i++) {
+      const t0 = m.trail[i - 1], t1 = m.trail[i];
+      ctx.save();
+      ctx.globalAlpha = baseA * (i / m.trail.length) * 0.55;
+      ctx.strokeStyle = '#FF7700';
+      ctx.lineWidth = m.r * (i / m.trail.length) * 1.4;
+      ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(t0.x, t0.y); ctx.lineTo(t1.x, t1.y); ctx.stroke();
+      ctx.restore();
+    }
+    // Core glow
+    ctx.save();
+    ctx.globalAlpha = baseA;
+    const g = ctx.createRadialGradient(m.x, m.y, 0, m.x, m.y, m.r);
+    g.addColorStop(0, '#FFFFFF'); g.addColorStop(0.3, '#FFEE00');
+    g.addColorStop(0.7, '#FF4400'); g.addColorStop(1, '#880000');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(m.x, m.y, m.r, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  }
+}
+
+function drawMeteorAnnouncement() {
+  const pulse = 0.82 + Math.sin(Date.now() / 190) * 0.18;
+  ctx.save();
+  ctx.globalAlpha = pulse;
+  ctx.font = 'bold 54px Arial Black';
+  ctx.textAlign = 'center';
+  ctx.shadowColor = '#FF4400'; ctx.shadowBlur = 28;
+  ctx.fillStyle = '#FF8800';
+  ctx.fillText('☄️ METEOR SHOWER', CW / 2, 148);
+  ctx.shadowBlur = 0;
+  // Countdown bar
+  const pct = Math.max(0, meteorTimer / 10000);
+  const bw = 300;
+  ctx.fillStyle = 'rgba(0,0,0,0.55)';
+  ctx.fillRect(CW / 2 - bw / 2, 158, bw, 12);
+  ctx.fillStyle = '#FF5500';
+  ctx.fillRect(CW / 2 - bw / 2, 158, bw * pct, 12);
+  ctx.restore();
+}
+
 function draw(now) {
   ctx.clearRect(0, 0, CW, CH);
   drawBackground();
   drawBases();
   drawParticles();
   drawDebris();
+  if (meteorShower) drawMeteors();
   drawUnits(now);
   drawHUD();
+  if (meteorShower) drawMeteorAnnouncement();
   if (phase === 'victory') drawVictoryScreen();
 }
 
@@ -652,6 +802,156 @@ function drawBases() {
   drawBase(redBase,  'red');
 }
 
+// ── Солдат (копейщик) ────────────────────────────────────────────────────
+function drawSoldier(x, y, dir, isBlue, flash, state, now, s) {
+  s = s || 1;
+  const col  = flash ? '#FFF' : (isBlue ? '#3388FF' : '#FF3333');
+  const dark = isBlue ? '#0a2fcc' : '#cc0a0a';
+  const legS = state === 'moving'   ? Math.sin(now / 115) * 9  * s : 0;
+  const atkB = state === 'fighting' ? Math.sin(now / 70)  * 5  * s : 0;
+
+  ctx.strokeStyle = dark; ctx.lineWidth = 5 * s; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(x, y - 22*s); ctx.lineTo(x, y - 2*s); ctx.stroke();
+  ctx.lineWidth = 4 * s;
+  ctx.beginPath(); ctx.moveTo(x, y - 2*s); ctx.lineTo(x - 7*s + legS, y + 15*s); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x, y - 2*s); ctx.lineTo(x + 7*s - legS, y + 15*s); ctx.stroke();
+  ctx.lineWidth = 3 * s;
+  ctx.beginPath(); ctx.moveTo(x, y - 18*s); ctx.lineTo(x - dir * 14*s, y - 9*s); ctx.stroke();
+  const ax = x + dir * 18*s, ay = y - 18*s + atkB;
+  ctx.beginPath(); ctx.moveTo(x, y - 18*s); ctx.lineTo(ax, ay); ctx.stroke();
+  ctx.strokeStyle = '#7a5200'; ctx.lineWidth = 3 * s;
+  ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(ax + dir * 28*s, ay - 14*s); ctx.stroke();
+  ctx.fillStyle = '#D0D0D0';
+  ctx.beginPath();
+  ctx.moveTo(ax + dir*38*s, ay - 18*s); ctx.lineTo(ax + dir*28*s, ay - 10*s);
+  ctx.lineTo(ax + dir*28*s, ay - 26*s); ctx.fill();
+  ctx.beginPath(); ctx.arc(x, y - 32*s, 9*s, 0, Math.PI * 2);
+  ctx.fillStyle = col; ctx.fill();
+  ctx.strokeStyle = dark; ctx.lineWidth = 2*s; ctx.stroke();
+  ctx.fillStyle = dark;
+  ctx.beginPath(); ctx.arc(x, y - 34*s, 10*s, Math.PI, 0); ctx.fill();
+  ctx.fillStyle = isBlue ? '#88CCFF' : '#FF9999';
+  ctx.fillRect(x - 3*s, y - 47*s, 6*s, 13*s);
+}
+
+// ── Конница ──────────────────────────────────────────────────────────────
+function drawCavalry(x, y, dir, isBlue, flash, state, now) {
+  const col      = flash ? '#FFF' : (isBlue ? '#4499FF' : '#FF4444');
+  const dark     = isBlue ? '#0a2fcc' : '#cc0a0a';
+  const horseCol = isBlue ? '#7a5a20' : '#6B2010';
+  const legS     = state === 'moving' ? Math.sin(now / 90) * 12 : 0;
+  const atkB     = state === 'fighting' ? Math.sin(now / 60) * 6 : 0;
+
+  // Тень
+  ctx.fillStyle = 'rgba(0,0,0,0.3)';
+  ctx.beginPath(); ctx.ellipse(x, y + 6, 34, 7, 0, 0, Math.PI * 2); ctx.fill();
+
+  // Ноги лошади (4 шт.)
+  ctx.strokeStyle = horseCol; ctx.lineWidth = 7; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(x + dir*18, y - 6); ctx.lineTo(x + dir*18 + legS*0.5, y + 18); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x + dir*8,  y - 6); ctx.lineTo(x + dir*8  - legS*0.7, y + 18); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x - dir*14, y - 6); ctx.lineTo(x - dir*14 - legS*0.5, y + 18); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x - dir*22, y - 6); ctx.lineTo(x - dir*22 + legS*0.7, y + 18); ctx.stroke();
+
+  // Тело лошади
+  ctx.fillStyle = horseCol;
+  ctx.beginPath(); ctx.ellipse(x, y - 12, 34, 16, 0, 0, Math.PI * 2); ctx.fill();
+
+  // Голова лошади
+  ctx.beginPath(); ctx.ellipse(x + dir*34, y - 22, 14, 9, dir > 0 ? -0.4 : 0.4, 0, Math.PI * 2); ctx.fill();
+  // Ухо
+  ctx.fillStyle = '#5a3a10';
+  ctx.beginPath(); ctx.moveTo(x + dir*34, y - 30); ctx.lineTo(x + dir*38, y - 38); ctx.lineTo(x + dir*30, y - 32); ctx.fill();
+  // Грива
+  ctx.strokeStyle = '#4a2a08'; ctx.lineWidth = 4;
+  ctx.beginPath(); ctx.moveTo(x - dir*5, y - 26); ctx.lineTo(x - dir*2, y - 18); ctx.stroke();
+
+  // Тело всадника
+  ctx.strokeStyle = dark; ctx.lineWidth = 6; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(x - dir*4, y - 28); ctx.lineTo(x - dir*4, y - 52); ctx.stroke();
+  // Рука с мечом
+  ctx.lineWidth = 4;
+  ctx.beginPath(); ctx.moveTo(x - dir*4, y - 44); ctx.lineTo(x + dir*18, y - 44 + atkB); ctx.stroke();
+  // Меч (шире и длиннее чем копьё)
+  ctx.strokeStyle = '#CCC'; ctx.lineWidth = 5;
+  ctx.beginPath(); ctx.moveTo(x + dir*18, y - 44 + atkB); ctx.lineTo(x + dir*46, y - 56 + atkB); ctx.stroke();
+  // Гарда меча
+  ctx.strokeStyle = '#888'; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(x + dir*22, y - 47 + atkB); ctx.lineTo(x + dir*22, y - 40 + atkB); ctx.stroke();
+  // Голова всадника
+  ctx.beginPath(); ctx.arc(x - dir*4, y - 60, 12, 0, Math.PI * 2);
+  ctx.fillStyle = col; ctx.fill();
+  ctx.strokeStyle = dark; ctx.lineWidth = 2; ctx.stroke();
+  // Шлем
+  ctx.fillStyle = dark;
+  ctx.beginPath(); ctx.arc(x - dir*4, y - 62, 13, Math.PI, 0); ctx.fill();
+  ctx.fillStyle = isBlue ? '#88CCFF' : '#FF9999';
+  ctx.fillRect(x - dir*4 - 3, y - 78, 6, 16);
+}
+
+// ── Босс ─────────────────────────────────────────────────────────────────
+function drawBoss(x, y, dir, isBlue, flash, state, now) {
+  const S    = 3.2;  // масштаб
+  const col  = flash ? '#FFF' : (isBlue ? '#2266EE' : '#EE2222');
+  const dark = isBlue ? '#0a1a88' : '#880a0a';
+  const legS = state === 'moving'   ? Math.sin(now / 150) * 11 * S : 0;
+  const atkB = state === 'fighting' ? Math.sin(now / 80)  * 6  * S : 0;
+
+  // Большая тень
+  ctx.fillStyle = 'rgba(0,0,0,0.4)';
+  ctx.beginPath(); ctx.ellipse(x, y + 8, 38, 10, 0, 0, Math.PI * 2); ctx.fill();
+
+  // Тело
+  ctx.strokeStyle = dark; ctx.lineWidth = 7 * S; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(x, y - 22*S); ctx.lineTo(x, y - 2*S); ctx.stroke();
+  // Ноги
+  ctx.lineWidth = 5 * S;
+  ctx.beginPath(); ctx.moveTo(x, y - 2*S); ctx.lineTo(x - 8*S + legS, y + 14*S); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x, y - 2*S); ctx.lineTo(x + 8*S - legS, y + 14*S); ctx.stroke();
+  // Широкие плечи / броня
+  ctx.fillStyle = dark;
+  ctx.fillRect(x - 20*S, y - 36*S, 40*S, 20*S);
+  // Нагрудник
+  ctx.fillStyle = isBlue ? '#3355AA' : '#AA3333';
+  ctx.fillRect(x - 14*S, y - 34*S, 28*S, 18*S);
+  // Руки
+  ctx.strokeStyle = dark; ctx.lineWidth = 6*S;
+  ctx.beginPath(); ctx.moveTo(x - 18*S, y - 32*S); ctx.lineTo(x - dir*30*S, y - 24*S); ctx.stroke();
+  const ax = x + dir * 20*S, ay = y - 32*S + atkB;
+  ctx.beginPath(); ctx.moveTo(x + 18*S * dir, y - 32*S); ctx.lineTo(ax, ay); ctx.stroke();
+  // Огромный топор/меч
+  ctx.strokeStyle = '#AAA'; ctx.lineWidth = 7*S;
+  ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(ax + dir*32*S, ay - 20*S); ctx.stroke();
+  // Лезвие
+  ctx.fillStyle = '#CCC';
+  ctx.beginPath();
+  ctx.moveTo(ax + dir*32*S, ay - 20*S);
+  ctx.lineTo(ax + dir*50*S, ay - 8*S);
+  ctx.lineTo(ax + dir*48*S, ay - 32*S);
+  ctx.fill();
+  ctx.fillStyle = '#888';
+  ctx.beginPath();
+  ctx.moveTo(ax + dir*32*S, ay - 20*S);
+  ctx.lineTo(ax + dir*26*S, ay - 6*S);
+  ctx.lineTo(ax + dir*48*S, ay - 8*S);
+  ctx.fill();
+  // Голова
+  ctx.beginPath(); ctx.arc(x, y - 42*S, 11*S, 0, Math.PI * 2);
+  ctx.fillStyle = col; ctx.fill();
+  ctx.strokeStyle = dark; ctx.lineWidth = 2*S; ctx.stroke();
+  // Рогатый шлем
+  ctx.fillStyle = dark;
+  ctx.beginPath(); ctx.arc(x, y - 44*S, 13*S, Math.PI, 0); ctx.fill();
+  // Рога
+  ctx.fillStyle = isBlue ? '#5577CC' : '#CC5533';
+  ctx.beginPath(); ctx.moveTo(x - 10*S, y - 52*S); ctx.lineTo(x - 18*S, y - 72*S); ctx.lineTo(x - 4*S, y - 52*S); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(x + 10*S, y - 52*S); ctx.lineTo(x + 18*S, y - 72*S); ctx.lineTo(x + 4*S,  y - 52*S); ctx.fill();
+  // Глаза светящиеся
+  ctx.fillStyle = isBlue ? '#00FFFF' : '#FF6600';
+  ctx.beginPath(); ctx.arc(x - 4*S, y - 43*S, 2.5*S, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(x + 4*S, y - 43*S, 2.5*S, 0, Math.PI * 2); ctx.fill();
+}
+
 function drawUnit(u, now) {
   const dying  = u.dead;
   const alpha  = dying ? Math.max(0, u.deathTimer / 400) : 1;
@@ -663,73 +963,40 @@ function drawUnit(u, now) {
   ctx.globalAlpha = alpha;
 
   const x = u.x, y = u.y;
-  const body = flash ? '#FFFFFF' : (isBlue ? '#3388FF' : '#FF3333');
   const dark = isBlue ? '#0a2fcc' : '#cc0a0a';
 
+  // Анимация смерти — падение
   if (dying) {
-    // Fall over
+    const S = u.type === 'boss' ? 3.2 : u.type === 'cavalry' ? 1.6 : 1;
     const angle = dir * (Math.PI / 2) * (1 - u.deathTimer / 400);
     ctx.translate(x, y); ctx.rotate(angle);
-    ctx.strokeStyle = dark; ctx.lineWidth = 5; ctx.lineCap = 'round';
-    ctx.beginPath(); ctx.moveTo(0, -34); ctx.lineTo(0, 10); ctx.stroke();
+    ctx.strokeStyle = dark; ctx.lineWidth = 5 * S; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(0, -30 * S); ctx.lineTo(0, 10 * S); ctx.stroke();
     ctx.restore(); return;
   }
 
-  // Shadow
+  // Тень
+  const shadowW = u.type === 'boss' ? 38 : u.type === 'cavalry' ? 25 : 15;
   ctx.fillStyle = 'rgba(0,0,0,0.3)';
-  ctx.beginPath(); ctx.ellipse(x, y + 10, 15, 5, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(x, y + 10, shadowW, 5, 0, 0, Math.PI * 2); ctx.fill();
 
-  const legSwing = u.state === 'moving' ? Math.sin(now / 115 + u.id * 0.8) * 9 : 0;
-  const atkBob   = u.state === 'fighting' ? Math.sin(now / 70 + u.id) * 5 : 0;
+  // Отрисовка по типу
+  if (u.type === 'boss') {
+    drawBoss(x, y, dir, isBlue, flash, u.state, now);
+  } else if (u.type === 'cavalry') {
+    drawCavalry(x, y, dir, isBlue, flash, u.state, now);
+  } else {
+    drawSoldier(x, y, dir, isBlue, flash, u.state, now, 1);
+  }
 
-  // Body
-  ctx.strokeStyle = dark; ctx.lineWidth = 5; ctx.lineCap = 'round';
-  ctx.beginPath(); ctx.moveTo(x, y - 22); ctx.lineTo(x, y - 2); ctx.stroke();
-
-  // Legs
-  ctx.lineWidth = 4;
-  ctx.beginPath(); ctx.moveTo(x, y - 2); ctx.lineTo(x - 7 + legSwing, y + 15); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(x, y - 2); ctx.lineTo(x + 7 - legSwing, y + 15); ctx.stroke();
-
-  // Back arm
-  ctx.lineWidth = 3;
-  ctx.beginPath(); ctx.moveTo(x, y - 18); ctx.lineTo(x - dir * 14, y - 9); ctx.stroke();
-
-  // Front arm + spear
-  const ax = x + dir * 18, ay = y - 18 + atkBob;
-  ctx.beginPath(); ctx.moveTo(x, y - 18); ctx.lineTo(ax, ay); ctx.stroke();
-
-  // Spear shaft
-  ctx.strokeStyle = '#7a5200'; ctx.lineWidth = 3;
-  ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(ax + dir * 28, ay - 14); ctx.stroke();
-
-  // Spear tip (triangle)
-  const tx = ax + dir * 28, ty = ay - 14;
-  ctx.fillStyle = '#D0D0D0';
-  ctx.beginPath();
-  ctx.moveTo(tx + dir * 10, ty - 4);
-  ctx.lineTo(tx - dir * 2, ty + 4);
-  ctx.lineTo(tx - dir * 2, ty - 10);
-  ctx.fill();
-
-  // Head
-  ctx.beginPath(); ctx.arc(x, y - 32, 9, 0, Math.PI * 2);
-  ctx.fillStyle = body; ctx.fill();
-  ctx.strokeStyle = dark; ctx.lineWidth = 2; ctx.stroke();
-
-  // Helmet
-  ctx.fillStyle = dark;
-  ctx.beginPath(); ctx.arc(x, y - 34, 10, Math.PI, 0); ctx.fill();
-  // Plume
-  ctx.fillStyle = isBlue ? '#88CCFF' : '#FF9999';
-  ctx.fillRect(x - 3, y - 47, 6, 13);
-
-  // HP pip above head
+  // HP bar (масштабируется по типу)
   const hpR = u.hp / u.maxHp;
-  const pw = 28;
-  ctx.fillStyle = '#222'; ctx.fillRect(x - pw / 2, y - 56, pw, 5);
+  const S   = u.type === 'boss' ? 3.2 : u.type === 'cavalry' ? 1.8 : 1;
+  const pw  = 32 * S, ph = 6 * Math.max(1, S * 0.6);
+  const hpY = u.type === 'boss' ? y - 80*S : u.type === 'cavalry' ? y - 88 : y - 60;
+  ctx.fillStyle = '#111'; ctx.fillRect(x - pw/2, hpY, pw, ph);
   ctx.fillStyle = hpR > 0.5 ? '#00cc44' : hpR > 0.25 ? '#FF8800' : '#FF2222';
-  ctx.fillRect(x - pw / 2, y - 56, pw * hpR, 5);
+  ctx.fillRect(x - pw/2, hpY, pw * hpR, ph);
 
   ctx.restore();
 }
@@ -768,21 +1035,32 @@ function drawDebris() {
 function drawHUD() {
   // Top bar
   ctx.fillStyle = 'rgba(0,0,0,0.72)';
-  ctx.fillRect(0, 0, CW, 88);
+  ctx.fillRect(0, 0, CW, 92);
 
   // Blue wins
-  ctx.fillStyle = '#4488FF'; ctx.font = 'bold 44px Arial Black'; ctx.textAlign = 'center';
-  ctx.fillText('BLUE ' + blueWins, CW * 0.22, 60);
+  ctx.fillStyle = '#4488FF'; ctx.font = 'bold 42px Arial Black'; ctx.textAlign = 'center';
+  ctx.fillText('BLUE ' + blueWins, CW * 0.16, 56);
+
+  // Like counter bar (top-center)
+  const likesPct = Math.min(1, totalLikes / 1000);
+  const lbW = 230, lbH = 14, lbX = CW / 2 - lbW / 2, lbY = 12;
+  ctx.fillStyle = '#1a0010'; ctx.fillRect(lbX, lbY, lbW, lbH);
+  const lbGrad = ctx.createLinearGradient(lbX, 0, lbX + lbW, 0);
+  lbGrad.addColorStop(0, '#FF3399'); lbGrad.addColorStop(1, '#FF9944');
+  ctx.fillStyle = lbGrad; ctx.fillRect(lbX, lbY, lbW * likesPct, lbH);
+  ctx.strokeStyle = '#553355'; ctx.lineWidth = 1; ctx.strokeRect(lbX, lbY, lbW, lbH);
+  ctx.fillStyle = '#FFD0EE'; ctx.font = 'bold 14px Arial'; ctx.textAlign = 'center';
+  ctx.fillText('❤️ ' + Math.floor(totalLikes) + ' / 1000  →  ☄️ METEOR', CW / 2, lbY + lbH + 16);
 
   // VS
-  ctx.fillStyle = '#FFD700'; ctx.font = 'bold 34px Arial Black';
-  ctx.fillText('VS', CW / 2, 58);
+  ctx.fillStyle = '#FFD700'; ctx.font = 'bold 30px Arial Black';
+  ctx.fillText('VS', CW / 2, 78);
 
   // Red wins
-  ctx.fillStyle = '#FF4444'; ctx.font = 'bold 44px Arial Black';
-  ctx.fillText('RED ' + redWins, CW * 0.78, 60);
+  ctx.fillStyle = '#FF4444'; ctx.font = 'bold 42px Arial Black';
+  ctx.fillText('RED ' + redWins, CW * 0.84, 56);
 
-  // Количество юнитов
+  // Unit counts
   const bc = units.filter(u => u.team === 'blue' && !u.dead).length;
   const rc = units.filter(u => u.team === 'red'  && !u.dead).length;
   ctx.fillStyle = 'rgba(68,136,255,0.9)'; ctx.font = 'bold 22px Arial'; ctx.textAlign = 'left';
@@ -790,29 +1068,95 @@ function drawHUD() {
   ctx.fillStyle = 'rgba(255,68,68,0.9)'; ctx.textAlign = 'right';
   ctx.fillText(rc + ' воинов ⚔', CW - 28, CH - 12);
 
-  // ── КРУПНЫЕ ПОДСКАЗКИ ДЛЯ ЗРИТЕЛЕЙ ──
-  // Левая сторона — BLUE
+  // ── GIFT HINT BOXES ──
+  const hbW = 192, hbH = 248, hbY = 700;
+
+  // Blue box
+  const bx1 = 14;
   ctx.save();
-  ctx.fillStyle = 'rgba(0,0,0,0.55)';
-  ctx.beginPath(); ctx.roundRect(14, 740, 200, 88, 12); ctx.fill();
-  ctx.fillStyle = '#55AAFF';
-  ctx.font = 'bold 28px Arial Black'; ctx.textAlign = 'center';
-  ctx.fillText('Пиши в чат:', 114, 770);
-  ctx.fillStyle = '#FFFFFF';
-  ctx.font = 'bold 38px Arial Black';
-  ctx.fillText('"blue"', 114, 812);
+  ctx.fillStyle = 'rgba(0,15,70,0.80)';
+  ctx.beginPath(); ctx.roundRect(bx1, hbY, hbW, hbH, 12); ctx.fill();
+  ctx.strokeStyle = 'rgba(68,136,255,0.55)'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.roundRect(bx1, hbY, hbW, hbH, 12); ctx.stroke();
+
+  ctx.fillStyle = '#66BBFF'; ctx.font = 'bold 21px Arial Black'; ctx.textAlign = 'center';
+  ctx.fillText('Пиши в чат:', bx1 + hbW / 2, hbY + 27);
+  ctx.fillStyle = '#FFFFFF'; ctx.font = 'bold 31px Arial Black';
+  ctx.fillText('"blue"', bx1 + hbW / 2, hbY + 62);
+
+  ctx.strokeStyle = 'rgba(68,136,255,0.28)'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(bx1 + 10, hbY + 74); ctx.lineTo(bx1 + hbW - 10, hbY + 74); ctx.stroke();
+
+  // TikTok gift row
+  if (IMG.tiktok_gift.complete && IMG.tiktok_gift.naturalWidth > 0) {
+    ctx.drawImage(IMG.tiktok_gift, bx1 + 10, hbY + 82, 54, 54);
+  } else {
+    ctx.fillStyle = '#223'; ctx.fillRect(bx1 + 10, hbY + 82, 54, 54);
+    ctx.fillStyle = '#77AAFF'; ctx.font = '24px Arial'; ctx.textAlign = 'center';
+    ctx.fillText('🎵', bx1 + 37, hbY + 116);
+  }
+  ctx.fillStyle = '#AACCFF'; ctx.font = 'bold 15px Arial'; ctx.textAlign = 'left';
+  ctx.fillText('🎵 TikTok', bx1 + 72, hbY + 102);
+  ctx.fillStyle = '#FFFFFF'; ctx.font = 'bold 13px Arial';
+  ctx.fillText('= Cavalry', bx1 + 72, hbY + 122);
+
+  // Crown gift row
+  if (IMG.crown_gift.complete && IMG.crown_gift.naturalWidth > 0) {
+    ctx.drawImage(IMG.crown_gift, bx1 + 10, hbY + 150, 54, 54);
+  } else {
+    ctx.fillStyle = '#223'; ctx.fillRect(bx1 + 10, hbY + 150, 54, 54);
+    ctx.fillStyle = '#77AAFF'; ctx.font = '24px Arial'; ctx.textAlign = 'center';
+    ctx.fillText('👑', bx1 + 37, hbY + 184);
+  }
+  ctx.fillStyle = '#AACCFF'; ctx.font = 'bold 15px Arial'; ctx.textAlign = 'left';
+  ctx.fillText('👑 Crown', bx1 + 72, hbY + 170);
+  ctx.fillStyle = '#FFFFFF'; ctx.font = 'bold 13px Arial';
+  ctx.fillText('= Boss', bx1 + 72, hbY + 190);
+
   ctx.restore();
 
-  // Правая сторона — RED
+  // Red box
+  const bx2 = CW - 14 - hbW;
   ctx.save();
-  ctx.fillStyle = 'rgba(0,0,0,0.55)';
-  ctx.beginPath(); ctx.roundRect(786, 740, 200, 88, 12); ctx.fill();
-  ctx.fillStyle = '#FF6666';
-  ctx.font = 'bold 28px Arial Black'; ctx.textAlign = 'center';
-  ctx.fillText('Пиши в чат:', 886, 770);
-  ctx.fillStyle = '#FFFFFF';
-  ctx.font = 'bold 38px Arial Black';
-  ctx.fillText('"red"', 886, 812);
+  ctx.fillStyle = 'rgba(70,0,0,0.80)';
+  ctx.beginPath(); ctx.roundRect(bx2, hbY, hbW, hbH, 12); ctx.fill();
+  ctx.strokeStyle = 'rgba(255,68,68,0.55)'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.roundRect(bx2, hbY, hbW, hbH, 12); ctx.stroke();
+
+  ctx.fillStyle = '#FF8888'; ctx.font = 'bold 21px Arial Black'; ctx.textAlign = 'center';
+  ctx.fillText('Пиши в чат:', bx2 + hbW / 2, hbY + 27);
+  ctx.fillStyle = '#FFFFFF'; ctx.font = 'bold 31px Arial Black';
+  ctx.fillText('"red"', bx2 + hbW / 2, hbY + 62);
+
+  ctx.strokeStyle = 'rgba(255,68,68,0.28)'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(bx2 + 10, hbY + 74); ctx.lineTo(bx2 + hbW - 10, hbY + 74); ctx.stroke();
+
+  // Rose gift row
+  if (IMG.rose_gift.complete && IMG.rose_gift.naturalWidth > 0) {
+    ctx.drawImage(IMG.rose_gift, bx2 + 10, hbY + 82, 54, 54);
+  } else {
+    ctx.fillStyle = '#322'; ctx.fillRect(bx2 + 10, hbY + 82, 54, 54);
+    ctx.fillStyle = '#FF8888'; ctx.font = '24px Arial'; ctx.textAlign = 'center';
+    ctx.fillText('🌹', bx2 + 37, hbY + 116);
+  }
+  ctx.fillStyle = '#FFBBBB'; ctx.font = 'bold 15px Arial'; ctx.textAlign = 'left';
+  ctx.fillText('🌹 Rose', bx2 + 72, hbY + 102);
+  ctx.fillStyle = '#FFFFFF'; ctx.font = 'bold 13px Arial';
+  ctx.fillText('= Cavalry', bx2 + 72, hbY + 122);
+
+  // Heart gift row
+  if (IMG.heart_gift.complete && IMG.heart_gift.naturalWidth > 0) {
+    ctx.drawImage(IMG.heart_gift, bx2 + 10, hbY + 150, 54, 54);
+  } else {
+    ctx.fillStyle = '#322'; ctx.fillRect(bx2 + 10, hbY + 150, 54, 54);
+    ctx.fillStyle = '#FF8888'; ctx.font = '24px Arial'; ctx.textAlign = 'center';
+    ctx.fillText('❤️', bx2 + 37, hbY + 184);
+  }
+  ctx.fillStyle = '#FFBBBB'; ctx.font = 'bold 15px Arial'; ctx.textAlign = 'left';
+  ctx.fillText('❤️ Heart', bx2 + 72, hbY + 170);
+  ctx.fillStyle = '#FFFFFF'; ctx.font = 'bold 13px Arial';
+  ctx.fillText('= Boss', bx2 + 72, hbY + 190);
+
   ctx.restore();
 }
 
@@ -887,6 +1231,7 @@ function gameLoop(now) {
 
   if (phase === 'playing') updateUnits(dt);
   updateFX(dt);
+  updateMeteorShower(dt);
 
   if (phase === 'victory') {
     victoryTimer -= dt;
@@ -919,6 +1264,12 @@ function wsConnect(username) {
       const data = JSON.parse(e.data);
       if (data.type === 'war_chat') {
         handleChatMessage(data.username, data.team);
+      }
+      if (data.type === 'war_gift') {
+        handleGiftMessage(data.username, data.team, data.unitType);
+      }
+      if (data.type === 'war_like') {
+        handleLikes(data.likes || 0);
       }
       if (data.type === 'init' || data.type === 'status') {
         if (data.mode === 'tiktok') setStatus('live', '🔴 LIVE @' + (data.username || username));
