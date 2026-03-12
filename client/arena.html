@@ -136,7 +136,7 @@ function makeWarrior(username, coins){
     dead:false, deathTimer:0, flashTimer:0, glowTimer:0,
     floatY:0, floatVY:0, attackAnim:0, hitAnim:0,
     attackTimer:Math.random()*1500, attackCooldown:1200+Math.random()*1000,
-    chasing:false,
+    chasing:false, kills:0,
   };
 }
 
@@ -205,13 +205,18 @@ function updateArmageddon(dt){
 function spawnMeteor(){ meteors.push({x:40+Math.random()*(CW-80),y:-50-Math.random()*120,vx:(Math.random()-0.5)*70,vy:380+Math.random()*220,r:7+Math.random()*9,trail:[],life:2200}); }
 
 
+const KILLS_TO_WIN = 10;
+
 function checkVictory(){
   const alive=warriors.filter(w=>!w.dead);
-  if(alive.length===1 && warriors.length>1){
+  if(alive.length===1){
     const winner=alive[0];
-    victoryState={ username:winner.username, timer:6000, warrior:winner };
-    winner.glowTimer=6000; playVictory();
-    eventLabel=`🏆 ${winner.username} WINS!`; eventLabelTimer=500;
+    if(winner.kills>=KILLS_TO_WIN){
+      victoryState={ username:winner.username, timer:6000, warrior:winner };
+      winner.glowTimer=6000; playVictory();
+      eventLabel=`🏆 ${winner.username} WINS!`; eventLabelTimer=500;
+    }
+    // else: alone but not enough kills — wait for more warriors
   } else if(alive.length===0 && warriors.length>0){
     startNewRound();
   }
@@ -224,6 +229,7 @@ function startNewRound(){
   // Winner stays — re-spawn with same coins, full HP
   if(prev){
     const w = makeWarrior(prev.username, prev.coins);
+    w.kills = prev.kills; // carry kills across rounds
     warriors.push(w);
     spawnSpawnFX(w);
   }
@@ -301,7 +307,7 @@ function updateWarriors(dt){
           spawnHitFX(closeEnemy);
           spawnSlashFX(w,closeEnemy);
           playHit();
-          if(closeEnemy.hp<=0){closeEnemy.hp=0;closeEnemy.dead=true;closeEnemy.deathTimer=700;spawnDeathFX(closeEnemy);playRemove();}
+          if(closeEnemy.hp<=0){closeEnemy.hp=0;closeEnemy.dead=true;closeEnemy.deathTimer=700;spawnDeathFX(closeEnemy);playRemove();w.kills++;}
           checkVictory();
         } else {
           // No enemy close — reset timer so we check again soon
