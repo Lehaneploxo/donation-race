@@ -346,6 +346,7 @@ function draw(now){
   ctx.shadowBlur=0; ctx.shadowColor='transparent'; ctx.globalAlpha=1; ctx.filter='none';
   drawBackground(now);
   drawArenaFloor();
+  drawDecorations(now);
   if(armageddon?.type==='flood') drawFlood();
   drawMeteors();
   if(armageddon?.type==='tornado') drawTornado(now);
@@ -451,6 +452,121 @@ function drawArenaFloor(){
   ctx.strokeStyle='rgba(255,210,80,0.12)'; ctx.lineWidth=1.5;
   ctx.beginPath(); ctx.ellipse(ARENA_CX,ARENA_CY+20,38,15,0,0,Math.PI*2); ctx.stroke();
   ctx.restore();
+}
+
+function drawDecorations(now){
+  ctx.save();
+
+  // ── Grass tufts (deterministic, no random) ──
+  const grassPts=[
+    [42,400],[88,490],[128,375],[165,545],[96,630],[58,730],[118,790],
+    [198,345],[268,490],[312,570],[248,660],[182,750],
+    [338,380],[402,468],[462,352],[532,448],[568,525],[518,625],[558,705],[488,758],
+    [378,720],[305,800],[225,820],[430,820]
+  ];
+  ctx.strokeStyle='#3e6d16'; ctx.lineWidth=1.8; ctx.lineCap='round';
+  grassPts.forEach(([gx,gy])=>{
+    for(let i=-1;i<=1;i++){
+      ctx.beginPath(); ctx.moveTo(gx+i*5,gy); ctx.lineTo(gx+i*5+i*2,gy-9-Math.abs(i)*2); ctx.stroke();
+    }
+  });
+
+  // ── Castle towers (far background) ──
+  _drawCastleTower(78, 258, 0.50, now);
+  _drawCastleTower(508, 253, 0.52, now);
+
+  // ── Trees on left / right edges ──
+  const trees=[
+    {x:36, y:430, s:0.90},{x:50, y:575, s:1.00},{x:38, y:715, s:1.10},
+    {x:562,y:448, s:0.88},{x:556,y:588, s:0.95},{x:562,y:728, s:1.05}
+  ];
+  trees.forEach(t=>_drawTree(t.x, t.y, t.s, now));
+
+  // ── Rocks ──
+  [
+    {x:152,y:432,rx:16,ry:9},{x:442,y:448,rx:14,ry:8},
+    {x:94, y:665,rx:20,ry:11},{x:502,y:675,rx:17,ry:10},
+    {x:282,y:292,rx:11,ry:6},{x:348,y:782,rx:18,ry:10}
+  ].forEach(r=>_drawRock(r.x, r.y, r.rx, r.ry));
+
+  ctx.restore();
+}
+
+function _drawTree(x,y,s,now){
+  const sway=Math.sin(now/1400+x*0.03)*4*s;
+  // Shadow
+  ctx.fillStyle='rgba(0,0,0,0.22)';
+  ctx.beginPath(); ctx.ellipse(x,y+3,11*s,4*s,0,0,Math.PI*2); ctx.fill();
+  // Trunk
+  ctx.fillStyle='#5c3312'; ctx.fillRect(x-4*s,y-32*s,8*s,32*s);
+  ctx.strokeStyle='rgba(0,0,0,0.2)'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(x-1*s,y-32*s); ctx.lineTo(x-2*s,y); ctx.stroke();
+  // Foliage — 3 triangle layers
+  ctx.fillStyle='#1e4e07';
+  ctx.beginPath(); ctx.moveTo(x+sway,y-80*s); ctx.lineTo(x-28*s+sway,y-44*s); ctx.lineTo(x+28*s+sway,y-44*s); ctx.closePath(); ctx.fill();
+  ctx.fillStyle='#2a6610';
+  ctx.beginPath(); ctx.moveTo(x+sway*0.75,y-66*s); ctx.lineTo(x-22*s+sway*0.75,y-35*s); ctx.lineTo(x+22*s+sway*0.75,y-35*s); ctx.closePath(); ctx.fill();
+  ctx.fillStyle='#328c14';
+  ctx.beginPath(); ctx.moveTo(x+sway*0.5,y-55*s); ctx.lineTo(x-18*s+sway*0.5,y-29*s); ctx.lineTo(x+18*s+sway*0.5,y-29*s); ctx.closePath(); ctx.fill();
+  // Top highlight
+  ctx.fillStyle='rgba(160,255,100,0.15)';
+  ctx.beginPath(); ctx.moveTo(x+sway,y-80*s); ctx.lineTo(x-8*s+sway,y-57*s); ctx.lineTo(x+8*s+sway,y-57*s); ctx.closePath(); ctx.fill();
+}
+
+function _drawRock(x,y,rx,ry){
+  // Shadow
+  ctx.fillStyle='rgba(0,0,0,0.20)';
+  ctx.beginPath(); ctx.ellipse(x+4,y+4,rx,ry*0.55,0,0,Math.PI*2); ctx.fill();
+  // Rock body
+  const rg=ctx.createRadialGradient(x-rx*0.25,y-ry*0.3,1,x,y,rx);
+  rg.addColorStop(0,'#888'); rg.addColorStop(0.6,'#606060'); rg.addColorStop(1,'#383838');
+  ctx.fillStyle=rg; ctx.beginPath(); ctx.ellipse(x,y,rx,ry,0,0,Math.PI*2); ctx.fill();
+  // Highlight
+  ctx.fillStyle='rgba(255,255,255,0.14)';
+  ctx.beginPath(); ctx.ellipse(x-rx*0.25,y-ry*0.3,rx*0.35,ry*0.28,0,0,Math.PI*2); ctx.fill();
+}
+
+function _drawCastleTower(x,y,s,now){
+  const tw=32*s, th=55*s, bh=9*s;
+  // Shadow
+  ctx.fillStyle='rgba(0,0,0,0.22)'; ctx.fillRect(x-tw/2+5,y+3,tw,th*0.3);
+  // Tower wall
+  const tg=ctx.createLinearGradient(x-tw/2,y-th,x+tw/2,y);
+  tg.addColorStop(0,'#5a5272'); tg.addColorStop(1,'#342e50');
+  ctx.fillStyle=tg; ctx.fillRect(x-tw/2,y-th,tw,th);
+  // Stone row lines
+  ctx.strokeStyle='rgba(0,0,0,0.18)'; ctx.lineWidth=0.8;
+  for(let row=1;row<4;row++){
+    const ry2=y-th+row*(th/4);
+    ctx.beginPath(); ctx.moveTo(x-tw/2,ry2); ctx.lineTo(x+tw/2,ry2); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x+(row%2===0?0:-tw*0.25),ry2); ctx.lineTo(x+(row%2===0?0:-tw*0.25),ry2+th/4); ctx.stroke();
+  }
+  // Battlements (4 merlons, every other one filled)
+  const nbat=4;
+  ctx.fillStyle='#5a5272';
+  for(let i=0;i<nbat;i++){
+    if(i%2===0) ctx.fillRect(x-tw/2+i*(tw/nbat),y-th-bh,tw/nbat,bh);
+  }
+  // Arrow slit window
+  ctx.fillStyle='#1a0a28'; ctx.fillRect(x-2.5*s,y-th*0.62,5*s,8*s);
+  // Gate arch
+  ctx.fillStyle='#1a0a28';
+  ctx.beginPath(); ctx.arc(x,y-6*s,5.5*s,Math.PI,0); ctx.fill();
+  ctx.fillRect(x-5.5*s,y-6*s,11*s,7*s);
+  // Wall highlight
+  ctx.fillStyle='rgba(255,255,255,0.06)'; ctx.fillRect(x-tw/2,y-th,tw*0.38,th);
+  // Flag pole
+  ctx.strokeStyle='#6a3a10'; ctx.lineWidth=1.5;
+  const fh=14*s;
+  ctx.beginPath(); ctx.moveTo(x,y-th-bh); ctx.lineTo(x,y-th-bh-fh); ctx.stroke();
+  // Waving flag
+  const fw=Math.sin(now/800+x)*2.5;
+  ctx.fillStyle='#CC2211';
+  ctx.beginPath();
+  ctx.moveTo(x,y-th-bh-fh);
+  ctx.lineTo(x+10*s+fw,y-th-bh-fh+4*s);
+  ctx.lineTo(x,y-th-bh-fh+8*s);
+  ctx.fill();
 }
 
 function drawFlood(){
