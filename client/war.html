@@ -658,11 +658,12 @@ function updateUnits(dt) {
       u.state = 'fighting'; u.target = nearestEnemy; u.atkTimer = 280; continue;
     }
 
-    // Очередь — держать дистанцию от союзника впереди
+    // Очередь — держать дистанцию только от союзников, созданных РАНЬШЕ (id меньше)
     const mySpacing = SPACING * (u.type === 'boss' ? 2.5 : u.type === 'cavalry' ? 1.5 : 1);
     let frontDist = Infinity;
     for (const a of units) {
       if (a === u || a.team !== u.team || a.dead) continue;
+      if (a.id > u.id) continue; // созданы после меня — не блокируют
       const d = dir > 0 ? (a.x - u.x) : (u.x - a.x);
       if (d > 0 && d < frontDist) frontDist = d;
     }
@@ -756,12 +757,12 @@ function updateMeteorShower(dt) {
   // Спавн метеоров
   if (Math.random() < dt / 300) spawnMeteor();
 
-  // Урон всем юнитам раз в секунду
+  // Урон всем юнитам раз в секунду (5 HP)
   if (meteorDmgAcc >= 1000) {
     meteorDmgAcc -= 1000;
     for (const u of units) {
       if (!u.dead) {
-        u.hp -= 1;
+        u.hp -= 5;
         if (u.hp <= 0) killUnit(u);
       }
     }
