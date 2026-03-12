@@ -887,23 +887,25 @@ function drawHUD(now){
   ctx.strokeText(`❤️ ${Math.floor(totalLikes)} / 1000  →  ☄️ ARMAGEDDON`,CW/2,T+115);
   ctx.fillStyle='rgba(255,200,220,1)'; ctx.fillText(`❤️ ${Math.floor(totalLikes)} / 1000  →  ☄️ ARMAGEDDON`,CW/2,T+115);
 
-  // ── BOTTOM HUD ──
+  // ── SUB HUD — directly below the top block ──
+  const B1 = T + TH; // 218 — no gap, no overlap
   // Coin formula
-  ctx.fillStyle='rgba(0,0,0,0.80)'; ctx.fillRect(0,CH-220,CW,52);
+  ctx.fillStyle='rgba(0,0,0,0.80)'; ctx.fillRect(0,B1,CW,46);
   ctx.shadowColor='#FFD700'; ctx.shadowBlur=7;
   ctx.font='bold 28px Arial Black'; ctx.textAlign='center';
   ctx.strokeStyle='rgba(0,0,0,0.95)'; ctx.lineWidth=4;
-  ctx.strokeText('💰 1 Coin  =  ❤️ +2 HP   ⚔️ +1 DMG',CW/2,CH-186);
-  ctx.fillStyle='#FFD700'; ctx.fillText('💰 1 Coin  =  ❤️ +2 HP   ⚔️ +1 DMG',CW/2,CH-186);
+  ctx.strokeText('💰 1 Coin  =  ❤️ +2 HP   ⚔️ +1 DMG',CW/2,B1+34);
+  ctx.fillStyle='#FFD700'; ctx.fillText('💰 1 Coin  =  ❤️ +2 HP   ⚔️ +1 DMG',CW/2,B1+34);
   ctx.shadowBlur=0;
 
   // Warriors count
-  ctx.fillStyle='rgba(0,0,0,0.75)'; ctx.fillRect(0,CH-162,CW,52);
+  const B2 = B1 + 46; // 264
+  ctx.fillStyle='rgba(0,0,0,0.75)'; ctx.fillRect(0,B2,CW,44);
   const alive=warriors.filter(w=>!w.dead).length;
   ctx.font='bold 26px Arial'; ctx.textAlign='center';
   ctx.strokeStyle='rgba(0,0,0,0.9)'; ctx.lineWidth=3;
-  ctx.strokeText(`⚔️ Воинов: ${alive}/${MAX_WARRIORS}   •   "help" = усиление`,CW/2,CH-128);
-  ctx.fillStyle='#FFD700'; ctx.fillText(`⚔️ Воинов: ${alive}/${MAX_WARRIORS}   •   "help" = усиление`,CW/2,CH-128);
+  ctx.strokeText(`⚔️ Воинов: ${alive}/${MAX_WARRIORS}   •   "help" = усиление`,CW/2,B2+32);
+  ctx.fillStyle='#FFD700'; ctx.fillText(`⚔️ Воинов: ${alive}/${MAX_WARRIORS}   •   "help" = усиление`,CW/2,B2+32);
 }
 
 function drawEventLabel(){
