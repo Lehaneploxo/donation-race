@@ -718,42 +718,53 @@ function drawVictory(now){
 
 // ── HUD ─────────────────────────────────────────────────────
 function drawHUD(now){
-  // Top bar
-  ctx.fillStyle='rgba(0,0,0,0.84)'; ctx.fillRect(0,0,CW,66);
-  ctx.shadowColor='rgba(255,200,0,0.4)'; ctx.shadowBlur=10;
-  ctx.font='bold 24px Arial Black'; ctx.textAlign='center';
-  ctx.strokeStyle='rgba(0,0,0,0.8)'; ctx.lineWidth=3;
-  ctx.strokeText('⚔️  ARENA  BATTLE  ⚔️',CW/2,27);
-  ctx.fillStyle='#FFD700'; ctx.fillText('⚔️  ARENA  BATTLE  ⚔️',CW/2,27);
+  // ── TOP HUD — positioned over the mountains area ──
+  const T = 88; // top of HUD block (sits on mountains)
+  const TH = 130; // height of top block
+  ctx.fillStyle='rgba(0,0,0,0.78)'; ctx.fillRect(0,T,CW,TH);
+
+  // Title (2x bigger: 48px)
+  ctx.shadowColor='rgba(255,200,0,0.5)'; ctx.shadowBlur=14;
+  ctx.font='bold 46px Arial Black'; ctx.textAlign='center';
+  ctx.strokeStyle='rgba(0,0,0,0.9)'; ctx.lineWidth=5;
+  ctx.strokeText('⚔️  ARENA  BATTLE  ⚔️',CW/2,T+50);
+  ctx.fillStyle='#FFD700'; ctx.fillText('⚔️  ARENA  BATTLE  ⚔️',CW/2,T+50);
   ctx.shadowBlur=0;
 
-  // Armageddon bar
-  const pct=Math.min(1,totalLikes/1000),bw=300,bx=CW/2-bw/2,by=35;
-  ctx.fillStyle='rgba(40,0,10,0.9)'; ctx.fillRect(bx,by,bw,13);
+  // Armageddon bar (2x bigger: 26px tall, 480px wide)
+  const pct=Math.min(1,totalLikes/1000),bw=480,bx=CW/2-bw/2,by=T+62;
+  ctx.fillStyle='rgba(40,0,10,0.9)'; ctx.fillRect(bx,by,bw,26);
   if(pct>0){
     const lg=ctx.createLinearGradient(bx,0,bx+bw*pct,0);
     lg.addColorStop(0,'#FF2266'); lg.addColorStop(1,'#FF8833');
-    ctx.fillStyle=lg; ctx.fillRect(bx,by,bw*pct,13);
-    ctx.fillStyle='rgba(255,255,255,0.15)'; ctx.fillRect(bx,by,bw*pct,6);
+    ctx.fillStyle=lg; ctx.fillRect(bx,by,bw*pct,26);
+    ctx.fillStyle='rgba(255,255,255,0.15)'; ctx.fillRect(bx,by,bw*pct,11);
   }
-  ctx.strokeStyle='rgba(200,50,80,0.6)'; ctx.lineWidth=1.5; ctx.strokeRect(bx,by,bw,13);
-  ctx.fillStyle='rgba(255,200,220,0.9)'; ctx.font='bold 11px Arial'; ctx.textAlign='center';
-  ctx.fillText(`❤️ ${Math.floor(totalLikes)} / 1000  →  ☄️ ARMAGEDDON`,CW/2,by+25);
+  ctx.strokeStyle='rgba(200,50,80,0.7)'; ctx.lineWidth=2; ctx.strokeRect(bx,by,bw,26);
 
-  // Coin formula
-  ctx.fillStyle='rgba(0,0,0,0.74)'; ctx.fillRect(0,CH-74,CW,36);
-  ctx.shadowColor='#FFD700'; ctx.shadowBlur=5;
-  ctx.font='bold 15px Arial Black'; ctx.textAlign='center';
+  // Bar label (2x bigger: 22px)
+  ctx.font='bold 22px Arial'; ctx.textAlign='center';
   ctx.strokeStyle='rgba(0,0,0,0.9)'; ctx.lineWidth=3;
-  ctx.strokeText('💰 1 Coin  =  ❤️ +2 HP   ⚔️ +1 DMG',CW/2,CH-51);
-  ctx.fillStyle='#FFD700'; ctx.fillText('💰 1 Coin  =  ❤️ +2 HP   ⚔️ +1 DMG',CW/2,CH-51);
+  ctx.strokeText(`❤️ ${Math.floor(totalLikes)} / 1000  →  ☄️ ARMAGEDDON`,CW/2,T+115);
+  ctx.fillStyle='rgba(255,200,220,1)'; ctx.fillText(`❤️ ${Math.floor(totalLikes)} / 1000  →  ☄️ ARMAGEDDON`,CW/2,T+115);
+
+  // ── BOTTOM HUD ──
+  // Coin formula (2x bigger: 30px)
+  ctx.fillStyle='rgba(0,0,0,0.80)'; ctx.fillRect(0,CH-110,CW,52);
+  ctx.shadowColor='#FFD700'; ctx.shadowBlur=7;
+  ctx.font='bold 28px Arial Black'; ctx.textAlign='center';
+  ctx.strokeStyle='rgba(0,0,0,0.95)'; ctx.lineWidth=4;
+  ctx.strokeText('💰 1 Coin  =  ❤️ +2 HP   ⚔️ +1 DMG',CW/2,CH-76);
+  ctx.fillStyle='#FFD700'; ctx.fillText('💰 1 Coin  =  ❤️ +2 HP   ⚔️ +1 DMG',CW/2,CH-76);
   ctx.shadowBlur=0;
 
-  // Bottom bar
-  ctx.fillStyle='rgba(0,0,0,0.70)'; ctx.fillRect(0,CH-38,CW,38);
+  // Warriors count (2x bigger: 28px)
+  ctx.fillStyle='rgba(0,0,0,0.75)'; ctx.fillRect(0,CH-58,CW,58);
   const alive=warriors.filter(w=>!w.dead).length;
-  ctx.fillStyle='#FFD700'; ctx.font='bold 14px Arial'; ctx.textAlign='center';
-  ctx.fillText(`⚔️ Воинов: ${alive}/${MAX_WARRIORS}   •   "help" в чате = усиление`,CW/2,CH-13);
+  ctx.font='bold 26px Arial'; ctx.textAlign='center';
+  ctx.strokeStyle='rgba(0,0,0,0.9)'; ctx.lineWidth=3;
+  ctx.strokeText(`⚔️ Воинов: ${alive}/${MAX_WARRIORS}   •   "help" = усиление`,CW/2,CH-22);
+  ctx.fillStyle='#FFD700'; ctx.fillText(`⚔️ Воинов: ${alive}/${MAX_WARRIORS}   •   "help" = усиление`,CW/2,CH-22);
 }
 
 function drawEventLabel(){
