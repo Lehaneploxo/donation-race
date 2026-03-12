@@ -107,10 +107,10 @@
 
 <script>
 // ═══════════════════════════════════════════════════════════
-// SOUND ENGINE (Web Audio API — synthesized, no files)
+// SOUND ENGINE (Web Audio API — fully synthesized)
 // ═══════════════════════════════════════════════════════════
 let _actx = null;
-let _lastAttack = 0, _lastDeath = 0, _lastBaseHit = 0;
+const _cd = {}; // cooldowns keyed by sound name
 
 function getACtx() {
   if (!_actx) _actx = new (window.AudioContext || window.webkitAudioContext)();
@@ -118,108 +118,301 @@ function getACtx() {
   return _actx;
 }
 
+function _cd_ok(name, ms) {
+  const now = Date.now();
+  if ((now - (_cd[name] || 0)) < ms) return false;
+  _cd[name] = now; return true;
+}
+
+// Reusable white-noise buffer
+function _noise(ctx, dur) {
+  const n = Math.floor(ctx.sampleRate * dur);
+  const b = ctx.createBuffer(1, n, ctx.sampleRate);
+  const d = b.getChannelData(0);
+  for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
+  return b;
+}
+
+// ── 1. Soldier metal clash ────────────────────────────────
 function playAttack() {
-  const now = Date.now();
-  if (now - _lastAttack < 160) return;
-  _lastAttack = now;
+  if (!_cd_ok('atk', 130)) return;
   try {
     const ctx = getACtx(), t = ctx.currentTime;
-    const osc = ctx.createOscillator(), gain = ctx.createGain();
-    const flt = ctx.createBiquadFilter();
-    flt.type = 'bandpass'; flt.frequency.value = 800; flt.Q.value = 4;
-    osc.connect(flt); flt.connect(gain); gain.connect(ctx.destination);
-    osc.type = 'sawtooth';
-    osc.frequency.setValueAtTime(650, t);
-    osc.frequency.exponentialRampToValueAtTime(220, t + 0.07);
-    gain.gain.setValueAtTime(0.18, t);
-    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.11);
-    osc.start(t); osc.stop(t + 0.13);
+    // Metallic ping
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    const f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 1800; f.Q.value = 5;
+    o.type = 'triangle';
+    o.frequency.setValueAtTime(1400, t); o.frequency.exponentialRampToValueAtTime(380, t + 0.07);
+    g.gain.setValueAtTime(0.26, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.13);
+    o.connect(f); f.connect(g); g.connect(ctx.destination);
+    o.start(t); o.stop(t + 0.15);
+    // Metal scrape
+    const s = ctx.createBufferSource(), gs = ctx.createGain();
+    const fs = ctx.createBiquadFilter(); fs.type = 'bandpass'; fs.frequency.value = 2400; fs.Q.value = 3;
+    s.buffer = _noise(ctx, 0.06); s.connect(fs); fs.connect(gs); gs.connect(ctx.destination);
+    gs.gain.setValueAtTime(0.14, t); gs.gain.exponentialRampToValueAtTime(0.001, t + 0.07);
+    s.start(t);
   } catch(e) {}
 }
 
+// ── 2. Cavalry sword swing + impact ──────────────────────
+function playCavalryAttack() {
+  if (!_cd_ok('cav_atk', 220)) return;
+  try {
+    const ctx = getACtx(), t = ctx.currentTime;
+    // Whoosh
+    const s1 = ctx.createBufferSource(), g1 = ctx.createGain();
+    const f1 = ctx.createBiquadFilter(); f1.type = 'bandpass'; f1.Q.value = 2;
+    f1.frequency.setValueAtTime(3500, t); f1.frequency.exponentialRampToValueAtTime(700, t + 0.13);
+    s1.buffer = _noise(ctx, 0.15); s1.connect(f1); f1.connect(g1); g1.connect(ctx.destination);
+    g1.gain.setValueAtTime(0.32, t); g1.gain.exponentialRampToValueAtTime(0.001, t + 0.15);
+    s1.start(t);
+    // Clang impact
+    const o = ctx.createOscillator(), g2 = ctx.createGain();
+    o.type = 'sawtooth';
+    o.frequency.setValueAtTime(900, t + 0.1); o.frequency.exponentialRampToValueAtTime(160, t + 0.28);
+    g2.gain.setValueAtTime(0.35, t + 0.1); g2.gain.exponentialRampToValueAtTime(0.001, t + 0.32);
+    o.connect(g2); g2.connect(ctx.destination);
+    o.start(t + 0.1); o.stop(t + 0.34);
+  } catch(e) {}
+}
+
+// ── 3. Boss axe slam (heavy + loud) ──────────────────────
+function playBossAttack() {
+  if (!_cd_ok('boss_atk', 500)) return;
+  try {
+    const ctx = getACtx(), t = ctx.currentTime;
+    // Sub boom
+    const o1 = ctx.createOscillator(), g1 = ctx.createGain();
+    o1.type = 'sine';
+    o1.frequency.setValueAtTime(85, t); o1.frequency.exponentialRampToValueAtTime(18, t + 0.55);
+    g1.gain.setValueAtTime(0.80, t); g1.gain.exponentialRampToValueAtTime(0.001, t + 0.60);
+    o1.connect(g1); g1.connect(ctx.destination);
+    o1.start(t); o1.stop(t + 0.65);
+    // Low rumble
+    const s = ctx.createBufferSource(), g2 = ctx.createGain();
+    const f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 260;
+    s.buffer = _noise(ctx, 0.4); s.connect(f); f.connect(g2); g2.connect(ctx.destination);
+    g2.gain.setValueAtTime(0.60, t); g2.gain.exponentialRampToValueAtTime(0.001, t + 0.45);
+    s.start(t);
+    // Metal crack
+    const o2 = ctx.createOscillator(), g3 = ctx.createGain();
+    o2.type = 'sawtooth';
+    o2.frequency.setValueAtTime(420, t + 0.04); o2.frequency.exponentialRampToValueAtTime(55, t + 0.35);
+    g3.gain.setValueAtTime(0.40, t + 0.04); g3.gain.exponentialRampToValueAtTime(0.001, t + 0.38);
+    o2.connect(g3); g3.connect(ctx.destination);
+    o2.start(t + 0.04); o2.stop(t + 0.4);
+  } catch(e) {}
+}
+
+// ── 4. Soldier death — soft thud + groan ─────────────────
 function playDeath() {
-  const now = Date.now();
-  if (now - _lastDeath < 220) return;
-  _lastDeath = now;
+  if (!_cd_ok('death', 170)) return;
   try {
     const ctx = getACtx(), t = ctx.currentTime;
-    const bufSz = Math.floor(ctx.sampleRate * 0.18);
-    const buf = ctx.createBuffer(1, bufSz, ctx.sampleRate);
-    const d = buf.getChannelData(0);
-    for (let i = 0; i < bufSz; i++) d[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufSz * 0.25));
-    const src = ctx.createBufferSource(), g = ctx.createGain();
-    const f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 380;
-    src.buffer = buf; src.connect(f); f.connect(g); g.connect(ctx.destination);
-    g.gain.setValueAtTime(0.28, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
-    src.start(t);
+    const s = ctx.createBufferSource(), g = ctx.createGain();
+    const f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 340;
+    s.buffer = _noise(ctx, 0.2); s.connect(f); f.connect(g); g.connect(ctx.destination);
+    g.gain.setValueAtTime(0.32, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.2);
+    s.start(t);
+    const o = ctx.createOscillator(), go = ctx.createGain();
+    o.type = 'sine'; o.frequency.setValueAtTime(290, t); o.frequency.exponentialRampToValueAtTime(75, t + 0.2);
+    go.gain.setValueAtTime(0.20, t); go.gain.exponentialRampToValueAtTime(0.001, t + 0.22);
+    o.connect(go); go.connect(ctx.destination); o.start(t); o.stop(t + 0.24);
   } catch(e) {}
 }
 
+// ── 5. Cavalry death — heavy crash ───────────────────────
+function playCavalryDeath() {
+  try {
+    const ctx = getACtx(), t = ctx.currentTime;
+    const o = ctx.createOscillator(), g1 = ctx.createGain();
+    o.type = 'sine'; o.frequency.setValueAtTime(190, t); o.frequency.exponentialRampToValueAtTime(28, t + 0.55);
+    g1.gain.setValueAtTime(0.55, t); g1.gain.exponentialRampToValueAtTime(0.001, t + 0.6);
+    o.connect(g1); g1.connect(ctx.destination); o.start(t); o.stop(t + 0.65);
+    const s = ctx.createBufferSource(), g2 = ctx.createGain();
+    const f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 500;
+    s.buffer = _noise(ctx, 0.5); s.connect(f); f.connect(g2); g2.connect(ctx.destination);
+    g2.gain.setValueAtTime(0.42, t); g2.gain.exponentialRampToValueAtTime(0.001, t + 0.52);
+    s.start(t);
+  } catch(e) {}
+}
+
+// ── 6. Boss death — earthquake ───────────────────────────
+function playBossDeath() {
+  try {
+    const ctx = getACtx(), t = ctx.currentTime;
+    const o = ctx.createOscillator(), g1 = ctx.createGain();
+    o.type = 'sine'; o.frequency.setValueAtTime(130, t); o.frequency.exponentialRampToValueAtTime(8, t + 1.3);
+    g1.gain.setValueAtTime(0.90, t); g1.gain.exponentialRampToValueAtTime(0.001, t + 1.5);
+    o.connect(g1); g1.connect(ctx.destination); o.start(t); o.stop(t + 1.6);
+    const s = ctx.createBufferSource(), g2 = ctx.createGain();
+    const f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 400;
+    s.buffer = _noise(ctx, 1.5); s.connect(f); f.connect(g2); g2.connect(ctx.destination);
+    g2.gain.setValueAtTime(0.75, t); g2.gain.exponentialRampToValueAtTime(0.001, t + 1.5);
+    s.start(t);
+    const o2 = ctx.createOscillator(), g3 = ctx.createGain();
+    o2.type = 'triangle'; o2.frequency.setValueAtTime(260, t + 0.1); o2.frequency.exponentialRampToValueAtTime(28, t + 1.1);
+    g3.gain.setValueAtTime(0.45, t + 0.1); g3.gain.exponentialRampToValueAtTime(0.001, t + 1.2);
+    o2.connect(g3); g3.connect(ctx.destination); o2.start(t + 0.1); o2.stop(t + 1.3);
+  } catch(e) {}
+}
+
+// ── 7. Boss spawn — 3 stomps ─────────────────────────────
+function playBossSpawn() {
+  try {
+    const ctx = getACtx(), t = ctx.currentTime;
+    [0, 0.32, 0.60].forEach((d, i) => {
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.type = 'sine'; o.frequency.setValueAtTime(105 - i * 15, t + d);
+      o.frequency.exponentialRampToValueAtTime(14, t + d + 0.24);
+      g.gain.setValueAtTime(0.78, t + d); g.gain.exponentialRampToValueAtTime(0.001, t + d + 0.30);
+      o.connect(g); g.connect(ctx.destination); o.start(t + d); o.stop(t + d + 0.33);
+      const sn = ctx.createBufferSource(), gn = ctx.createGain();
+      const fn = ctx.createBiquadFilter(); fn.type = 'lowpass'; fn.frequency.value = 320;
+      sn.buffer = _noise(ctx, 0.22); sn.connect(fn); fn.connect(gn); gn.connect(ctx.destination);
+      gn.gain.setValueAtTime(0.45, t + d); gn.gain.exponentialRampToValueAtTime(0.001, t + d + 0.24);
+      sn.start(t + d);
+    });
+  } catch(e) {}
+}
+
+// ── 8. Cavalry spawn — whinny + hooves ───────────────────
+function playCavalrySpawn() {
+  try {
+    const ctx = getACtx(), t = ctx.currentTime;
+    const o = ctx.createOscillator(), g1 = ctx.createGain();
+    const f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 700; f.Q.value = 3;
+    o.type = 'sawtooth';
+    o.frequency.setValueAtTime(420, t); o.frequency.linearRampToValueAtTime(950, t + 0.14);
+    o.frequency.exponentialRampToValueAtTime(190, t + 0.48);
+    g1.gain.setValueAtTime(0.30, t); g1.gain.exponentialRampToValueAtTime(0.001, t + 0.52);
+    o.connect(f); f.connect(g1); g1.connect(ctx.destination); o.start(t); o.stop(t + 0.55);
+    [0.08, 0.22, 0.38].forEach(d => {
+      const oh = ctx.createOscillator(), gh = ctx.createGain();
+      oh.type = 'sine'; oh.frequency.value = 150;
+      gh.gain.setValueAtTime(0.38, t + d); gh.gain.exponentialRampToValueAtTime(0.001, t + d + 0.09);
+      oh.connect(gh); gh.connect(ctx.destination); oh.start(t + d); oh.stop(t + d + 0.11);
+    });
+  } catch(e) {}
+}
+
+// ── 9. Base hit — stone crack + thud ─────────────────────
 function playBaseHit() {
-  const now = Date.now();
-  if (now - _lastBaseHit < 300) return;
-  _lastBaseHit = now;
+  if (!_cd_ok('base_hit', 240)) return;
   try {
     const ctx = getACtx(), t = ctx.currentTime;
-    const osc = ctx.createOscillator(), g = ctx.createGain();
-    osc.connect(g); g.connect(ctx.destination);
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(110, t);
-    osc.frequency.exponentialRampToValueAtTime(55, t + 0.22);
-    g.gain.setValueAtTime(0.32, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.28);
-    osc.start(t); osc.stop(t + 0.32);
+    const s = ctx.createBufferSource(), g1 = ctx.createGain();
+    const f = ctx.createBiquadFilter(); f.type = 'highpass'; f.frequency.value = 500;
+    s.buffer = _noise(ctx, 0.09); s.connect(f); f.connect(g1); g1.connect(ctx.destination);
+    g1.gain.setValueAtTime(0.42, t); g1.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
+    s.start(t);
+    const o = ctx.createOscillator(), g2 = ctx.createGain();
+    o.type = 'sine'; o.frequency.setValueAtTime(95, t); o.frequency.exponentialRampToValueAtTime(28, t + 0.30);
+    g2.gain.setValueAtTime(0.45, t); g2.gain.exponentialRampToValueAtTime(0.001, t + 0.34);
+    o.connect(g2); g2.connect(ctx.destination); o.start(t); o.stop(t + 0.36);
   } catch(e) {}
 }
 
+// ── 10. Meteor shower start — ominous rumble ─────────────
+function playMeteorShowerStart() {
+  try {
+    const ctx = getACtx(), t = ctx.currentTime;
+    const o = ctx.createOscillator(), g1 = ctx.createGain();
+    o.type = 'sawtooth'; o.frequency.setValueAtTime(52, t); o.frequency.linearRampToValueAtTime(68, t + 1.8);
+    g1.gain.setValueAtTime(0, t); g1.gain.linearRampToValueAtTime(0.45, t + 0.5);
+    g1.gain.linearRampToValueAtTime(0, t + 2.2);
+    o.connect(g1); g1.connect(ctx.destination); o.start(t); o.stop(t + 2.4);
+    const s = ctx.createBufferSource(), g2 = ctx.createGain();
+    const f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 900;
+    s.buffer = _noise(ctx, 2.0); s.connect(f); f.connect(g2); g2.connect(ctx.destination);
+    g2.gain.setValueAtTime(0, t); g2.gain.linearRampToValueAtTime(0.38, t + 0.3);
+    g2.gain.exponentialRampToValueAtTime(0.001, t + 2.2); s.start(t);
+    // High crackling
+    const o2 = ctx.createOscillator(), g3 = ctx.createGain();
+    o2.type = 'triangle'; o2.frequency.setValueAtTime(320, t + 0.4); o2.frequency.exponentialRampToValueAtTime(80, t + 1.5);
+    g3.gain.setValueAtTime(0.25, t + 0.4); g3.gain.exponentialRampToValueAtTime(0.001, t + 1.7);
+    o2.connect(g3); g3.connect(ctx.destination); o2.start(t + 0.4); o2.stop(t + 1.8);
+  } catch(e) {}
+}
+
+// ── 11. Meteor whoosh ────────────────────────────────────
+function playMeteorWhoosh() {
+  if (!_cd_ok('m_whoosh', 350)) return;
+  try {
+    const ctx = getACtx(), t = ctx.currentTime;
+    const s = ctx.createBufferSource(), g = ctx.createGain();
+    const f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.Q.value = 1.8;
+    f.frequency.setValueAtTime(5000, t); f.frequency.exponentialRampToValueAtTime(600, t + 0.45);
+    s.buffer = _noise(ctx, 0.5); s.connect(f); f.connect(g); g.connect(ctx.destination);
+    g.gain.setValueAtTime(0.28, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.5);
+    s.start(t);
+  } catch(e) {}
+}
+
+// ── 12. Meteor ground impact ─────────────────────────────
+function playMeteorImpact() {
+  if (!_cd_ok('m_impact', 200)) return;
+  try {
+    const ctx = getACtx(), t = ctx.currentTime;
+    const o = ctx.createOscillator(), g1 = ctx.createGain();
+    o.type = 'sine'; o.frequency.setValueAtTime(160, t); o.frequency.exponentialRampToValueAtTime(14, t + 0.65);
+    g1.gain.setValueAtTime(0.65, t); g1.gain.exponentialRampToValueAtTime(0.001, t + 0.72);
+    o.connect(g1); g1.connect(ctx.destination); o.start(t); o.stop(t + 0.75);
+    const s = ctx.createBufferSource(), g2 = ctx.createGain();
+    const f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 700;
+    s.buffer = _noise(ctx, 0.55); s.connect(f); f.connect(g2); g2.connect(ctx.destination);
+    g2.gain.setValueAtTime(0.55, t); g2.gain.exponentialRampToValueAtTime(0.001, t + 0.6);
+    s.start(t);
+  } catch(e) {}
+}
+
+// ── 13. Tower collapse ───────────────────────────────────
 function playTowerCollapse() {
   try {
     const ctx = getACtx(), t = ctx.currentTime;
-    // Low boom
-    const osc = ctx.createOscillator(), g1 = ctx.createGain();
-    osc.connect(g1); g1.connect(ctx.destination);
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(90, t); osc.frequency.exponentialRampToValueAtTime(18, t + 1.8);
-    g1.gain.setValueAtTime(0.55, t); g1.gain.exponentialRampToValueAtTime(0.001, t + 2.2);
-    osc.start(t); osc.stop(t + 2.5);
-    // Rumble noise
-    const bufSz = Math.floor(ctx.sampleRate * 2.0);
-    const buf = ctx.createBuffer(1, bufSz, ctx.sampleRate);
-    const nd = buf.getChannelData(0);
-    for (let i = 0; i < bufSz; i++) nd[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufSz * 0.55));
-    const src = ctx.createBufferSource(), g2 = ctx.createGain();
-    const flt = ctx.createBiquadFilter(); flt.type = 'lowpass'; flt.frequency.value = 280;
-    src.buffer = buf; src.connect(flt); flt.connect(g2); g2.connect(ctx.destination);
-    g2.gain.setValueAtTime(0.45, t); g2.gain.exponentialRampToValueAtTime(0.001, t + 2.0);
-    src.start(t);
+    const o = ctx.createOscillator(), g1 = ctx.createGain();
+    o.type = 'sine'; o.frequency.setValueAtTime(95, t); o.frequency.exponentialRampToValueAtTime(14, t + 2.0);
+    g1.gain.setValueAtTime(0.70, t); g1.gain.exponentialRampToValueAtTime(0.001, t + 2.4);
+    o.connect(g1); g1.connect(ctx.destination); o.start(t); o.stop(t + 2.6);
+    const s = ctx.createBufferSource(), g2 = ctx.createGain();
+    const f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 350;
+    s.buffer = _noise(ctx, 2.2); s.connect(f); f.connect(g2); g2.connect(ctx.destination);
+    g2.gain.setValueAtTime(0.60, t); g2.gain.exponentialRampToValueAtTime(0.001, t + 2.2);
+    s.start(t);
+    // Debris high crack
+    const s2 = ctx.createBufferSource(), g3 = ctx.createGain();
+    const f2 = ctx.createBiquadFilter(); f2.type = 'highpass'; f2.frequency.value = 1200;
+    s2.buffer = _noise(ctx, 0.8); s2.connect(f2); f2.connect(g3); g3.connect(ctx.destination);
+    g3.gain.setValueAtTime(0.35, t + 0.05); g3.gain.exponentialRampToValueAtTime(0.001, t + 0.9);
+    s2.start(t + 0.05);
   } catch(e) {}
 }
 
+// ── 14. Victory fanfare ──────────────────────────────────
 function playVictory() {
   try {
     const ctx = getACtx();
-    // C-E-G-C ascending fanfare
     [261.63, 329.63, 392.00, 523.25].forEach((freq, i) => {
-      const t = ctx.currentTime + i * 0.17;
-      const osc = ctx.createOscillator(), g = ctx.createGain();
-      osc.connect(g); g.connect(ctx.destination);
-      osc.type = 'triangle'; osc.frequency.value = freq;
-      g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.28, t + 0.04);
-      g.gain.exponentialRampToValueAtTime(0.001, t + 0.38);
-      osc.start(t); osc.stop(t + 0.42);
+      const t = ctx.currentTime + i * 0.18;
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.connect(g); g.connect(ctx.destination);
+      o.type = 'triangle'; o.frequency.value = freq;
+      g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.32, t + 0.04);
+      g.gain.exponentialRampToValueAtTime(0.001, t + 0.42); o.start(t); o.stop(t + 0.46);
     });
-    // Second phrase after 0.8s
     setTimeout(() => {
       try {
-        [523.25, 659.25, 783.99, 1046.5].forEach((freq, i) => {
-          const t2 = ctx.currentTime + i * 0.15;
-          const osc2 = ctx.createOscillator(), g2 = ctx.createGain();
-          osc2.connect(g2); g2.connect(ctx.destination);
-          osc2.type = 'triangle'; osc2.frequency.value = freq;
-          g2.gain.setValueAtTime(0.22, t2); g2.gain.exponentialRampToValueAtTime(0.001, t2 + 0.55);
-          osc2.start(t2); osc2.stop(t2 + 0.6);
+        [392.00, 523.25, 659.25, 783.99, 1046.5].forEach((freq, i) => {
+          const t2 = ctx.currentTime + i * 0.14;
+          const o2 = ctx.createOscillator(), g2 = ctx.createGain();
+          o2.connect(g2); g2.connect(ctx.destination);
+          o2.type = 'triangle'; o2.frequency.value = freq;
+          g2.gain.setValueAtTime(0.30, t2); g2.gain.exponentialRampToValueAtTime(0.001, t2 + 0.60);
+          o2.start(t2); o2.stop(t2 + 0.65);
         });
       } catch(e) {}
-    }, 800);
+    }, 750);
   } catch(e) {}
 }
 
@@ -317,9 +510,16 @@ function handleChatMessage(username, team) {
   spawnUnit(t, username, 'soldier');
 }
 
+// called after spawnUnit to play spawn audio
+function _playSpawnSound(type) {
+  if (type === 'boss')         playBossSpawn();
+  else if (type === 'cavalry') playCavalrySpawn();
+}
+
 function handleGiftMessage(username, team, unitType) {
   if (phase !== 'playing') return;
   spawnUnit(team, username, unitType);
+  _playSpawnSound(unitType);
 }
 
 function handleLikes(count) {
@@ -335,10 +535,12 @@ function triggerMeteorShower() {
   meteorTimer  = 10000;
   meteorDmgAcc = 0;
   console.log('[War] Meteor Shower!');
+  playMeteorShowerStart();
   for (let i = 0; i < 6; i++) spawnMeteor();
 }
 
 function spawnMeteor() {
+  playMeteorWhoosh();
   meteors.push({
     x: CW * 0.2 + Math.random() * CW * 0.8,
     y: -40 - Math.random() * 200,
@@ -370,9 +572,11 @@ function resetRound() {
 function killUnit(u) {
   u.dead = true;
   u.hp = 0;
-  u.deathTimer = 400;
+  u.deathTimer = u.type === 'boss' ? 900 : u.type === 'cavalry' ? 600 : 400;
   u.state = 'dead';
-  playDeath();
+  if (u.type === 'boss')         playBossDeath();
+  else if (u.type === 'cavalry') playCavalryDeath();
+  else                           playDeath();
   spawnDeathFX(u.x, u.y, u.team);
 }
 
@@ -400,7 +604,9 @@ function updateUnits(dt) {
           killUnit(tgt);
           u.state = 'moving'; u.target = null;
         } else {
-          playAttack();
+          if (u.type === 'boss')         playBossAttack();
+          else if (u.type === 'cavalry') playCavalryAttack();
+          else                           playAttack();
           spawnHitFX(tgt.x, tgt.y);
         }
         // Если юнит стоит у вражеской базы — бьёт и по базе тоже
@@ -537,7 +743,7 @@ function updateFX(dt) {
     m.x += m.vx * dt / 1000;
     m.y += m.vy * dt / 1000;
     m.life -= dt;
-    if (m.y > CH + 60) m.life = 0;
+    if (m.y > CH + 60) { playMeteorImpact(); m.life = 0; }
   }
   meteors = meteors.filter(m => m.life > 0);
 }
