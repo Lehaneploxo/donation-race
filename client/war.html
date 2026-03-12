@@ -1069,94 +1069,73 @@ function drawHUD() {
   ctx.fillText(rc + ' воинов ⚔', CW - 28, CH - 12);
 
   // ── GIFT HINT BOXES ──
-  const hbW = 192, hbH = 248, hbY = 700;
+  // Positioned below HP bars (HP bar ends at y≈720) and shifted inward from bases
+  const hbW = 230, hbH = 268, hbY = 730;
+  const imgSz = 64;
 
-  // Blue box
-  const bx1 = 14;
+  function drawHintBox(bx, teamCol, borderCol, chatWord, img1, label1, img2, label2) {
+    // Background
+    ctx.fillStyle = 'rgba(0,0,0,0.88)';
+    ctx.beginPath(); ctx.roundRect(bx, hbY, hbW, hbH, 14); ctx.fill();
+    ctx.strokeStyle = borderCol; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.roundRect(bx, hbY, hbW, hbH, 14); ctx.stroke();
+
+    // Header: "Пиши в чат:" + word
+    ctx.fillStyle = teamCol; ctx.font = 'bold 19px Arial Black'; ctx.textAlign = 'center';
+    ctx.fillText('Пиши в чат:', bx + hbW / 2, hbY + 24);
+    ctx.fillStyle = '#FFFFFF'; ctx.font = 'bold 34px Arial Black';
+    ctx.fillText(chatWord, bx + hbW / 2, hbY + 62);
+
+    // Divider
+    ctx.strokeStyle = 'rgba(255,255,255,0.15)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(bx + 12, hbY + 72); ctx.lineTo(bx + hbW - 12, hbY + 72); ctx.stroke();
+
+    // Row 1
+    const r1y = hbY + 82;
+    if (img1.complete && img1.naturalWidth > 0) {
+      ctx.drawImage(img1, bx + 10, r1y, imgSz, imgSz);
+    } else {
+      ctx.fillStyle = '#333'; ctx.fillRect(bx + 10, r1y, imgSz, imgSz);
+    }
+    ctx.fillStyle = teamCol; ctx.font = 'bold 17px Arial Black'; ctx.textAlign = 'left';
+    ctx.fillText(label1[0], bx + imgSz + 18, r1y + 20);
+    ctx.fillStyle = '#EEEEEE'; ctx.font = 'bold 15px Arial';
+    ctx.fillText(label1[1], bx + imgSz + 18, r1y + 40);
+    ctx.fillStyle = 'rgba(255,255,255,0.6)'; ctx.font = '13px Arial';
+    ctx.fillText(label1[2], bx + imgSz + 18, r1y + 57);
+
+    // Row divider
+    ctx.strokeStyle = 'rgba(255,255,255,0.1)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(bx + 12, r1y + imgSz + 6); ctx.lineTo(bx + hbW - 12, r1y + imgSz + 6); ctx.stroke();
+
+    // Row 2
+    const r2y = r1y + imgSz + 14;
+    if (img2.complete && img2.naturalWidth > 0) {
+      ctx.drawImage(img2, bx + 10, r2y, imgSz, imgSz);
+    } else {
+      ctx.fillStyle = '#333'; ctx.fillRect(bx + 10, r2y, imgSz, imgSz);
+    }
+    ctx.fillStyle = teamCol; ctx.font = 'bold 17px Arial Black'; ctx.textAlign = 'left';
+    ctx.fillText(label2[0], bx + imgSz + 18, r2y + 20);
+    ctx.fillStyle = '#EEEEEE'; ctx.font = 'bold 15px Arial';
+    ctx.fillText(label2[1], bx + imgSz + 18, r2y + 40);
+    ctx.fillStyle = 'rgba(255,255,255,0.6)'; ctx.font = '13px Arial';
+    ctx.fillText(label2[2], bx + imgSz + 18, r2y + 57);
+  }
+
   ctx.save();
-  ctx.fillStyle = 'rgba(0,15,70,0.80)';
-  ctx.beginPath(); ctx.roundRect(bx1, hbY, hbW, hbH, 12); ctx.fill();
-  ctx.strokeStyle = 'rgba(68,136,255,0.55)'; ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.roundRect(bx1, hbY, hbW, hbH, 12); ctx.stroke();
-
-  ctx.fillStyle = '#66BBFF'; ctx.font = 'bold 21px Arial Black'; ctx.textAlign = 'center';
-  ctx.fillText('Пиши в чат:', bx1 + hbW / 2, hbY + 27);
-  ctx.fillStyle = '#FFFFFF'; ctx.font = 'bold 31px Arial Black';
-  ctx.fillText('"blue"', bx1 + hbW / 2, hbY + 62);
-
-  ctx.strokeStyle = 'rgba(68,136,255,0.28)'; ctx.lineWidth = 1;
-  ctx.beginPath(); ctx.moveTo(bx1 + 10, hbY + 74); ctx.lineTo(bx1 + hbW - 10, hbY + 74); ctx.stroke();
-
-  // TikTok gift row
-  if (IMG.tiktok_gift.complete && IMG.tiktok_gift.naturalWidth > 0) {
-    ctx.drawImage(IMG.tiktok_gift, bx1 + 10, hbY + 82, 54, 54);
-  } else {
-    ctx.fillStyle = '#223'; ctx.fillRect(bx1 + 10, hbY + 82, 54, 54);
-    ctx.fillStyle = '#77AAFF'; ctx.font = '24px Arial'; ctx.textAlign = 'center';
-    ctx.fillText('🎵', bx1 + 37, hbY + 116);
-  }
-  ctx.fillStyle = '#AACCFF'; ctx.font = 'bold 15px Arial'; ctx.textAlign = 'left';
-  ctx.fillText('🎵 TikTok', bx1 + 72, hbY + 102);
-  ctx.fillStyle = '#FFFFFF'; ctx.font = 'bold 13px Arial';
-  ctx.fillText('= Cavalry', bx1 + 72, hbY + 122);
-
-  // Crown gift row
-  if (IMG.crown_gift.complete && IMG.crown_gift.naturalWidth > 0) {
-    ctx.drawImage(IMG.crown_gift, bx1 + 10, hbY + 150, 54, 54);
-  } else {
-    ctx.fillStyle = '#223'; ctx.fillRect(bx1 + 10, hbY + 150, 54, 54);
-    ctx.fillStyle = '#77AAFF'; ctx.font = '24px Arial'; ctx.textAlign = 'center';
-    ctx.fillText('👑', bx1 + 37, hbY + 184);
-  }
-  ctx.fillStyle = '#AACCFF'; ctx.font = 'bold 15px Arial'; ctx.textAlign = 'left';
-  ctx.fillText('👑 Crown', bx1 + 72, hbY + 170);
-  ctx.fillStyle = '#FFFFFF'; ctx.font = 'bold 13px Arial';
-  ctx.fillText('= Boss', bx1 + 72, hbY + 190);
-
-  ctx.restore();
-
-  // Red box
-  const bx2 = CW - 14 - hbW;
-  ctx.save();
-  ctx.fillStyle = 'rgba(70,0,0,0.80)';
-  ctx.beginPath(); ctx.roundRect(bx2, hbY, hbW, hbH, 12); ctx.fill();
-  ctx.strokeStyle = 'rgba(255,68,68,0.55)'; ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.roundRect(bx2, hbY, hbW, hbH, 12); ctx.stroke();
-
-  ctx.fillStyle = '#FF8888'; ctx.font = 'bold 21px Arial Black'; ctx.textAlign = 'center';
-  ctx.fillText('Пиши в чат:', bx2 + hbW / 2, hbY + 27);
-  ctx.fillStyle = '#FFFFFF'; ctx.font = 'bold 31px Arial Black';
-  ctx.fillText('"red"', bx2 + hbW / 2, hbY + 62);
-
-  ctx.strokeStyle = 'rgba(255,68,68,0.28)'; ctx.lineWidth = 1;
-  ctx.beginPath(); ctx.moveTo(bx2 + 10, hbY + 74); ctx.lineTo(bx2 + hbW - 10, hbY + 74); ctx.stroke();
-
-  // Rose gift row
-  if (IMG.rose_gift.complete && IMG.rose_gift.naturalWidth > 0) {
-    ctx.drawImage(IMG.rose_gift, bx2 + 10, hbY + 82, 54, 54);
-  } else {
-    ctx.fillStyle = '#322'; ctx.fillRect(bx2 + 10, hbY + 82, 54, 54);
-    ctx.fillStyle = '#FF8888'; ctx.font = '24px Arial'; ctx.textAlign = 'center';
-    ctx.fillText('🌹', bx2 + 37, hbY + 116);
-  }
-  ctx.fillStyle = '#FFBBBB'; ctx.font = 'bold 15px Arial'; ctx.textAlign = 'left';
-  ctx.fillText('🌹 Rose', bx2 + 72, hbY + 102);
-  ctx.fillStyle = '#FFFFFF'; ctx.font = 'bold 13px Arial';
-  ctx.fillText('= Cavalry', bx2 + 72, hbY + 122);
-
-  // Heart gift row
-  if (IMG.heart_gift.complete && IMG.heart_gift.naturalWidth > 0) {
-    ctx.drawImage(IMG.heart_gift, bx2 + 10, hbY + 150, 54, 54);
-  } else {
-    ctx.fillStyle = '#322'; ctx.fillRect(bx2 + 10, hbY + 150, 54, 54);
-    ctx.fillStyle = '#FF8888'; ctx.font = '24px Arial'; ctx.textAlign = 'center';
-    ctx.fillText('❤️', bx2 + 37, hbY + 184);
-  }
-  ctx.fillStyle = '#FFBBBB'; ctx.font = 'bold 15px Arial'; ctx.textAlign = 'left';
-  ctx.fillText('❤️ Heart', bx2 + 72, hbY + 170);
-  ctx.fillStyle = '#FFFFFF'; ctx.font = 'bold 13px Arial';
-  ctx.fillText('= Boss', bx2 + 72, hbY + 190);
-
+  // Blue box — starts right after blue base (x=168+16=184)
+  drawHintBox(
+    184, '#66BBFF', 'rgba(68,136,255,0.7)', '"blue"',
+    IMG.tiktok_gift, ['🎵 TikTok', '= Cavalry', '(1 монета)'],
+    IMG.crown_gift,  ['👑 Crown',  '= Boss',    '(100 монет)']
+  );
+  // Red box — ends right before red base (x=832-16=816), so starts at 816-hbW
+  drawHintBox(
+    816 - hbW, '#FF8888', 'rgba(255,68,68,0.7)', '"red"',
+    IMG.rose_gift,  ['🌹 Rose',  '= Cavalry', '(1 монета)'],
+    IMG.heart_gift, ['❤️ Heart', '= Boss',    '(100 монет)']
+  );
   ctx.restore();
 }
 
