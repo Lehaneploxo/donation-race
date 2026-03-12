@@ -142,7 +142,6 @@ function makeWarrior(username, coins){
 
 function addWarrior(username, coins){
   coins = Math.max(1, Math.floor(coins));
-  if(victoryState) return;
   const ex = warriors.find(w=>w.username===username&&!w.dead);
   if(ex){
     ex.coins+=coins; ex.maxHp=ex.coins*2;
