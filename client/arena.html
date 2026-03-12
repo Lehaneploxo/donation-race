@@ -1,0 +1,938 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <title>⚔️ Arena Battle</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100vw; height: 100vh; height: 100dvh; background: #050510; overflow: hidden; font-family: 'Arial Black', Arial, sans-serif; }
+    #scaleWrapper { position: absolute; top: 0; left: 0; width: 600px; height: 1000px; transform-origin: top left; }
+    #gameCanvas { position: absolute; top: 0; left: 0; display: block; }
+    .ui-btn { position: fixed; z-index: 99999; width: 26px; height: 26px; font-size: 12px; background: rgba(0,0,0,0.55); color: rgba(255,255,255,0.55); border: 1px solid rgba(255,255,255,0.2); border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+    #fsBtn   { top: calc(50% + 36px); right: 10px; }
+    #backBtn { top: calc(50% - 13px); right: 10px; }
+    #statusBadge { position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%); font-size: 13px; padding: 4px 13px; border-radius: 8px; border: 2px solid #555; background: rgba(0,0,0,0.78); color: #AAA; white-space: nowrap; z-index: 100; display: none; }
+    #statusBadge.live  { color: #00FF88; border-color: #00FF88; }
+    #statusBadge.demo  { color: #FF9900; border-color: #FF9900; }
+    #statusBadge.error { color: #FF4444; border-color: #FF4444; }
+  </style>
+</head>
+<body>
+<button id="fsBtn"   class="ui-btn" title="Fullscreen">⛶</button>
+<button id="backBtn" class="ui-btn" title="Back">⌂</button>
+
+<div id="scaleWrapper">
+  <canvas id="gameCanvas" width="600" height="1000"></canvas>
+  <div id="statusBadge">⏳ Connecting…</div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════
+// SOUND ENGINE
+// ═══════════════════════════════════════════════════
+let _actx = null;
+const _scd = {};
+function getACtx() {
+  if (!_actx) _actx = new (window.AudioContext || window.webkitAudioContext)();
+  if (_actx.state === 'suspended') _actx.resume();
+  return _actx;
+}
+function _ok(k, ms) { const n = Date.now(); if (n - (_scd[k]||0) < ms) return false; _scd[k] = n; return true; }
+function _noise(ctx, d) { const n = Math.floor(ctx.sampleRate*d), b = ctx.createBuffer(1,n,ctx.sampleRate), a = b.getChannelData(0); for (let i=0;i<n;i++) a[i]=Math.random()*2-1; return b; }
+
+function playSpawn() {
+  if (!_ok('spawn', 250)) return;
+  try {
+    const ctx = getACtx();
+    [523.25, 659.25, 783.99].forEach((f, i) => {
+      const t = ctx.currentTime + i * 0.09;
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.type = 'triangle'; o.frequency.value = f;
+      g.gain.setValueAtTime(0.22, t); g.gain.exponentialRampToValueAtTime(0.001, t+0.28);
+      o.connect(g); g.connect(ctx.destination); o.start(t); o.stop(t+0.31);
+    });
+  } catch(e) {}
+}
+function playRemove() {
+  if (!_ok('remove', 300)) return;
+  try {
+    const ctx = getACtx(), t = ctx.currentTime;
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = 'sine'; o.frequency.setValueAtTime(400,t); o.frequency.exponentialRampToValueAtTime(80,t+0.35);
+    g.gain.setValueAtTime(0.28,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.38);
+    o.connect(g); g.connect(ctx.destination); o.start(t); o.stop(t+0.4);
+  } catch(e) {}
+}
+function playHelp() {
+  try {
+    const ctx = getACtx();
+    [659.25, 880, 1046.5].forEach((f, i) => {
+      const t = ctx.currentTime + i * 0.08;
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.type = 'triangle'; o.frequency.value = f;
+      g.gain.setValueAtTime(0.18, t); g.gain.exponentialRampToValueAtTime(0.001, t+0.22);
+      o.connect(g); g.connect(ctx.destination); o.start(t); o.stop(t+0.25);
+    });
+  } catch(e) {}
+}
+function playArmageddon() {
+  try {
+    const ctx = getACtx(), t = ctx.currentTime;
+    const o = ctx.createOscillator(), g1 = ctx.createGain();
+    o.type = 'sawtooth'; o.frequency.setValueAtTime(55,t); o.frequency.linearRampToValueAtTime(75,t+1.8);
+    g1.gain.setValueAtTime(0,t); g1.gain.linearRampToValueAtTime(0.5,t+0.4); g1.gain.linearRampToValueAtTime(0,t+2.2);
+    o.connect(g1); g1.connect(ctx.destination); o.start(t); o.stop(t+2.4);
+    const s = ctx.createBufferSource(), g2 = ctx.createGain();
+    const f = ctx.createBiquadFilter(); f.type='lowpass'; f.frequency.value=800;
+    s.buffer=_noise(ctx,2); s.connect(f); f.connect(g2); g2.connect(ctx.destination);
+    g2.gain.setValueAtTime(0,t); g2.gain.linearRampToValueAtTime(0.38,t+0.3); g2.gain.exponentialRampToValueAtTime(0.001,t+2.2);
+    s.start(t);
+  } catch(e) {}
+}
+function playMeteorWhoosh() {
+  if (!_ok('mwh',350)) return;
+  try {
+    const ctx = getACtx(), t = ctx.currentTime;
+    const s = ctx.createBufferSource(), g = ctx.createGain();
+    const f = ctx.createBiquadFilter(); f.type='bandpass'; f.Q.value=2;
+    f.frequency.setValueAtTime(4500,t); f.frequency.exponentialRampToValueAtTime(700,t+0.4);
+    s.buffer=_noise(ctx,0.45); s.connect(f); f.connect(g); g.connect(ctx.destination);
+    g.gain.setValueAtTime(0.25,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.45); s.start(t);
+  } catch(e) {}
+}
+
+// ═══════════════════════════════════════════════════
+// CONSTANTS
+// ═══════════════════════════════════════════════════
+const CW = 600, CH = 1000;
+const MAX_WARRIORS = 10;
+const ARENA_CX = 300, ARENA_CY = 660;
+const ARENA_RX = 228, ARENA_RY = 112;
+
+const CLASSES      = ['dwarf','warrior','archer','mage'];
+const ARMOR_COLORS = ['#2255CC','#CC2211','#118833','#996611','#662299','#CC5511','#116688','#CC1166'];
+const CLOAK_COLORS = ['#991111','#112299','#119922','#999911','#991199','#114455'];
+const SKIN_TONES   = ['#F9C784','#E8A86A','#C47C5A','#9A6040'];
+
+// ═══════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════
+let warriors   = [];
+let particles  = [];
+let meteors    = [];
+let uidSeq     = 0;
+let totalLikes = 0;
+let armageddon = null;
+let eventLabel = '', eventLabelTimer = 0;
+
+// ═══════════════════════════════════════════════════
+// WARRIOR MANAGEMENT
+// ═══════════════════════════════════════════════════
+function rndFrom(arr) { return arr[Math.floor(Math.random()*arr.length)]; }
+
+function rndArenaPos() {
+  const angle = Math.random() * Math.PI * 2;
+  const r = Math.sqrt(Math.random()) * 0.82;
+  return { ax: Math.cos(angle)*r, ay: Math.sin(angle)*r*0.75 };
+}
+
+function arenaToScreen(ax, ay) {
+  return { x: ARENA_CX + ax*ARENA_RX, y: ARENA_CY + ay*ARENA_RY };
+}
+
+function getWarriorScale(coins) {
+  return 1.0 + Math.min(1.4, Math.log10(Math.max(1, coins)) * 0.42);
+}
+
+function makeWarrior(username, coins) {
+  const pos = rndArenaPos(), tgt = rndArenaPos();
+  return {
+    id: ++uidSeq,
+    username, coins,
+    hp:    coins * 2,
+    maxHp: coins * 2,
+    damage: coins,
+    class:      rndFrom(CLASSES),
+    armorColor: rndFrom(ARMOR_COLORS),
+    cloakColor: rndFrom(CLOAK_COLORS),
+    skinTone:   rndFrom(SKIN_TONES),
+    helmStyle:  Math.floor(Math.random() * 4),
+    hasCloak:   Math.random() > 0.38,
+    hairColor:  rndFrom(['#3a1a00','#8B0000','#4B0082','#1a1a1a','#C89030']),
+    ax: pos.ax, ay: pos.ay,
+    tax: tgt.ax, tay: tgt.ay,
+    walkTimer: Math.random() * 2000,
+    walkDelay: 1800 + Math.random() * 2200,
+    walkPhase: Math.random() * Math.PI * 2,
+    dead: false, deathTimer: 0,
+    flashTimer: 0,
+    floatY: 0, floatVY: 0,
+  };
+}
+
+function addWarrior(username, coins) {
+  coins = Math.max(1, Math.floor(coins));
+  const existing = warriors.find(w => w.username === username && !w.dead);
+  if (existing) {
+    existing.coins  += coins;
+    existing.maxHp   = existing.coins * 2;
+    existing.hp      = Math.min(existing.hp + coins * 2, existing.maxHp);
+    existing.damage  = existing.coins;
+    existing.flashTimer = 600;
+    spawnUpgradeFX(existing);
+    return;
+  }
+  if (warriors.filter(w => !w.dead).length >= MAX_WARRIORS) {
+    const alive = warriors.filter(w => !w.dead).sort((a,b) => a.coins - b.coins);
+    const weakest = alive[0];
+    weakest.dead = true; weakest.deathTimer = 500;
+    spawnDeathFX(weakest);
+    playRemove();
+  }
+  const w = makeWarrior(username, coins);
+  warriors.push(w);
+  playSpawn();
+  spawnSpawnFX(w);
+}
+
+function helpWarrior(username) {
+  const w = warriors.find(w => w.username === username && !w.dead);
+  if (!w) return;
+  w.coins  += 1;
+  w.maxHp   = w.coins * 2;
+  w.hp      = Math.min(w.hp + 2, w.maxHp);
+  w.damage  = w.coins;
+  w.flashTimer = 350;
+  spawnUpgradeFX(w);
+  playHelp();
+}
+
+// ═══════════════════════════════════════════════════
+// ARMAGEDDON
+// ═══════════════════════════════════════════════════
+function triggerArmageddon() {
+  const type = rndFrom(['meteor','tornado','flood']);
+  armageddon = {
+    type, timer: 5000, dmgAcc: 0,
+    tornadoX: ARENA_CX + (Math.random()-0.5)*180,
+    tornadoY: ARENA_CY + (Math.random()-0.5)*70,
+    tornadoAngle: 0,
+    floodLevel: 0,
+    rainDrops: [],
+  };
+  const labels = { meteor:'☄️ METEOR RAIN!', tornado:'🌪️ TORNADO!', flood:'🌊 FLOOD!' };
+  eventLabel = labels[type];
+  eventLabelTimer = 5500;
+  playArmageddon();
+  console.log('[Arena] Armageddon:', type);
+}
+
+function updateArmageddon(dt) {
+  if (!armageddon) return;
+  armageddon.timer  -= dt;
+  armageddon.dmgAcc += dt;
+
+  if (armageddon.type === 'meteor') {
+    if (Math.random() < dt / 220) { spawnMeteor(); playMeteorWhoosh(); }
+  } else if (armageddon.type === 'tornado') {
+    armageddon.tornadoAngle += dt * 0.004;
+    for (const w of warriors) {
+      if (w.dead) continue;
+      const sx = ARENA_CX + w.ax * ARENA_RX;
+      const sy = ARENA_CY + w.ay * ARENA_RY;
+      const dx = armageddon.tornadoX - sx, dy = armageddon.tornadoY - sy;
+      const dist = Math.sqrt(dx*dx + dy*dy);
+      if (dist < 170) {
+        w.floatVY -= dt * 0.00025;
+        w.floatY  += w.floatVY * dt;
+        if (w.floatY < -60) w.floatVY = Math.abs(w.floatVY) * 0.5;
+      }
+    }
+  } else if (armageddon.type === 'flood') {
+    armageddon.floodLevel = Math.min(0.65, (5000 - armageddon.timer) / 5000 * 0.65);
+    if (Math.random() < dt / 60) {
+      armageddon.rainDrops.push({ x: Math.random()*CW, y: -10, vy: 420+Math.random()*180, life: 800 });
+    }
+    for (const rd of armageddon.rainDrops) { rd.y += rd.vy * dt/1000; rd.life -= dt; }
+    armageddon.rainDrops = armageddon.rainDrops.filter(r => r.life > 0 && r.y < CH);
+  }
+
+  // 1 HP/sec damage tick
+  if (armageddon.dmgAcc >= 1000) {
+    armageddon.dmgAcc -= 1000;
+    for (const w of warriors) {
+      if (w.dead) continue;
+      w.hp = Math.max(0, w.hp - 1);
+      w.flashTimer = 280;
+      if (w.hp <= 0) { w.dead = true; w.deathTimer = 500; spawnDeathFX(w); playRemove(); }
+    }
+  }
+
+  // Restore float when tornado ends
+  for (const w of warriors) {
+    if (w.floatY < 0 && !w.dead) {
+      w.floatVY += dt * 0.0005;
+      w.floatY  += w.floatVY * dt;
+      if (w.floatY >= 0) { w.floatY = 0; w.floatVY = 0; }
+    }
+  }
+
+  // Meteor positions
+  for (const m of meteors) {
+    m.x += m.vx * dt/1000; m.y += m.vy * dt/1000; m.life -= dt;
+    m.trail.push({x:m.x,y:m.y});
+    if (m.trail.length > 8) m.trail.shift();
+    if (m.y > CH + 50) m.life = 0;
+  }
+  meteors = meteors.filter(m => m.life > 0);
+
+  if (armageddon.timer <= 0) {
+    meteors = [];
+    armageddon = null;
+  }
+}
+
+function spawnMeteor() {
+  meteors.push({
+    x: 40 + Math.random() * (CW-80),
+    y: -50 - Math.random() * 120,
+    vx: (Math.random()-0.5) * 70,
+    vy: 380 + Math.random() * 220,
+    r:  7 + Math.random() * 9,
+    trail: [],
+    life: 2200,
+  });
+}
+
+// ═══════════════════════════════════════════════════
+// PARTICLES
+// ═══════════════════════════════════════════════════
+function spawnSpawnFX(w) {
+  const s = arenaToScreen(w.ax, w.ay);
+  for (let i = 0; i < 14; i++) {
+    particles.push({ x:s.x, y:s.y, vx:(Math.random()-0.5)*130, vy:-Math.random()*110-20, life:700, max:700, r:3+Math.random()*4, col:rndFrom(['#FFD700','#FFFFFF','#88CCFF','#AAFFAA']) });
+  }
+}
+function spawnDeathFX(w) {
+  const s = arenaToScreen(w.ax, w.ay);
+  for (let i = 0; i < 18; i++) {
+    particles.push({ x:s.x, y:s.y+w.floatY, vx:(Math.random()-0.5)*160, vy:(Math.random()-0.5)*130-30, life:900, max:900, r:4+Math.random()*6, col:rndFrom(['#FF3333','#FF8800','#FFDD00','#FF6666']) });
+  }
+}
+function spawnUpgradeFX(w) {
+  const s = arenaToScreen(w.ax, w.ay);
+  for (let i = 0; i < 8; i++) {
+    particles.push({ x:s.x, y:s.y, vx:(Math.random()-0.5)*80, vy:-Math.random()*90-10, life:500, max:500, r:2+Math.random()*3, col:rndFrom(['#FFD700','#AAFFAA','#FFFFFF']) });
+  }
+}
+
+// ═══════════════════════════════════════════════════
+// UPDATE
+// ═══════════════════════════════════════════════════
+function updateWarriors(dt) {
+  for (const w of warriors) {
+    if (w.dead) { w.deathTimer -= dt; continue; }
+    w.flashTimer = Math.max(0, w.flashTimer - dt);
+    w.walkTimer  += dt;
+    w.walkPhase  += dt * 0.0045;
+
+    // Move toward target (in arena coords)
+    const spd = 0.22 * dt / 1000;
+    const dax = w.tax - w.ax, day = w.tay - w.ay;
+    const dist = Math.sqrt(dax*dax + day*day);
+    if (dist > 0.025) { w.ax += dax/dist*spd; w.ay += day/dist*spd; }
+
+    if (dist < 0.04 || w.walkTimer > w.walkDelay) {
+      w.walkTimer = 0;
+      w.walkDelay = 1800 + Math.random()*2200;
+      const p = rndArenaPos(); w.tax = p.ax; w.tay = p.ay;
+    }
+  }
+  warriors = warriors.filter(w => !w.dead || w.deathTimer > 0);
+}
+
+function updateParticles(dt) {
+  for (const p of particles) { p.x += p.vx*dt/1000; p.y += p.vy*dt/1000; p.vy += 200*dt/1000; p.life -= dt; }
+  particles = particles.filter(p => p.life > 0);
+}
+
+// ═══════════════════════════════════════════════════
+// DRAW
+// ═══════════════════════════════════════════════════
+const cvs = document.getElementById('gameCanvas');
+const ctx  = cvs.getContext('2d');
+
+function draw(now) {
+  ctx.clearRect(0, 0, CW, CH);
+  drawBackground(now);
+  drawArenaFloor();
+  if (armageddon?.type === 'flood') drawFlood();
+  drawMeteors();
+  if (armageddon?.type === 'tornado') drawTornado(now);
+  drawParticles();
+  const sorted = [...warriors].sort((a,b) => a.ay - b.ay);
+  for (const w of sorted) drawWarrior(w, now);
+  drawHUD();
+  if (eventLabelTimer > 0) drawEventLabel();
+}
+
+// ── Background ─────────────────────────────────────────────
+function drawBackground(now) {
+  const sky = ctx.createLinearGradient(0,0,0,520);
+  sky.addColorStop(0,'#050320'); sky.addColorStop(0.55,'#180840'); sky.addColorStop(1,'#2c1060');
+  ctx.fillStyle = sky; ctx.fillRect(0,0,CW,520);
+
+  // Stars
+  for (let i = 0; i < 70; i++) {
+    const sx = ((i*139+70)%578)+11, sy = ((i*101+25)%200)+8;
+    const tw = 0.35 + Math.sin(now/700+i)*0.3;
+    ctx.globalAlpha = tw;
+    ctx.fillStyle = '#FFF';
+    ctx.beginPath(); ctx.arc(sx, sy, i%5===0?1.3:0.8, 0, Math.PI*2); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+
+  // Far mountains
+  ctx.fillStyle = '#150835';
+  ctx.beginPath(); ctx.moveTo(0,380);
+  [[0,380],[50,240],[120,300],[195,200],[265,270],[335,185],[408,255],[475,195],[545,250],[600,310],[600,420],[0,420]].forEach(([x,y]) => ctx.lineTo(x,y));
+  ctx.fill();
+
+  // Near mountains + snow tips
+  ctx.fillStyle = '#220c4a';
+  ctx.beginPath(); ctx.moveTo(0,440);
+  [[0,440],[70,320],[145,375],[215,290],[295,335],[370,275],[445,320],[515,295],[600,360],[600,500],[0,500]].forEach(([x,y]) => ctx.lineTo(x,y));
+  ctx.fill();
+  ctx.fillStyle = 'rgba(220,220,255,0.55)';
+  [[215,290,18],[370,275,15],[145,375,12]].forEach(([mx,my,sz]) => {
+    ctx.beginPath(); ctx.moveTo(mx,my); ctx.lineTo(mx-sz,my+sz*1.4); ctx.lineTo(mx+sz,my+sz*1.4); ctx.fill();
+  });
+
+  // Waterfall
+  const t = now/320;
+  const wfG = ctx.createLinearGradient(510,295,510,440);
+  wfG.addColorStop(0,'rgba(110,160,255,0.8)'); wfG.addColorStop(1,'rgba(70,110,200,0.15)');
+  ctx.fillStyle = wfG;
+  ctx.save(); ctx.globalAlpha = 0.55 + Math.sin(t)*0.15;
+  ctx.fillRect(504, 295, 14, 145);
+  ctx.globalAlpha = 1; ctx.restore();
+
+  // Mist at waterfall base
+  const mist = ctx.createRadialGradient(511,440,2,511,440,30);
+  mist.addColorStop(0,'rgba(150,180,255,0.4)'); mist.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.fillStyle = mist;
+  ctx.beginPath(); ctx.ellipse(511,442,30,12,0,0,Math.PI*2); ctx.fill();
+
+  // Rocks
+  ctx.fillStyle = '#2e1c0a';
+  [[75,490,44,20],[195,498,30,14],[420,485,50,18],[548,492,36,16]].forEach(([rx,ry,rw,rh]) => {
+    ctx.beginPath(); ctx.ellipse(rx,ry,rw,rh,0,0,Math.PI*2); ctx.fill();
+  });
+
+  // Ground below arena
+  const gr = ctx.createLinearGradient(0,520,0,CH);
+  gr.addColorStop(0,'#2a1508'); gr.addColorStop(1,'#130900');
+  ctx.fillStyle = gr; ctx.fillRect(0,520,CW,CH-520);
+
+  // Torch posts (arena entrance)
+  [[120,580],[480,580]].forEach(([tx,ty]) => {
+    ctx.strokeStyle='#5a3010'; ctx.lineWidth=5;
+    ctx.beginPath(); ctx.moveTo(tx,ty); ctx.lineTo(tx,ty-55); ctx.stroke();
+    const flame = 0.7+Math.sin(now/160+tx)*0.3;
+    ctx.save(); ctx.globalAlpha=flame;
+    const fg = ctx.createRadialGradient(tx,ty-60,1,tx,ty-60,14);
+    fg.addColorStop(0,'#FFFFFF'); fg.addColorStop(0.3,'#FFEE00'); fg.addColorStop(0.7,'#FF5500'); fg.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.fillStyle=fg; ctx.beginPath(); ctx.arc(tx,ty-60,14,0,Math.PI*2); ctx.fill();
+    ctx.globalAlpha=1; ctx.restore();
+  });
+}
+
+// ── Arena floor ────────────────────────────────────────────
+function drawArenaFloor() {
+  // Outer glow ring
+  ctx.save();
+  ctx.shadowColor = '#FFD700'; ctx.shadowBlur = 22;
+  ctx.strokeStyle = 'rgba(255,200,60,0.45)'; ctx.lineWidth = 5;
+  ctx.beginPath(); ctx.ellipse(ARENA_CX, ARENA_CY, ARENA_RX+22, ARENA_RY+16, 0, 0, Math.PI*2); ctx.stroke();
+  ctx.shadowBlur = 0; ctx.restore();
+
+  // Floor fill
+  const fg = ctx.createRadialGradient(ARENA_CX, ARENA_CY-15, 10, ARENA_CX, ARENA_CY, ARENA_RX);
+  fg.addColorStop(0,'#6a4020'); fg.addColorStop(0.55,'#4a2c10'); fg.addColorStop(1,'#1e0e00');
+  ctx.save();
+  ctx.beginPath(); ctx.ellipse(ARENA_CX, ARENA_CY, ARENA_RX+16, ARENA_RY+13, 0, 0, Math.PI*2);
+  ctx.fillStyle = fg; ctx.fill();
+
+  // Concentric rings
+  ctx.strokeStyle = 'rgba(255,200,80,0.1)'; ctx.lineWidth = 1.2;
+  for (let i = 1; i <= 7; i++) {
+    ctx.beginPath(); ctx.ellipse(ARENA_CX, ARENA_CY, (ARENA_RX+16)*(i/7), (ARENA_RY+13)*(i/7), 0, 0, Math.PI*2); ctx.stroke();
+  }
+  // Radial lines
+  for (let i = 0; i < 12; i++) {
+    const a = (i/12)*Math.PI*2;
+    ctx.beginPath(); ctx.moveTo(ARENA_CX, ARENA_CY);
+    ctx.lineTo(ARENA_CX+Math.cos(a)*(ARENA_RX+16), ARENA_CY+Math.sin(a)*(ARENA_RY+13)); ctx.stroke();
+  }
+  // Center symbol
+  ctx.strokeStyle='rgba(255,210,80,0.25)'; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.arc(ARENA_CX, ARENA_CY, 18, 0, Math.PI*2); ctx.stroke();
+  ctx.strokeStyle='rgba(255,210,80,0.15)'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.arc(ARENA_CX, ARENA_CY, 6, 0, Math.PI*2); ctx.stroke();
+
+  // Stone wall border
+  ctx.strokeStyle='rgba(180,130,55,0.75)'; ctx.lineWidth=9;
+  ctx.beginPath(); ctx.ellipse(ARENA_CX, ARENA_CY, ARENA_RX+16, ARENA_RY+13, 0, 0, Math.PI*2); ctx.stroke();
+  ctx.strokeStyle='rgba(220,180,80,0.3)'; ctx.lineWidth=3;
+  ctx.beginPath(); ctx.ellipse(ARENA_CX, ARENA_CY, ARENA_RX+20, ARENA_RY+17, 0, 0, Math.PI*2); ctx.stroke();
+  ctx.restore();
+}
+
+// ── Events ─────────────────────────────────────────────────
+function drawFlood() {
+  if (!armageddon) return;
+  const lvl = armageddon.floodLevel;
+  const waterY = ARENA_CY + ARENA_RY + 13 - lvl * (ARENA_RY+13) * 2.2;
+  ctx.save();
+  ctx.beginPath(); ctx.ellipse(ARENA_CX, ARENA_CY, ARENA_RX+15, ARENA_RY+12, 0, 0, Math.PI*2); ctx.clip();
+  const wg = ctx.createLinearGradient(0, waterY, 0, ARENA_CY+ARENA_RY+13);
+  wg.addColorStop(0,'rgba(30,90,220,0.55)'); wg.addColorStop(1,'rgba(10,50,160,0.75)');
+  ctx.fillStyle=wg;
+  ctx.beginPath(); ctx.moveTo(0, waterY);
+  for (let x=0; x<=CW; x+=5) ctx.lineTo(x, waterY + Math.sin(x/28+Date.now()/380)*5);
+  ctx.lineTo(CW,CH); ctx.lineTo(0,CH); ctx.closePath(); ctx.fill();
+  ctx.restore();
+  // Rain
+  ctx.strokeStyle='rgba(120,170,255,0.45)'; ctx.lineWidth=1.2;
+  for (const rd of armageddon.rainDrops) {
+    ctx.globalAlpha = rd.life/800*0.6;
+    ctx.beginPath(); ctx.moveTo(rd.x,rd.y); ctx.lineTo(rd.x-2,rd.y+11); ctx.stroke();
+  }
+  ctx.globalAlpha=1;
+}
+
+function drawMeteors() {
+  for (const m of meteors) {
+    const a = Math.min(1, m.life/400);
+    for (let i=1; i<m.trail.length; i++) {
+      const t0=m.trail[i-1], t1=m.trail[i];
+      ctx.save(); ctx.globalAlpha = a*(i/m.trail.length)*0.5;
+      ctx.strokeStyle='#FF7700'; ctx.lineWidth=m.r*(i/m.trail.length)*1.3; ctx.lineCap='round';
+      ctx.beginPath(); ctx.moveTo(t0.x,t0.y); ctx.lineTo(t1.x,t1.y); ctx.stroke(); ctx.restore();
+    }
+    ctx.save(); ctx.globalAlpha=a;
+    const g=ctx.createRadialGradient(m.x,m.y,0,m.x,m.y,m.r);
+    g.addColorStop(0,'#FFF'); g.addColorStop(0.35,'#FFEE00'); g.addColorStop(0.7,'#FF4400'); g.addColorStop(1,'#660000');
+    ctx.fillStyle=g; ctx.beginPath(); ctx.arc(m.x,m.y,m.r,0,Math.PI*2); ctx.fill(); ctx.restore();
+  }
+}
+
+function drawTornado(now) {
+  if (!armageddon) return;
+  const tx=armageddon.tornadoX, ty=armageddon.tornadoY, ang=armageddon.tornadoAngle;
+  ctx.save(); ctx.globalAlpha=0.7;
+  // Funnel shaft
+  const fg=ctx.createLinearGradient(tx,ty-130,tx,ty+20);
+  fg.addColorStop(0,'rgba(160,160,255,0)'); fg.addColorStop(0.5,'rgba(130,120,240,0.35)'); fg.addColorStop(1,'rgba(100,90,220,0.55)');
+  ctx.fillStyle=fg;
+  ctx.beginPath(); ctx.moveTo(tx-5,ty-130); ctx.lineTo(tx+5,ty-130); ctx.lineTo(tx+42,ty+18); ctx.lineTo(tx-42,ty+18); ctx.closePath(); ctx.fill();
+  // Rotating rings
+  for (let i=0; i<5; i++) {
+    const r=12+i*16, ra=ang+i*0.55, y2=ty-15-i*22;
+    ctx.save(); ctx.translate(tx,y2); ctx.rotate(ra);
+    ctx.strokeStyle=`rgba(180,170,255,${0.6-i*0.1})`; ctx.lineWidth=3-i*0.4;
+    ctx.beginPath(); ctx.ellipse(0,0,r,r*0.35,0,0,Math.PI*2); ctx.stroke(); ctx.restore();
+  }
+  ctx.restore();
+}
+
+function drawParticles() {
+  for (const p of particles) {
+    ctx.save(); ctx.globalAlpha=Math.max(0,p.life/p.max);
+    ctx.fillStyle=p.col; ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,Math.PI*2); ctx.fill(); ctx.restore();
+  }
+}
+
+// ── Character Drawing ──────────────────────────────────────
+function drawWarrior(w, now) {
+  if (w.dead && w.deathTimer <= 0) return;
+  const s = arenaToScreen(w.ax, w.ay);
+  const depthSc = 0.68 + (w.ay + 1) * 0.18;
+  const coinSc  = getWarriorScale(w.coins);
+  const totalSc = depthSc * coinSc;
+  const alpha   = w.dead ? Math.max(0, w.deathTimer/500) : 1;
+  const sx      = s.x, sy = s.y + w.floatY;
+  const bob     = w.dead ? 0 : Math.sin(w.walkPhase) * 2.8;
+  const flash   = w.flashTimer > 0;
+
+  ctx.save();
+  ctx.globalAlpha = alpha;
+
+  // Glow for big donators
+  if (w.coins >= 40 && !w.dead) {
+    const gi = Math.min(1, (w.coins-40)/260);
+    ctx.shadowColor = w.armorColor; ctx.shadowBlur = 18 + gi*28;
+  }
+
+  // Character body (scaled)
+  ctx.save();
+  ctx.translate(sx, sy + bob);
+  ctx.scale(totalSc, totalSc);
+  if (flash) { ctx.save(); ctx.filter='brightness(2.8) saturate(0.2)'; }
+  switch (w.class) {
+    case 'dwarf':   _drawDwarf(w); break;
+    case 'warrior': _drawWarrior(w); break;
+    case 'archer':  _drawArcher(w); break;
+    case 'mage':    _drawMage(w, now); break;
+  }
+  if (flash) ctx.restore();
+  ctx.restore();
+
+  // Labels (fixed screen size, drawn above head)
+  ctx.shadowBlur = 0;
+  const labelY = sy + bob - 62 * totalSc;
+  _drawLabels(sx, labelY, w);
+
+  ctx.restore();
+}
+
+function _drawLabels(sx, labelY, w) {
+  // Username
+  ctx.font = 'bold 14px Arial';
+  ctx.textAlign = 'center';
+  ctx.strokeStyle = 'rgba(0,0,0,0.95)'; ctx.lineWidth = 3.5;
+  ctx.strokeText(w.username, sx, labelY);
+  ctx.fillStyle = '#FFD700'; ctx.fillText(w.username, sx, labelY);
+
+  // HP bar
+  const bw=68, bh=8, bx=sx-bw/2, by=labelY+4;
+  const hpR = Math.max(0, w.hp/w.maxHp);
+  ctx.fillStyle='rgba(0,0,0,0.75)'; ctx.fillRect(bx,by,bw,bh);
+  ctx.fillStyle = hpR>0.55?'#22EE44':hpR>0.28?'#FF8800':'#FF2222';
+  ctx.fillRect(bx,by,bw*hpR,bh);
+  ctx.strokeStyle='rgba(255,255,255,0.22)'; ctx.lineWidth=1; ctx.strokeRect(bx,by,bw,bh);
+
+  // HP + DMG stats
+  ctx.font = 'bold 11px Arial';
+  ctx.strokeStyle='rgba(0,0,0,0.9)'; ctx.lineWidth=2.5;
+  ctx.strokeText(`❤ ${Math.ceil(w.hp)}   ⚔ ${w.damage}`, sx, labelY+22);
+  ctx.fillStyle='#DDEEFF'; ctx.fillText(`❤ ${Math.ceil(w.hp)}   ⚔ ${w.damage}`, sx, labelY+22);
+}
+
+// ── Dwarf ──────────────────────────────────────────────────
+function _drawDwarf(w) {
+  const ac=w.armorColor, sk=w.skinTone, cc=w.cloakColor;
+  // Shadow
+  ctx.fillStyle='rgba(0,0,0,0.3)'; ctx.beginPath(); ctx.ellipse(0,16,22,7,0,0,Math.PI*2); ctx.fill();
+  // Legs (short, stubby)
+  ctx.strokeStyle=ac; ctx.lineWidth=9; ctx.lineCap='round';
+  ctx.beginPath(); ctx.moveTo(-6,-4); ctx.lineTo(-9,14); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(6,-4);  ctx.lineTo(9,14);  ctx.stroke();
+  // Cloak
+  if (w.hasCloak) { ctx.fillStyle=cc; ctx.beginPath(); ctx.moveTo(-14,-28); ctx.lineTo(-18,10); ctx.lineTo(0,16); ctx.lineTo(18,10); ctx.lineTo(14,-28); ctx.fill(); }
+  // Wide body / armor
+  ctx.fillStyle=ac; ctx.beginPath(); ctx.moveTo(-16,-30); ctx.lineTo(16,-30); ctx.lineTo(18,-2); ctx.lineTo(-18,-2); ctx.closePath(); ctx.fill();
+  // Belt
+  ctx.fillStyle='#5a3a00'; ctx.fillRect(-17,-6,34,5);
+  ctx.fillStyle='#FFD700'; ctx.fillRect(-3,-8,6,8);
+  // Arms
+  ctx.strokeStyle=ac; ctx.lineWidth=8;
+  ctx.beginPath(); ctx.moveTo(-15,-24); ctx.lineTo(-22,-12); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(15,-24);  ctx.lineTo(23,-14); ctx.stroke();
+  // Beard
+  ctx.fillStyle='#C8A050';
+  ctx.beginPath(); ctx.moveTo(-10,-22); ctx.quadraticCurveTo(-12,0,-6,8); ctx.lineTo(0,10); ctx.lineTo(6,8); ctx.quadraticCurveTo(12,0,10,-22); ctx.fill();
+  // Head
+  ctx.beginPath(); ctx.arc(0,-36,12,0,Math.PI*2); ctx.fillStyle=sk; ctx.fill();
+  _drawHelmet(w.helmStyle, ac, 0, -36, 12);
+  // Big axe (right hand)
+  ctx.strokeStyle='#7a5010'; ctx.lineWidth=4;
+  ctx.beginPath(); ctx.moveTo(23,-14); ctx.lineTo(26,8); ctx.stroke();
+  ctx.fillStyle='#BBBBBB';
+  ctx.beginPath(); ctx.moveTo(24,-16); ctx.lineTo(34,-6); ctx.lineTo(30,8); ctx.lineTo(18,2); ctx.closePath(); ctx.fill();
+  ctx.fillStyle='#888';
+  ctx.beginPath(); ctx.moveTo(24,-16); ctx.lineTo(18,-8); ctx.lineTo(18,2); ctx.lineTo(24,-16); ctx.fill();
+}
+
+// ── Warrior ────────────────────────────────────────────────
+function _drawWarrior(w) {
+  const ac=w.armorColor, sk=w.skinTone, cc=w.cloakColor;
+  ctx.fillStyle='rgba(0,0,0,0.3)'; ctx.beginPath(); ctx.ellipse(0,20,18,5,0,0,Math.PI*2); ctx.fill();
+  // Legs
+  ctx.strokeStyle='#2a1a00'; ctx.lineWidth=7; ctx.lineCap='round';
+  ctx.beginPath(); ctx.moveTo(-5,-2); ctx.lineTo(-6,20); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(5,-2);  ctx.lineTo(6,20);  ctx.stroke();
+  // Cloak
+  if (w.hasCloak) { ctx.fillStyle=cc; ctx.globalAlpha*=0.85; ctx.beginPath(); ctx.moveTo(-14,-42); ctx.lineTo(-18,16); ctx.lineTo(0,24); ctx.lineTo(18,16); ctx.lineTo(14,-42); ctx.fill(); ctx.globalAlpha=ctx.globalAlpha/0.85; }
+  // Body armor
+  ctx.fillStyle=ac;
+  ctx.beginPath(); ctx.moveTo(-14,-42); ctx.lineTo(14,-42); ctx.lineTo(17,-2); ctx.lineTo(-17,-2); ctx.closePath(); ctx.fill();
+  // Chest detail
+  ctx.strokeStyle='rgba(255,255,255,0.2)'; ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.moveTo(0,-42); ctx.lineTo(0,-2); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(-14,-22); ctx.lineTo(14,-22); ctx.stroke();
+  // Arms
+  ctx.strokeStyle=ac; ctx.lineWidth=7;
+  ctx.beginPath(); ctx.moveTo(-13,-34); ctx.lineTo(-22,-20); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(13,-34);  ctx.lineTo(22,-20); ctx.stroke();
+  // Head
+  ctx.beginPath(); ctx.arc(0,-54,13,0,Math.PI*2); ctx.fillStyle=sk; ctx.fill();
+  _drawHelmet(w.helmStyle, ac, 0, -54, 13);
+  // Big sword
+  ctx.strokeStyle='#CCCCCC'; ctx.lineWidth=4;
+  ctx.beginPath(); ctx.moveTo(22,-20); ctx.lineTo(28,18); ctx.stroke();
+  ctx.strokeStyle='#888888'; ctx.lineWidth=6;
+  ctx.beginPath(); ctx.moveTo(17,-12); ctx.lineTo(29,-8); ctx.stroke();
+  ctx.fillStyle='#FFD700'; ctx.beginPath(); ctx.arc(22,-12,3,0,Math.PI*2); ctx.fill();
+}
+
+// ── Archer ─────────────────────────────────────────────────
+function _drawArcher(w) {
+  const ac=w.armorColor, sk=w.skinTone, cc=w.cloakColor;
+  ctx.fillStyle='rgba(0,0,0,0.3)'; ctx.beginPath(); ctx.ellipse(0,18,16,5,0,0,Math.PI*2); ctx.fill();
+  // Legs (leather pants)
+  ctx.strokeStyle='#4a2a08'; ctx.lineWidth=6; ctx.lineCap='round';
+  ctx.beginPath(); ctx.moveTo(-4,0); ctx.lineTo(-5,18); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(4,0);  ctx.lineTo(5,18);  ctx.stroke();
+  // Cloak
+  if (w.hasCloak) { ctx.fillStyle=cc; ctx.globalAlpha*=0.8; ctx.beginPath(); ctx.moveTo(-11,-38); ctx.lineTo(-15,14); ctx.lineTo(0,20); ctx.lineTo(15,14); ctx.lineTo(11,-38); ctx.fill(); ctx.globalAlpha=ctx.globalAlpha/0.8; }
+  // Leather vest
+  ctx.fillStyle='#7a4a22'; ctx.fillRect(-11,-40,22,40);
+  ctx.fillStyle=ac; ctx.fillRect(-11,-40,22,14);
+  // Quiver on back
+  ctx.fillStyle='#5a3010'; ctx.fillRect(12,-32,8,20); ctx.fillStyle='#8B6914'; ctx.fillRect(12,-30,8,3);
+  for (let i=0;i<3;i++) { ctx.strokeStyle='#888'; ctx.lineWidth=1.5; ctx.beginPath(); ctx.moveTo(14+i*2,-36); ctx.lineTo(14+i*2,-30); ctx.stroke(); }
+  // Arms
+  ctx.strokeStyle=sk; ctx.lineWidth=5;
+  ctx.beginPath(); ctx.moveTo(-10,-30); ctx.lineTo(-20,-18); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(10,-30);  ctx.lineTo(18,-22); ctx.stroke();
+  // Head
+  ctx.beginPath(); ctx.arc(0,-52,11,0,Math.PI*2); ctx.fillStyle=sk; ctx.fill();
+  _drawHelmet(w.helmStyle, ac, 0, -52, 11);
+  // Bow (left)
+  ctx.strokeStyle='#7a5020'; ctx.lineWidth=3.5;
+  ctx.beginPath(); ctx.arc(-24,-22,16, -0.75, 0.75); ctx.stroke();
+  ctx.strokeStyle='rgba(200,200,200,0.7)'; ctx.lineWidth=1;
+  const bx1=-24-16*Math.cos(0.75), by1=-22-16*Math.sin(0.75), by2=-22+16*Math.sin(0.75);
+  ctx.beginPath(); ctx.moveTo(bx1,by1); ctx.lineTo(bx1,by2); ctx.stroke();
+  // Arrow
+  ctx.strokeStyle='#8B4513'; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.moveTo(-22,-22); ctx.lineTo(16,-22); ctx.stroke();
+  ctx.fillStyle='#999';
+  ctx.beginPath(); ctx.moveTo(16,-22); ctx.lineTo(20,-19); ctx.lineTo(20,-25); ctx.fill();
+}
+
+// ── Mage ───────────────────────────────────────────────────
+function _drawMage(w, now) {
+  const ac=w.armorColor, sk=w.skinTone, cc=w.cloakColor;
+  ctx.fillStyle='rgba(0,0,0,0.3)'; ctx.beginPath(); ctx.ellipse(0,20,17,5,0,0,Math.PI*2); ctx.fill();
+  // Robe
+  ctx.fillStyle=ac;
+  ctx.beginPath(); ctx.moveTo(-13,-44); ctx.lineTo(13,-44); ctx.lineTo(17,20); ctx.lineTo(-17,20); ctx.closePath(); ctx.fill();
+  // Robe trim
+  ctx.strokeStyle='rgba(255,220,100,0.5)'; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.moveTo(-13,-44); ctx.lineTo(-17,20); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(13,-44);  ctx.lineTo(17,20);  ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(-17,20);  ctx.lineTo(17,20);  ctx.stroke();
+  // Cloak
+  if (w.hasCloak) { ctx.fillStyle=cc; ctx.globalAlpha*=0.75; ctx.beginPath(); ctx.moveTo(-11,-42); ctx.lineTo(-20,18); ctx.lineTo(0,26); ctx.lineTo(20,18); ctx.lineTo(11,-42); ctx.fill(); ctx.globalAlpha=ctx.globalAlpha/0.75; }
+  // Arms
+  ctx.strokeStyle=ac; ctx.lineWidth=5;
+  ctx.beginPath(); ctx.moveTo(-11,-36); ctx.lineTo(-18,-24); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(11,-36);  ctx.lineTo(20,-26); ctx.stroke();
+  // Head
+  ctx.beginPath(); ctx.arc(0,-56,11,0,Math.PI*2); ctx.fillStyle=sk; ctx.fill();
+  // Hair
+  ctx.fillStyle=w.hairColor;
+  ctx.beginPath(); ctx.arc(0,-58,11,Math.PI,0); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(-11,-58); ctx.lineTo(-14,-42); ctx.lineTo(-8,-46); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(11,-58);  ctx.lineTo(14,-42); ctx.lineTo(8,-46);   ctx.fill();
+  // Mage hat
+  ctx.fillStyle=ac;
+  ctx.beginPath(); ctx.moveTo(-15,-62); ctx.lineTo(15,-62); ctx.lineTo(8,-88); ctx.lineTo(-8,-88); ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(0,-62,17,5,0,0,Math.PI*2); ctx.fill();
+  ctx.strokeStyle='rgba(255,220,100,0.4)'; ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.ellipse(0,-62,17,5,0,0,Math.PI*2); ctx.stroke();
+  // Staff
+  ctx.strokeStyle='#8B6914'; ctx.lineWidth=4;
+  ctx.beginPath(); ctx.moveTo(20,-26); ctx.lineTo(25,22); ctx.stroke();
+  // Crystal orb (animated glow)
+  const ot = now/500, hue = (w.id*55+ot*40)%360;
+  ctx.save();
+  ctx.shadowColor = `hsl(${hue},90%,60%)`; ctx.shadowBlur = 12;
+  ctx.fillStyle = `hsl(${hue},80%,60%)`;
+  ctx.beginPath(); ctx.arc(20,-30,8,0,Math.PI*2); ctx.fill();
+  ctx.shadowBlur=0;
+  ctx.fillStyle='rgba(255,255,255,0.55)';
+  ctx.beginPath(); ctx.arc(17,-33,3,0,Math.PI*2); ctx.fill();
+  ctx.restore();
+}
+
+// ── Helmet styles ──────────────────────────────────────────
+function _drawHelmet(style, color, cx, cy, r) {
+  ctx.fillStyle = color;
+  switch (style % 4) {
+    case 0: // Full helm
+      ctx.beginPath(); ctx.arc(cx,cy,r+2,Math.PI,0); ctx.fill();
+      ctx.fillRect(cx-r-2,cy-2,(r+2)*2,5);
+      ctx.fillStyle='rgba(0,0,0,0.3)'; ctx.fillRect(cx-4,cy-r,8,r*0.7); // visor slit
+      break;
+    case 1: // Nasal helm
+      ctx.beginPath(); ctx.arc(cx,cy,r+1.5,Math.PI,0); ctx.fill();
+      ctx.fillStyle='#AAA'; ctx.fillRect(cx-2.5,cy-r-1,5,r+5);
+      break;
+    case 2: // Horned helm
+      ctx.beginPath(); ctx.arc(cx,cy,r+2,Math.PI,0); ctx.fill();
+      ctx.fillRect(cx-r-2,cy,r*2+4,3);
+      ctx.fillStyle='#CCC';
+      ctx.beginPath(); ctx.moveTo(cx-r-1,cy); ctx.lineTo(cx-r-12,cy-r-10); ctx.lineTo(cx-r+4,cy); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(cx+r+1,cy); ctx.lineTo(cx+r+12,cy-r-10); ctx.lineTo(cx+r-4,cy); ctx.fill();
+      break;
+    case 3: // Crown / tiara
+      ctx.fillRect(cx-r,cy-r,r*2,r*0.65);
+      ctx.fillStyle='#FFD700';
+      for (let i=0;i<5;i++) {
+        const px=cx-r+(i/4)*r*2;
+        ctx.fillRect(px-2.5, cy-r-(i%2===0?10:6), 5, (i%2===0?10:6));
+      }
+      // Gems
+      ctx.fillStyle='#FF3366';
+      ctx.beginPath(); ctx.arc(cx,cy-r-7,2.5,0,Math.PI*2); ctx.fill();
+      break;
+  }
+}
+
+// ── HUD ────────────────────────────────────────────────────
+function drawHUD() {
+  // Top bar
+  ctx.fillStyle='rgba(0,0,0,0.78)'; ctx.fillRect(0,0,CW,72);
+
+  ctx.fillStyle='#FFD700'; ctx.font='bold 22px Arial Black'; ctx.textAlign='center';
+  ctx.strokeStyle='rgba(0,0,0,0.7)'; ctx.lineWidth=3;
+  ctx.strokeText('⚔️  ARENA  BATTLE  ⚔️', CW/2, 26);
+  ctx.fillText('⚔️  ARENA  BATTLE  ⚔️', CW/2, 26);
+
+  // Like bar
+  const pct=Math.min(1,totalLikes/1000), bw=230, bx=CW/2-bw/2, by=34;
+  ctx.fillStyle='#1a000a'; ctx.fillRect(bx,by,bw,13);
+  const lg=ctx.createLinearGradient(bx,0,bx+bw,0);
+  lg.addColorStop(0,'#FF2266'); lg.addColorStop(1,'#FF8833');
+  ctx.fillStyle=lg; ctx.fillRect(bx,by,bw*pct,13);
+  ctx.strokeStyle='#551122'; ctx.lineWidth=1; ctx.strokeRect(bx,by,bw,13);
+  ctx.fillStyle='#FFD0EE'; ctx.font='bold 12px Arial'; ctx.textAlign='center';
+  ctx.fillText(`❤️ ${Math.floor(totalLikes)} / 1000  →  ☄️ ARMAGEDDON`, CW/2, 61);
+
+  // Bottom bar
+  ctx.fillStyle='rgba(0,0,0,0.65)'; ctx.fillRect(0,CH-38,CW,38);
+  const alive = warriors.filter(w=>!w.dead).length;
+  ctx.fillStyle='#FFD700'; ctx.font='bold 15px Arial'; ctx.textAlign='center';
+  ctx.fillText(`Warriors: ${alive} / ${MAX_WARRIORS}   •   type "help" to buff your warrior`, CW/2, CH-12);
+}
+
+function drawEventLabel() {
+  const a = Math.min(1, eventLabelTimer/600);
+  ctx.save(); ctx.globalAlpha=a;
+  ctx.font='bold 50px Arial Black'; ctx.textAlign='center';
+  ctx.shadowColor='#FF4400'; ctx.shadowBlur=28;
+  ctx.strokeStyle='#000'; ctx.lineWidth=5;
+  ctx.strokeText(eventLabel, CW/2, CH/2-30);
+  ctx.fillStyle='#FF8800'; ctx.fillText(eventLabel, CW/2, CH/2-30);
+  ctx.shadowBlur=0; ctx.restore();
+}
+
+// ═══════════════════════════════════════════════════
+// GAME LOOP
+// ═══════════════════════════════════════════════════
+let lastT = 0;
+function gameLoop(now) {
+  requestAnimationFrame(gameLoop);
+  const dt = Math.min(now - (lastT||now), 100);
+  lastT = now;
+  updateWarriors(dt);
+  updateParticles(dt);
+  updateArmageddon(dt);
+  if (eventLabelTimer > 0) eventLabelTimer -= dt;
+  draw(now);
+}
+requestAnimationFrame(gameLoop);
+
+// ═══════════════════════════════════════════════════
+// WEBSOCKET
+// ═══════════════════════════════════════════════════
+let _ws=null, _wsUser='';
+function wsConnect(username) {
+  _wsUser=username;
+  if (_ws && _ws.readyState<2) { _ws.onclose=null; _ws.close(); }
+  const proto=location.protocol==='https:'?'wss:':'ws:';
+  _ws=new WebSocket(`${proto}//${location.host}?username=${encodeURIComponent(username)}`);
+  _ws.onopen=()=>setStatus('connecting','⏳ @'+username+'…');
+  _ws.onmessage=(e)=>{
+    try {
+      const d=JSON.parse(e.data);
+      if (d.type==='arena_gift') addWarrior(d.username, d.coins);
+      if (d.type==='arena_like') {
+        totalLikes+=d.likes||0;
+        if (totalLikes>=1000) { totalLikes-=1000; triggerArmageddon(); }
+      }
+      if (d.type==='arena_chat') helpWarrior(d.username);
+      if (d.type==='init'||d.type==='status') {
+        if (d.mode==='tiktok') setStatus('live','🔴 LIVE @'+(d.username||username));
+        else if (d.mode==='demo') setStatus('demo','🟡 DEMO MODE');
+        else setStatus('connecting','⏳ @'+username+'…');
+      }
+    } catch(e) {}
+  };
+  _ws.onclose=()=>{ setStatus('error','❌ Disconnected…'); setTimeout(()=>wsConnect(_wsUser),3000); };
+  _ws.onerror=()=>{};
+}
+function setStatus(cls,text) { const el=document.getElementById('statusBadge'); if(!el)return; el.style.display='block'; el.className=cls; el.textContent=text; }
+
+// ═══════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════
+(function init() {
+  const p=new URLSearchParams(location.search);
+  const u=(p.get('username')||'').replace(/^@/,'').trim();
+  if (u) wsConnect(u);
+  document.addEventListener('click',    ()=>{try{getACtx();}catch(e){}},{once:true});
+  document.addEventListener('touchstart',()=>{try{getACtx();}catch(e){}},{once:true});
+})();
+
+// ═══════════════════════════════════════════════════
+// SCALE / PINCH-TO-ZOOM
+// ═══════════════════════════════════════════════════
+(function scaleSetup() {
+  var W=document.getElementById('scaleWrapper'), ps=1, po={x:0,y:0};
+  function apply() {
+    var w=document.documentElement.clientWidth||window.innerWidth, h=document.documentElement.clientHeight||window.innerHeight;
+    var bs=Math.min(w/600,h/1000), ts=bs*ps, cx=(w-600*ts)/2+po.x, cy=(h-1000*ts)/2+po.y;
+    W.style.transform='translate('+cx+'px,'+cy+'px) scale('+ts+')';
+  }
+  window.addEventListener('resize',apply);
+  window.addEventListener('orientationchange',()=>setTimeout(apply,300));
+  apply();
+  var ld=0,lm={x:0,y:0},drag=false,ds={x:0,y:0};
+  function td(a,b){var dx=a.clientX-b.clientX,dy=a.clientY-b.clientY;return Math.sqrt(dx*dx+dy*dy);}
+  function tm(a,b){return{x:(a.clientX+b.clientX)/2,y:(a.clientY+b.clientY)/2};}
+  document.addEventListener('touchstart',function(e){
+    if(e.touches.length===2){ld=td(e.touches[0],e.touches[1]);lm=tm(e.touches[0],e.touches[1]);drag=false;}
+    else if(e.touches.length===1&&ps>1.05){drag=true;ds={x:e.touches[0].clientX-po.x,y:e.touches[0].clientY-po.y};}
+  },{passive:true});
+  document.addEventListener('touchmove',function(e){
+    if(e.touches.length===2){drag=false;var d=td(e.touches[0],e.touches[1]),m=tm(e.touches[0],e.touches[1]);ps=Math.min(3,Math.max(0.5,ps*(d/ld)));po.x+=(m.x-lm.x);po.y+=(m.y-lm.y);ld=d;lm=m;apply();}
+    else if(e.touches.length===1&&drag){po.x=e.touches[0].clientX-ds.x;po.y=e.touches[0].clientY-ds.y;apply();}
+  },{passive:true});
+  document.addEventListener('touchend',function(e){if(e.touches.length===0)drag=false;},{passive:true});
+})();
+
+document.getElementById('fsBtn').addEventListener('click',()=>{
+  if(document.fullscreenElement)document.exitFullscreen&&document.exitFullscreen();
+  else document.documentElement.requestFullscreen&&document.documentElement.requestFullscreen().then(()=>{if(screen.orientation&&screen.orientation.lock)screen.orientation.lock('portrait').catch(()=>{});}).catch(()=>{});
+});
+document.getElementById('backBtn').addEventListener('click',()=>{location.href='/';});
+</script>
+</body>
+</html>

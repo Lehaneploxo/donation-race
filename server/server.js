@@ -44,6 +44,11 @@ app.get('/war', (req, res) => {
   res.sendFile(path.join(__dirname, '../client/war.html'));
 });
 
+app.get('/arena', (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  res.sendFile(path.join(__dirname, '../client/arena.html'));
+});
+
 // ─── Rooms ───────────────────────────────────────────────────────────────────
 const rooms = new Map();
 
@@ -93,6 +98,9 @@ class Room {
           console.log(`[WarGift] ${data.username} → ${warUnit} for ${warTeam} (gift="${data.giftName}")`);
           this.broadcast({ type: 'war_gift', team: warTeam, unitType: warUnit, username: data.username });
         }
+
+        // Arena game: any gift spawns/upgrades warrior with coin value
+        this.broadcast({ type: 'arena_gift', username: data.username, coins: data.coins, giftName: data.giftName });
 
         // Проверяем цель — 1000 очков
         const racePoints = this.players.getTotalPoints();
@@ -156,6 +164,8 @@ class Room {
       (data) => {
         // War game: broadcast raw like count regardless of race state
         this.broadcast({ type: 'war_like', likes: data.likes || 0, username: data.username });
+        // Arena game: same likes data
+        this.broadcast({ type: 'arena_like', likes: data.likes || 0, username: data.username });
 
         if (this._raceEnded) return;
         this.players.addLikes(data.userId, data.username, data.avatarUrl, data.likes);
@@ -185,6 +195,11 @@ class Room {
         // War game: broadcast team command to all clients
         if (msg === 'blue' || msg === 'red') {
           this.broadcast({ type: 'war_chat', team: msg, username: data.username });
+        }
+
+        // Arena game: "help" command buffs warrior
+        if (msg === 'help') {
+          this.broadcast({ type: 'arena_chat', command: 'help', username: data.username });
         }
 
         // Race game: GO command
@@ -241,6 +256,8 @@ class Room {
       clearInterval(c._demoGoIv);
       clearInterval(c._demoWarIv);
       clearInterval(c._demoWarGiftIv);
+      clearInterval(c._demoArenaGiftIv);
+      clearInterval(c._demoArenaHelpIv);
     }
   }
 

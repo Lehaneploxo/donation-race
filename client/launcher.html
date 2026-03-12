@@ -62,6 +62,10 @@
       background-image: linear-gradient(135deg, #000818 0%, #0a0030 40%, #000818 100%);
       opacity: 1;
     }
+    .panel-arena::before {
+      background-image: linear-gradient(135deg, #080018 0%, #2a0050 40%, #080018 100%);
+      opacity: 1;
+    }
 
     .game-panel > * { position: relative; z-index: 1; }
 
@@ -74,6 +78,7 @@
     }
     .panel-race .panel-title  { color: #FFD700; text-shadow: 0 0 18px #FF6600; }
     .panel-war  .panel-title  { color: #88CCFF; text-shadow: 0 0 18px #0055FF; }
+    .panel-arena .panel-title { color: #DD88FF; text-shadow: 0 0 18px #8800FF; }
 
     .panel-sub {
       font-size: 14px;
@@ -126,6 +131,11 @@
       background: linear-gradient(90deg, #0033CC, #3388FF);
       color: #fff;
       box-shadow: 0 4px 20px rgba(0,100,255,0.4);
+    }
+    .panel-arena .btn-start {
+      background: linear-gradient(90deg, #6600CC, #BB44FF);
+      color: #fff;
+      box-shadow: 0 4px 20px rgba(130,0,255,0.4);
     }
 
     .btn-demo {
@@ -187,7 +197,7 @@
       body { overflow: hidden; }
       .games-wrap {
         flex-direction: row;
-        max-width: 900px;
+        max-width: 1200px;
         height: 100vh;
       }
       .game-panel {
@@ -195,7 +205,7 @@
         justify-content: center;
         border-bottom: none;
         border-right: 2px solid rgba(255,255,255,0.08);
-        padding: 48px 40px;
+        padding: 40px 32px;
       }
       .game-panel:last-child { border-right: none; }
       .divider { display: none; }
@@ -227,6 +237,7 @@
 
   <!-- ── BLUE vs RED WAR ── -->
   <div class="game-panel panel-war">
+
     <div class="panel-title">⚔️ BLUE vs RED WAR ⚔️</div>
     <div class="panel-sub">Пиши "blue" или "red" в чате</div>
 
@@ -242,24 +253,44 @@
     <div class="status-msg" id="warStatus">⏳ Открываю игру…</div>
   </div>
 
+  <div class="divider">— ИЛИ —</div>
+
+  <!-- ── ARENA BATTLE ── -->
+  <div class="game-panel panel-arena">
+    <div class="panel-title">⚔️ ARENA BATTLE ⚔️</div>
+    <div class="panel-sub">Донаты · лайки · пиши "help" в чате</div>
+
+    <input class="nick-input" id="arenaInput" type="text"
+           placeholder="@your_username"
+           autocomplete="off" autocorrect="off" spellcheck="false">
+
+    <div class="error-msg" id="arenaError">Введи никнейм TikTok</div>
+
+    <button class="btn-start" id="arenaStart">⚔️ START ARENA</button>
+    <button class="btn-demo"  id="arenaDemo">Демо-режим (без TikTok)</button>
+
+    <div class="status-msg" id="arenaStatus">⏳ Открываю игру…</div>
+  </div>
+
 </div>
 
 <div class="stripe"></div>
 
 <script>
-  // Prefill saved nick into both inputs
+  // Prefill saved nick into all inputs
   const saved = localStorage.getItem('tiktok_username') || '';
-  document.getElementById('raceInput').value = saved;
-  document.getElementById('warInput').value  = saved;
+  document.getElementById('raceInput').value  = saved;
+  document.getElementById('warInput').value   = saved;
+  document.getElementById('arenaInput').value = saved;
 
-  // Sync both inputs when typing
-  document.getElementById('raceInput').addEventListener('input', function() {
-    if (this.value.startsWith('@')) this.value = this.value.slice(1);
-    document.getElementById('warInput').value = this.value;
-  });
-  document.getElementById('warInput').addEventListener('input', function() {
-    if (this.value.startsWith('@')) this.value = this.value.slice(1);
-    document.getElementById('raceInput').value = this.value;
+  // Sync all inputs when typing
+  ['raceInput','warInput','arenaInput'].forEach(id => {
+    document.getElementById(id).addEventListener('input', function() {
+      if (this.value.startsWith('@')) this.value = this.value.slice(1);
+      ['raceInput','warInput','arenaInput'].forEach(oid => {
+        if (oid !== id) document.getElementById(oid).value = this.value;
+      });
+    });
   });
 
   function go(username, path, statusId, startId, demoId) {
@@ -300,6 +331,15 @@
     go('demo', '/war', 'warStatus', 'warStart', 'warDemo'));
   document.getElementById('warInput').addEventListener('keydown', e => {
     if (e.key === 'Enter') document.getElementById('warStart').click();
+  });
+
+  // Arena
+  document.getElementById('arenaStart').addEventListener('click', () =>
+    handleClick('arenaInput','arenaError','arenaStatus','arenaStart','arenaDemo','/arena'));
+  document.getElementById('arenaDemo').addEventListener('click', () =>
+    go('demo', '/arena', 'arenaStatus', 'arenaStart', 'arenaDemo'));
+  document.getElementById('arenaInput').addEventListener('keydown', e => {
+    if (e.key === 'Enter') document.getElementById('arenaStart').click();
   });
 </script>
 

@@ -80,7 +80,7 @@ function connectToTikTok(username, onGift, onStatus, onMember, onLike, onChat) {
   conn.on('chat', data => {
     if (!onChat) return;
     const msg = (data.comment || '').trim().toLowerCase();
-    if (msg === 'go' || msg === 'blue' || msg === 'red') {
+    if (msg === 'go' || msg === 'blue' || msg === 'red' || msg === 'help') {
       console.log(`[Chat ${msg.toUpperCase()}] ` + (data.nickname || data.uniqueId));
       onChat({
         userId:    String(data.userId),
@@ -141,6 +141,21 @@ function _startDemo(onGift, conn, onLike, onChat) {
     if (onChat) onChat({ userId: u.id, username: u.name, avatarUrl: '', message: team });
   }, 2500);
 
+  // Demo arena gifts — various viewers with various coin amounts every 6s
+  const arenaGiftNames = ['Rose','Finger Heart','TikTok','Ice Cream','Galaxy'];
+  const arenaGiftIv = setInterval(() => {
+    const u = DEMO_USERS[Math.floor(Math.random() * DEMO_USERS.length)];
+    const coins = [1,1,5,10,25,50,100][Math.floor(Math.random()*7)];
+    const giftName = arenaGiftNames[Math.floor(Math.random()*arenaGiftNames.length)];
+    onGift({ userId: u.id, username: u.name, avatarUrl: '', giftName, coins });
+  }, 6000);
+
+  // Demo arena help — random warrior writes "help" every 12s
+  const arenaHelpIv = setInterval(() => {
+    const u = DEMO_USERS[Math.floor(Math.random() * DEMO_USERS.length)];
+    if (onChat) onChat({ userId: u.id, username: u.name, avatarUrl: '', message: 'help' });
+  }, 12000);
+
   // Demo war gifts — TikTok/Rose/Crown/Heart every ~18s
   const warGiftNames = ['TikTok', 'Rose', 'Crown', 'Heart Me'];
   const warGiftIv = setInterval(() => {
@@ -152,11 +167,13 @@ function _startDemo(onGift, conn, onLike, onChat) {
   }, 18000);
 
   // Attach cleanup to the connection object so the room can clear it
-  conn._demoInterval   = iv;
-  conn._demoTornadoIv  = tornadoIv;
-  conn._demoGoIv       = goIv;
-  conn._demoWarIv      = warIv;
-  conn._demoWarGiftIv  = warGiftIv;
+  conn._demoInterval    = iv;
+  conn._demoTornadoIv   = tornadoIv;
+  conn._demoGoIv        = goIv;
+  conn._demoWarIv       = warIv;
+  conn._demoWarGiftIv   = warGiftIv;
+  conn._demoArenaGiftIv = arenaGiftIv;
+  conn._demoArenaHelpIv = arenaHelpIv;
 }
 
 module.exports = { connectToTikTok };
