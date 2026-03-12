@@ -261,45 +261,45 @@ function updateWarriors(dt){
     w.attackAnim=Math.max(0,w.attackAnim-dt/280);
     w.hitAnim   =Math.max(0,w.hitAnim-dt/220);
 
-    // --- Chase nearest enemy ---
-    const enemy = findNearestEnemy(w);
-    if(enemy && !victoryState){
-      const dex=enemy.ax-w.ax, dey=enemy.ay-w.ay;
-      const screenDist = Math.sqrt(dex*dex*(ARENA_RX*ARENA_RX) + dey*dey*(ARENA_RY*ARENA_RY));
-      if(screenDist > 55){
-        // Move toward enemy (fast chase)
-        const len=Math.sqrt(dex*dex+dey*dey)+0.001;
-        const spd=0.28*dt/1000;
-        w.ax+=dex/len*spd; w.ay+=dey/len*spd;
-        w.chasing=true;
-      } else {
-        w.chasing=false;
-        // --- Attack when close ---
-        w.attackTimer+=dt;
-        if(w.attackTimer>=w.attackCooldown){
+    // --- Random walk ---
+    const spd=0.18*dt/1000;
+    const dax=w.tax-w.ax, day=w.tay-w.ay, dist=Math.sqrt(dax*dax+day*day);
+    if(dist>0.025){ w.ax+=dax/dist*spd; w.ay+=day/dist*spd; }
+    if(dist<0.04||w.walkTimer>w.walkDelay){
+      w.walkTimer=0; w.walkDelay=2000+Math.random()*2500;
+      const p=rndArenaPos(); w.tax=p.ax; w.tay=p.ay;
+    }
+
+    // --- Fight if enemy is nearby (no chasing) ---
+    if(!victoryState){
+      w.attackTimer+=dt;
+      if(w.attackTimer>=w.attackCooldown){
+        // Look for any enemy within fight range
+        let closeEnemy=null, closeDist=Infinity;
+        for(const o of warriors){
+          if(o===w||o.dead||o.username===w.username) continue;
+          const sp=arenaToScreen(w.ax,w.ay), ep=arenaToScreen(o.ax,o.ay);
+          const dx=ep.x-sp.x, dy=ep.y-sp.y, d=dx*dx+dy*dy;
+          if(d<closeDist){closeDist=d;closeEnemy=o;}
+        }
+        // Only attack if within ~90px on screen
+        if(closeEnemy && closeDist < 90*90){
           w.attackTimer=0; w.attackCooldown=1000+Math.random()*900;
           const dmg=Math.max(1,w.damage);
-          enemy.hp-=dmg;
-          enemy.flashTimer=380; enemy.hitAnim=1;
+          closeEnemy.hp-=dmg;
+          closeEnemy.flashTimer=380; closeEnemy.hitAnim=1;
           w.attackAnim=1;
-          const ep=arenaToScreen(enemy.ax,enemy.ay);
-          spawnDmgNum(ep.x, ep.y-65, -dmg, '#FF3333');
-          spawnHitFX(enemy);
-          spawnSlashFX(w, enemy);
+          const ep=arenaToScreen(closeEnemy.ax,closeEnemy.ay);
+          spawnDmgNum(ep.x,ep.y-65,-dmg,'#FF3333');
+          spawnHitFX(closeEnemy);
+          spawnSlashFX(w,closeEnemy);
           playHit();
-          if(enemy.hp<=0){ enemy.hp=0; enemy.dead=true; enemy.deathTimer=700; spawnDeathFX(enemy); playRemove(); }
+          if(closeEnemy.hp<=0){closeEnemy.hp=0;closeEnemy.dead=true;closeEnemy.deathTimer=700;spawnDeathFX(closeEnemy);playRemove();}
           checkVictory();
+        } else {
+          // No enemy close — reset timer so we check again soon
+          w.attackTimer=w.attackCooldown*0.7;
         }
-      }
-    } else {
-      w.chasing=false;
-      // Wander randomly when no enemy
-      const spd=0.16*dt/1000;
-      const dax=w.tax-w.ax, day=w.tay-w.ay, dist=Math.sqrt(dax*dax+day*day);
-      if(dist>0.025){ w.ax+=dax/dist*spd; w.ay+=day/dist*spd; }
-      if(dist<0.04||w.walkTimer>w.walkDelay){
-        w.walkTimer=0; w.walkDelay=2200+Math.random()*2500;
-        const p=rndArenaPos(); w.tax=p.ax; w.tay=p.ay;
       }
     }
 
