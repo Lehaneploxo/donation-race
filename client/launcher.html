@@ -7,442 +7,301 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <link rel="manifest" href="/manifest.json">
-  <title>Гонка Донатов — Запуск</title>
+  <title>Выбери игру</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
     body {
-      background: #0a0a1a;
+      background: #000;
       color: #fff;
-      font-family: 'Segoe UI', sans-serif;
+      font-family: 'Arial Black', 'Arial', sans-serif;
       min-height: 100vh;
       display: flex;
+      flex-direction: column;
       align-items: center;
       justify-content: center;
-      overflow: hidden;
+      gap: 0;
+      overflow-y: auto;
     }
 
-    /* Анимированный фон */
-    body::before {
-      content: '';
-      position: fixed;
-      inset: 0;
-      background:
-        radial-gradient(ellipse at 20% 50%, rgba(99,102,241,0.15) 0%, transparent 60%),
-        radial-gradient(ellipse at 80% 50%, rgba(236,72,153,0.15) 0%, transparent 60%);
-      pointer-events: none;
-    }
-
-    .card {
-      background: rgba(255,255,255,0.05);
-      border: 1px solid rgba(255,255,255,0.1);
-      border-radius: 24px;
-      padding: 40px 40px;
-      max-width: 480px;
-      width: 92%;
-      backdrop-filter: blur(20px);
-      box-shadow: 0 40px 80px rgba(0,0,0,0.5);
-      animation: fadeIn 0.4s ease;
-    }
-
-    @media (max-width: 480px) {
-      .card { padding: 28px 20px; border-radius: 16px; }
-      .logo .icon { font-size: 42px; }
-      .logo h1 { font-size: 20px; }
-      input[type="text"] { font-size: 16px; padding: 14px 16px 14px 38px; }
-      .btn { font-size: 15px; padding: 14px; }
-    }
-
-    @keyframes fadeIn {
-      from { opacity: 0; transform: translateY(20px); }
-      to   { opacity: 1; transform: translateY(0); }
-    }
-
-    .logo {
-      text-align: center;
-      margin-bottom: 36px;
-    }
-
-    .logo .icon {
-      font-size: 56px;
-      line-height: 1;
-      margin-bottom: 12px;
-    }
-
-    .logo h1 {
-      font-size: 26px;
-      font-weight: 700;
-      background: linear-gradient(135deg, #818cf8, #e879f9);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-    }
-
-    .logo p {
-      color: rgba(255,255,255,0.45);
-      font-size: 13px;
-      margin-top: 6px;
-    }
-
-    label {
-      display: block;
-      font-size: 13px;
-      font-weight: 600;
-      color: rgba(255,255,255,0.6);
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      margin-bottom: 10px;
-    }
-
-    .input-wrap {
-      position: relative;
-      margin-bottom: 16px;
-    }
-
-    .input-wrap .at {
-      position: absolute;
-      left: 18px;
-      top: 50%;
-      transform: translateY(-50%);
-      font-size: 20px;
-      color: rgba(255,255,255,0.3);
-      pointer-events: none;
-      font-weight: 600;
-    }
-
-    input[type="text"] {
-      width: 100%;
-      background: rgba(255,255,255,0.07);
-      border: 1.5px solid rgba(255,255,255,0.12);
-      border-radius: 14px;
-      padding: 16px 18px 16px 40px;
-      font-size: 18px;
-      color: #fff;
-      font-weight: 500;
-      transition: border-color 0.2s, background 0.2s;
-      outline: none;
-    }
-
-    input[type="text"]::placeholder {
-      color: rgba(255,255,255,0.2);
-    }
-
-    input[type="text"]:focus {
-      border-color: rgba(129,140,248,0.7);
-      background: rgba(255,255,255,0.09);
-    }
-
-    .hint {
-      font-size: 12px;
-      color: rgba(255,255,255,0.3);
-      margin-bottom: 28px;
-      padding-left: 4px;
-    }
-
-    .btn-group {
+    /* ── Two game panels ── */
+    .games-wrap {
       display: flex;
       flex-direction: column;
-      gap: 12px;
-    }
-
-    .btn {
       width: 100%;
-      padding: 16px;
-      border-radius: 14px;
-      font-size: 16px;
-      font-weight: 700;
-      cursor: pointer;
-      border: none;
-      transition: all 0.2s;
-      letter-spacing: 0.02em;
+      max-width: 500px;
     }
 
-    .btn-connect {
-      background: linear-gradient(135deg, #6366f1, #ec4899);
+    .game-panel {
+      position: relative;
+      width: 100%;
+      padding: 36px 32px 32px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 14px;
+      border-bottom: 2px solid rgba(255,255,255,0.08);
+    }
+
+    /* Background canvas preview per panel */
+    .game-panel::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      opacity: 0.18;
+      background-size: cover;
+      background-position: center;
+      pointer-events: none;
+      z-index: 0;
+    }
+    .panel-race::before {
+      background-image: linear-gradient(135deg, #1a0a00 0%, #3d2200 40%, #1a0a00 100%);
+      opacity: 1;
+    }
+    .panel-war::before {
+      background-image: linear-gradient(135deg, #000818 0%, #0a0030 40%, #000818 100%);
+      opacity: 1;
+    }
+
+    .game-panel > * { position: relative; z-index: 1; }
+
+    /* Title */
+    .panel-title {
+      font-size: 28px;
+      font-weight: 900;
+      text-align: center;
+      letter-spacing: 2px;
+    }
+    .panel-race .panel-title  { color: #FFD700; text-shadow: 0 0 18px #FF6600; }
+    .panel-war  .panel-title  { color: #88CCFF; text-shadow: 0 0 18px #0055FF; }
+
+    .panel-sub {
+      font-size: 14px;
+      color: rgba(255,255,255,0.45);
+      text-align: center;
+      font-family: 'Segoe UI', sans-serif;
+      font-weight: normal;
+      margin-top: -6px;
+    }
+
+    /* Input */
+    .nick-input {
+      font-size: 20px;
+      padding: 12px 18px;
+      border-radius: 10px;
+      border: 2px solid rgba(255,255,255,0.25);
+      background: rgba(0,0,0,0.6);
       color: #fff;
-      box-shadow: 0 4px 24px rgba(99,102,241,0.4);
+      text-align: center;
+      width: 100%;
+      outline: none;
+      font-family: 'Arial', sans-serif;
+      transition: border-color 0.2s;
     }
+    .nick-input::placeholder { color: rgba(255,255,255,0.3); }
+    .panel-race .nick-input:focus { border-color: #FFD700; }
+    .panel-war  .nick-input:focus { border-color: #4488FF; }
 
-    .btn-connect:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 8px 32px rgba(99,102,241,0.5);
+    /* Buttons */
+    .btn-start {
+      width: 100%;
+      font-size: 18px;
+      font-weight: 900;
+      padding: 14px;
+      border-radius: 10px;
+      border: none;
+      cursor: pointer;
+      letter-spacing: 1px;
+      transition: transform 0.1s, box-shadow 0.1s;
     }
+    .btn-start:hover { transform: scale(1.03); }
+    .btn-start:active { transform: scale(0.98); }
 
-    .btn-connect:active { transform: translateY(0); }
+    .panel-race .btn-start {
+      background: linear-gradient(90deg, #FF6600, #FFD700);
+      color: #000;
+      box-shadow: 0 4px 20px rgba(255,140,0,0.4);
+    }
+    .panel-war .btn-start {
+      background: linear-gradient(90deg, #0033CC, #3388FF);
+      color: #fff;
+      box-shadow: 0 4px 20px rgba(0,100,255,0.4);
+    }
 
     .btn-demo {
-      background: rgba(255,255,255,0.07);
-      border: 1.5px solid rgba(255,255,255,0.1);
-      color: rgba(255,255,255,0.6);
-    }
-
-    .btn-demo:hover {
-      background: rgba(255,255,255,0.11);
-      color: #fff;
-      border-color: rgba(255,255,255,0.2);
-    }
-
-    .mode-toggle {
-      display: flex;
-      gap: 8px;
-      margin-bottom: 20px;
-    }
-
-    .mode-btn {
-      flex: 1;
-      padding: 10px;
-      border-radius: 10px;
       font-size: 13px;
-      font-weight: 600;
+      color: rgba(255,255,255,0.35);
+      background: none;
+      border: none;
       cursor: pointer;
-      border: 1.5px solid rgba(255,255,255,0.15);
-      background: rgba(255,255,255,0.05);
-      color: rgba(255,255,255,0.5);
-      transition: all 0.2s;
+      text-decoration: underline;
+      font-family: 'Segoe UI', sans-serif;
     }
+    .btn-demo:hover { color: rgba(255,255,255,0.65); }
 
-    .mode-btn.active {
-      border-color: #818cf8;
-      background: rgba(129,140,248,0.2);
-      color: #fff;
-    }
-
-    .error {
+    /* Error */
+    .error-msg {
       display: none;
-      background: rgba(239,68,68,0.15);
-      border: 1px solid rgba(239,68,68,0.3);
-      border-radius: 10px;
-      padding: 10px 14px;
       font-size: 13px;
-      color: #fca5a5;
-      margin-bottom: 14px;
+      color: #FF6666;
       text-align: center;
+      font-family: 'Segoe UI', sans-serif;
     }
 
-    .status {
+    /* Status */
+    .status-msg {
       display: none;
-      text-align: center;
-      padding-top: 8px;
       font-size: 13px;
       color: rgba(255,255,255,0.4);
-    }
-
-    .status .dot {
-      display: inline-block;
-      width: 8px; height: 8px;
-      background: #22c55e;
-      border-radius: 50%;
-      margin-right: 6px;
-      animation: pulse 1.2s infinite;
-    }
-
-    @keyframes pulse {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.3; }
-    }
-
-    /* Дорожка снизу */
-    .road {
-      position: fixed;
-      bottom: 0;
-      left: 0; right: 0;
-      height: 6px;
-      background: linear-gradient(90deg, #6366f1, #ec4899, #6366f1);
-      background-size: 200%;
-      animation: road 3s linear infinite;
-    }
-
-    @keyframes road {
-      from { background-position: 0%; }
-      to   { background-position: 200%; }
-    }
-
-    /* Game selection cards */
-    .game-select {
-      display: flex;
-      gap: 12px;
-      margin-bottom: 20px;
-    }
-
-    .game-card {
-      flex: 1;
-      background: rgba(255,255,255,0.05);
-      border: 2px solid rgba(255,255,255,0.1);
-      border-radius: 14px;
-      padding: 14px 10px;
-      cursor: pointer;
       text-align: center;
-      transition: all 0.2s;
-      color: rgba(255,255,255,0.55);
-      font-size: 13px;
-      font-weight: 600;
+      font-family: 'Segoe UI', sans-serif;
     }
 
-    .game-card:hover {
-      background: rgba(255,255,255,0.1);
-      color: #fff;
-      border-color: rgba(255,255,255,0.25);
+    /* Divider label between panels */
+    .divider {
+      width: 100%;
+      max-width: 500px;
+      text-align: center;
+      font-size: 11px;
+      color: rgba(255,255,255,0.2);
+      padding: 6px 0;
+      letter-spacing: 3px;
+      font-family: 'Segoe UI', sans-serif;
     }
 
-    .game-card.active {
-      border-color: #818cf8;
-      background: rgba(129,140,248,0.18);
-      color: #fff;
+    /* Animated bottom stripe */
+    .stripe {
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      height: 4px;
+      background: linear-gradient(90deg, #FF6600, #FFD700, #4488FF, #FF6600);
+      background-size: 300%;
+      animation: stripe 4s linear infinite;
+    }
+    @keyframes stripe {
+      from { background-position: 0%; }
+      to   { background-position: 300%; }
     }
 
-    .game-card.active.war {
-      border-color: #f87171;
-      background: rgba(248,113,113,0.18);
+    @media (min-width: 700px) {
+      body { overflow: hidden; }
+      .games-wrap {
+        flex-direction: row;
+        max-width: 900px;
+        height: 100vh;
+      }
+      .game-panel {
+        flex: 1;
+        justify-content: center;
+        border-bottom: none;
+        border-right: 2px solid rgba(255,255,255,0.08);
+        padding: 48px 40px;
+      }
+      .game-panel:last-child { border-right: none; }
+      .divider { display: none; }
     }
-
-    .game-card .card-icon { font-size: 36px; display: block; margin-bottom: 6px; }
-    .game-card .card-name { font-size: 14px; font-weight: 700; display: block; }
-    .game-card small { font-size: 11px; color: rgba(255,255,255,0.35); display: block; margin-top: 3px; }
   </style>
 </head>
 <body>
-  <div class="card">
-    <div class="logo">
-      <div class="icon" id="logoIcon">🏎️</div>
-      <h1 id="logoTitle">Гонка Донатов</h1>
-      <p>TikTok Live — введи никнейм стримера</p>
-    </div>
 
-    <label>Выбери игру</label>
-    <div class="game-select">
-      <div class="game-card active" id="cardRace">
-        <span class="card-icon">🏎️</span>
-        <span class="card-name">Гонка Донатов</span>
-        <small>лайки · подарки · GO в чате</small>
-      </div>
-      <div class="game-card war" id="cardWar">
-        <span class="card-icon">⚔️</span>
-        <span class="card-name">Blue vs Red War</span>
-        <small>пиши "blue" или "red" в чате</small>
-      </div>
-    </div>
+<div class="games-wrap">
 
-    <label for="username">TikTok аккаунт</label>
-    <div class="input-wrap">
-      <span class="at">@</span>
-      <input
-        type="text"
-        id="username"
-        placeholder="nickname"
-        autocomplete="off"
-        autocorrect="off"
-        spellcheck="false"
-      >
-    </div>
-    <div class="hint">Стример должен быть онлайн в TikTok Live</div>
+  <!-- ── STREET RACE ── -->
+  <div class="game-panel panel-race">
+    <div class="panel-title">🏁 STREET RACE! 🏁</div>
+    <div class="panel-sub">Лайки · подарки · пиши GO в чате</div>
 
-    <div class="mode-toggle">
-      <button class="mode-btn active" id="modeHigh">🖥️ Полная графика<br><small>iPhone / ПК</small></button>
-      <button class="mode-btn" id="modeLite">📱 Лёгкая версия<br><small>Android / слабые устройства</small></button>
-    </div>
+    <input class="nick-input" id="raceInput" type="text"
+           placeholder="@your_username"
+           autocomplete="off" autocorrect="off" spellcheck="false">
 
-    <div class="error" id="error">Введи никнейм TikTok</div>
+    <div class="error-msg" id="raceError">Введи никнейм TikTok</div>
 
-    <div class="btn-group">
-      <button class="btn btn-connect" id="btnConnect">Подключиться к TikTok Live</button>
-      <button class="btn btn-demo" id="btnDemo">Демо-режим (без TikTok)</button>
-    </div>
-    <div id="selectedGameLabel" style="text-align:center;margin-top:10px;font-size:12px;color:rgba(255,255,255,0.3);">
-      Выбрана игра: <span id="gameNameLabel">🏎️ Гонка Донатов</span>
-    </div>
+    <button class="btn-start" id="raceStart">▶ START</button>
+    <button class="btn-demo"  id="raceDemo">Демо-режим (без TikTok)</button>
 
-    <div class="status" id="status">
-      <span class="dot"></span>Открываю игру…
-    </div>
+    <div class="status-msg" id="raceStatus">⏳ Открываю игру…</div>
   </div>
 
-  <div class="road"></div>
+  <div class="divider">— ИЛИ —</div>
 
-  <script>
-    const input    = document.getElementById('username');
-    const btnConn  = document.getElementById('btnConnect');
-    const btnDemo  = document.getElementById('btnDemo');
-    const errorEl  = document.getElementById('error');
-    const statusEl = document.getElementById('status');
-    const modeHigh = document.getElementById('modeHigh');
-    const modeLite = document.getElementById('modeLite');
-    const cardRace = document.getElementById('cardRace');
-    const cardWar  = document.getElementById('cardWar');
-    const gameNameLabel = document.getElementById('gameNameLabel');
-    const logoIcon = document.getElementById('logoIcon');
-    const logoTitle = document.getElementById('logoTitle');
+  <!-- ── BLUE vs RED WAR ── -->
+  <div class="game-panel panel-war">
+    <div class="panel-title">⚔️ BLUE vs RED WAR ⚔️</div>
+    <div class="panel-sub">Пиши "blue" или "red" в чате</div>
 
-    // ── Game selection ───────────────────────────────────────
-    let selectedGame = localStorage.getItem('selected_game') || 'race';
+    <input class="nick-input" id="warInput" type="text"
+           placeholder="@your_username"
+           autocomplete="off" autocorrect="off" spellcheck="false">
 
-    function updateGameCards() {
-      const isWar = selectedGame === 'war';
-      cardRace.classList.toggle('active', !isWar);
-      cardWar.classList.toggle('active',   isWar);
-      gameNameLabel.textContent = isWar ? '⚔️ Blue vs Red War' : '🏎️ Гонка Донатов';
-      logoIcon.textContent  = isWar ? '⚔️' : '🏎️';
-      logoTitle.textContent = isWar ? 'Blue vs Red War' : 'Гонка Донатов';
+    <div class="error-msg" id="warError">Введи никнейм TikTok</div>
+
+    <button class="btn-start" id="warStart">⚔️ START WAR</button>
+    <button class="btn-demo"  id="warDemo">Демо-режим (без TikTok)</button>
+
+    <div class="status-msg" id="warStatus">⏳ Открываю игру…</div>
+  </div>
+
+</div>
+
+<div class="stripe"></div>
+
+<script>
+  // Prefill saved nick into both inputs
+  const saved = localStorage.getItem('tiktok_username') || '';
+  document.getElementById('raceInput').value = saved;
+  document.getElementById('warInput').value  = saved;
+
+  // Sync both inputs when typing
+  document.getElementById('raceInput').addEventListener('input', function() {
+    if (this.value.startsWith('@')) this.value = this.value.slice(1);
+    document.getElementById('warInput').value = this.value;
+  });
+  document.getElementById('warInput').addEventListener('input', function() {
+    if (this.value.startsWith('@')) this.value = this.value.slice(1);
+    document.getElementById('raceInput').value = this.value;
+  });
+
+  function go(username, path, statusId, startId, demoId) {
+    const s  = document.getElementById(statusId);
+    const b1 = document.getElementById(startId);
+    const b2 = document.getElementById(demoId);
+    s.style.display = 'block';
+    b1.disabled = b2.disabled = true;
+    setTimeout(() => { window.location.href = path + '?username=' + encodeURIComponent(username); }, 300);
+  }
+
+  function handleClick(inputId, errorId, statusId, startId, demoId, path) {
+    const val = document.getElementById(inputId).value.replace(/^@/, '').trim();
+    if (!val) {
+      const e = document.getElementById(errorId);
+      e.style.display = 'block';
+      setTimeout(() => e.style.display = 'none', 2500);
+      document.getElementById(inputId).focus();
+      return;
     }
-    updateGameCards();
+    localStorage.setItem('tiktok_username', val);
+    go(val, path, statusId, startId, demoId);
+  }
 
-    cardRace.addEventListener('click', () => {
-      selectedGame = 'race';
-      localStorage.setItem('selected_game', 'race');
-      updateGameCards();
-    });
-    cardWar.addEventListener('click', () => {
-      selectedGame = 'war';
-      localStorage.setItem('selected_game', 'war');
-      updateGameCards();
-    });
+  // Race
+  document.getElementById('raceStart').addEventListener('click', () =>
+    handleClick('raceInput','raceError','raceStatus','raceStart','raceDemo','/game'));
+  document.getElementById('raceDemo').addEventListener('click', () =>
+    go('demo', '/game', 'raceStatus', 'raceStart', 'raceDemo'));
+  document.getElementById('raceInput').addEventListener('keydown', e => {
+    if (e.key === 'Enter') document.getElementById('raceStart').click();
+  });
 
-    // ── Graphics mode ────────────────────────────────────────
-    let liteMode = localStorage.getItem('lite_mode') === '1';
+  // War
+  document.getElementById('warStart').addEventListener('click', () =>
+    handleClick('warInput','warError','warStatus','warStart','warDemo','/war'));
+  document.getElementById('warDemo').addEventListener('click', () =>
+    go('demo', '/war', 'warStatus', 'warStart', 'warDemo'));
+  document.getElementById('warInput').addEventListener('keydown', e => {
+    if (e.key === 'Enter') document.getElementById('warStart').click();
+  });
+</script>
 
-    function updateModeButtons() {
-      modeHigh.classList.toggle('active', !liteMode);
-      modeLite.classList.toggle('active', liteMode);
-    }
-    updateModeButtons();
-
-    modeHigh.addEventListener('click', () => { liteMode = false; localStorage.setItem('lite_mode', '0'); updateModeButtons(); });
-    modeLite.addEventListener('click', () => { liteMode = true;  localStorage.setItem('lite_mode', '1'); updateModeButtons(); });
-
-    // ── Prefill last nick ────────────────────────────────────
-    const saved = localStorage.getItem('tiktok_username');
-    if (saved) input.value = saved;
-    input.focus();
-
-    function showError(msg) {
-      errorEl.textContent = msg;
-      errorEl.style.display = 'block';
-      setTimeout(() => errorEl.style.display = 'none', 3000);
-    }
-
-    function go(username) {
-      statusEl.style.display = 'block';
-      btnConn.disabled = true;
-      btnDemo.disabled = true;
-      const liteSuffix = (liteMode && selectedGame === 'race') ? '&lite=1' : '';
-      const path = selectedGame === 'war' ? '/war' : '/game';
-      setTimeout(() => {
-        window.location.href = `${path}?username=${encodeURIComponent(username)}${liteSuffix}`;
-      }, 300);
-    }
-
-    btnConn.addEventListener('click', () => {
-      const val = input.value.replace(/^@/, '').trim();
-      if (!val) { showError('Введи никнейм TikTok'); input.focus(); return; }
-      localStorage.setItem('tiktok_username', val);
-      go(val);
-    });
-
-    btnDemo.addEventListener('click', () => { go('demo'); });
-
-    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') btnConn.click(); });
-    input.addEventListener('input', () => {
-      if (input.value.startsWith('@')) input.value = input.value.slice(1);
-    });
-  </script>
 </body>
 </html>
