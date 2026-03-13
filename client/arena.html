@@ -723,6 +723,12 @@ function _drawLabels(sx,labelY,w){
   // DMG
   const dmgTxt=`⚔️ ${w.damage}`;
   ctx.strokeText(dmgTxt,sx,labelY+40); ctx.fillStyle='#88CCFF'; ctx.fillText(dmgTxt,sx,labelY+40);
+
+  // Kills
+  if(w.kills>0){
+    const killTxt=`☠️ ${w.kills}`;
+    ctx.strokeText(killTxt,sx,labelY+55); ctx.fillStyle='#FF4444'; ctx.fillText(killTxt,sx,labelY+55);
+  }
 }
 
 // ── Characters ──────────────────────────────────────────────
