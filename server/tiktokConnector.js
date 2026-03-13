@@ -45,16 +45,21 @@ function connectToTikTok(username, onGift, onStatus, onMember, onLike, onChat) {
       _startDemo(onGift, conn, onLike, onChat);
     });
 
+  const _seenGifts = new Set();
   conn.on('gift', data => {
     // Accept: non-streakable gifts (giftType !== 2) OR end of a streak (repeatEnd)
     // Skip: intermediate events of an ongoing streak (giftType === 2 && !repeatEnd)
     if (data.giftType !== 2 || data.repeatEnd) {
+      // Dedup: skip duplicate events (TikTok sometimes sends the same gift twice)
+      const dedupKey = `${data.userId}_${data.giftId || data.giftName}_${Math.floor(Date.now()/2000)}`;
+      if (_seenGifts.has(dedupKey)) return;
+      _seenGifts.add(dedupKey);
+      if (_seenGifts.size > 500) _seenGifts.clear();
+
+      // Only use diamondCount (cost per single gift) — avoid coinCount/giftValue
+      // which may already include repeatCount and would cause double-multiplication
       const perGift  = data.diamondCount
                     || data.giftDetails?.diamondCount
-                    || data.coinCount
-                    || data.giftValue
-                    || data.gift?.diamond_count
-                    || data.extendedGiftInfo?.diamondCount
                     || 1;
       const repeat   = data.repeatCount || 1;
       const coins    = Math.max(1, Math.floor(perGift)) * repeat;
