@@ -47,33 +47,29 @@ function connectToTikTok(username, onGift, onStatus, onMember, onLike, onChat) {
 
   const _seenGifts = new Set();
   conn.on('gift', data => {
-    // Accept: non-streakable gifts (giftType !== 2) OR end of a streak (repeatEnd)
-    // Skip: intermediate events of an ongoing streak (giftType === 2 && !repeatEnd)
-    if (data.giftType !== 2 || data.repeatEnd) {
-      // Dedup: skip duplicate events (TikTok sometimes sends the same gift twice)
-      const dedupKey = `${data.userId}_${data.giftId || data.giftName}_${Math.floor(Date.now()/2000)}`;
-      if (_seenGifts.has(dedupKey)) return;
-      _seenGifts.add(dedupKey);
-      if (_seenGifts.size > 500) _seenGifts.clear();
+    // Process ALL gifts regardless of giftType or repeatEnd
+    // Each event contributes diamondCount coins (no repeatCount multiplication
+    // to avoid overcounting streaks where each intermediate event fires separately)
 
-      // Only use diamondCount (cost per single gift) — avoid coinCount/giftValue
-      // which may already include repeatCount and would cause double-multiplication
-      const perGift  = data.diamondCount
-                    || data.giftDetails?.diamondCount
-                    || 1;
-      const repeat   = data.repeatCount || 1;
-      const coins    = Math.max(1, Math.floor(perGift)) * repeat;
-      const giftName = data.giftName || data.giftDetails?.giftName || '';
-      console.log(`[Gift] ${data.nickname || data.uniqueId} → ${coins} coins (perGift=${perGift} x${repeat}) | gift="${giftName}" (type=${data.giftType})`);
-      console.log(`[Gift RAW] diamondCount=${data.diamondCount} giftDetails.diamondCount=${data.giftDetails?.diamondCount} coinCount=${data.coinCount} repeatCount=${data.repeatCount} giftType=${data.giftType} repeatEnd=${data.repeatEnd}`);
-      onGift({
-        userId:    String(data.userId),
-        username:  data.nickname || data.uniqueId || 'Unknown',
-        avatarUrl: data.profilePictureUrl || '',
-        giftName,
-        coins
-      });
-    }
+    // Dedup: skip exact duplicate events (TikTok sometimes sends same event twice)
+    const dedupKey = `${data.userId}_${data.giftId || data.giftName}_${data.repeatCount}_${Math.floor(Date.now()/2000)}`;
+    if (_seenGifts.has(dedupKey)) return;
+    _seenGifts.add(dedupKey);
+    if (_seenGifts.size > 500) _seenGifts.clear();
+
+    const perGift  = data.diamondCount
+                  || data.giftDetails?.diamondCount
+                  || 1;
+    const coins    = Math.max(1, Math.floor(perGift));
+    const giftName = data.giftName || data.giftDetails?.giftName || '';
+    console.log(`[Gift] ${data.nickname || data.uniqueId} → ${coins} coins | gift="${giftName}" (type=${data.giftType} repeatEnd=${data.repeatEnd} repeatCount=${data.repeatCount})`);
+    onGift({
+      userId:    String(data.userId),
+      username:  data.nickname || data.uniqueId || 'Unknown',
+      avatarUrl: data.profilePictureUrl || '',
+      giftName,
+      coins
+    });
   });
 
   // Лайки
