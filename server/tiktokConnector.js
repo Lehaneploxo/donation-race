@@ -27,7 +27,7 @@ function connectToTikTok(username, onGift, onStatus, onMember, onLike, onChat) {
     conn._tiktokMode = 'demo';
     console.log(`[TikTok] Демо-режим запущен`);
     notify({ connected: false, mode: 'demo', message: 'Демо-режим' });
-    _startDemo(onGift, conn, onLike, onChat);
+    _startDemo(onGift, conn, onLike, onChat, onMember);
     return conn;
   }
 
@@ -42,7 +42,7 @@ function connectToTikTok(username, onGift, onStatus, onMember, onLike, onChat) {
       const msg = err.message || String(err);
       console.error(`[TikTok][${username}] Ошибка: ${msg}`);
       notify({ connected: false, mode: 'demo', message: `Не удалось подключить @${username}: ${msg}` });
-      _startDemo(onGift, conn, onLike, onChat);
+      _startDemo(onGift, conn, onLike, onChat, onMember);
     });
 
   const _seenGifts = new Set();
@@ -106,9 +106,11 @@ function connectToTikTok(username, onGift, onStatus, onMember, onLike, onChat) {
 
   // Зритель зашёл в стрим → обновить присутствие
   conn.on('member', data => {
+    const username = data.nickname || data.uniqueId || 'Unknown';
+    console.log(`[Member] ${username} joined the stream`);
     onMember?.({
       userId:    String(data.userId),
-      username:  data.nickname || data.uniqueId || 'Unknown',
+      username,
       avatarUrl: data.profilePictureUrl || ''
     });
   });
@@ -122,7 +124,13 @@ function connectToTikTok(username, onGift, onStatus, onMember, onLike, onChat) {
   return conn;
 }
 
-function _startDemo(onGift, conn, onLike, onChat) {
+function _startDemo(onGift, conn, onLike, onChat, onMember) {
+  // Demo member joins — viewer enters stream every 8s
+  const memberIv = setInterval(() => {
+    const u = DEMO_USERS[Math.floor(Math.random() * DEMO_USERS.length)];
+    if (onMember) onMember({ userId: u.id, username: u.name, avatarUrl: '' });
+  }, 8000);
+  conn._demoMemberIv = memberIv;
   const iv = setInterval(() => {
     const u = DEMO_USERS[Math.floor(Math.random() * DEMO_USERS.length)];
     if (Math.random() < 0.4 && onLike) {
