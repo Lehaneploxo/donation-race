@@ -191,7 +191,7 @@ function updateArmageddon(dt){
   }
   if(armageddon.dmgAcc>=1000){
     armageddon.dmgAcc-=1000;
-    for(const w of warriors){ if(w.dead) continue; w.hp=Math.max(0,w.hp-1); w.flashTimer=280; const sp=arenaToScreen(w.ax,w.ay); spawnDmgNum(sp.x,sp.y-55,-1,'#FF8800'); if(w.hp<=0){ w.dead=true; w.deathTimer=700; spawnDeathFX(w); playRemove(); } }
+    for(const w of warriors){ if(w.dead) continue; w.hp=Math.max(0,w.hp-10); w.damage=Math.max(0,w.damage-1); w.flashTimer=280; const sp=arenaToScreen(w.ax,w.ay); spawnDmgNum(sp.x,sp.y-55,-10,'#FF8800'); if(w.hp<=0){ w.dead=true; w.deathTimer=700; spawnDeathFX(w); playRemove(); } }
     checkVictory();
   }
   for(const w of warriors){ if(w.floatY<0&&!w.dead){ w.floatVY+=dt*0.0005; w.floatY+=w.floatVY*dt; if(w.floatY>=0){w.floatY=0;w.floatVY=0;} } }
