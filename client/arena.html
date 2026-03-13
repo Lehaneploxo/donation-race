@@ -220,11 +220,11 @@ function updateArmageddon(dt){
 function spawnMeteor(){ meteors.push({x:40+Math.random()*(CW-80),y:-50-Math.random()*120,vx:(Math.random()-0.5)*70,vy:380+Math.random()*220,r:7+Math.random()*9,trail:[],life:2200}); }
 
 
-const KILLS_TO_WIN = 10;
+let nextKillsTarget = 20;
 
 function checkVictory(){
   if(victoryState) return;
-  const winner=warriors.find(w=>!w.dead && w.kills>=KILLS_TO_WIN);
+  const winner=warriors.find(w=>!w.dead && w.kills>=nextKillsTarget);
   if(winner){
     victoryState={ username:winner.username, timer:6000, warrior:winner };
     winner.glowTimer=6000; playVictory();
@@ -235,14 +235,20 @@ function checkVictory(){
 
 function startNewRound(){
   const prev = victoryState?.warrior || null;
+  // Next round threshold: +20 more kills
+  if(prev) nextKillsTarget = prev.kills + 20;
   warriors=[]; particles=[]; dmgNums=[]; meteors=[]; armageddon=null;
   victoryState=null;
-  // Winner stays — re-spawn with same coins, full HP
+  // Winner stays — same character, same HP/DMG, same appearance
   if(prev){
-    const w = makeWarrior(prev.username, prev.coins);
-    w.kills = prev.kills; // carry kills across rounds
-    warriors.push(w);
-    spawnSpawnFX(w);
+    const pos=rndArenaPos();
+    prev.ax=pos.ax; prev.ay=pos.ay;
+    prev.tax=pos.ax; prev.tay=pos.ay;
+    prev.walkTimer=0; prev.bumpCooldown=2000;
+    prev.dead=false; prev.deathTimer=0;
+    prev.flashTimer=0; prev.glowTimer=800;
+    warriors.push(prev);
+    spawnSpawnFX(prev);
   }
   eventLabel='⚔️ NEW ROUND!'; eventLabelTimer=2500;
 }
