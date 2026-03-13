@@ -231,8 +231,6 @@ function checkVictory(){
     eventLabel=`🏆 ${winner.username} WINS!`; eventLabelTimer=500;
     return;
   }
-  const alive=warriors.filter(w=>!w.dead);
-  if(alive.length===0 && warriors.length>0) startNewRound();
 }
 
 function startNewRound(){
@@ -298,6 +296,11 @@ function updateWarriors(dt){
 
     // --- Bump cooldown countdown ---
     if(w.bumpCooldown>0) w.bumpCooldown=Math.max(0,w.bumpCooldown-dt);
+
+    // --- Passive regen ---
+    w.hp = Math.min(w.maxHp, w.hp + 2*dt/1000);
+    w.regenAcc = (w.regenAcc||0) + dt;
+    if(w.regenAcc >= 3000){ w.regenAcc -= 3000; if(w.damage < w.coins) w.damage++; }
 
     // Clamp to ground bounds
     w.ax=Math.max(-0.93,Math.min(0.93,w.ax));
