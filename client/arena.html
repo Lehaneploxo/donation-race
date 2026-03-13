@@ -302,8 +302,8 @@ function updateWarriors(dt){
         if(dx*dx+dy*dy < 90*90){
           // Mutual hit — both deal damage to each other once
           const dmgA=Math.max(1,a.damage), dmgB=Math.max(1,b.damage);
-          b.hp-=dmgA; b.flashTimer=380; b.hitAnim=1;
-          a.hp-=dmgB; a.flashTimer=380; a.hitAnim=1;
+          b.hp-=dmgA; b.damage=Math.max(0,b.damage-1); b.flashTimer=380; b.hitAnim=1;
+          a.hp-=dmgB; a.damage=Math.max(0,a.damage-1); a.flashTimer=380; a.hitAnim=1;
           a.attackAnim=1; b.attackAnim=1;
           spawnDmgNum(spb.x,spb.y-65,-dmgA,'#FF3333');
           spawnDmgNum(spa.x,spa.y-65,-dmgB,'#FF3333');
