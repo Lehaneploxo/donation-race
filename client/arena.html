@@ -157,7 +157,7 @@ function addWarrior(username, coins){
 
 function helpWarrior(username){
   const w=warriors.find(w=>w.username===username&&!w.dead);
-  if(!w) return;
+  if(!w){ addWarrior(username, 1); return; }
   w.coins+=1; w.maxHp=w.coins*10;
   w.hp=Math.min(w.hp+10,w.maxHp); w.damage=w.coins;
   w.flashTimer=350; w.glowTimer=600; spawnUpgradeFX(w); playHelp();
