@@ -125,7 +125,7 @@ function makeWarrior(username, coins){
   const pos=rndArenaPos(), tgt=rndArenaPos();
   return {
     id:++uidSeq, username, coins,
-    hp:coins*2, maxHp:coins*2, damage:coins,
+    hp:coins*10, maxHp:coins*10, damage:coins,
     class:rndFrom(CLASSES), armorColor:rndFrom(ARMOR_COLORS),
     cloakColor:rndFrom(CLOAK_COLORS), skinTone:rndFrom(SKIN_TONES),
     helmStyle:Math.floor(Math.random()*4), hasCloak:Math.random()>0.38,
@@ -135,8 +135,7 @@ function makeWarrior(username, coins){
     walkPhase:Math.random()*Math.PI*2, idlePhase:Math.random()*Math.PI*2,
     dead:false, deathTimer:0, flashTimer:0, glowTimer:0,
     floatY:0, floatVY:0, attackAnim:0, hitAnim:0,
-    attackTimer:Math.random()*1500, attackCooldown:1200+Math.random()*1000,
-    chasing:false, kills:0,
+    bumpCooldown:0, kills:0,
   };
 }
 
@@ -144,8 +143,8 @@ function addWarrior(username, coins){
   coins = Math.max(1, Math.floor(coins));
   const ex = warriors.find(w=>w.username===username&&!w.dead);
   if(ex){
-    ex.coins+=coins; ex.maxHp=ex.coins*2;
-    ex.hp=Math.min(ex.hp+coins*2, ex.maxHp); ex.damage=ex.coins;
+    ex.coins+=coins; ex.maxHp=ex.coins*10;
+    ex.hp=Math.min(ex.hp+coins*10, ex.maxHp); ex.damage=ex.coins;
     ex.flashTimer=600; ex.glowTimer=800; spawnUpgradeFX(ex); return;
   }
   if(warriors.filter(w=>!w.dead).length>=MAX_WARRIORS){
@@ -159,8 +158,8 @@ function addWarrior(username, coins){
 function helpWarrior(username){
   const w=warriors.find(w=>w.username===username&&!w.dead);
   if(!w) return;
-  w.coins+=1; w.maxHp=w.coins*2;
-  w.hp=Math.min(w.hp+2,w.maxHp); w.damage=w.coins;
+  w.coins+=1; w.maxHp=w.coins*10;
+  w.hp=Math.min(w.hp+10,w.maxHp); w.damage=w.coins;
   w.flashTimer=350; w.glowTimer=600; spawnUpgradeFX(w); playHelp();
 }
 
@@ -282,43 +281,48 @@ function updateWarriors(dt){
       const p=rndArenaPos(); w.tax=p.ax; w.tay=p.ay;
     }
 
-    // --- Fight if enemy is nearby (no chasing) ---
-    if(!victoryState){
-      w.attackTimer+=dt;
-      if(w.attackTimer>=w.attackCooldown){
-        // Look for any enemy within fight range
-        let closeEnemy=null, closeDist=Infinity;
-        for(const o of warriors){
-          if(o===w||o.dead||o.username===w.username) continue;
-          const sp=arenaToScreen(w.ax,w.ay), ep=arenaToScreen(o.ax,o.ay);
-          const dx=ep.x-sp.x, dy=ep.y-sp.y, d=dx*dx+dy*dy;
-          if(d<closeDist){closeDist=d;closeEnemy=o;}
-        }
-        // Only attack if within ~90px on screen
-        if(closeEnemy && closeDist < 90*90){
-          w.attackTimer=0; w.attackCooldown=1000+Math.random()*900;
-          const dmg=Math.max(1,w.damage);
-          closeEnemy.hp-=dmg;
-          closeEnemy.flashTimer=380; closeEnemy.hitAnim=1;
-          w.attackAnim=1;
-          const ep=arenaToScreen(closeEnemy.ax,closeEnemy.ay);
-          spawnDmgNum(ep.x,ep.y-65,-dmg,'#FF3333');
-          spawnHitFX(closeEnemy);
-          spawnSlashFX(w,closeEnemy);
-          playHit();
-          if(closeEnemy.hp<=0){closeEnemy.hp=0;closeEnemy.dead=true;closeEnemy.deathTimer=700;spawnDeathFX(closeEnemy);playRemove();w.kills++;}
-          checkVictory();
-        } else {
-          // No enemy close — reset timer so we check again soon
-          w.attackTimer=w.attackCooldown*0.7;
-        }
-      }
-    }
+    // --- Bump cooldown countdown ---
+    if(w.bumpCooldown>0) w.bumpCooldown=Math.max(0,w.bumpCooldown-dt);
 
     // Clamp to ground bounds
     w.ax=Math.max(-0.93,Math.min(0.93,w.ax));
     w.ay=Math.max(-0.88,Math.min(0.88,w.ay));
   }
+
+  // --- Collision: when two warriors meet — one mutual hit each, then separate ---
+  if(!victoryState){
+    const alive=warriors.filter(w=>!w.dead);
+    for(let i=0;i<alive.length;i++){
+      for(let j=i+1;j<alive.length;j++){
+        const a=alive[i], b=alive[j];
+        if(a.username===b.username) continue;
+        if(a.bumpCooldown>0||b.bumpCooldown>0) continue;
+        const spa=arenaToScreen(a.ax,a.ay), spb=arenaToScreen(b.ax,b.ay);
+        const dx=spb.x-spa.x, dy=spb.y-spa.y;
+        if(dx*dx+dy*dy < 90*90){
+          // Mutual hit — both deal damage to each other once
+          const dmgA=Math.max(1,a.damage), dmgB=Math.max(1,b.damage);
+          b.hp-=dmgA; b.flashTimer=380; b.hitAnim=1;
+          a.hp-=dmgB; a.flashTimer=380; a.hitAnim=1;
+          a.attackAnim=1; b.attackAnim=1;
+          spawnDmgNum(spb.x,spb.y-65,-dmgA,'#FF3333');
+          spawnDmgNum(spa.x,spa.y-65,-dmgB,'#FF3333');
+          spawnHitFX(b); spawnHitFX(a);
+          spawnSlashFX(a,b); spawnSlashFX(b,a);
+          playHit();
+          // Set cooldown and pick new targets to walk away
+          a.bumpCooldown=1500; b.bumpCooldown=1500;
+          const pa=rndArenaPos(); a.tax=pa.ax; a.tay=pa.ay; a.walkTimer=0;
+          const pb=rndArenaPos(); b.tax=pb.ax; b.tay=pb.ay; b.walkTimer=0;
+          // Check deaths
+          if(b.hp<=0){b.hp=0;b.dead=true;b.deathTimer=700;spawnDeathFX(b);playRemove();a.kills++;}
+          if(a.hp<=0){a.hp=0;a.dead=true;a.deathTimer=700;spawnDeathFX(a);playRemove();b.kills++;}
+          checkVictory();
+        }
+      }
+    }
+  }
+
   warriors=warriors.filter(w=>!w.dead||w.deathTimer>0);
 }
 function updateParticles(dt){
@@ -894,8 +898,8 @@ function drawHUD(now){
   ctx.shadowColor='#FFD700'; ctx.shadowBlur=7;
   ctx.font='bold 28px Arial Black'; ctx.textAlign='center';
   ctx.strokeStyle='rgba(0,0,0,0.95)'; ctx.lineWidth=4;
-  ctx.strokeText('💰 1 Coin  =  ❤️ +2 HP   ⚔️ +1 DMG',CW/2,B1+34);
-  ctx.fillStyle='#FFD700'; ctx.fillText('💰 1 Coin  =  ❤️ +2 HP   ⚔️ +1 DMG',CW/2,B1+34);
+  ctx.strokeText('💰 1 Coin  =  ❤️ +10 HP   ⚔️ +1 DMG',CW/2,B1+34);
+  ctx.fillStyle='#FFD700'; ctx.fillText('💰 1 Coin  =  ❤️ +10 HP   ⚔️ +1 DMG',CW/2,B1+34);
   ctx.shadowBlur=0;
 
   // Warriors count
