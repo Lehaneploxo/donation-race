@@ -49,10 +49,17 @@ function connectToTikTok(username, onGift, onStatus, onMember, onLike, onChat) {
     // Accept: non-streakable gifts (giftType !== 2) OR end of a streak (repeatEnd)
     // Skip: intermediate events of an ongoing streak (giftType === 2 && !repeatEnd)
     if (data.giftType !== 2 || data.repeatEnd) {
-      const perGift  = data.diamondCount ?? data.giftDetails?.diamondCount ?? 1;
-      const coins    = Math.max(1, perGift) * (data.repeatCount || 1);
+      const perGift  = data.diamondCount
+                    || data.giftDetails?.diamondCount
+                    || data.coinCount
+                    || data.giftValue
+                    || data.gift?.diamond_count
+                    || data.extendedGiftInfo?.diamondCount
+                    || 1;
+      const repeat   = data.repeatCount || 1;
+      const coins    = Math.max(1, Math.floor(perGift)) * repeat;
       const giftName = data.giftName || data.giftDetails?.giftName || '';
-      console.log(`[Gift] ${data.nickname || data.uniqueId} → ${coins} coins | gift="${giftName}" (type=${data.giftType})`);
+      console.log(`[Gift] ${data.nickname || data.uniqueId} → ${coins} coins (perGift=${perGift} x${repeat}) | gift="${giftName}" (type=${data.giftType})`);
       onGift({
         userId:    String(data.userId),
         username:  data.nickname || data.uniqueId || 'Unknown',
