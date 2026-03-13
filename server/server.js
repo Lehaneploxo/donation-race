@@ -159,6 +159,8 @@ class Room {
             totalLikes:   this._totalLikes
           });
         }
+        // Arena: viewer joins stream → spawn with 1 coin if slot available
+        this.broadcast({ type: 'arena_member', username: data.username });
       },
       // onLike — лайки
       (data) => {
