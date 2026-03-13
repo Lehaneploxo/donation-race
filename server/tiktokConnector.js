@@ -65,6 +65,7 @@ function connectToTikTok(username, onGift, onStatus, onMember, onLike, onChat) {
       const coins    = Math.max(1, Math.floor(perGift)) * repeat;
       const giftName = data.giftName || data.giftDetails?.giftName || '';
       console.log(`[Gift] ${data.nickname || data.uniqueId} → ${coins} coins (perGift=${perGift} x${repeat}) | gift="${giftName}" (type=${data.giftType})`);
+      console.log(`[Gift RAW] diamondCount=${data.diamondCount} giftDetails.diamondCount=${data.giftDetails?.diamondCount} coinCount=${data.coinCount} repeatCount=${data.repeatCount} giftType=${data.giftType} repeatEnd=${data.repeatEnd}`);
       onGift({
         userId:    String(data.userId),
         username:  data.nickname || data.uniqueId || 'Unknown',
