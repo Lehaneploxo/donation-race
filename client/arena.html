@@ -218,18 +218,16 @@ function spawnMeteor(){ meteors.push({x:40+Math.random()*(CW-80),y:-50-Math.rand
 const KILLS_TO_WIN = 10;
 
 function checkVictory(){
-  const alive=warriors.filter(w=>!w.dead);
-  if(alive.length===1){
-    const winner=alive[0];
-    if(winner.kills>=KILLS_TO_WIN){
-      victoryState={ username:winner.username, timer:6000, warrior:winner };
-      winner.glowTimer=6000; playVictory();
-      eventLabel=`🏆 ${winner.username} WINS!`; eventLabelTimer=500;
-    }
-    // else: alone but not enough kills — wait for more warriors
-  } else if(alive.length===0 && warriors.length>0){
-    startNewRound();
+  if(victoryState) return;
+  const winner=warriors.find(w=>!w.dead && w.kills>=KILLS_TO_WIN);
+  if(winner){
+    victoryState={ username:winner.username, timer:6000, warrior:winner };
+    winner.glowTimer=6000; playVictory();
+    eventLabel=`🏆 ${winner.username} WINS!`; eventLabelTimer=500;
+    return;
   }
+  const alive=warriors.filter(w=>!w.dead);
+  if(alive.length===0 && warriors.length>0) startNewRound();
 }
 
 function startNewRound(){
