@@ -150,7 +150,7 @@ function makeWarrior(username, coins){
     walkPhase:Math.random()*Math.PI*2, idlePhase:Math.random()*Math.PI*2,
     dead:false, deathTimer:0, flashTimer:0, glowTimer:0,
     floatY:0, floatVY:0, attackAnim:0, hitAnim:0,
-    bumpCooldown:0, kills:0,
+    bumpCooldown:2000, kills:0,
   };
 }
 
@@ -923,14 +923,13 @@ function drawHUD(now){
   ctx.fillStyle='#FFD700'; ctx.fillText('💰 1 Coin  =  ❤️ +10 HP   ⚔️ +1 DMG',CW/2,B1+34);
   ctx.shadowBlur=0;
 
-  // Warriors count
+  // Help hint
   const B2 = B1 + 46; // 264
   ctx.fillStyle='rgba(0,0,0,0.75)'; ctx.fillRect(0,B2,CW,44);
-  const alive=warriors.filter(w=>!w.dead).length;
   ctx.font='bold 26px Arial'; ctx.textAlign='center';
   ctx.strokeStyle='rgba(0,0,0,0.9)'; ctx.lineWidth=3;
-  ctx.strokeText(`⚔️ Воинов: ${alive}/${MAX_WARRIORS}   •   "help" = усиление`,CW/2,B2+32);
-  ctx.fillStyle='#FFD700'; ctx.fillText(`⚔️ Воинов: ${alive}/${MAX_WARRIORS}   •   "help" = усиление`,CW/2,B2+32);
+  ctx.strokeText(`✍️ write "help"  =  ❤️ +10 HP   ⚔️ +1 DMG`,CW/2,B2+32);
+  ctx.fillStyle='#00FF99'; ctx.fillText(`✍️ write "help"  =  ❤️ +10 HP   ⚔️ +1 DMG`,CW/2,B2+32);
 }
 
 function drawEventLabel(){
