@@ -101,6 +101,7 @@ class Room {
 
         // Arena game: any gift spawns/upgrades warrior with coin value
         this.broadcast({ type: 'arena_gift', username: data.username, coins: data.coins, giftName: data.giftName });
+        this.broadcast({ type: 'arena_member', username: data.username });
 
         // Проверяем цель — 1000 очков
         const racePoints = this.players.getTotalPoints();
@@ -166,8 +167,8 @@ class Room {
       (data) => {
         // War game: broadcast raw like count regardless of race state
         this.broadcast({ type: 'war_like', likes: data.likes || 0, username: data.username });
-        // Arena game: same likes data
         this.broadcast({ type: 'arena_like', likes: data.likes || 0, username: data.username });
+        this.broadcast({ type: 'arena_member', username: data.username });
 
         if (this._raceEnded) return;
         this.players.addLikes(data.userId, data.username, data.avatarUrl, data.likes);
@@ -198,6 +199,9 @@ class Room {
         if (msg === 'blue' || msg === 'red') {
           this.broadcast({ type: 'war_chat', team: msg, username: data.username });
         }
+
+        // Arena game: any chat → try spawn if not on arena
+        this.broadcast({ type: 'arena_member', username: data.username });
 
         // Arena game: "help" command buffs warrior
         if (msg === 'help') {
