@@ -193,7 +193,8 @@ class Room {
       },
       // onChat — GO / blue / red из чата
       (data) => {
-        const msg = data.message || '';
+        const msg = (data.message || '').trim();
+        const msgLower = msg.toLowerCase();
 
         // War game: broadcast team command to all clients
         if (msg === 'blue' || msg === 'red') {
@@ -204,12 +205,11 @@ class Room {
         this.broadcast({ type: 'arena_member', username: data.username });
 
         // Arena game: "help" command buffs warrior
-        if (msg === 'help') {
+        if (msgLower === 'help') {
           this.broadcast({ type: 'arena_chat', command: 'help', username: data.username });
         }
 
         // Arena game: team commands
-        const msgLower = msg.toLowerCase();
         if (msgLower === 'team') {
           this.broadcast({ type: 'arena_team', team: 1, username: data.username });
         }
