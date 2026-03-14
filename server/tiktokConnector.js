@@ -89,7 +89,7 @@ function connectToTikTok(username, onGift, onStatus, onMember, onLike, onChat) {
   conn.on('chat', data => {
     if (!onChat) return;
     const msg = (data.comment || '').trim().toLowerCase();
-    if (msg === 'go' || msg === 'blue' || msg === 'red' || msg === 'help') {
+    if (msg === 'go' || msg === 'blue' || msg === 'red' || msg === 'help' || msg === 'team' || msg === 'team2') {
       console.log(`[Chat ${msg.toUpperCase()}] ` + (data.nickname || data.uniqueId));
       onChat({
         userId:    String(data.userId),
