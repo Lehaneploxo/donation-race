@@ -208,6 +208,15 @@ class Room {
           this.broadcast({ type: 'arena_chat', command: 'help', username: data.username });
         }
 
+        // Arena game: team commands
+        const msgLower = msg.toLowerCase();
+        if (msgLower === 'team') {
+          this.broadcast({ type: 'arena_team', team: 1, username: data.username });
+        }
+        if (msgLower === 'team2') {
+          this.broadcast({ type: 'arena_team', team: 2, username: data.username });
+        }
+
         // Race game: GO command
         if (msg === 'go' && !this._raceEnded) {
           this.players.addChatGo(data.userId, data.username, data.avatarUrl);

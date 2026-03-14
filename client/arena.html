@@ -14,6 +14,7 @@
     .ui-btn { position: fixed; z-index: 99999; width: 26px; height: 26px; font-size: 12px; background: rgba(0,0,0,0.55); color: rgba(255,255,255,0.55); border: 1px solid rgba(255,255,255,0.2); border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
     #fsBtn   { top: calc(50% + 36px); right: 10px; }
     #backBtn { top: calc(50% - 13px); right: 10px; }
+    #addBotBtn { top: calc(50% + 85px); right: 10px; }
     #statusBadge { position: absolute; bottom: 52px; left: 50%; transform: translateX(-50%); font-size: 13px; padding: 4px 13px; border-radius: 8px; border: 2px solid #555; background: rgba(0,0,0,0.78); color: #AAA; white-space: nowrap; z-index: 100; display: none; }
     #statusBadge.live  { color: #00FF88; border-color: #00FF88; }
     #statusBadge.demo  { color: #FF9900; border-color: #FF9900; }
@@ -23,6 +24,7 @@
 <body>
 <button id="fsBtn"   class="ui-btn" title="Fullscreen">⛶</button>
 <button id="backBtn" class="ui-btn" title="Back">⌂</button>
+<button id="addBotBtn" class="ui-btn" title="Add bot">🤖</button>
 <div id="scaleWrapper">
   <canvas id="gameCanvas" width="600" height="1000"></canvas>
   <div id="statusBadge">⏳ Connecting…</div>
@@ -108,6 +110,7 @@ let victoryState   = null;
 let botSpawnTimer  = 20000;
 const BOT_NAMES = ['dark_wolf99','fire_blade','shadow_x','night_storm','iron_fist','blaze_run','void_edge','steel_claw','red_ghost','swift_axe','cold_viper','mad_titan','lone_wolf','fury_wave','black_hawk','storm_eye','grim_edge','bone_crusher','death_note','ice_fang','war_raven','sun_blade','moon_fury','dark_tide','fire_storm','thunder_x','rock_solid','sharp_mind','wild_boar','eagle_eye'];
 let usedBotNames   = [];
+const teamRegistry = new Map(); // username → team number (pre-join)
 
 // ═══════════════════════════════════════════
 // WARRIOR MANAGEMENT
@@ -126,6 +129,7 @@ function findNearestEnemy(w){
   let best=null, bestD=Infinity;
   for(const o of warriors){
     if(o===w||o.dead||o.username===w.username) continue;
+    if(w.team&&o.team&&w.team===o.team) continue;
     const dx=o.ax-w.ax, dy=o.ay-w.ay, d=dx*dx+dy*dy;
     if(d<bestD){bestD=d;best=o;}
   }
@@ -150,7 +154,7 @@ function makeWarrior(username, coins){
     walkPhase:Math.random()*Math.PI*2, idlePhase:Math.random()*Math.PI*2,
     dead:false, deathTimer:0, flashTimer:0, glowTimer:0,
     floatY:0, floatVY:0, attackAnim:0, hitAnim:0,
-    bumpCooldown:2000, kills:0,
+    bumpCooldown:2000, kills:0, team:0,
   };
 }
 
@@ -168,6 +172,7 @@ function addWarrior(username, coins){
     weakest.dead=true; weakest.deathTimer=600; spawnDeathFX(weakest); playRemove();
   }
   const w=makeWarrior(username,coins);
+  if(teamRegistry.has(username)){ w.team=teamRegistry.get(username); teamRegistry.delete(username); }
   warriors.push(w); playSpawn(); spawnSpawnFX(w);
 }
 
@@ -315,6 +320,7 @@ function updateWarriors(dt){
       for(let j=i+1;j<alive.length;j++){
         const a=alive[i], b=alive[j];
         if(a.username===b.username) continue;
+        if(a.team&&b.team&&a.team===b.team) continue;
         if(a.bumpCooldown>0||b.bumpCooldown>0) continue;
         const spa=arenaToScreen(a.ax,a.ay), spb=arenaToScreen(b.ax,b.ay);
         const dx=spb.x-spa.x, dy=spb.y-spa.y;
@@ -726,6 +732,18 @@ function _drawLabels(sx,labelY,w){
   ctx.textAlign='center';
   ctx.lineWidth=3;
 
+  // Team flag
+  if(w.team===1||w.team===2){
+    const fc=w.team===1?'#FF2222':'#2266FF';
+    const fx=sx+18, fy=labelY-10;
+    // pole
+    ctx.strokeStyle='#888'; ctx.lineWidth=1.5;
+    ctx.beginPath(); ctx.moveTo(fx,fy+14); ctx.lineTo(fx,fy-2); ctx.stroke();
+    // flag
+    ctx.fillStyle=fc;
+    ctx.beginPath(); ctx.moveTo(fx,fy-2); ctx.lineTo(fx+10,fy+3); ctx.lineTo(fx,fy+8); ctx.closePath(); ctx.fill();
+  }
+
   // Username
   ctx.font='bold 15px Arial';
   const nick=w.username.length>13?w.username.slice(0,12)+'…':w.username;
@@ -997,7 +1015,7 @@ function wsConnect(username){
   const proto=location.protocol==='https:'?'wss:':'ws:';
   _ws=new WebSocket(`${proto}//${location.host}?username=${encodeURIComponent(username)}`);
   _ws.onopen=()=>setStatus('connecting','⏳ @'+username+'…');
-  _ws.onmessage=(e)=>{ try{ const d=JSON.parse(e.data); if(d.type==='arena_gift') addWarrior(d.username,d.coins); if(d.type==='arena_like'){totalLikes+=d.likes||0;if(totalLikes>=1000){totalLikes-=1000;triggerArmageddon();}} if(d.type==='arena_chat') helpWarrior(d.username); if(d.type==='arena_member'){ if(warriors.filter(w=>!w.dead).length<MAX_WARRIORS) helpWarrior(d.username); } if(d.type==='init'||d.type==='status'){ if(d.mode==='tiktok') setStatus('live','🔴 LIVE @'+(d.username||username)); else if(d.mode==='demo') setStatus('demo','🟡 DEMO MODE'); else setStatus('connecting','⏳ @'+username+'…'); } }catch(e){} };
+  _ws.onmessage=(e)=>{ try{ const d=JSON.parse(e.data); if(d.type==='arena_gift') addWarrior(d.username,d.coins); if(d.type==='arena_like'){totalLikes+=d.likes||0;if(totalLikes>=1000){totalLikes-=1000;triggerArmageddon();}} if(d.type==='arena_chat') helpWarrior(d.username); if(d.type==='arena_member'){ if(warriors.filter(w=>!w.dead).length<MAX_WARRIORS) helpWarrior(d.username); } if(d.type==='arena_team'){ const existing=warriors.find(w=>w.username===d.username&&!w.dead); if(existing){ existing.team=d.team; } else { teamRegistry.set(d.username,d.team); } }if(d.type==='init'||d.type==='status'){ if(d.mode==='tiktok') setStatus('live','🔴 LIVE @'+(d.username||username)); else if(d.mode==='demo') setStatus('demo','🟡 DEMO MODE'); else setStatus('connecting','⏳ @'+username+'…'); } }catch(e){} };
   _ws.onclose=()=>{setStatus('error','❌ Disconnected…');setTimeout(()=>wsConnect(_wsUser),3000);};
   _ws.onerror=()=>{};
 }
@@ -1031,6 +1049,13 @@ function setStatus(cls,text){const el=document.getElementById('statusBadge');if(
 
 document.getElementById('fsBtn').addEventListener('click',()=>{if(document.fullscreenElement)document.exitFullscreen&&document.exitFullscreen();else document.documentElement.requestFullscreen&&document.documentElement.requestFullscreen().then(()=>{if(screen.orientation&&screen.orientation.lock)screen.orientation.lock('portrait').catch(()=>{});}).catch(()=>{});});
 document.getElementById('backBtn').addEventListener('click',()=>{location.href='/';});
+document.getElementById('addBotBtn').addEventListener('click',()=>{
+  if(warriors.filter(w=>!w.dead).length>=MAX_WARRIORS) return;
+  const name=getBotName();
+  const w=makeWarrior(name,1);
+  w.isBot=true;
+  warriors.push(w); playSpawn(); spawnSpawnFX(w);
+});
 </script>
 </body>
 </html>
