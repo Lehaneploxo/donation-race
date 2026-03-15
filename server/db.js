@@ -45,4 +45,6 @@ async function getTopKillers(limit = 10) {
   return res.rows;
 }
 
-module.exports = { init, addKill, getTopKillers };
+function isConnected() { return pool !== null; }
+
+module.exports = { init, addKill, getTopKillers, isConnected };

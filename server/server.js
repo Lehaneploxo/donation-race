@@ -334,11 +334,12 @@ wss.on('connection', (ws, req) => {
     try {
       const msg = JSON.parse(raw);
       if (msg.type === 'kill' && msg.username) {
-        console.log(`[Kill] received: ${msg.username}`);
+        console.log(`[Kill] received: ${msg.username} | DB: ${db.isConnected() ? 'OK' : 'NO DATABASE_URL'}`);
+        if (!db.isConnected()) return;
         db.addKill(msg.username)
           .then(() => db.getTopKillers(5))
           .then(top => {
-            console.log(`[Kill] DB updated, top: ${top.map(p=>p.username+'='+p.total_kills).join(', ')}`);
+            console.log(`[Kill] saved, top: ${top.map(p=>p.username+'='+p.total_kills).join(', ')}`);
             room.broadcast({ type: 'top_killers', data: top });
           })
           .catch(e => console.error('[DB] kill error:', e.message));
