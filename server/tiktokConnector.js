@@ -58,7 +58,11 @@ function connectToTikTok(username, onGift, onStatus, onMember, onLike, onChat) {
       handle._tiktokMode = 'demo';
       notify({ connected: false, mode: 'demo', message: `@${username} вышел из эфира` });
       connecting = false;
-      // демо уже запущено, просто ждём следующего retry
+      // Перезапускаем демо сразу, не ждём следующего retry
+      if (!handle._demoStarted) {
+        handle._demoStarted = true;
+        _startDemo(onGift, handle, onLike, onChat, onMember);
+      }
     });
 
     conn.connect()
@@ -75,7 +79,7 @@ function connectToTikTok(username, onGift, onStatus, onMember, onLike, onChat) {
         handle._tiktokMode = 'demo';
         if (!handle._demoStarted) {
           handle._demoStarted = true;
-          notify({ connected: false, mode: 'demo', message: `Демо-режим (@${username} не в эфире или ошибка сети)` });
+          notify({ connected: false, mode: 'demo', message: `@${username} не в эфире, жду подключения…` });
           _startDemo(onGift, handle, onLike, onChat, onMember);
         }
         connecting = false;
