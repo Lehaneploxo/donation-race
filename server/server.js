@@ -259,6 +259,7 @@ class Room {
 
   addClient(ws) {
     this.clients.add(ws);
+    if (this._destroyTimer) { clearTimeout(this._destroyTimer); this._destroyTimer = null; }
     db.getTopKillers(5).then(top => {
       ws.send(JSON.stringify({
         type:         'init',
@@ -350,12 +351,23 @@ wss.on('connection', (ws, req) => {
   ws.on('close', () => {
     room.removeClient(ws);
     console.log(`[WS] -клиент @${username} (всего: ${room.clients.size})`);
-    // Если клиентов не осталось — удаляем комнату, чтобы при следующем
-    // подключении TikTok-соединение создавалось заново (не застревало в демо)
+    // Удаляем комнату только через 5 минут после ухода последнего клиента
+    // Это сохраняет TikTok-соединение при обновлении страницы
     if (room.clients.size === 0) {
-      room.destroy();
-      rooms.delete(username.toLowerCase());
-      console.log(`[Room] @${username} удалена (нет клиентов)`);
+      room._destroyTimer = setTimeout(() => {
+        if (room.clients.size === 0) {
+          room.destroy();
+          rooms.delete(username.toLowerCase());
+          console.log(`[Room] @${username} удалена (5 мин без клиентов)`);
+        }
+      }, 5 * 60 * 1000);
+      console.log(`[Room] @${username} будет удалена через 5 мин если никто не зайдёт`);
+    } else {
+      // Клиент вернулся — отменяем удаление
+      if (room._destroyTimer) {
+        clearTimeout(room._destroyTimer);
+        room._destroyTimer = null;
+      }
     }
   });
   ws.on('error', err => console.error('[WS]', err.message));
