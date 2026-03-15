@@ -111,6 +111,7 @@ let botSpawnTimer  = 20000;
 const BOT_NAMES = ['dark_wolf99','fire_blade','shadow_x','night_storm','iron_fist','blaze_run','void_edge','steel_claw','red_ghost','swift_axe','cold_viper','mad_titan','lone_wolf','fury_wave','black_hawk','storm_eye','grim_edge','bone_crusher','death_note','ice_fang','war_raven','sun_blade','moon_fury','dark_tide','fire_storm','thunder_x','rock_solid','sharp_mind','wild_boar','eagle_eye'];
 let usedBotNames   = [];
 const teamRegistry = new Map(); // username → team number (pre-join)
+let topKillers = []; // [{username, total_kills}] from DB
 
 // ═══════════════════════════════════════════
 // WARRIOR MANAGEMENT
@@ -905,54 +906,81 @@ function drawVictory(now){
 
 // ── HUD ─────────────────────────────────────────────────────
 function drawHUD(now){
-  // ── TOP HUD — positioned over the mountains area ──
-  const T = 88; // top of HUD block (sits on mountains)
-  const TH = 130; // height of top block
-  ctx.fillStyle='rgba(0,0,0,0.78)'; ctx.fillRect(0,T,CW,TH);
+  const T=88, TH=220;
+  // Фон
+  const bg=ctx.createLinearGradient(0,T,0,T+TH);
+  bg.addColorStop(0,'rgba(10,5,30,0.97)'); bg.addColorStop(1,'rgba(5,2,15,0.97)');
+  ctx.fillStyle=bg; ctx.fillRect(0,T,CW,TH);
+  // Золотая рамка
+  ctx.strokeStyle='rgba(255,215,0,0.3)'; ctx.lineWidth=1.5; ctx.strokeRect(2,T+2,CW-4,TH-4);
 
-  // Title (2x bigger: 48px)
-  ctx.shadowColor='rgba(255,200,0,0.5)'; ctx.shadowBlur=14;
-  ctx.font='bold 46px Arial Black'; ctx.textAlign='center';
-  ctx.strokeStyle='rgba(0,0,0,0.9)'; ctx.lineWidth=5;
-  ctx.strokeText('⚔️  ARENA  BATTLE  ⚔️',CW/2,T+50);
-  ctx.fillStyle='#FFD700'; ctx.fillText('⚔️  ARENA  BATTLE  ⚔️',CW/2,T+50);
+  // Заголовок
+  ctx.shadowColor='#FFD700'; ctx.shadowBlur=16;
+  ctx.font='bold 38px Arial Black'; ctx.textAlign='center';
+  ctx.strokeStyle='rgba(0,0,0,0.9)'; ctx.lineWidth=4;
+  ctx.strokeText('⚔️  ARENA  BATTLE  ⚔️',CW/2,T+42);
+  ctx.fillStyle='#FFD700'; ctx.fillText('⚔️  ARENA  BATTLE  ⚔️',CW/2,T+42);
   ctx.shadowBlur=0;
 
-  // Armageddon bar (2x bigger: 26px tall, 480px wide)
-  const pct=Math.min(1,totalLikes/1000),bw=480,bx=CW/2-bw/2,by=T+62;
-  ctx.fillStyle='rgba(40,0,10,0.9)'; ctx.fillRect(bx,by,bw,26);
-  if(pct>0){
-    const lg=ctx.createLinearGradient(bx,0,bx+bw*pct,0);
-    lg.addColorStop(0,'#FF2266'); lg.addColorStop(1,'#FF8833');
-    ctx.fillStyle=lg; ctx.fillRect(bx,by,bw*pct,26);
-    ctx.fillStyle='rgba(255,255,255,0.15)'; ctx.fillRect(bx,by,bw*pct,11);
+  // Линия под заголовком
+  const hg=ctx.createLinearGradient(0,0,CW,0);
+  hg.addColorStop(0,'rgba(255,215,0,0)'); hg.addColorStop(0.2,'rgba(255,215,0,0.4)');
+  hg.addColorStop(0.8,'rgba(255,215,0,0.4)'); hg.addColorStop(1,'rgba(255,215,0,0)');
+  ctx.strokeStyle=hg; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(0,T+52); ctx.lineTo(CW,T+52); ctx.stroke();
+
+  // Вертикальный разделитель
+  const vg=ctx.createLinearGradient(0,T+56,0,T+TH-6);
+  vg.addColorStop(0,'rgba(255,255,255,0)'); vg.addColorStop(0.3,'rgba(255,255,255,0.1)');
+  vg.addColorStop(0.7,'rgba(255,255,255,0.1)'); vg.addColorStop(1,'rgba(255,255,255,0)');
+  ctx.strokeStyle=vg; ctx.beginPath(); ctx.moveTo(CW/2,T+56); ctx.lineTo(CW/2,T+TH-6); ctx.stroke();
+
+  // ── ЛЕВАЯ КОЛОНКА — правила ──
+  const LX=150, rY=T+66, step=26;
+  const rules=[
+    {icon:'💰',text:'coin  =  +100 HP  ⚔️ +1', color:'#FFD700'},
+    {icon:'👆',text:'tap   =  +100 HP  ⚔️ +1', color:'#44DDFF'},
+    {icon:'✍️',text:'help  =  +100 HP  ⚔️ +1', color:'#00FF99'},
+    {icon:'🔵',text:'team1  =  blue team',       color:'#6699FF'},
+    {icon:'🔴',text:'team2  =  red team',        color:'#FF5566'},
+    {icon:'💤',text:'AFK 5min  =  -10 HP  ⚔️-1', color:'#FF7700'},
+  ];
+  rules.forEach((r,i)=>{
+    const y=rY+i*step;
+    ctx.font='14px Arial'; ctx.textAlign='left'; ctx.fillStyle=r.color; ctx.fillText(r.icon,18,y);
+    ctx.font='bold 14px Arial'; ctx.shadowColor='rgba(0,0,0,1)'; ctx.shadowBlur=5;
+    ctx.fillStyle=r.color; ctx.fillText(r.text,44,y); ctx.shadowBlur=0;
+  });
+
+  // ── ПРАВАЯ КОЛОНКА — TOP KILLERS ──
+  ctx.shadowColor='#FF3333'; ctx.shadowBlur=10;
+  ctx.font='bold 15px Arial Black'; ctx.textAlign='center';
+  ctx.strokeStyle='rgba(0,0,0,0.9)'; ctx.lineWidth=3;
+  ctx.strokeText('☠️  TOP KILLERS  ☠️',450,T+66);
+  ctx.fillStyle='#FF4444'; ctx.fillText('☠️  TOP KILLERS  ☠️',450,T+66);
+  ctx.shadowBlur=0;
+  ctx.strokeStyle='rgba(255,60,60,0.2)'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(308,T+71); ctx.lineTo(592,T+71); ctx.stroke();
+
+  const tY=T+90, tStep=26;
+  const rankColors=['#FFD700','#C0C0C0','#CD7F32','#AAAAAA','#666666'];
+  const ranks=['👑','2.','3.','4.','5.'];
+  for(let i=0;i<5;i++){
+    const y=tY+i*tStep;
+    const p=topKillers[i];
+    if(i===0){ ctx.fillStyle='rgba(255,215,0,0.07)'; ctx.fillRect(306,y-17,288,tStep); }
+    ctx.shadowColor='rgba(0,0,0,0.9)'; ctx.shadowBlur=4;
+    ctx.font=i===0?'bold 14px Arial Black':'bold 13px Arial';
+    ctx.textAlign='left'; ctx.fillStyle=rankColors[i];
+    ctx.fillText(ranks[i],312,y);
+    ctx.fillStyle=i===0?'#FFE566':'#CCCCCC';
+    ctx.fillText(p?p.username:'—', i===0?342:338, y);
+    ctx.textAlign='right'; ctx.fillStyle='#FF6666';
+    ctx.fillText(p?'☠️ '+p.total_kills:'', 590, y);
+    ctx.shadowBlur=0;
   }
-  ctx.strokeStyle='rgba(200,50,80,0.7)'; ctx.lineWidth=2; ctx.strokeRect(bx,by,bw,26);
-
-  // Bar label (2x bigger: 22px)
-  ctx.font='bold 22px Arial'; ctx.textAlign='center';
-  ctx.strokeStyle='rgba(0,0,0,0.9)'; ctx.lineWidth=3;
-  ctx.strokeText(`❤️ ${Math.floor(totalLikes)} / 1000  →  ☄️ ARMAGEDDON`,CW/2,T+115);
-  ctx.fillStyle='rgba(255,200,220,1)'; ctx.fillText(`❤️ ${Math.floor(totalLikes)} / 1000  →  ☄️ ARMAGEDDON`,CW/2,T+115);
-
-  // ── SUB HUD — directly below the top block ──
-  const B1 = T + TH; // 218 — no gap, no overlap
-  // Coin formula
-  ctx.fillStyle='rgba(0,0,0,0.80)'; ctx.fillRect(0,B1,CW,46);
-  ctx.shadowColor='#FFD700'; ctx.shadowBlur=7;
-  ctx.font='bold 28px Arial Black'; ctx.textAlign='center';
-  ctx.strokeStyle='rgba(0,0,0,0.95)'; ctx.lineWidth=4;
-  ctx.strokeText('💰 1 Coin  =  ❤️ +10 HP   ⚔️ +1 DMG',CW/2,B1+34);
-  ctx.fillStyle='#FFD700'; ctx.fillText('💰 1 Coin  =  ❤️ +10 HP   ⚔️ +1 DMG',CW/2,B1+34);
-  ctx.shadowBlur=0;
-
-  // Help hint
-  const B2 = B1 + 46; // 264
-  ctx.fillStyle='rgba(0,0,0,0.75)'; ctx.fillRect(0,B2,CW,44);
-  ctx.font='bold 26px Arial'; ctx.textAlign='center';
-  ctx.strokeStyle='rgba(0,0,0,0.9)'; ctx.lineWidth=3;
-  ctx.strokeText(`✍️ write "help"  =  ❤️ +10 HP   ⚔️ +1 DMG`,CW/2,B2+32);
-  ctx.fillStyle='#00FF99'; ctx.fillText(`✍️ write "help"  =  ❤️ +10 HP   ⚔️ +1 DMG`,CW/2,B2+32);
+  ctx.font='10px Arial'; ctx.fillStyle='rgba(255,255,255,0.12)';
+  ctx.textAlign='center'; ctx.fillText('all-time kills',450,T+TH-7);
 }
 
 function drawEventLabel(){
@@ -1040,7 +1068,7 @@ function wsConnect(username){
   const proto=location.protocol==='https:'?'wss:':'ws:';
   _ws=new WebSocket(`${proto}//${location.host}?username=${encodeURIComponent(username)}`);
   _ws.onopen=()=>setStatus('connecting','⏳ @'+username+'…');
-  _ws.onmessage=(e)=>{ try{ const d=JSON.parse(e.data); if(d.type==='arena_gift'){ addWarrior(d.username,d.coins); resetActivity(d.username); } if(d.type==='arena_like'){ totalLikes+=d.likes||0; if(totalLikes>=1000){totalLikes-=1000;triggerArmageddon();} resetActivity(d.username); } if(d.type==='arena_chat'){ helpWarrior(d.username); resetActivity(d.username); } if(d.type==='arena_member'){ helpWarrior(d.username); resetActivity(d.username); } if(d.type==='arena_team'){ const existing=warriors.find(w=>w.username===d.username&&!w.dead); if(existing){ existing.team=d.team; } else { teamRegistry.set(d.username,d.team); } resetActivity(d.username); }if(d.type==='init'||d.type==='status'){ if(d.mode==='tiktok') setStatus('live','🔴 LIVE @'+(d.username||username)); else if(d.mode==='demo') setStatus('demo','🟡 DEMO MODE'); else setStatus('connecting','⏳ @'+username+'…'); } }catch(e){} };
+  _ws.onmessage=(e)=>{ try{ const d=JSON.parse(e.data); if(d.type==='arena_gift'){ addWarrior(d.username,d.coins); resetActivity(d.username); } if(d.type==='arena_like'){ totalLikes+=d.likes||0; if(totalLikes>=1000){totalLikes-=1000;triggerArmageddon();} resetActivity(d.username); } if(d.type==='arena_chat'){ helpWarrior(d.username); resetActivity(d.username); } if(d.type==='arena_member'){ helpWarrior(d.username); resetActivity(d.username); } if(d.type==='arena_team'){ const existing=warriors.find(w=>w.username===d.username&&!w.dead); if(existing){ existing.team=d.team; } else { teamRegistry.set(d.username,d.team); } resetActivity(d.username); }if(d.type==='top_killers'){ topKillers=d.data||[]; } if(d.type==='init'||d.type==='status'){ if(d.topKillers) topKillers=d.topKillers; if(d.mode==='tiktok') setStatus('live','🔴 LIVE @'+(d.username||username)); else if(d.mode==='demo') setStatus('demo','🟡 DEMO MODE'); else setStatus('connecting','⏳ @'+username+'…'); } }catch(e){} };
   _ws.onclose=()=>{setStatus('error','❌ Disconnected…');setTimeout(()=>wsConnect(_wsUser),3000);};
   _ws.onerror=()=>{};
 }

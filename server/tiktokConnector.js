@@ -31,28 +31,36 @@ function connectToTikTok(username, onGift, onStatus, onMember, onLike, onChat) {
     return conn;
   }
 
-  const MAX_RETRIES = 5;
-  const RETRY_DELAY = 15000;
+  const RETRY_DELAY   = 15000;  // 15с между попытками
+  const RETRY_PAUSE   = 60000;  // 60с пауза после серии перед новой серией
+  const MAX_PER_ROUND = 5;
+
+  let demoStarted = false;
 
   function tryConnect(attempt) {
-    console.log(`[TikTok][${username}] Попытка подключения ${attempt}/${MAX_RETRIES}…`);
+    console.log(`[TikTok][${username}] Попытка ${attempt}…`);
     conn.connect()
       .then(s => {
         conn._tiktokMode = 'tiktok';
+        demoStarted = false;
         console.log(`[TikTok][${username}] Подключён, room: ${s.roomId}`);
         notify({ connected: true, mode: 'tiktok', message: `Подключён к @${username}` });
       })
       .catch(err => {
         const msg = err.message || String(err);
         console.error(`[TikTok][${username}] Ошибка (попытка ${attempt}): ${msg}`);
-        if (attempt < MAX_RETRIES) {
-          notify({ connected: false, mode: 'connecting', message: `@${username}: повтор через ${RETRY_DELAY/1000}с (${attempt}/${MAX_RETRIES})` });
+        if (attempt < MAX_PER_ROUND) {
+          notify({ connected: false, mode: 'connecting', message: `@${username}: повтор ${attempt}/${MAX_PER_ROUND}…` });
           setTimeout(() => tryConnect(attempt + 1), RETRY_DELAY);
         } else {
-          conn._tiktokMode = 'demo';
-          console.error(`[TikTok][${username}] Все попытки исчерпаны, запуск демо`);
-          notify({ connected: false, mode: 'demo', message: `Не удалось подключить @${username}: ${msg}` });
-          _startDemo(onGift, conn, onLike, onChat, onMember);
+          if (!demoStarted) {
+            demoStarted = true;
+            conn._tiktokMode = 'demo';
+            notify({ connected: false, mode: 'demo', message: `Демо-режим, повтор через 60с…` });
+            _startDemo(onGift, conn, onLike, onChat, onMember);
+          }
+          // Через 60 сек снова пробуем подключиться
+          setTimeout(() => tryConnect(1), RETRY_PAUSE);
         }
       });
   }

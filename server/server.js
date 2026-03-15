@@ -250,15 +250,29 @@ class Room {
 
   addClient(ws) {
     this.clients.add(ws);
-    ws.send(JSON.stringify({
-      type:         'init',
-      players:      this.players.getTop10(),
-      totalPlayers: this.players.getTotalCount(),
-      racePoints:   this.players.getTotalPoints(),
-      totalLikes:   this._totalLikes,
-      username:     this.username,
-      tiktokMode:   this.connection?._tiktokMode || 'connecting'
-    }));
+    db.getTopKillers(5).then(top => {
+      ws.send(JSON.stringify({
+        type:         'init',
+        players:      this.players.getTop10(),
+        totalPlayers: this.players.getTotalCount(),
+        racePoints:   this.players.getTotalPoints(),
+        totalLikes:   this._totalLikes,
+        username:     this.username,
+        tiktokMode:   this.connection?._tiktokMode || 'connecting',
+        topKillers:   top,
+      }));
+    }).catch(() => {
+      ws.send(JSON.stringify({
+        type:         'init',
+        players:      this.players.getTop10(),
+        totalPlayers: this.players.getTotalCount(),
+        racePoints:   this.players.getTotalPoints(),
+        totalLikes:   this._totalLikes,
+        username:     this.username,
+        tiktokMode:   this.connection?._tiktokMode || 'connecting',
+        topKillers:   [],
+      }));
+    });
   }
 
   removeClient(ws) { this.clients.delete(ws); }
@@ -311,7 +325,10 @@ wss.on('connection', (ws, req) => {
     try {
       const msg = JSON.parse(raw);
       if (msg.type === 'kill' && msg.username) {
-        db.addKill(msg.username).catch(e => console.error('[DB] addKill error:', e.message));
+        db.addKill(msg.username)
+          .then(() => db.getTopKillers(5))
+          .then(top => room.broadcast({ type: 'top_killers', data: top }))
+          .catch(e => console.error('[DB] kill error:', e.message));
         console.log(`[Kill] ${msg.username} +1`);
       }
     } catch(e) {}
