@@ -155,6 +155,7 @@ function makeWarrior(username, coins){
     dead:false, deathTimer:0, flashTimer:0, glowTimer:0,
     floatY:0, floatVY:0, attackAnim:0, hitAnim:0,
     bumpCooldown:2000, kills:0, team:0,
+    lastActivityTime:Date.now(), idleDrainAcc:0,
   };
 }
 
@@ -990,6 +991,28 @@ function updateBots(dt){
     warriors.push(w); playSpawn(); spawnSpawnFX(w);
   }
 }
+function resetActivity(username){
+  const w=warriors.find(w=>w.username===username&&!w.dead);
+  if(w){ w.lastActivityTime=Date.now(); w.idleDrainAcc=0; }
+}
+
+function updateIdleDrain(dt){
+  const now=Date.now();
+  for(const w of warriors){
+    if(w.dead||w.isBot) continue;
+    if(now - w.lastActivityTime < 300000) continue; // < 5 минут — не деградируем
+    w.idleDrainAcc+=dt;
+    if(w.idleDrainAcc>=1000){
+      w.idleDrainAcc-=1000;
+      w.hp=Math.max(0,w.hp-1);
+      w.damage=Math.max(1,w.damage-1);
+      const sp=arenaToScreen(w.ax,w.ay);
+      spawnDmgNum(sp.x,sp.y-55,-1,'#888888');
+      if(w.hp<=0){ w.dead=true; w.deathTimer=700; spawnDeathFX(w); playRemove(); checkVictory(); }
+    }
+  }
+}
+
 function gameLoop(now){
   requestAnimationFrame(gameLoop);
   const dt=Math.min(now-(lastT||now),100); lastT=now;
@@ -1000,6 +1023,7 @@ function gameLoop(now){
   updateArmageddon(dt);
   updateVictory(dt);
   updateBots(dt);
+  updateIdleDrain(dt);
   if(eventLabelTimer>0) eventLabelTimer-=dt;
   draw(now);
 }
@@ -1015,7 +1039,7 @@ function wsConnect(username){
   const proto=location.protocol==='https:'?'wss:':'ws:';
   _ws=new WebSocket(`${proto}//${location.host}?username=${encodeURIComponent(username)}`);
   _ws.onopen=()=>setStatus('connecting','⏳ @'+username+'…');
-  _ws.onmessage=(e)=>{ try{ const d=JSON.parse(e.data); if(d.type==='arena_gift') addWarrior(d.username,d.coins); if(d.type==='arena_like'){totalLikes+=d.likes||0;if(totalLikes>=1000){totalLikes-=1000;triggerArmageddon();}} if(d.type==='arena_chat') helpWarrior(d.username); if(d.type==='arena_member'){ helpWarrior(d.username); } if(d.type==='arena_team'){ const existing=warriors.find(w=>w.username===d.username&&!w.dead); if(existing){ existing.team=d.team; } else { teamRegistry.set(d.username,d.team); } }if(d.type==='init'||d.type==='status'){ if(d.mode==='tiktok') setStatus('live','🔴 LIVE @'+(d.username||username)); else if(d.mode==='demo') setStatus('demo','🟡 DEMO MODE'); else setStatus('connecting','⏳ @'+username+'…'); } }catch(e){} };
+  _ws.onmessage=(e)=>{ try{ const d=JSON.parse(e.data); if(d.type==='arena_gift'){ addWarrior(d.username,d.coins); resetActivity(d.username); } if(d.type==='arena_like'){ totalLikes+=d.likes||0; if(totalLikes>=1000){totalLikes-=1000;triggerArmageddon();} resetActivity(d.username); } if(d.type==='arena_chat'){ helpWarrior(d.username); resetActivity(d.username); } if(d.type==='arena_member'){ helpWarrior(d.username); resetActivity(d.username); } if(d.type==='arena_team'){ const existing=warriors.find(w=>w.username===d.username&&!w.dead); if(existing){ existing.team=d.team; } else { teamRegistry.set(d.username,d.team); } resetActivity(d.username); }if(d.type==='init'||d.type==='status'){ if(d.mode==='tiktok') setStatus('live','🔴 LIVE @'+(d.username||username)); else if(d.mode==='demo') setStatus('demo','🟡 DEMO MODE'); else setStatus('connecting','⏳ @'+username+'…'); } }catch(e){} };
   _ws.onclose=()=>{setStatus('error','❌ Disconnected…');setTimeout(()=>wsConnect(_wsUser),3000);};
   _ws.onerror=()=>{};
 }
