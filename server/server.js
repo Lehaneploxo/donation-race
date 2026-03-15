@@ -388,4 +388,10 @@ db.init().catch(e => console.error('[DB] init error:', e.message));
 server.listen(PORT, () => {
   console.log(`[Server] Запущен: http://localhost:${PORT}/game?username=${DEFAULT_USERNAME}`);
   console.log(`[Server] Для TikTok: http://localhost:${PORT}/game?username=ВАШ_НИК`);
+  // Сразу при старте создаём комнату и начинаем подключение к TikTok
+  // Чтобы к моменту первого посетителя соединение уже было установлено
+  if (DEFAULT_USERNAME && DEFAULT_USERNAME !== 'demo') {
+    console.log(`[Server] Предварительное подключение к @${DEFAULT_USERNAME}…`);
+    getOrCreateRoom(DEFAULT_USERNAME);
+  }
 });
