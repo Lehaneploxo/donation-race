@@ -1092,6 +1092,12 @@ function setStatus(cls,text){const el=document.getElementById('statusBadge');if(
   if(u) wsConnect(u);
   document.addEventListener('click',()=>{try{getACtx();}catch(e){}},{once:true});
   document.addEventListener('touchstart',()=>{try{getACtx();}catch(e){}},{once:true});
+  // Периодически обновляем топ убийц через HTTP
+  function fetchTop(){
+    fetch('/top').then(r=>r.json()).then(d=>{ if(d.ok&&d.top&&d.top.length) topKillers=d.top.slice(0,5); }).catch(()=>{});
+  }
+  fetchTop();
+  setInterval(fetchTop, 30000);
 })();
 
 // ═══════════════════════════════════════════
