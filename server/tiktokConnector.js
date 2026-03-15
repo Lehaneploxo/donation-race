@@ -34,7 +34,12 @@ function connectToTikTok(username, onGift, onStatus, onMember, onLike, onChat) {
     connecting = true;
     console.log(`[TikTok][${username}] Попытка подключения…`);
 
-    const conn = new WebcastPushConnection(username);
+    const connOptions = {};
+    if (process.env.TIKTOK_SESSION_ID) {
+      connOptions.sessionId = process.env.TIKTOK_SESSION_ID;
+      console.log(`[TikTok][${username}] Используется sessionId (подпись необязательна)`);
+    }
+    const conn = new WebcastPushConnection(username, connOptions);
 
     // ── Обработчики TikTok событий ──
     const seenGifts = new Set();
