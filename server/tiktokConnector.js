@@ -9,177 +9,143 @@ const DEMO_USERS = [
   { id: 'd11', name: 'SpeedRunner' },  { id: 'd12', name: 'GoldRush' },
 ];
 
-const RETRY_DELAY = 30000; // 30с между попытками
-
 function connectToTikTok(username, onGift, onStatus, onMember, onLike, onChat) {
   const notify = onStatus || (() => {});
-
-  // Стабильный handle — на него ссылается Room
   const handle = { _tiktokMode: 'connecting' };
 
-  // Демо-режим сразу если username = demo
   if (username === 'demo') {
     handle._tiktokMode = 'demo';
-    console.log(`[TikTok] Демо-режим запущен`);
     notify({ connected: false, mode: 'demo', message: 'Демо-режим' });
     _startDemo(onGift, handle, onLike, onChat, onMember);
     return handle;
   }
 
-  let demoStarted = false;
-  let retryTimer = null;
+  let connecting = false;  // защита от параллельных попыток
 
-  function stopDemo() {
-    clearInterval(handle._demoInterval);
-    clearInterval(handle._demoTornadoIv);
-    clearInterval(handle._demoGoIv);
-    clearInterval(handle._demoWarIv);
-    clearInterval(handle._demoWarGiftIv);
-    clearInterval(handle._demoArenaGiftIv);
-    clearInterval(handle._demoArenaHelpIv);
-    clearInterval(handle._demoMemberIv);
-    demoStarted = false;
-    console.log(`[TikTok][${username}] Демо остановлен`);
-  }
-
-  function attempt() {
-    if (retryTimer) { clearTimeout(retryTimer); retryTimer = null; }
-
+  function tryOnce() {
+    if (connecting) return;  // уже пытаемся — ждём
+    connecting = true;
     console.log(`[TikTok][${username}] Попытка подключения…`);
 
-    // НОВЫЙ объект для каждой попытки — ключевое исправление
     const conn = new WebcastPushConnection(username);
-    const _seenGifts = new Set();
 
+    // ── Обработчики TikTok событий ──
+    const seenGifts = new Set();
     conn.on('gift', data => {
-      const dedupKey = `${data.userId}_${data.giftId || data.giftName}_${data.repeatCount}_${Math.floor(Date.now()/2000)}`;
-      if (_seenGifts.has(dedupKey)) return;
-      _seenGifts.add(dedupKey);
-      if (_seenGifts.size > 500) _seenGifts.clear();
-      const perGift = data.diamondCount || data.giftDetails?.diamondCount || 1;
-      const coins   = Math.max(1, Math.floor(perGift));
+      const key = `${data.userId}_${data.giftId||data.giftName}_${data.repeatCount}_${Math.floor(Date.now()/2000)}`;
+      if (seenGifts.has(key)) return;
+      seenGifts.add(key); if (seenGifts.size > 500) seenGifts.clear();
+      const coins = Math.max(1, Math.floor(data.diamondCount || data.giftDetails?.diamondCount || 1));
       const giftName = data.giftName || data.giftDetails?.giftName || '';
-      console.log(`[Gift] ${data.nickname || data.uniqueId} → ${coins} coins | gift="${giftName}"`);
       onGift({ userId: String(data.userId), username: data.nickname || data.uniqueId || 'Unknown', avatarUrl: data.profilePictureUrl || '', giftName, coins });
     });
-
     conn.on('like', data => {
       if (!onLike) return;
-      const count = data.likeCount || 1;
-      onLike({ userId: String(data.userId), username: data.nickname || data.uniqueId || 'Unknown', avatarUrl: data.profilePictureUrl || '', likes: count });
+      onLike({ userId: String(data.userId), username: data.nickname || data.uniqueId || 'Unknown', avatarUrl: data.profilePictureUrl || '', likes: data.likeCount || 1 });
     });
-
     conn.on('chat', data => {
       if (!onChat) return;
       const msg = (data.comment || '').trim().toLowerCase();
-      if (msg === 'go' || msg === 'blue' || msg === 'red' || msg === 'help' || msg === 'team' || msg === 'team2') {
-        console.log(`[Chat ${msg.toUpperCase()}] ` + (data.nickname || data.uniqueId));
+      if (['go','blue','red','help','team','team2'].includes(msg))
         onChat({ userId: String(data.userId), username: data.nickname || data.uniqueId || 'Unknown', avatarUrl: data.profilePictureUrl || '', message: msg });
-      }
     });
-
     conn.on('member', data => {
-      const uname = data.nickname || data.uniqueId || 'Unknown';
-      onMember?.({ userId: String(data.userId), username: uname, avatarUrl: data.profilePictureUrl || '' });
+      onMember?.({ userId: String(data.userId), username: data.nickname || data.uniqueId || 'Unknown', avatarUrl: data.profilePictureUrl || '' });
     });
-
-    conn.on('error', err => console.error(`[TikTok][${username}] Ошибка события:`, err.message || err));
-
+    conn.on('error', err => console.error(`[TikTok][${username}] event error:`, err.message || err));
     conn.on('disconnected', () => {
-      console.log(`[TikTok][${username}] Отключён, повтор через ${RETRY_DELAY/1000}с`);
+      console.log(`[TikTok][${username}] Отключился от стрима`);
       handle._tiktokMode = 'demo';
-      notify({ connected: false, mode: 'demo', message: `@${username} отключился, повтор через ${RETRY_DELAY/1000}с…` });
-      if (!demoStarted) { demoStarted = true; _startDemo(onGift, handle, onLike, onChat, onMember); }
-      retryTimer = setTimeout(attempt, RETRY_DELAY);
+      notify({ connected: false, mode: 'demo', message: `@${username} вышел из эфира` });
+      connecting = false;
+      // демо уже запущено, просто ждём следующего retry
     });
 
     conn.connect()
       .then(s => {
+        console.log(`[TikTok][${username}] ✅ Подключён! room: ${s.roomId}`);
         handle._tiktokMode = 'tiktok';
-        if (demoStarted) stopDemo();
-        console.log(`[TikTok][${username}] Подключён, room: ${s.roomId}`);
+        // Останавливаем демо если работало
+        _stopDemo(handle);
         notify({ connected: true, mode: 'tiktok', message: `Подключён к @${username}` });
+        connecting = false;
       })
       .catch(err => {
-        const msg = err.message || String(err);
-        console.error(`[TikTok][${username}] Не удалось подключиться: ${msg}`);
+        console.error(`[TikTok][${username}] ❌ Ошибка: ${err.message || err}`);
         handle._tiktokMode = 'demo';
-        if (!demoStarted) {
-          demoStarted = true;
-          notify({ connected: false, mode: 'demo', message: `Демо-режим, повтор через ${RETRY_DELAY/1000}с…` });
+        if (!handle._demoStarted) {
+          handle._demoStarted = true;
+          notify({ connected: false, mode: 'demo', message: `Демо-режим (@${username} не в эфире или ошибка сети)` });
           _startDemo(onGift, handle, onLike, onChat, onMember);
-        } else {
-          notify({ connected: false, mode: 'demo', message: `Повтор через ${RETRY_DELAY/1000}с…` });
         }
-        retryTimer = setTimeout(attempt, RETRY_DELAY);
+        connecting = false;
       });
   }
 
-  attempt();
+  // Первая попытка сразу
+  tryOnce();
+
+  // Повтор каждые 10 секунд — до победного
+  setInterval(tryOnce, 10000);
+
   return handle;
 }
 
+function _stopDemo(handle) {
+  if (!handle._demoStarted) return;
+  const keys = ['_demoInterval','_demoTornadoIv','_demoGoIv','_demoWarIv',
+                 '_demoWarGiftIv','_demoArenaGiftIv','_demoArenaHelpIv','_demoMemberIv'];
+  keys.forEach(k => { clearInterval(handle[k]); handle[k] = null; });
+  handle._demoStarted = false;
+  console.log('[TikTok] Демо остановлен — подключён к стриму');
+}
+
 function _startDemo(onGift, handle, onLike, onChat, onMember) {
-  const memberIv = setInterval(() => {
+  handle._demoMemberIv = setInterval(() => {
     const u = DEMO_USERS[Math.floor(Math.random() * DEMO_USERS.length)];
     if (onMember) onMember({ userId: u.id, username: u.name, avatarUrl: '' });
   }, 8000);
-  handle._demoMemberIv = memberIv;
 
-  const iv = setInterval(() => {
+  handle._demoInterval = setInterval(() => {
     const u = DEMO_USERS[Math.floor(Math.random() * DEMO_USERS.length)];
     if (Math.random() < 0.4 && onLike) {
-      const likes = (Math.floor(Math.random() * 10) + 1) * 5;
-      onLike({ userId: u.id, username: u.name, avatarUrl: '', likes });
+      onLike({ userId: u.id, username: u.name, avatarUrl: '', likes: (Math.floor(Math.random()*10)+1)*5 });
     } else {
-      const coins = Math.floor(Math.random() * 50) + 1;
-      onGift({ userId: u.id, username: u.name, avatarUrl: '', giftName: '', coins });
+      onGift({ userId: u.id, username: u.name, avatarUrl: '', giftName: '', coins: Math.floor(Math.random()*50)+1 });
     }
   }, 800);
-  handle._demoInterval = iv;
 
-  const tornadoIv = setInterval(() => {
+  handle._demoTornadoIv = setInterval(() => {
     const u = DEMO_USERS[Math.floor(Math.random() * DEMO_USERS.length)];
     onGift({ userId: u.id, username: u.name, avatarUrl: '', giftName: 'Donut', coins: 30 });
   }, 50000);
-  handle._demoTornadoIv = tornadoIv;
 
-  const goIv = setInterval(() => {
+  handle._demoGoIv = setInterval(() => {
     const u = DEMO_USERS[Math.floor(Math.random() * DEMO_USERS.length)];
     if (onChat) onChat({ userId: u.id, username: u.name, avatarUrl: '', message: 'go' });
   }, 4000);
-  handle._demoGoIv = goIv;
 
-  const warIv = setInterval(() => {
+  handle._demoWarIv = setInterval(() => {
     const u = DEMO_USERS[Math.floor(Math.random() * DEMO_USERS.length)];
-    const team = Math.random() < 0.5 ? 'blue' : 'red';
-    if (onChat) onChat({ userId: u.id, username: u.name, avatarUrl: '', message: team });
+    if (onChat) onChat({ userId: u.id, username: u.name, avatarUrl: '', message: Math.random()<0.5?'blue':'red' });
   }, 2500);
-  handle._demoWarIv = warIv;
 
-  const arenaGiftNames = ['Rose','Finger Heart','TikTok','Ice Cream','Galaxy'];
-  const arenaGiftIv = setInterval(() => {
+  handle._demoArenaGiftIv = setInterval(() => {
     const u = DEMO_USERS[Math.floor(Math.random() * DEMO_USERS.length)];
     const coins = [1,1,5,10,25,50,100][Math.floor(Math.random()*7)];
-    const giftName = arenaGiftNames[Math.floor(Math.random()*arenaGiftNames.length)];
-    onGift({ userId: u.id, username: u.name, avatarUrl: '', giftName, coins });
+    onGift({ userId: u.id, username: u.name, avatarUrl: '', giftName: ['Rose','Finger Heart','TikTok','Ice Cream','Galaxy'][Math.floor(Math.random()*5)], coins });
   }, 6000);
-  handle._demoArenaGiftIv = arenaGiftIv;
 
-  const arenaHelpIv = setInterval(() => {
+  handle._demoArenaHelpIv = setInterval(() => {
     const u = DEMO_USERS[Math.floor(Math.random() * DEMO_USERS.length)];
     if (onChat) onChat({ userId: u.id, username: u.name, avatarUrl: '', message: 'help' });
   }, 12000);
-  handle._demoArenaHelpIv = arenaHelpIv;
 
-  const warGiftNames = ['TikTok', 'Rose', 'Crown', 'Heart Me'];
-  const warGiftIv = setInterval(() => {
+  handle._demoWarGiftIv = setInterval(() => {
     const u = DEMO_USERS[Math.floor(Math.random() * DEMO_USERS.length)];
-    const giftName = warGiftNames[Math.floor(Math.random() * warGiftNames.length)];
-    const coins = (giftName === 'Crown' || giftName === 'Heart Me') ? 100 : 1;
-    onGift({ userId: u.id, username: u.name, avatarUrl: '', giftName, coins });
+    const giftName = ['TikTok','Rose','Crown','Heart Me'][Math.floor(Math.random()*4)];
+    onGift({ userId: u.id, username: u.name, avatarUrl: '', giftName, coins: (giftName==='Crown'||giftName==='Heart Me')?100:1 });
   }, 18000);
-  handle._demoWarGiftIv = warGiftIv;
 }
 
 module.exports = { connectToTikTok };
