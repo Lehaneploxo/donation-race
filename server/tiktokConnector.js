@@ -19,7 +19,12 @@ const DEMO_USERS = [
  */
 function connectToTikTok(username, onGift, onStatus, onMember, onLike, onChat) {
   const notify = onStatus || (() => {});
-  const conn   = new WebcastPushConnection(username);
+  const sessionId = process.env.TIKTOK_SESSION_ID || null;
+  const conn   = new WebcastPushConnection(username, {
+    sessionId,
+    enableExtendedGiftInfo: false,
+    requestPollingIntervalMs: 2000,
+  });
   conn._tiktokMode = 'connecting';
 
   // Если username = demo — сразу запускаем демо без попыток подключения
