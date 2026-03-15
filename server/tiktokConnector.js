@@ -31,19 +31,33 @@ function connectToTikTok(username, onGift, onStatus, onMember, onLike, onChat) {
     return conn;
   }
 
-  conn.connect()
-    .then(s => {
-      conn._tiktokMode = 'tiktok';
-      console.log(`[TikTok][${username}] Подключён, room: ${s.roomId}`);
-      notify({ connected: true, mode: 'tiktok', message: `Подключён к @${username}` });
-    })
-    .catch(err => {
-      conn._tiktokMode = 'demo';
-      const msg = err.message || String(err);
-      console.error(`[TikTok][${username}] Ошибка: ${msg}`);
-      notify({ connected: false, mode: 'demo', message: `Не удалось подключить @${username}: ${msg}` });
-      _startDemo(onGift, conn, onLike, onChat, onMember);
-    });
+  const MAX_RETRIES = 5;
+  const RETRY_DELAY = 15000;
+
+  function tryConnect(attempt) {
+    console.log(`[TikTok][${username}] Попытка подключения ${attempt}/${MAX_RETRIES}…`);
+    conn.connect()
+      .then(s => {
+        conn._tiktokMode = 'tiktok';
+        console.log(`[TikTok][${username}] Подключён, room: ${s.roomId}`);
+        notify({ connected: true, mode: 'tiktok', message: `Подключён к @${username}` });
+      })
+      .catch(err => {
+        const msg = err.message || String(err);
+        console.error(`[TikTok][${username}] Ошибка (попытка ${attempt}): ${msg}`);
+        if (attempt < MAX_RETRIES) {
+          notify({ connected: false, mode: 'connecting', message: `@${username}: повтор через ${RETRY_DELAY/1000}с (${attempt}/${MAX_RETRIES})` });
+          setTimeout(() => tryConnect(attempt + 1), RETRY_DELAY);
+        } else {
+          conn._tiktokMode = 'demo';
+          console.error(`[TikTok][${username}] Все попытки исчерпаны, запуск демо`);
+          notify({ connected: false, mode: 'demo', message: `Не удалось подключить @${username}: ${msg}` });
+          _startDemo(onGift, conn, onLike, onChat, onMember);
+        }
+      });
+  }
+
+  tryConnect(1);
 
   const _seenGifts = new Set();
   conn.on('gift', data => {
