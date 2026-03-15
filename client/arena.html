@@ -341,8 +341,8 @@ function updateWarriors(dt){
           const pa=rndArenaPos(); a.tax=pa.ax; a.tay=pa.ay; a.walkTimer=0;
           const pb=rndArenaPos(); b.tax=pb.ax; b.tay=pb.ay; b.walkTimer=0;
           // Check deaths
-          if(b.hp<=0){b.hp=0;b.dead=true;b.deathTimer=700;spawnDeathFX(b);playRemove();a.kills++;playKill();}
-          if(a.hp<=0){a.hp=0;a.dead=true;a.deathTimer=700;spawnDeathFX(a);playRemove();b.kills++;playKill();}
+          if(b.hp<=0){b.hp=0;b.dead=true;b.deathTimer=700;spawnDeathFX(b);playRemove();a.kills++;playKill();if(!a.isBot&&_ws&&_ws.readyState===1)_ws.send(JSON.stringify({type:'kill',username:a.username}));}
+          if(a.hp<=0){a.hp=0;a.dead=true;a.deathTimer=700;spawnDeathFX(a);playRemove();b.kills++;playKill();if(!b.isBot&&_ws&&_ws.readyState===1)_ws.send(JSON.stringify({type:'kill',username:b.username}));}
           checkVictory();
         }
       }

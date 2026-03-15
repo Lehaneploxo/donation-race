@@ -6,6 +6,7 @@ const url       = require('url');
 
 const PlayersManager      = require('./playersManager');
 const { connectToTikTok } = require('./tiktokConnector');
+const db                  = require('./db');
 
 const PORT     = process.env.PORT || 3000;
 const DEFAULT_USERNAME = (process.argv[2] || process.env.TIKTOK_USERNAME || 'demo')
@@ -306,6 +307,16 @@ wss.on('connection', (ws, req) => {
   room.addClient(ws);
   console.log(`[WS] +клиент @${username} (всего: ${room.clients.size})`);
 
+  ws.on('message', (raw) => {
+    try {
+      const msg = JSON.parse(raw);
+      if (msg.type === 'kill' && msg.username) {
+        db.addKill(msg.username).catch(e => console.error('[DB] addKill error:', e.message));
+        console.log(`[Kill] ${msg.username} +1`);
+      }
+    } catch(e) {}
+  });
+
   ws.on('close', () => {
     room.removeClient(ws);
     console.log(`[WS] -клиент @${username} (всего: ${room.clients.size})`);
@@ -329,6 +340,8 @@ server.on('error', (err) => {
   }
   throw err;
 });
+
+db.init().catch(e => console.error('[DB] init error:', e.message));
 
 server.listen(PORT, () => {
   console.log(`[Server] Запущен: http://localhost:${PORT}/game?username=${DEFAULT_USERNAME}`);
