@@ -50,6 +50,15 @@ app.get('/arena', (req, res) => {
   res.sendFile(path.join(__dirname, '../client/arena.html'));
 });
 
+app.get('/top', async (req, res) => {
+  try {
+    const top = await db.getTopKillers(20);
+    res.json({ ok: true, count: top.length, top });
+  } catch(e) {
+    res.json({ ok: false, error: e.message });
+  }
+});
+
 // ─── Rooms ───────────────────────────────────────────────────────────────────
 const rooms = new Map();
 
@@ -325,11 +334,14 @@ wss.on('connection', (ws, req) => {
     try {
       const msg = JSON.parse(raw);
       if (msg.type === 'kill' && msg.username) {
+        console.log(`[Kill] received: ${msg.username}`);
         db.addKill(msg.username)
           .then(() => db.getTopKillers(5))
-          .then(top => room.broadcast({ type: 'top_killers', data: top }))
+          .then(top => {
+            console.log(`[Kill] DB updated, top: ${top.map(p=>p.username+'='+p.total_kills).join(', ')}`);
+            room.broadcast({ type: 'top_killers', data: top });
+          })
           .catch(e => console.error('[DB] kill error:', e.message));
-        console.log(`[Kill] ${msg.username} +1`);
       }
     } catch(e) {}
   });
