@@ -936,28 +936,27 @@ function drawHUD(now){
   ctx.strokeStyle=vg; ctx.beginPath(); ctx.moveTo(CW/2,T+56); ctx.lineTo(CW/2,T+TH-6); ctx.stroke();
 
   // ── ЛЕВАЯ КОЛОНКА — правила ──
-  const rY=T+58, step=27;
+  const rY=T+60, step=27;
   const rules=[
-    {tri:null,  text:'💰 coin = +100 HP  ⚔️+1',  color:'#FFD700'},
-    {tri:null,  text:'👆 tap  = +100 HP  ⚔️+1',  color:'#44DDFF'},
-    {tri:null,  text:'✍️ help = +100 HP  ⚔️+1',  color:'#00FF99'},
-    {tri:'red', text:'"team"  =  red team',        color:'#FF4455'},
-    {tri:'blue',text:'"team2" =  blue team',       color:'#5599FF'},
-    {tri:null,  text:'💤 AFK 5min = -10HP ⚔️-1',  color:'#FF7700'},
+    {text:'💰 coin = +100 HP  ⚔️+1',   color:'#FFD700', triRight:null},
+    {text:'👆 tap  = +100 HP  ⚔️+1',   color:'#44DDFF', triRight:null},
+    {text:'✍️ "help" = +100 HP  ⚔️+1', color:'#00FF99', triRight:null},
+    {text:'✍️ "team"  =  red team',     color:'#FF4455', triRight:'red'},
+    {text:'✍️ "team2" =  blue team',    color:'#5599FF', triRight:'blue'},
+    {text:'💤 AFK 5min = -10HP ⚔️-1',  color:'#FF7700', triRight:null},
   ];
   rules.forEach((r,i)=>{
     const y=rY+i*step;
     ctx.shadowColor='rgba(0,0,0,1)'; ctx.shadowBlur=6;
-    // треугольник-флажок для team/team2
-    if(r.tri==='red'){
-      ctx.fillStyle='#FF3344';
-      ctx.beginPath(); ctx.moveTo(12,y-11); ctx.lineTo(12,y+3); ctx.lineTo(26,y-4); ctx.closePath(); ctx.fill();
-    } else if(r.tri==='blue'){
-      ctx.fillStyle='#4488FF';
-      ctx.beginPath(); ctx.moveTo(12,y-11); ctx.lineTo(12,y+3); ctx.lineTo(26,y-4); ctx.closePath(); ctx.fill();
+    ctx.font='bold 17px Arial'; ctx.textAlign='left';
+    ctx.fillStyle=r.color; ctx.fillText(r.text, 12, y);
+    // флажок справа после текста для team/team2
+    if(r.triRight){
+      const tw=ctx.measureText(r.text).width;
+      const tx=12+tw+10;
+      ctx.fillStyle=r.triRight==='red'?'#FF3344':'#4488FF';
+      ctx.beginPath(); ctx.moveTo(tx,y-11); ctx.lineTo(tx,y+3); ctx.lineTo(tx+14,y-4); ctx.closePath(); ctx.fill();
     }
-    ctx.font='bold 16px Arial'; ctx.textAlign='left';
-    ctx.fillStyle=r.color; ctx.fillText(r.text, r.tri?32:12, y);
     ctx.shadowBlur=0;
   });
 
