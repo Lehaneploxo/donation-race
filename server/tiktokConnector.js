@@ -86,7 +86,11 @@ function connectToTikTok(username, onGift, onStatus, onMember, onLike, onChat) {
         connected  = false;
         connecting = false;
         // Уважаем retryAfter от TikTok — не спамим
-        const retryAfter = (err.retryAfter && err.retryAfter > 0) ? err.retryAfter + 2000 : 15000;
+        // Если TikTok rate-limit (retryAfter задан) — ждём минимум 5 минут чтобы окно сбросилось.
+        // Повтор через 70с только сбрасывает таймер блокировки снова.
+        const retryAfter = (err.retryAfter && err.retryAfter > 0)
+          ? Math.max(err.retryAfter, 5 * 60 * 1000)
+          : 30000;
         console.error(`[TikTok][${username}] ❌ Ошибка: ${err.message || err} | retry через ${Math.round(retryAfter/1000)}с`);
         handle._tiktokMode = 'demo';
         if (!handle._demoStarted) {
