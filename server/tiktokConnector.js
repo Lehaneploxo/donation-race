@@ -1,15 +1,5 @@
 const { WebcastPushConnection } = require('tiktok-live-connector');
 
-// Отключаем подпись eulerstream.com — TikTok принимает запросы без подписи для публичных стримов.
-// Без этого eulerstream.com блокирует наш IP и каждый запрос возвращает retry-after: 70s.
-try {
-  const signProvider = require('tiktok-live-connector/dist/lib/tiktokSignatureProvider');
-  signProvider.config.enabled = false;
-  console.log('[TikTok] Подпись eulerstream отключена — прямое подключение');
-} catch(e) {
-  console.warn('[TikTok] Не удалось отключить подпись:', e.message);
-}
-
 const DEMO_USERS = [
   { id: 'd1', name: 'SuperFan_Anya' }, { id: 'd2', name: 'TikTokKing99' },
   { id: 'd3', name: 'Donator_Pro' },   { id: 'd4', name: 'StreamQueen' },
@@ -44,10 +34,12 @@ function connectToTikTok(username, onGift, onStatus, onMember, onLike, onChat) {
     connecting = true;
     console.log(`[TikTok][${username}] Попытка подключения…`);
 
-    const connOptions = {};
+    // Используем zerody.one как основной сервер подписи — eulerstream блокирует наш IP на Railway
+    const connOptions = {
+      signProviderOptions: { host: 'https://tiktok-sign.zerody.one/' }
+    };
     if (process.env.TIKTOK_SESSION_ID) {
       connOptions.sessionId = process.env.TIKTOK_SESSION_ID;
-      console.log(`[TikTok][${username}] Используется sessionId (подпись необязательна)`);
     }
     const conn = new WebcastPushConnection(username, connOptions);
 
