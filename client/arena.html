@@ -936,41 +936,50 @@ function drawHUD(now){
   ctx.strokeStyle=vg; ctx.beginPath(); ctx.moveTo(CW/2,T+56); ctx.lineTo(CW/2,T+TH-6); ctx.stroke();
 
   // ── ЛЕВАЯ КОЛОНКА — правила ──
-  const LX=150, rY=T+66, step=26;
+  const rY=T+58, step=27;
   const rules=[
-    {icon:'💰',text:'coin  =  +100 HP  ⚔️ +1', color:'#FFD700'},
-    {icon:'👆',text:'tap   =  +100 HP  ⚔️ +1', color:'#44DDFF'},
-    {icon:'✍️',text:'help  =  +100 HP  ⚔️ +1', color:'#00FF99'},
-    {icon:'🔵',text:'team1  =  blue team',       color:'#6699FF'},
-    {icon:'🔴',text:'team2  =  red team',        color:'#FF5566'},
-    {icon:'💤',text:'AFK 5min  =  -10 HP  ⚔️-1', color:'#FF7700'},
+    {tri:null,  text:'💰 coin = +100 HP  ⚔️+1',  color:'#FFD700'},
+    {tri:null,  text:'👆 tap  = +100 HP  ⚔️+1',  color:'#44DDFF'},
+    {tri:null,  text:'✍️ help = +100 HP  ⚔️+1',  color:'#00FF99'},
+    {tri:'red', text:'"team"  =  red team',        color:'#FF4455'},
+    {tri:'blue',text:'"team2" =  blue team',       color:'#5599FF'},
+    {tri:null,  text:'💤 AFK 5min = -10HP ⚔️-1',  color:'#FF7700'},
   ];
   rules.forEach((r,i)=>{
     const y=rY+i*step;
-    ctx.font='14px Arial'; ctx.textAlign='left'; ctx.fillStyle=r.color; ctx.fillText(r.icon,18,y);
-    ctx.font='bold 14px Arial'; ctx.shadowColor='rgba(0,0,0,1)'; ctx.shadowBlur=5;
-    ctx.fillStyle=r.color; ctx.fillText(r.text,44,y); ctx.shadowBlur=0;
+    ctx.shadowColor='rgba(0,0,0,1)'; ctx.shadowBlur=6;
+    // треугольник-флажок для team/team2
+    if(r.tri==='red'){
+      ctx.fillStyle='#FF3344';
+      ctx.beginPath(); ctx.moveTo(12,y-11); ctx.lineTo(12,y+3); ctx.lineTo(26,y-4); ctx.closePath(); ctx.fill();
+    } else if(r.tri==='blue'){
+      ctx.fillStyle='#4488FF';
+      ctx.beginPath(); ctx.moveTo(12,y-11); ctx.lineTo(12,y+3); ctx.lineTo(26,y-4); ctx.closePath(); ctx.fill();
+    }
+    ctx.font='bold 16px Arial'; ctx.textAlign='left';
+    ctx.fillStyle=r.color; ctx.fillText(r.text, r.tri?32:12, y);
+    ctx.shadowBlur=0;
   });
 
   // ── ПРАВАЯ КОЛОНКА — TOP KILLERS ──
   ctx.shadowColor='#FF3333'; ctx.shadowBlur=10;
-  ctx.font='bold 15px Arial Black'; ctx.textAlign='center';
+  ctx.font='bold 16px Arial Black'; ctx.textAlign='center';
   ctx.strokeStyle='rgba(0,0,0,0.9)'; ctx.lineWidth=3;
   ctx.strokeText('☠️  TOP KILLERS  ☠️',450,T+66);
   ctx.fillStyle='#FF4444'; ctx.fillText('☠️  TOP KILLERS  ☠️',450,T+66);
   ctx.shadowBlur=0;
   ctx.strokeStyle='rgba(255,60,60,0.2)'; ctx.lineWidth=1;
-  ctx.beginPath(); ctx.moveTo(308,T+71); ctx.lineTo(592,T+71); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(308,T+72); ctx.lineTo(592,T+72); ctx.stroke();
 
-  const tY=T+90, tStep=26;
+  const tY=T+90, tStep=27;
   const rankColors=['#FFD700','#C0C0C0','#CD7F32','#AAAAAA','#666666'];
   const ranks=['👑','2.','3.','4.','5.'];
   for(let i=0;i<5;i++){
     const y=tY+i*tStep;
     const p=topKillers[i];
-    if(i===0){ ctx.fillStyle='rgba(255,215,0,0.07)'; ctx.fillRect(306,y-17,288,tStep); }
+    if(i===0){ ctx.fillStyle='rgba(255,215,0,0.07)'; ctx.fillRect(306,y-18,288,tStep); }
     ctx.shadowColor='rgba(0,0,0,0.9)'; ctx.shadowBlur=4;
-    ctx.font=i===0?'bold 14px Arial Black':'bold 13px Arial';
+    ctx.font=i===0?'bold 15px Arial Black':'bold 14px Arial';
     ctx.textAlign='left'; ctx.fillStyle=rankColors[i];
     ctx.fillText(ranks[i],312,y);
     ctx.fillStyle=i===0?'#FFE566':'#CCCCCC';
