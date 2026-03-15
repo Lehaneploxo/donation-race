@@ -34,14 +34,7 @@ function connectToTikTok(username, onGift, onStatus, onMember, onLike, onChat) {
     connecting = true;
     console.log(`[TikTok][${username}] Попытка подключения…`);
 
-    // Используем zerody.one как основной сервер подписи — eulerstream блокирует наш IP на Railway
-    const connOptions = {
-      signProviderOptions: { host: 'https://tiktok-sign.zerody.one/' }
-    };
-    if (process.env.TIKTOK_SESSION_ID) {
-      connOptions.sessionId = process.env.TIKTOK_SESSION_ID;
-    }
-    const conn = new WebcastPushConnection(username, connOptions);
+    const conn = new WebcastPushConnection(username);
 
     // ── Обработчики TikTok событий ──
     const seenGifts = new Set();
