@@ -20,10 +20,11 @@ function connectToTikTok(username, onGift, onStatus, onMember, onLike, onChat) {
     return handle;
   }
 
-  let connecting = false;  // защита от параллельных попыток
+  let connecting = false;  // идёт попытка подключения
+  let connected  = false;  // успешно подключён — не трогать!
 
   function tryOnce() {
-    if (connecting) return;  // уже пытаемся — ждём
+    if (connecting || connected) return;  // уже в процессе или подключён
     connecting = true;
     console.log(`[TikTok][${username}] Попытка подключения…`);
 
@@ -55,10 +56,10 @@ function connectToTikTok(username, onGift, onStatus, onMember, onLike, onChat) {
     conn.on('error', err => console.error(`[TikTok][${username}] event error:`, err.message || err));
     conn.on('disconnected', () => {
       console.log(`[TikTok][${username}] Отключился от стрима`);
+      connected  = false;
+      connecting = false;
       handle._tiktokMode = 'demo';
       notify({ connected: false, mode: 'demo', message: `@${username} вышел из эфира` });
-      connecting = false;
-      // Перезапускаем демо сразу, не ждём следующего retry
       if (!handle._demoStarted) {
         handle._demoStarted = true;
         _startDemo(onGift, handle, onLike, onChat, onMember);
@@ -68,21 +69,22 @@ function connectToTikTok(username, onGift, onStatus, onMember, onLike, onChat) {
     conn.connect()
       .then(s => {
         console.log(`[TikTok][${username}] ✅ Подключён! room: ${s.roomId}`);
+        connected  = true;
+        connecting = false;
         handle._tiktokMode = 'tiktok';
-        // Останавливаем демо если работало
         _stopDemo(handle);
         notify({ connected: true, mode: 'tiktok', message: `Подключён к @${username}` });
-        connecting = false;
       })
       .catch(err => {
         console.error(`[TikTok][${username}] ❌ Ошибка: ${err.message || err}`);
+        connected  = false;
+        connecting = false;
         handle._tiktokMode = 'demo';
         if (!handle._demoStarted) {
           handle._demoStarted = true;
           notify({ connected: false, mode: 'demo', message: `@${username} не в эфире, жду подключения…` });
           _startDemo(onGift, handle, onLike, onChat, onMember);
         }
-        connecting = false;
       });
   }
 
