@@ -20,11 +20,17 @@ function connectToTikTok(username, onGift, onStatus, onMember, onLike, onChat) {
     return handle;
   }
 
-  let connecting = false;  // идёт попытка подключения
-  let connected  = false;  // успешно подключён — не трогать!
+  let connecting = false;
+  let connected  = false;
+  let retryTimer = null;
+
+  function scheduleRetry(delayMs) {
+    if (retryTimer) clearTimeout(retryTimer);
+    retryTimer = setTimeout(tryOnce, delayMs);
+  }
 
   function tryOnce() {
-    if (connecting || connected) return;  // уже в процессе или подключён
+    if (connecting || connected) return;
     connecting = true;
     console.log(`[TikTok][${username}] Попытка подключения…`);
 
@@ -64,6 +70,7 @@ function connectToTikTok(username, onGift, onStatus, onMember, onLike, onChat) {
         handle._demoStarted = true;
         _startDemo(onGift, handle, onLike, onChat, onMember);
       }
+      scheduleRetry(15000);
     });
 
     conn.connect()
@@ -76,23 +83,23 @@ function connectToTikTok(username, onGift, onStatus, onMember, onLike, onChat) {
         notify({ connected: true, mode: 'tiktok', message: `Подключён к @${username}` });
       })
       .catch(err => {
-        console.error(`[TikTok][${username}] ❌ Ошибка: ${err.message || err}`);
         connected  = false;
         connecting = false;
+        // Уважаем retryAfter от TikTok — не спамим
+        const retryAfter = (err.retryAfter && err.retryAfter > 0) ? err.retryAfter + 2000 : 15000;
+        console.error(`[TikTok][${username}] ❌ Ошибка: ${err.message || err} | retry через ${Math.round(retryAfter/1000)}с`);
         handle._tiktokMode = 'demo';
         if (!handle._demoStarted) {
           handle._demoStarted = true;
           notify({ connected: false, mode: 'demo', message: `@${username} не в эфире, жду подключения…` });
           _startDemo(onGift, handle, onLike, onChat, onMember);
         }
+        scheduleRetry(retryAfter);
       });
   }
 
   // Первая попытка сразу
   tryOnce();
-
-  // Повтор каждые 10 секунд — до победного
-  setInterval(tryOnce, 10000);
 
   return handle;
 }
