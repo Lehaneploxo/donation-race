@@ -1006,6 +1006,7 @@ function updateIdleDrain(dt){
       w.idleDrainAcc-=1000;
       w.hp=Math.max(0,w.hp-1);
       w.damage=Math.max(1,w.damage-1);
+      w.coins=Math.max(1,w.coins-1); w.maxHp=w.coins*10;
       const sp=arenaToScreen(w.ax,w.ay);
       spawnDmgNum(sp.x,sp.y-55,-1,'#888888');
       if(w.hp<=0){ w.dead=true; w.deathTimer=700; spawnDeathFX(w); playRemove(); checkVictory(); }
