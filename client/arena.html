@@ -112,6 +112,15 @@ const BOT_NAMES = ['dark_wolf99','fire_blade','shadow_x','night_storm','iron_fis
 let usedBotNames   = [];
 const teamRegistry = new Map(); // username → team number (pre-join)
 let topKillers = []; // [{username, total_kills}] from DB
+// ── Map rotation ────────────────────────────────────────────
+let currentMap = 0; // 0=classic 1=desert 2=volcano
+let mapStartTime = Date.now();
+const MAP_DURATION = 600000; // 10 min
+const MAP_NAMES = ['⚔️  ARENA CLASSIC', '🏜️  DESERT', '🌋  VOLCANO'];
+let mapLabelTimer = 0;
+const _volcEmbers = Array.from({length:45},()=>({x:290+(Math.random()-.5)*50,y:SKY_H*.1+Math.random()*30,vx:(Math.random()-.5)*1.8,vy:-(0.5+Math.random()*1.5),life:Math.random(),max:.5+Math.random()*.8,r:1+Math.random()*2.5}));
+const _volcAsh    = Array.from({length:65},()=>({x:Math.random()*600,y:Math.random()*1000,r:.6+Math.random()*1.8,spd:.3+Math.random()*.7,drift:(Math.random()-.5)*.5,alpha:.12+Math.random()*.35}));
+const _volcBubbles= Array.from({length:14},(_,i)=>({x:20+i*42,y:0,r:0,maxR:3+Math.random()*6,spd:.03+Math.random()*.06,phase:Math.random()*Math.PI*2}));
 
 // ═══════════════════════════════════════════
 // WARRIOR MANAGEMENT
@@ -387,6 +396,9 @@ const ctx=cvs.getContext('2d');
 
 function draw(now){
   ctx.clearRect(0,0,CW,CH);
+  // Map rotation
+  if(Date.now()-mapStartTime>=MAP_DURATION){ currentMap=(currentMap+1)%3; mapStartTime=Date.now(); mapLabelTimer=4000; }
+  if(mapLabelTimer>0) mapLabelTimer-=16;
   // Reset expensive state at frame start
   ctx.shadowBlur=0; ctx.shadowColor='transparent'; ctx.globalAlpha=1; ctx.filter='none';
   drawBackground(now);
@@ -402,16 +414,18 @@ function draw(now){
   drawHUD(now);
   if(victoryState) drawVictory(now);
   if(eventLabelTimer>0) drawEventLabel();
+  if(mapLabelTimer>0) drawMapLabel();
 }
 
 // ── Background ──────────────────────────────────────────────
 function drawBackground(now){
+  if(currentMap===1){ _drawBgDesert(now); return; }
+  if(currentMap===2){ _drawBgVolcano(now); return; }
+  // ── CLASSIC ──
   const sc=skyAt(gameTime);
   const sky=ctx.createLinearGradient(0,0,0,SKY_H);
   sky.addColorStop(0,sc.top); sky.addColorStop(1,sc.bot);
   ctx.fillStyle=sky; ctx.fillRect(0,0,CW,SKY_H);
-
-  // Sun
   const isDay=gameTime>0.18&&gameTime<0.82;
   const sunPhase=((gameTime-0.25+1)%1);
   const sunAngle=sunPhase*Math.PI;
@@ -434,48 +448,27 @@ function drawBackground(now){
     ctx.fillStyle=sc.top; ctx.beginPath(); ctx.arc(mx+8,my,12,0,Math.PI*2); ctx.fill();
     ctx.restore();
   }
-
-  // Stars — two passes (big/small) to minimize state changes
   if(isNight()||isDuskDawn()){
     const sa=isNight()?1:0.4;
     ctx.fillStyle='#FFF';
-    // Small stars — single alpha pass
-    ctx.globalAlpha=0.45*sa;
-    ctx.beginPath();
-    for(let i=0;i<70;i++){
-      if(i%7===0) continue;
-      const sx=((i*139+70)%578)+11,sy=((i*101+25)%165)+5;
-      ctx.moveTo(sx+0.75,sy); ctx.arc(sx,sy,0.75,0,Math.PI*2);
-    }
+    ctx.globalAlpha=0.45*sa; ctx.beginPath();
+    for(let i=0;i<70;i++){ if(i%7===0)continue; const sx=((i*139+70)%578)+11,sy=((i*101+25)%165)+5; ctx.moveTo(sx+0.75,sy); ctx.arc(sx,sy,0.75,0,Math.PI*2); }
     ctx.fill();
-    // Big stars — with twinkle
-    ctx.globalAlpha=(0.55+Math.sin(now/700)*0.25)*sa;
-    ctx.beginPath();
-    for(let i=0;i<70;i+=7){
-      const sx=((i*139+70)%578)+11,sy=((i*101+25)%165)+5;
-      ctx.moveTo(sx+1.4,sy); ctx.arc(sx,sy,1.4,0,Math.PI*2);
-    }
-    ctx.fill();
-    ctx.globalAlpha=1;
+    ctx.globalAlpha=(0.55+Math.sin(now/700)*0.25)*sa; ctx.beginPath();
+    for(let i=0;i<70;i+=7){ const sx=((i*139+70)%578)+11,sy=((i*101+25)%165)+5; ctx.moveTo(sx+1.4,sy); ctx.arc(sx,sy,1.4,0,Math.PI*2); }
+    ctx.fill(); ctx.globalAlpha=1;
   }
-
-  // Mountains (compact — only top of screen)
   const mc=isNight()?'#0d0520':isDuskDawn()?'#3a1010':'#1a0845';
-  ctx.fillStyle=mc;
-  ctx.beginPath();
-  [[0,SKY_H],[40,SKY_H*0.44],[90,SKY_H*0.68],[155,SKY_H*0.27],[220,SKY_H*0.56],[285,SKY_H*0.19],[360,SKY_H*0.5],[430,SKY_H*0.31],[500,SKY_H*0.63],[560,SKY_H*0.41],[600,SKY_H*0.73],[600,SKY_H]].forEach(([x,y])=>ctx.lineTo(x,y));
+  ctx.fillStyle=mc; ctx.beginPath();
+  [[0,SKY_H],[40,SKY_H*.44],[90,SKY_H*.68],[155,SKY_H*.27],[220,SKY_H*.56],[285,SKY_H*.19],[360,SKY_H*.5],[430,SKY_H*.31],[500,SKY_H*.63],[560,SKY_H*.41],[600,SKY_H*.73],[600,SKY_H]].forEach(([x,y])=>ctx.lineTo(x,y));
   ctx.closePath(); ctx.fill();
   ctx.fillStyle='rgba(220,220,255,0.42)';
-  [[155,SKY_H*0.27,14],[285,SKY_H*0.19,18],[430,SKY_H*0.31,12]].forEach(([mx,my,sz])=>{ ctx.beginPath(); ctx.moveTo(mx,my); ctx.lineTo(mx-sz,my+sz*1.3); ctx.lineTo(mx+sz,my+sz*1.3); ctx.fill(); });
-
-  // Ground — large, covers ~80% of screen
+  [[155,SKY_H*.27,14],[285,SKY_H*.19,18],[430,SKY_H*.31,12]].forEach(([mx,my,sz])=>{ ctx.beginPath(); ctx.moveTo(mx,my); ctx.lineTo(mx-sz,my+sz*1.3); ctx.lineTo(mx+sz,my+sz*1.3); ctx.fill(); });
   const darkO=isNight()?0.45:isDuskDawn()?0.12:0;
   const gr=ctx.createLinearGradient(0,SKY_H,0,CH);
   gr.addColorStop(0,'#3a1d08'); gr.addColorStop(0.3,'#2a1208'); gr.addColorStop(1,'#0e0602');
   ctx.fillStyle=gr; ctx.fillRect(0,SKY_H,CW,CH-SKY_H);
   if(darkO>0){ ctx.fillStyle=`rgba(0,0,20,${darkO})`; ctx.fillRect(0,SKY_H,CW,CH-SKY_H); }
-
-  // Torches flanking arena
   [[80,SKY_H+75],[520,SKY_H+75]].forEach(([tx,ty])=>{
     ctx.strokeStyle='#5a3010'; ctx.lineWidth=5; ctx.beginPath(); ctx.moveTo(tx,ty); ctx.lineTo(tx,ty-50); ctx.stroke();
     const fl=0.75+Math.sin(now/160+tx)*0.25;
@@ -487,54 +480,215 @@ function drawBackground(now){
   });
 }
 
+function _drawBgDesert(now){
+  // Sky
+  const sky=ctx.createLinearGradient(0,0,0,SKY_H);
+  sky.addColorStop(0,'#1a6ab0'); sky.addColorStop(0.55,'#4ab0e8'); sky.addColorStop(1,'#ffe0a0');
+  ctx.fillStyle=sky; ctx.fillRect(0,0,CW,SKY_H);
+  // Sun
+  const sg=ctx.createRadialGradient(480,55,4,480,55,65);
+  sg.addColorStop(0,'rgba(255,240,100,0.5)'); sg.addColorStop(1,'rgba(255,160,0,0)');
+  ctx.fillStyle=sg; ctx.beginPath(); ctx.arc(480,55,65,0,Math.PI*2); ctx.fill();
+  const sd=ctx.createRadialGradient(477,52,2,480,55,22);
+  sd.addColorStop(0,'#FFF'); sd.addColorStop(0.4,'#FFE060'); sd.addColorStop(1,'#FFAA20');
+  ctx.fillStyle=sd; ctx.beginPath(); ctx.arc(480,55,22,0,Math.PI*2); ctx.fill();
+  // Horizon haze
+  const hz=ctx.createLinearGradient(0,SKY_H-25,0,SKY_H+15);
+  hz.addColorStop(0,'rgba(255,220,120,0)'); hz.addColorStop(1,'rgba(255,200,80,0.3)');
+  ctx.fillStyle=hz; ctx.fillRect(0,SKY_H-25,CW,40);
+  // Sand ground
+  const gr=ctx.createLinearGradient(0,SKY_H,0,CH);
+  gr.addColorStop(0,'#e8b860'); gr.addColorStop(0.25,'#d4963a'); gr.addColorStop(0.6,'#c07828'); gr.addColorStop(1,'#a86020');
+  ctx.fillStyle=gr; ctx.fillRect(0,SKY_H,CW,CH-SKY_H);
+  // Sand ripples
+  ctx.strokeStyle='rgba(180,120,40,0.3)'; ctx.lineWidth=1;
+  for(let i=0;i<14;i++){
+    const ry=SKY_H+60+i*55;
+    ctx.beginPath(); ctx.moveTo(20,ry);
+    for(let rx=20;rx<=580;rx+=8) ctx.lineTo(rx,ry+Math.sin(rx*.06+i)*2);
+    ctx.stroke();
+  }
+  // Sea at bottom
+  const seaY=CH-180;
+  const seaG=ctx.createLinearGradient(0,seaY,0,CH);
+  seaG.addColorStop(0,'#1a7ab8'); seaG.addColorStop(0.4,'#0d5a90'); seaG.addColorStop(1,'#0a3a60');
+  ctx.fillStyle=seaG;
+  ctx.beginPath(); ctx.moveTo(0,seaY);
+  for(let wx=0;wx<=CW;wx+=8) ctx.lineTo(wx,seaY+Math.sin(wx*.04+now*.002)*7+Math.sin(wx*.08+now*.0015)*3);
+  ctx.lineTo(CW,CH); ctx.lineTo(0,CH); ctx.closePath(); ctx.fill();
+  // Sea foam
+  ctx.strokeStyle='rgba(255,255,255,0.4)'; ctx.lineWidth=1.5;
+  ctx.beginPath();
+  for(let wx=0;wx<=CW;wx+=8){ const wy=seaY+Math.sin(wx*.04+now*.002)*7+Math.sin(wx*.08+now*.0015)*3; wx===0?ctx.moveTo(wx,wy):ctx.lineTo(wx,wy); }
+  ctx.stroke();
+  // Sea shimmer
+  ctx.globalAlpha=0.15+Math.sin(now*.002)*.05;
+  ctx.fillStyle='#88DDFF';
+  for(let i=0;i<6;i++){ const sx=50+i*90+Math.sin(now*.001+i)*12,sy=seaY+30+Math.sin(now*.002+i*.8)*10; ctx.beginPath(); ctx.ellipse(sx,sy,20+i%3*8,4,0,0,Math.PI*2); ctx.fill(); }
+  ctx.globalAlpha=1;
+}
+
+function _drawBgVolcano(now){
+  // Sky — infernal
+  const sky=ctx.createLinearGradient(0,0,0,SKY_H);
+  sky.addColorStop(0,'#050000'); sky.addColorStop(0.3,'#1a0500'); sky.addColorStop(0.65,'#6a1500'); sky.addColorStop(0.88,'#cc3a00'); sky.addColorStop(1,'#ff6600');
+  ctx.fillStyle=sky; ctx.fillRect(0,0,CW,SKY_H);
+  // Bg glow
+  const bg=ctx.createRadialGradient(300,SKY_H,5,300,SKY_H*.5,260);
+  bg.addColorStop(0,'rgba(255,120,0,0.3)'); bg.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.fillStyle=bg; ctx.fillRect(0,0,CW,SKY_H);
+  // Smoke
+  for(let i=0;i<7;i++){
+    const sr=26+i*15,sx=300+Math.sin(now*.0006+i*.9)*16,sy=SKY_H*.06-28-i*26;
+    ctx.fillStyle=`rgba(28,6,0,${Math.max(0,.11-i*.012)})`;
+    ctx.beginPath(); ctx.arc(sx,sy,sr,0,Math.PI*2); ctx.fill();
+  }
+  // Volcano mountain
+  ctx.fillStyle='#0e0400';
+  ctx.beginPath();
+  ctx.moveTo(80,SKY_H+5); ctx.lineTo(180,SKY_H*.45); ctx.lineTo(270,SKY_H*.12); ctx.lineTo(300,SKY_H*.05);
+  ctx.lineTo(330,SKY_H*.12); ctx.lineTo(420,SKY_H*.45); ctx.lineTo(520,SKY_H+5);
+  ctx.closePath(); ctx.fill();
+  // Crater glow
+  const pulse=.8+Math.sin(now*.002)*.2;
+  const cg=ctx.createRadialGradient(300,SKY_H*.05,0,300,SKY_H*.05,55);
+  cg.addColorStop(0,`rgba(255,220,0,${.92*pulse})`); cg.addColorStop(0.28,`rgba(255,100,0,${.75*pulse})`); cg.addColorStop(0.65,`rgba(200,30,0,${.35*pulse})`); cg.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.fillStyle=cg; ctx.beginPath(); ctx.arc(300,SKY_H*.05,55,0,Math.PI*2); ctx.fill();
+  // Lava streams
+  const lg=ctx.createLinearGradient(300,SKY_H*.12,300,SKY_H+5);
+  lg.addColorStop(0,`rgba(255,180,0,.9)`); lg.addColorStop(0.35,`rgba(255,80,0,.8)`); lg.addColorStop(0.75,`rgba(200,30,0,.65)`); lg.addColorStop(1,'rgba(150,20,0,.5)');
+  ctx.strokeStyle=lg; ctx.lineWidth=13; ctx.lineCap='round';
+  ctx.beginPath(); ctx.moveTo(300,SKY_H*.12); ctx.bezierCurveTo(290,SKY_H*.4,318,SKY_H*.65,305,SKY_H+5); ctx.stroke();
+  ctx.strokeStyle=`rgba(255,255,120,${.45*pulse})`; ctx.lineWidth=4;
+  ctx.beginPath(); ctx.moveTo(300,SKY_H*.12); ctx.bezierCurveTo(290,SKY_H*.4,318,SKY_H*.65,305,SKY_H+5); ctx.stroke();
+  ctx.strokeStyle=`rgba(255,80,0,.65)`; ctx.lineWidth=8;
+  ctx.beginPath(); ctx.moveTo(282,SKY_H*.14); ctx.bezierCurveTo(230,SKY_H*.5,150,SKY_H*.7,110,SKY_H+5); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(318,SKY_H*.14); ctx.bezierCurveTo(365,SKY_H*.5,450,SKY_H*.72,490,SKY_H+5); ctx.stroke();
+  // Dark ground
+  const gr=ctx.createLinearGradient(0,SKY_H,0,CH);
+  gr.addColorStop(0,'#1a0600'); gr.addColorStop(0.3,'#110400'); gr.addColorStop(0.75,'#0c0200'); gr.addColorStop(1,'#080100');
+  ctx.fillStyle=gr; ctx.fillRect(0,SKY_H,CW,CH-SKY_H);
+  // Ground glow
+  const gg=ctx.createRadialGradient(300,SKY_H+10,10,300,SKY_H+60,260);
+  gg.addColorStop(0,'rgba(255,80,0,.22)'); gg.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.fillStyle=gg; ctx.fillRect(0,SKY_H,CW,CH-SKY_H);
+  // Lava lake
+  const lk=ctx.createLinearGradient(0,CH-65,0,CH);
+  lk.addColorStop(0,`rgba(255,${Math.floor(100*pulse)},0,1)`); lk.addColorStop(0.5,`rgba(220,60,0,.95)`); lk.addColorStop(1,'rgba(160,20,0,.9)');
+  ctx.fillStyle=lk;
+  ctx.beginPath();
+  for(let x=0;x<=CW;x+=8){ const wy=CH-40+Math.sin(x*.05+now*.002)*7+Math.sin(x*.09+now*.0015)*3; x===0?ctx.moveTo(x,wy):ctx.lineTo(x,wy); }
+  ctx.lineTo(CW,CH); ctx.lineTo(0,CH); ctx.closePath(); ctx.fill();
+  // Lava shimmer
+  ctx.globalAlpha=.25+Math.sin(now*.003)*.08; ctx.fillStyle='#FFEE00';
+  for(let i=0;i<5;i++){ const hx=55+i*110+Math.sin(now*.001+i)*18,hy=CH-30+Math.sin(now*.002+i*.7)*5; ctx.beginPath(); ctx.ellipse(hx,hy,22+i%3*7,4,0,0,Math.PI*2); ctx.fill(); }
+  ctx.globalAlpha=1;
+  // Embers
+  _volcEmbers.forEach(e=>{
+    e.life+=.016; if(e.life>e.max){ e.life=0; e.x=275+(Math.random()-.5)*55; e.y=SKY_H*.10+Math.random()*28; e.vx=(Math.random()-.5)*2; e.vy=-(0.8+Math.random()*2); }
+    e.x+=e.vx+Math.sin(e.life*3)*.3; e.y+=e.vy; e.vy+=.03;
+    const ea=Math.max(0,1-e.life/e.max);
+    ctx.fillStyle=ea>.6?`rgba(255,255,${Math.floor(255*ea*.3)},${ea})`:`rgba(255,${Math.floor(255*ea*.5)},0,${ea})`;
+    ctx.beginPath(); ctx.arc(e.x,e.y,e.r*ea+.5,0,Math.PI*2); ctx.fill();
+  });
+  // Ash
+  _volcAsh.forEach(a=>{ a.y+=a.spd; a.x+=a.drift; if(a.y>CH){a.y=-4;a.x=Math.random()*CW;} if(a.x<0||a.x>CW)a.x=Math.random()*CW; ctx.globalAlpha=a.alpha; ctx.fillStyle='#996644'; ctx.beginPath(); ctx.arc(a.x,a.y,a.r,0,Math.PI*2); ctx.fill(); });
+  ctx.globalAlpha=1;
+}
+
 function drawArenaFloor(){
-  // Just subtle dirt gradient — no visible ring or ellipse border
   ctx.save();
-  const fg=ctx.createRadialGradient(ARENA_CX,ARENA_CY-60,30,ARENA_CX,ARENA_CY+80,ARENA_RX+40);
-  fg.addColorStop(0,'#6a3c18'); fg.addColorStop(0.5,'#3a1e08'); fg.addColorStop(1,'rgba(0,0,0,0)');
-  ctx.fillStyle=fg; ctx.fillRect(0,SKY_H,CW,CH-SKY_H);
-  // Tiny center mark (very subtle)
-  ctx.strokeStyle='rgba(255,210,80,0.12)'; ctx.lineWidth=1.5;
-  ctx.beginPath(); ctx.ellipse(ARENA_CX,ARENA_CY+20,38,15,0,0,Math.PI*2); ctx.stroke();
+  if(currentMap===1){
+    // Desert — sand arena
+    const fg=ctx.createRadialGradient(ARENA_CX,ARENA_CY-60,30,ARENA_CX,ARENA_CY+80,ARENA_RX+40);
+    fg.addColorStop(0,'#e8b860'); fg.addColorStop(0.4,'#cc9840'); fg.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.fillStyle=fg; ctx.fillRect(0,SKY_H,CW,CH-SKY_H);
+    ctx.strokeStyle='rgba(200,150,50,0.15)'; ctx.lineWidth=1.5;
+    ctx.beginPath(); ctx.ellipse(ARENA_CX,ARENA_CY+20,38,15,0,0,Math.PI*2); ctx.stroke();
+  } else if(currentMap===2){
+    // Volcano — rock arena with lava glow
+    const fg=ctx.createRadialGradient(ARENA_CX,ARENA_CY-60,30,ARENA_CX,ARENA_CY+80,ARENA_RX+40);
+    fg.addColorStop(0,'rgba(255,80,0,0.18)'); fg.addColorStop(0.45,'rgba(180,30,0,0.1)'); fg.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.fillStyle=fg; ctx.fillRect(0,SKY_H,CW,CH-SKY_H);
+    ctx.strokeStyle='rgba(255,100,0,0.18)'; ctx.lineWidth=1.5;
+    ctx.beginPath(); ctx.ellipse(ARENA_CX,ARENA_CY+20,38,15,0,0,Math.PI*2); ctx.stroke();
+  } else {
+    // Classic — dirt
+    const fg=ctx.createRadialGradient(ARENA_CX,ARENA_CY-60,30,ARENA_CX,ARENA_CY+80,ARENA_RX+40);
+    fg.addColorStop(0,'#6a3c18'); fg.addColorStop(0.5,'#3a1e08'); fg.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.fillStyle=fg; ctx.fillRect(0,SKY_H,CW,CH-SKY_H);
+    ctx.strokeStyle='rgba(255,210,80,0.12)'; ctx.lineWidth=1.5;
+    ctx.beginPath(); ctx.ellipse(ARENA_CX,ARENA_CY+20,38,15,0,0,Math.PI*2); ctx.stroke();
+  }
   ctx.restore();
 }
 
 function drawDecorations(now){
   ctx.save();
-
-  // ── Grass tufts (deterministic, no random) ──
-  const grassPts=[
-    [42,400],[88,490],[128,375],[165,545],[96,630],[58,730],[118,790],
-    [198,345],[268,490],[312,570],[248,660],[182,750],
-    [338,380],[402,468],[462,352],[532,448],[568,525],[518,625],[558,705],[488,758],
-    [378,720],[305,800],[225,820],[430,820]
-  ];
+  if(currentMap===1){ _drawDecoDesert(now); ctx.restore(); return; }
+  if(currentMap===2){ _drawDecoVolcano(now); ctx.restore(); return; }
+  // ── CLASSIC ──
+  const grassPts=[[42,400],[88,490],[128,375],[165,545],[96,630],[58,730],[118,790],[198,345],[268,490],[312,570],[248,660],[182,750],[338,380],[402,468],[462,352],[532,448],[568,525],[518,625],[558,705],[488,758],[378,720],[305,800],[225,820],[430,820]];
   ctx.strokeStyle='#3e6d16'; ctx.lineWidth=1.8; ctx.lineCap='round';
-  grassPts.forEach(([gx,gy])=>{
-    for(let i=-1;i<=1;i++){
-      ctx.beginPath(); ctx.moveTo(gx+i*5,gy); ctx.lineTo(gx+i*5+i*2,gy-9-Math.abs(i)*2); ctx.stroke();
-    }
-  });
-
-  // ── Castle towers (far background) ──
-  _drawCastleTower(78, 258, 0.50, now);
-  _drawCastleTower(508, 253, 0.52, now);
-
-  // ── Trees on left / right edges ──
-  const trees=[
-    {x:36, y:430, s:0.90},{x:50, y:575, s:1.00},{x:38, y:715, s:1.10},
-    {x:562,y:448, s:0.88},{x:556,y:588, s:0.95},{x:562,y:728, s:1.05}
-  ];
-  trees.forEach(t=>_drawTree(t.x, t.y, t.s, now));
-
-  // ── Rocks ──
-  [
-    {x:152,y:432,rx:16,ry:9},{x:442,y:448,rx:14,ry:8},
-    {x:94, y:665,rx:20,ry:11},{x:502,y:675,rx:17,ry:10},
-    {x:282,y:292,rx:11,ry:6},{x:348,y:782,rx:18,ry:10}
-  ].forEach(r=>_drawRock(r.x, r.y, r.rx, r.ry));
-
+  grassPts.forEach(([gx,gy])=>{ for(let i=-1;i<=1;i++){ ctx.beginPath(); ctx.moveTo(gx+i*5,gy); ctx.lineTo(gx+i*5+i*2,gy-9-Math.abs(i)*2); ctx.stroke(); } });
+  _drawCastleTower(78,258,0.50,now); _drawCastleTower(508,253,0.52,now);
+  [{x:36,y:430,s:.90},{x:50,y:575,s:1.00},{x:38,y:715,s:1.10},{x:562,y:448,s:.88},{x:556,y:588,s:.95},{x:562,y:728,s:1.05}].forEach(t=>_drawTree(t.x,t.y,t.s,now));
+  [{x:152,y:432,rx:16,ry:9},{x:442,y:448,rx:14,ry:8},{x:94,y:665,rx:20,ry:11},{x:502,y:675,rx:17,ry:10},{x:282,y:292,rx:11,ry:6},{x:348,y:782,rx:18,ry:10}].forEach(r=>_drawRock(r.x,r.y,r.rx,r.ry));
   ctx.restore();
+}
+
+function _drawDecoDesert(now){
+  // Background dunes
+  const _dune=(x,y,w,h,c)=>{ ctx.fillStyle=c; ctx.beginPath(); ctx.moveTo(x-w/2,y); ctx.bezierCurveTo(x-w*.3,y,x-w*.1,y-h,x,y-h); ctx.bezierCurveTo(x+w*.1,y-h,x+w*.3,y,x+w/2,y); ctx.closePath(); ctx.fill(); };
+  _dune(80, SKY_H+80,200,45,'rgba(200,140,55,0.45)');
+  _dune(320,SKY_H+70,270,55,'rgba(185,125,40,0.4)');
+  _dune(520,SKY_H+85,180,40,'rgba(200,140,55,0.4)');
+  // Foreground dunes
+  _dune(70, CH-170,220,70,'#cc8830'); _dune(300,CH-175,310,80,'#c07828'); _dune(545,CH-170,200,65,'#cc8830');
+  // Palm trees
+  const _palm=(x,y,sc,lean)=>{
+    ctx.strokeStyle='#7a4a1a'; ctx.lineWidth=9*sc; ctx.lineCap='round';
+    ctx.beginPath(); ctx.moveTo(x,y); ctx.bezierCurveTo(x+lean*8*sc,y-25*sc,x+lean*14*sc,y-55*sc,x+lean*18*sc,y-80*sc); ctx.stroke();
+    const sw=Math.sin(now*.0012)*5;
+    [[-0.9,-0.45,0,0.45,0.9]].flat().forEach((a,i)=>{
+      ctx.save(); ctx.translate(x+lean*18*sc,y-80*sc); ctx.rotate(a+sw*.01);
+      ctx.fillStyle=['#2d7a1a','#3a9020','#44a825','#3a9020','#2d7a1a'][i];
+      ctx.beginPath(); ctx.moveTo(0,0); ctx.bezierCurveTo(8*sc,-12*sc,30*sc,-14*sc,38*sc,-8*sc); ctx.bezierCurveTo(28*sc,-4*sc,10*sc,2*sc,0,0); ctx.fill(); ctx.restore();
+    });
+    ctx.fillStyle='#8B5E1A';
+    ctx.beginPath(); ctx.arc(x+lean*18*sc-4*sc,y-76*sc,5*sc,0,Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(x+lean*18*sc+5*sc,y-80*sc,4*sc,0,Math.PI*2); ctx.fill();
+  };
+  _palm(40, SKY_H+200,1.0,-1); _palm(85,SKY_H+240,0.85,1); _palm(18,SKY_H+270,0.75,-0.8);
+  _palm(562,SKY_H+205,0.95,1); _palm(532,SKY_H+250,0.8,-1); _palm(582,SKY_H+275,0.85,0.6);
+  _palm(25, CH-175,1.1,-0.6); _palm(580,CH-178,1.05,0.7);
+}
+
+function _drawDecoVolcano(now){
+  // Rock formations
+  const _rock=(x,y,w,h)=>{
+    ctx.fillStyle='#1e0800';
+    ctx.beginPath(); ctx.moveTo(x-w*.5,y); ctx.lineTo(x-w*.45,y-h*.3); ctx.lineTo(x-w*.3,y-h*.55); ctx.lineTo(x-w*.1,y-h*.85); ctx.lineTo(x+w*.05,y-h); ctx.lineTo(x+w*.2,y-h*.78); ctx.lineTo(x+w*.4,y-h*.5); ctx.lineTo(x+w*.5,y-h*.2); ctx.closePath(); ctx.fill();
+    ctx.fillStyle='#120500';
+    ctx.beginPath(); ctx.moveTo(x+w*.05,y-h); ctx.lineTo(x+w*.2,y-h*.78); ctx.lineTo(x+w*.4,y-h*.5); ctx.lineTo(x+w*.5,y-h*.2); ctx.lineTo(x+w*.15,y); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle='rgba(255,70,0,0.35)'; ctx.lineWidth=1.5;
+    ctx.beginPath(); ctx.moveTo(x-w*.1,y-h*.28); ctx.lineTo(x+w*.05,y-h*.58); ctx.lineTo(x+w*.12,y-h*.48); ctx.stroke();
+  };
+  _rock(45,CH-20,90,155); _rock(115,CH-20,65,100); _rock(178,CH-20,50,72);
+  _rock(552,CH-20,95,160); _rock(478,CH-20,70,105); _rock(408,CH-20,55,78);
+  _rock(288,CH-20,45,58);
+  // Lava cracks on ground
+  ctx.strokeStyle='rgba(255,80,0,0.4)'; ctx.lineWidth=2;
+  [[50,280,180,340],[310,300,200,420],[400,440,540,400],[120,460,270,490],[350,470,500,500]].forEach(([x1,y1,x2,y2])=>{ ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke(); });
+  // Lava bubble pools
+  _volcBubbles.forEach(b=>{
+    b.phase+=b.spd; b.r=Math.abs(Math.sin(b.phase))*b.maxR;
+    if(b.r<0.3){ b.x=20+Math.random()*560; b.maxR=3+Math.random()*7; b.spd=.03+Math.random()*.07; }
+    if(b.r<0.3)return;
+    const ba=.35+Math.sin(b.phase)*.25;
+    ctx.fillStyle=`rgba(255,180,0,${ba})`;
+    ctx.beginPath(); ctx.arc(b.x,CH-25,b.r,0,Math.PI*2); ctx.fill();
+  });
 }
 
 function _drawTree(x,y,s,now){
@@ -1289,6 +1443,24 @@ function _drawLeha(w,now){
   // Creator aura
   const auraA=0.06+Math.sin(now*0.002)*0.03;
   ctx.fillStyle=`rgba(255,50,50,${auraA})`; ctx.beginPath(); ctx.ellipse(0,-40,28,50,0,0,Math.PI*2); ctx.fill();
+}
+
+// ── Map Label ───────────────────────────────────────────────
+function drawMapLabel(){
+  const a=Math.min(1,mapLabelTimer/600)*Math.min(1,(mapLabelTimer>600?(mapLabelTimer-600)/400:1));
+  const alpha=mapLabelTimer>3400?Math.max(0,(mapLabelTimer-3400)/600*-1+1):Math.min(1,(4000-mapLabelTimer)/600);
+  ctx.save(); ctx.globalAlpha=Math.min(1,mapLabelTimer/500)*Math.min(1,mapLabelTimer/4000*4);
+  ctx.fillStyle='rgba(0,0,0,0.6)';
+  ctx.beginPath(); ctx.roundRect(CW/2-120,CH/2-30,240,54,12); ctx.fill();
+  const cols=['#FFD700','#FFD060','#FF6600'];
+  ctx.shadowColor=cols[currentMap]; ctx.shadowBlur=18;
+  ctx.font='bold 22px Arial Black'; ctx.textAlign='center';
+  ctx.fillStyle=cols[currentMap];
+  ctx.fillText(MAP_NAMES[currentMap],CW/2,CH/2+8);
+  ctx.shadowBlur=0;
+  ctx.font='13px Arial'; ctx.fillStyle='rgba(255,255,255,0.55)';
+  ctx.fillText('новая карта',CW/2,CH/2+26);
+  ctx.restore();
 }
 
 // ── Victory ─────────────────────────────────────────────────
