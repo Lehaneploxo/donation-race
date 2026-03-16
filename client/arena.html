@@ -89,7 +89,7 @@ const MAX_WARRIORS = 20;
 const SKY_H   = 185;
 const ARENA_CX = 300, ARENA_CY = 610;
 const ARENA_RX = 272, ARENA_RY = 305;
-const CLASSES      = ['dwarf','warrior','archer','mage'];
+const CLASSES      = ['orc','elf','gnome','barbarian','mage','skeleton'];
 const ARMOR_COLORS = ['#2255CC','#CC2211','#118833','#996611','#662299','#CC5511','#116688','#CC1166'];
 const CLOAK_COLORS = ['#991111','#112299','#119922','#999911','#991199','#114455'];
 const SKIN_TONES   = ['#F9C784','#E8A86A','#C47C5A','#9A6040'];
@@ -699,10 +699,12 @@ function drawWarrior(w,now){
     _drawKing(w,now);
   } else {
     switch(w.class){
-      case 'dwarf':   _drawDwarf(w); break;
-      case 'warrior': _drawWarrior(w); break;
-      case 'archer':  _drawArcher(w); break;
-      case 'mage':    _drawMage(w,now); break;
+      case 'orc':      _drawOrc(w); break;
+      case 'elf':      _drawElf(w); break;
+      case 'gnome':    _drawGnome(w); break;
+      case 'barbarian':_drawBarbarian(w); break;
+      case 'mage':     _drawMage(w,now); break;
+      case 'skeleton': _drawSkeleton(w,now); break;
     }
   }
   // Flash: cheap white overlay instead of ctx.filter
@@ -780,107 +782,324 @@ function _drawLabels(sx,labelY,w){
 }
 
 // ── Characters ──────────────────────────────────────────────
-function _drawDwarf(w){
-  const ac=w.armorColor,sk=w.skinTone,cc=w.cloakColor;
-  ctx.fillStyle='rgba(0,0,0,0.28)'; ctx.beginPath(); ctx.ellipse(0,16,22,7,0,0,Math.PI*2); ctx.fill();
-  ctx.strokeStyle=ac; ctx.lineWidth=9; ctx.lineCap='round';
-  ctx.beginPath(); ctx.moveTo(-6,-4); ctx.lineTo(-9,14); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(6,-4); ctx.lineTo(9,14); ctx.stroke();
-  if(w.hasCloak){ ctx.fillStyle=cc; ctx.beginPath(); ctx.moveTo(-14,-28); ctx.lineTo(-18,10); ctx.lineTo(0,16); ctx.lineTo(18,10); ctx.lineTo(14,-28); ctx.fill(); }
-  ctx.fillStyle=ac; ctx.beginPath(); ctx.moveTo(-16,-30); ctx.lineTo(16,-30); ctx.lineTo(18,-2); ctx.lineTo(-18,-2); ctx.closePath(); ctx.fill();
-  ctx.fillStyle='#5a3a00'; ctx.fillRect(-17,-6,34,5);
-  ctx.fillStyle='#FFD700'; ctx.fillRect(-3,-8,6,8);
-  ctx.strokeStyle=ac; ctx.lineWidth=8;
-  ctx.beginPath(); ctx.moveTo(-15,-24); ctx.lineTo(-22,-12); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(15,-24); ctx.lineTo(23,-14); ctx.stroke();
-  ctx.fillStyle='#C8A050'; ctx.beginPath(); ctx.moveTo(-10,-22); ctx.quadraticCurveTo(-12,0,-6,8); ctx.lineTo(0,10); ctx.lineTo(6,8); ctx.quadraticCurveTo(12,0,10,-22); ctx.fill();
-  ctx.beginPath(); ctx.arc(0,-36,12,0,Math.PI*2); ctx.fillStyle=sk; ctx.fill();
-  ctx.fillStyle='#fff'; ctx.beginPath(); ctx.arc(-4,-37,3,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(4,-37,3,0,Math.PI*2); ctx.fill();
-  ctx.fillStyle='#222'; ctx.beginPath(); ctx.arc(-3.5,-37,1.5,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(4.5,-37,1.5,0,Math.PI*2); ctx.fill();
-  ctx.strokeStyle='#7a4010'; ctx.lineWidth=1.8; ctx.lineCap='round'; ctx.beginPath(); ctx.moveTo(-4,-29); ctx.lineTo(4,-29); ctx.stroke();
-  _drawHelmet(w.helmStyle,ac,0,-36,12);
-  ctx.strokeStyle='#7a5010'; ctx.lineWidth=4; ctx.beginPath(); ctx.moveTo(23,-14); ctx.lineTo(26,8); ctx.stroke();
-  ctx.fillStyle='#BBBBBB'; ctx.beginPath(); ctx.moveTo(24,-16); ctx.lineTo(34,-6); ctx.lineTo(30,8); ctx.lineTo(18,2); ctx.closePath(); ctx.fill();
-  ctx.fillStyle='#888'; ctx.beginPath(); ctx.moveTo(24,-16); ctx.lineTo(18,-8); ctx.lineTo(18,2); ctx.fill();
+function _drawOrc(w){
+  const sk=w.skinTone;
+  ctx.fillStyle='rgba(0,0,0,0.3)'; ctx.beginPath(); ctx.ellipse(0,24,22,6,0,0,Math.PI*2); ctx.fill();
+  ctx.strokeStyle='#2d4a1e'; ctx.lineWidth=11; ctx.lineCap='round';
+  ctx.beginPath(); ctx.moveTo(-7,0); ctx.lineTo(-10,24); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(7,0); ctx.lineTo(10,24); ctx.stroke();
+  ctx.strokeStyle='#1a2a10'; ctx.lineWidth=13;
+  ctx.beginPath(); ctx.moveTo(-10,16); ctx.lineTo(-11,24); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(10,16); ctx.lineTo(11,24); ctx.stroke();
+  ctx.fillStyle='#3a6622'; ctx.beginPath(); ctx.moveTo(-20,-44); ctx.lineTo(20,-44); ctx.lineTo(24,0); ctx.lineTo(-24,0); ctx.closePath(); ctx.fill();
+  ctx.fillStyle='#5a3a1a'; ctx.beginPath(); ctx.moveTo(-14,-42); ctx.lineTo(14,-42); ctx.lineTo(17,-8); ctx.lineTo(-17,-8); ctx.closePath(); ctx.fill();
+  ctx.fillStyle='#888'; for(let i=0;i<3;i++){ ctx.beginPath(); ctx.arc(-8+i*8,-28,2.5,0,Math.PI*2); ctx.fill(); }
+  ctx.strokeStyle='#3a6622'; ctx.lineWidth=10;
+  ctx.beginPath(); ctx.moveTo(-18,-36); ctx.lineTo(-28,-18); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(18,-36); ctx.lineTo(28,-18); ctx.stroke();
+  ctx.fillStyle='#3a6622'; ctx.beginPath(); ctx.arc(-28,-18,8,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(28,-18,8,0,Math.PI*2); ctx.fill();
+  ctx.strokeStyle='#7a5010'; ctx.lineWidth=4; ctx.beginPath(); ctx.moveTo(28,-18); ctx.lineTo(36,20); ctx.stroke();
+  ctx.fillStyle='#AAAAAA'; ctx.beginPath(); ctx.moveTo(30,-20); ctx.lineTo(46,-8); ctx.lineTo(40,10); ctx.lineTo(26,4); ctx.closePath(); ctx.fill();
+  ctx.fillStyle='#888'; ctx.beginPath(); ctx.moveTo(30,-20); ctx.lineTo(34,-14); ctx.lineTo(28,2); ctx.lineTo(26,4); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle='rgba(255,255,255,0.4)'; ctx.lineWidth=1.5; ctx.beginPath(); ctx.moveTo(32,-18); ctx.lineTo(44,-6); ctx.stroke();
+  ctx.fillStyle='#4a7a2a'; ctx.beginPath(); ctx.arc(0,-58,16,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#3a6622'; ctx.beginPath(); ctx.moveTo(-10,-50); ctx.lineTo(-8,-42); ctx.lineTo(8,-42); ctx.lineTo(10,-50); ctx.fill();
+  ctx.fillStyle='#F5E6C8'; ctx.beginPath(); ctx.moveTo(-5,-50); ctx.lineTo(-3,-42); ctx.lineTo(-1,-50); ctx.fill(); ctx.beginPath(); ctx.moveTo(1,-50); ctx.lineTo(3,-42); ctx.lineTo(5,-50); ctx.fill();
+  ctx.fillStyle='#FF2200'; ctx.beginPath(); ctx.arc(-5.5,-61,4,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(5.5,-61,4,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#000'; ctx.beginPath(); ctx.arc(-5,-61,2,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(6,-61,2,0,Math.PI*2); ctx.fill();
+  ctx.strokeStyle='#1a3a10'; ctx.lineWidth=3; ctx.lineCap='round';
+  ctx.beginPath(); ctx.moveTo(-10,-66); ctx.lineTo(-2,-63); ctx.stroke(); ctx.beginPath(); ctx.moveTo(10,-66); ctx.lineTo(2,-63); ctx.stroke();
+  ctx.fillStyle='#2a5018'; ctx.beginPath(); ctx.ellipse(0,-55,5,3.5,0,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#1a3a10'; ctx.beginPath(); ctx.arc(-2.5,-55,1.5,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(2.5,-55,1.5,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#8B6914'; ctx.beginPath(); ctx.moveTo(-14,-68); ctx.lineTo(-20,-86); ctx.lineTo(-10,-72); ctx.fill(); ctx.beginPath(); ctx.moveTo(14,-68); ctx.lineTo(20,-86); ctx.lineTo(10,-72); ctx.fill();
+  ctx.fillStyle='#555'; ctx.beginPath(); ctx.arc(0,-62,16,Math.PI,0); ctx.fill();
+  ctx.fillStyle='#444'; ctx.fillRect(-16,-64,32,6);
 }
 
-function _drawWarrior(w){
-  const ac=w.armorColor,sk=w.skinTone,cc=w.cloakColor;
-  ctx.fillStyle='rgba(0,0,0,0.28)'; ctx.beginPath(); ctx.ellipse(0,20,18,5,0,0,Math.PI*2); ctx.fill();
-  ctx.strokeStyle='#2a1a00'; ctx.lineWidth=7; ctx.lineCap='round';
-  ctx.beginPath(); ctx.moveTo(-5,-2); ctx.lineTo(-6,20); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(5,-2); ctx.lineTo(6,20); ctx.stroke();
-  if(w.hasCloak){ ctx.fillStyle=cc; ctx.globalAlpha*=0.85; ctx.beginPath(); ctx.moveTo(-14,-42); ctx.lineTo(-18,16); ctx.lineTo(0,24); ctx.lineTo(18,16); ctx.lineTo(14,-42); ctx.fill(); ctx.globalAlpha=ctx.globalAlpha/0.85; }
-  ctx.fillStyle=ac; ctx.beginPath(); ctx.moveTo(-14,-42); ctx.lineTo(14,-42); ctx.lineTo(17,-2); ctx.lineTo(-17,-2); ctx.closePath(); ctx.fill();
-  ctx.strokeStyle='rgba(255,255,255,0.2)'; ctx.lineWidth=1.5;
-  ctx.beginPath(); ctx.moveTo(0,-42); ctx.lineTo(0,-2); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(-14,-22); ctx.lineTo(14,-22); ctx.stroke();
-  ctx.strokeStyle=ac; ctx.lineWidth=7;
-  ctx.beginPath(); ctx.moveTo(-13,-34); ctx.lineTo(-22,-20); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(13,-34); ctx.lineTo(22,-20); ctx.stroke();
-  ctx.beginPath(); ctx.arc(0,-54,13,0,Math.PI*2); ctx.fillStyle=sk; ctx.fill();
-  ctx.fillStyle='#fff'; ctx.beginPath(); ctx.arc(-4.5,-55,3,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(4.5,-55,3,0,Math.PI*2); ctx.fill();
-  ctx.fillStyle='#1a1a1a'; ctx.beginPath(); ctx.arc(-4,-55,1.6,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(5,-55,1.6,0,Math.PI*2); ctx.fill();
-  ctx.strokeStyle='#804020'; ctx.lineWidth=1.8; ctx.lineCap='round'; ctx.beginPath(); ctx.arc(0,-47,4,0.2,Math.PI-0.2); ctx.stroke();
-  _drawHelmet(w.helmStyle,ac,0,-54,13);
-  ctx.strokeStyle='#CCCCCC'; ctx.lineWidth=4; ctx.beginPath(); ctx.moveTo(22,-20); ctx.lineTo(28,18); ctx.stroke();
-  ctx.strokeStyle='#888'; ctx.lineWidth=6; ctx.beginPath(); ctx.moveTo(17,-12); ctx.lineTo(29,-8); ctx.stroke();
-  ctx.fillStyle='#FFD700'; ctx.beginPath(); ctx.arc(22,-12,3,0,Math.PI*2); ctx.fill();
-}
-
-function _drawArcher(w){
-  const ac=w.armorColor,sk=w.skinTone,cc=w.cloakColor;
-  ctx.fillStyle='rgba(0,0,0,0.28)'; ctx.beginPath(); ctx.ellipse(0,18,16,5,0,0,Math.PI*2); ctx.fill();
-  ctx.strokeStyle='#4a2a08'; ctx.lineWidth=6; ctx.lineCap='round';
-  ctx.beginPath(); ctx.moveTo(-4,0); ctx.lineTo(-5,18); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(4,0); ctx.lineTo(5,18); ctx.stroke();
-  if(w.hasCloak){ ctx.fillStyle=cc; ctx.globalAlpha*=0.8; ctx.beginPath(); ctx.moveTo(-11,-38); ctx.lineTo(-15,14); ctx.lineTo(0,20); ctx.lineTo(15,14); ctx.lineTo(11,-38); ctx.fill(); ctx.globalAlpha=ctx.globalAlpha/0.8; }
-  ctx.fillStyle='#7a4a22'; ctx.fillRect(-11,-40,22,40);
-  ctx.fillStyle=ac; ctx.fillRect(-11,-40,22,14);
-  ctx.fillStyle='#5a3010'; ctx.fillRect(12,-32,8,20);
-  ctx.strokeStyle=sk; ctx.lineWidth=5;
-  ctx.beginPath(); ctx.moveTo(-10,-30); ctx.lineTo(-20,-18); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(10,-30); ctx.lineTo(18,-22); ctx.stroke();
-  ctx.beginPath(); ctx.arc(0,-52,11,0,Math.PI*2); ctx.fillStyle=sk; ctx.fill();
-  ctx.fillStyle='#fff'; ctx.beginPath(); ctx.arc(-3.5,-53,2.5,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(3.5,-53,2.5,0,Math.PI*2); ctx.fill();
-  ctx.fillStyle='#1a1a1a'; ctx.beginPath(); ctx.arc(-3,-53,1.3,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(4,-53,1.3,0,Math.PI*2); ctx.fill();
-  ctx.strokeStyle='#804020'; ctx.lineWidth=1.6; ctx.lineCap='round'; ctx.beginPath(); ctx.moveTo(-3,-46); ctx.quadraticCurveTo(0,-44,3,-46); ctx.stroke();
-  _drawHelmet(w.helmStyle,ac,0,-52,11);
-  ctx.strokeStyle='#7a5020'; ctx.lineWidth=3.5; ctx.beginPath(); ctx.arc(-24,-22,16,-0.75,0.75); ctx.stroke();
-  ctx.strokeStyle='rgba(200,200,200,0.7)'; ctx.lineWidth=1;
-  const bx1=-24-16*Math.cos(0.75),by1=-22-16*Math.sin(0.75),by2=-22+16*Math.sin(0.75);
+function _drawElf(w){
+  ctx.fillStyle='rgba(0,0,0,0.25)'; ctx.beginPath(); ctx.ellipse(0,22,17,5,0,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#1a6644'; ctx.beginPath(); ctx.moveTo(-12,-4); ctx.lineTo(-18,22); ctx.lineTo(0,26); ctx.lineTo(18,22); ctx.lineTo(12,-4); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle='#2a9966'; ctx.lineWidth=1.5; ctx.beginPath(); ctx.moveTo(-16,10); ctx.lineTo(0,14); ctx.lineTo(16,10); ctx.stroke();
+  ctx.fillStyle='rgba(100,255,180,0.25)'; ctx.beginPath(); ctx.moveTo(-6,0); ctx.lineTo(-14,22); ctx.lineTo(-8,22); ctx.lineTo(-2,0); ctx.fill(); ctx.beginPath(); ctx.moveTo(6,0); ctx.lineTo(14,22); ctx.lineTo(8,22); ctx.lineTo(2,0); ctx.fill();
+  ctx.fillStyle='#1a6644'; ctx.beginPath(); ctx.moveTo(-11,-40); ctx.lineTo(11,-40); ctx.lineTo(13,-4); ctx.lineTo(-13,-4); ctx.closePath(); ctx.fill();
+  ctx.fillStyle='#8B6914'; ctx.fillRect(-13,-8,26,5);
+  ctx.fillStyle='#FFD700'; ctx.beginPath(); ctx.arc(0,-5.5,4,0,Math.PI*2); ctx.fill();
+  ctx.strokeStyle='#F9C784'; ctx.lineWidth=5; ctx.lineCap='round';
+  ctx.beginPath(); ctx.moveTo(-10,-34); ctx.lineTo(-18,-18); ctx.stroke(); ctx.beginPath(); ctx.moveTo(10,-34); ctx.lineTo(18,-18); ctx.stroke();
+  ctx.strokeStyle='#7a5020'; ctx.lineWidth=3; ctx.beginPath(); ctx.arc(-26,-22,14,-0.8,0.8); ctx.stroke();
+  ctx.strokeStyle='rgba(200,200,200,0.6)'; ctx.lineWidth=1;
+  const bx1=-26-14*Math.cos(0.8),by1=-22-14*Math.sin(0.8),by2=-22+14*Math.sin(0.8);
   ctx.beginPath(); ctx.moveTo(bx1,by1); ctx.lineTo(bx1,by2); ctx.stroke();
-  ctx.strokeStyle='#8B4513'; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(-22,-22); ctx.lineTo(16,-22); ctx.stroke();
-  ctx.fillStyle='#999'; ctx.beginPath(); ctx.moveTo(16,-22); ctx.lineTo(20,-19); ctx.lineTo(20,-25); ctx.fill();
+  ctx.strokeStyle='#8B4513'; ctx.lineWidth=1.5; ctx.beginPath(); ctx.moveTo(-24,-22); ctx.lineTo(14,-22); ctx.stroke();
+  ctx.fillStyle='#AAA'; ctx.beginPath(); ctx.moveTo(14,-22); ctx.lineTo(18,-20); ctx.lineTo(18,-24); ctx.fill();
+  ctx.fillStyle='#5a3010'; ctx.fillRect(14,-36,7,22);
+  ctx.strokeStyle='#FFD700'; ctx.lineWidth=1; ctx.strokeRect(14,-36,7,22);
+  ctx.strokeStyle='#8B4513'; ctx.lineWidth=1.5;
+  for(let i=0;i<3;i++){ ctx.beginPath(); ctx.moveTo(15+i*2,-36); ctx.lineTo(15+i*2,-14); ctx.stroke(); }
+  ctx.fillStyle='#F9D090'; ctx.beginPath(); ctx.arc(0,-52,11,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#F9D090'; ctx.beginPath(); ctx.moveTo(-10,-52); ctx.lineTo(-20,-62); ctx.lineTo(-8,-45); ctx.fill(); ctx.beginPath(); ctx.moveTo(10,-52); ctx.lineTo(20,-62); ctx.lineTo(8,-45); ctx.fill();
+  ctx.strokeStyle='#e0b070'; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(-10,-52); ctx.lineTo(-20,-62); ctx.lineTo(-8,-45); ctx.stroke(); ctx.beginPath(); ctx.moveTo(10,-52); ctx.lineTo(20,-62); ctx.lineTo(8,-45); ctx.stroke();
+  ctx.fillStyle='#FFD700'; ctx.beginPath(); ctx.arc(0,-54,11,Math.PI,0); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(-11,-54); ctx.lineTo(-16,-22); ctx.lineTo(-10,-24); ctx.lineTo(-8,-54); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(11,-54); ctx.lineTo(16,-22); ctx.lineTo(10,-24); ctx.lineTo(8,-54); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(-8,-44); ctx.lineTo(-4,-48); ctx.lineTo(4,-48); ctx.lineTo(8,-44); ctx.fill();
+  ctx.fillStyle='#fff'; ctx.beginPath(); ctx.arc(-3.8,-53,3.5,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(3.8,-53,3.5,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#00AA44'; ctx.beginPath(); ctx.arc(-3.5,-53,2.2,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(4,-53,2.2,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#000'; ctx.beginPath(); ctx.arc(-3.2,-53,1.1,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(4.3,-53,1.1,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='rgba(255,255,255,0.8)'; ctx.beginPath(); ctx.arc(-2.5,-54.2,0.8,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(5,-54.2,0.8,0,Math.PI*2); ctx.fill();
+  ctx.strokeStyle='#e0a060'; ctx.lineWidth=1.2; ctx.lineCap='round'; ctx.beginPath(); ctx.moveTo(-1.5,-48); ctx.lineTo(0,-46); ctx.lineTo(1.5,-48); ctx.stroke();
+  ctx.strokeStyle='#cc6688'; ctx.lineWidth=1.5; ctx.beginPath(); ctx.arc(0,-44,3,0.2,Math.PI-0.2); ctx.stroke();
+  ctx.strokeStyle='#FFD700'; ctx.lineWidth=2.5; ctx.beginPath(); ctx.arc(0,-54,11,Math.PI+0.4,0-0.4); ctx.stroke();
+  ctx.fillStyle='#00CCFF'; ctx.shadowColor='#00CCFF'; ctx.shadowBlur=6;
+  ctx.beginPath(); ctx.arc(0,-65,3.5,0,Math.PI*2); ctx.fill(); ctx.shadowBlur=0;
+  ctx.fillStyle='rgba(255,255,255,0.6)'; ctx.beginPath(); ctx.arc(-1,-66.5,1.2,0,Math.PI*2); ctx.fill();
+}
+
+function _drawGnome(w){
+  ctx.fillStyle='rgba(0,0,0,0.28)'; ctx.beginPath(); ctx.ellipse(0,14,17,5,0,0,Math.PI*2); ctx.fill();
+  ctx.strokeStyle='#3a2a0a'; ctx.lineWidth=9; ctx.lineCap='round';
+  ctx.beginPath(); ctx.moveTo(-5,0); ctx.lineTo(-6,14); ctx.stroke(); ctx.beginPath(); ctx.moveTo(5,0); ctx.lineTo(6,14); ctx.stroke();
+  ctx.strokeStyle='#1a1008'; ctx.lineWidth=11;
+  ctx.beginPath(); ctx.moveTo(-6,8); ctx.lineTo(-7,14); ctx.stroke(); ctx.beginPath(); ctx.moveTo(6,8); ctx.lineTo(7,14); ctx.stroke();
+  ctx.fillStyle='#8B4513'; ctx.beginPath(); ctx.moveTo(-18,-32); ctx.lineTo(18,-32); ctx.lineTo(18,0); ctx.lineTo(-18,0); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle='#CC6622'; ctx.lineWidth=3; ctx.beginPath(); ctx.moveTo(-6,-32); ctx.lineTo(-4,0); ctx.stroke(); ctx.beginPath(); ctx.moveTo(6,-32); ctx.lineTo(4,0); ctx.stroke();
+  ctx.fillStyle='#FFD700'; ctx.beginPath(); ctx.arc(0,-24,3,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(0,-14,3,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#5a2a08'; ctx.fillRect(-18,-4,36,6);
+  ctx.fillStyle='#FFD700'; ctx.beginPath(); ctx.arc(0,-1,4,0,Math.PI*2); ctx.fill();
+  ctx.strokeStyle='#8B4513'; ctx.lineWidth=8;
+  ctx.beginPath(); ctx.moveTo(-16,-26); ctx.lineTo(-24,-14); ctx.stroke(); ctx.beginPath(); ctx.moveTo(16,-26); ctx.lineTo(24,-14); ctx.stroke();
+  ctx.fillStyle='#F5C88A'; ctx.beginPath(); ctx.arc(-24,-14,6,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(24,-14,6,0,Math.PI*2); ctx.fill();
+  ctx.strokeStyle='#6a4010'; ctx.lineWidth=4; ctx.beginPath(); ctx.moveTo(24,-14); ctx.lineTo(30,10); ctx.stroke();
+  ctx.fillStyle='#888'; ctx.beginPath(); ctx.moveTo(22,-18); ctx.lineTo(40,-12); ctx.lineTo(38,2); ctx.lineTo(20,-4); ctx.closePath(); ctx.fill();
+  ctx.fillStyle='#666'; ctx.beginPath(); ctx.moveTo(22,-18); ctx.lineTo(26,-10); ctx.lineTo(24,-4); ctx.lineTo(20,-4); ctx.fill();
+  ctx.strokeStyle='rgba(255,255,255,0.3)'; ctx.lineWidth=1.5; ctx.beginPath(); ctx.moveTo(24,-16); ctx.lineTo(38,-10); ctx.stroke();
+  ctx.fillStyle='#5a3010'; ctx.beginPath(); ctx.moveTo(-24,-22); ctx.lineTo(-38,-14); ctx.lineTo(-38,4); ctx.lineTo(-24,10); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle='#FFD700'; ctx.lineWidth=2; ctx.stroke();
+  ctx.fillStyle='#CC8800'; ctx.beginPath(); ctx.arc(-31,-6,5,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#F5C88A'; ctx.beginPath(); ctx.arc(0,-46,18,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#E8A870'; ctx.beginPath(); ctx.ellipse(0,-44,7,5,0,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#C88050'; ctx.beginPath(); ctx.arc(-3,-44,2,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(3,-44,2,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#CC5500'; ctx.beginPath(); ctx.moveTo(-16,-38); ctx.quadraticCurveTo(-20,-20,-14,-10); ctx.lineTo(-6,-8); ctx.lineTo(0,-6); ctx.lineTo(6,-8); ctx.lineTo(14,-10); ctx.quadraticCurveTo(20,-20,16,-38); ctx.fill();
+  ctx.strokeStyle='#AA3300'; ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.moveTo(-8,-36); ctx.quadraticCurveTo(-10,-20,-6,-8); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(0,-36); ctx.quadraticCurveTo(0,-18,0,-6); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(8,-36); ctx.quadraticCurveTo(10,-20,6,-8); ctx.stroke();
+  ctx.fillStyle='#CC5500'; ctx.beginPath(); ctx.moveTo(-14,-38); ctx.quadraticCurveTo(-8,-33,0,-35); ctx.quadraticCurveTo(8,-33,14,-38); ctx.lineTo(10,-40); ctx.quadraticCurveTo(0,-37,-10,-40); ctx.closePath(); ctx.fill();
+  ctx.fillStyle='#fff'; ctx.beginPath(); ctx.arc(-6,-50,4,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(6,-50,4,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#2244CC'; ctx.beginPath(); ctx.arc(-5.5,-50,2.4,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(6.5,-50,2.4,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#000'; ctx.beginPath(); ctx.arc(-5,-50,1.2,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(7,-50,1.2,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='rgba(255,255,255,0.8)'; ctx.beginPath(); ctx.arc(-4,-51.5,0.8,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(7.8,-51.5,0.8,0,Math.PI*2); ctx.fill();
+  ctx.strokeStyle='#7a3a10'; ctx.lineWidth=2.5; ctx.beginPath(); ctx.moveTo(-10,-56); ctx.lineTo(-2,-54); ctx.stroke(); ctx.beginPath(); ctx.moveTo(10,-56); ctx.lineTo(2,-54); ctx.stroke();
+  ctx.fillStyle='#CC2222'; ctx.beginPath(); ctx.moveTo(0,-82); ctx.lineTo(-18,-60); ctx.lineTo(18,-60); ctx.closePath(); ctx.fill();
+  ctx.fillStyle='#AA1111'; ctx.beginPath(); ctx.moveTo(0,-82); ctx.lineTo(-4,-70); ctx.lineTo(0,-62); ctx.lineTo(4,-70); ctx.closePath(); ctx.fill();
+  ctx.fillStyle='#CC2222'; ctx.beginPath(); ctx.ellipse(0,-60,20,5,0,0,Math.PI*2); ctx.fill();
+  ctx.strokeStyle='#AA1111'; ctx.lineWidth=1.5; ctx.stroke();
+  ctx.fillStyle='#FFD700'; ctx.shadowColor='#FFD700'; ctx.shadowBlur=6;
+  ctx.font='bold 12px Arial'; ctx.textAlign='center'; ctx.fillText('★',0,-70); ctx.shadowBlur=0;
+}
+
+function _drawBarbarian(w){
+  ctx.fillStyle='rgba(0,0,0,0.32)'; ctx.beginPath(); ctx.ellipse(0,24,24,7,0,0,Math.PI*2); ctx.fill();
+  // Меховые сапоги
+  ctx.fillStyle='#5a3a1a';
+  ctx.beginPath(); ctx.moveTo(-12,8); ctx.lineTo(-14,24); ctx.lineTo(-4,24); ctx.lineTo(-4,8); ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(12,8); ctx.lineTo(14,24); ctx.lineTo(4,24); ctx.lineTo(4,8); ctx.closePath(); ctx.fill();
+  ctx.fillStyle='#8B6030'; ctx.beginPath(); ctx.ellipse(-9,8,6,3,0,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.ellipse(9,8,6,3,0,0,Math.PI*2); ctx.fill();
+  ctx.strokeStyle='#3a1a08'; ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.moveTo(-14,14); ctx.lineTo(-4,14); ctx.stroke(); ctx.beginPath(); ctx.moveTo(-14,19); ctx.lineTo(-4,19); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(4,14); ctx.lineTo(14,14); ctx.stroke(); ctx.beginPath(); ctx.moveTo(4,19); ctx.lineTo(14,19); ctx.stroke();
+  // Набедренная повязка
+  ctx.fillStyle='#6a4020'; ctx.beginPath(); ctx.moveTo(-16,-2); ctx.lineTo(16,-2); ctx.lineTo(14,10); ctx.lineTo(-14,10); ctx.closePath(); ctx.fill();
+  ctx.fillStyle='#8B5530';
+  ctx.beginPath(); ctx.moveTo(-16,-2); ctx.lineTo(-14,10); ctx.lineTo(-10,10); ctx.lineTo(-12,-2); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(16,-2); ctx.lineTo(14,10); ctx.lineTo(10,10); ctx.lineTo(12,-2); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(-4,-2); ctx.lineTo(-2,10); ctx.lineTo(2,10); ctx.lineTo(4,-2); ctx.fill();
+  ctx.fillStyle='#3a1a08'; ctx.fillRect(-17,-6,34,6);
+  ctx.fillStyle='#AAA'; ctx.fillRect(-5,-7,10,7); ctx.strokeStyle='#888'; ctx.lineWidth=1.5; ctx.strokeRect(-5,-7,10,7);
+  ctx.strokeStyle='#666'; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(0,-7); ctx.lineTo(0,0); ctx.stroke(); ctx.beginPath(); ctx.moveTo(-5,-3.5); ctx.lineTo(5,-3.5); ctx.stroke();
+  ctx.fillStyle='#2a1008'; ctx.fillRect(-20,-5,4,14); ctx.strokeStyle='#4a2010'; ctx.lineWidth=1; ctx.strokeRect(-20,-5,4,14);
+  // Голый торс
+  const sk='#C87840';
+  ctx.fillStyle=sk; ctx.beginPath(); ctx.moveTo(-20,-44); ctx.lineTo(20,-44); ctx.lineTo(22,-2); ctx.lineTo(-22,-2); ctx.closePath(); ctx.fill();
+  ctx.fillStyle='#B86830'; ctx.beginPath(); ctx.ellipse(-8,-28,9,7,-0.2,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.ellipse(8,-28,9,7,0.2,0,Math.PI*2); ctx.fill();
+  ctx.strokeStyle='#a05820'; ctx.lineWidth=1.8;
+  ctx.beginPath(); ctx.moveTo(-10,-18); ctx.lineTo(10,-18); ctx.stroke(); ctx.beginPath(); ctx.moveTo(-10,-10); ctx.lineTo(10,-10); ctx.stroke(); ctx.beginPath(); ctx.moveTo(0,-22); ctx.lineTo(0,-4); ctx.stroke();
+  ctx.strokeStyle='rgba(160,60,60,0.6)'; ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.moveTo(-6,-38); ctx.lineTo(-2,-26); ctx.stroke(); ctx.beginPath(); ctx.moveTo(8,-34); ctx.lineTo(14,-22); ctx.stroke();
+  // Наплечники
+  ctx.fillStyle='#4a2a0a'; ctx.beginPath(); ctx.ellipse(-20,-38,11,8,0.3,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.ellipse(20,-38,11,8,-0.3,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#6a3a10'; ctx.beginPath(); ctx.ellipse(-20,-38,7,5,0.3,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.ellipse(20,-38,7,5,-0.3,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#AAA'; ctx.beginPath(); ctx.arc(-24,-36,2,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(-16,-36,2,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(24,-36,2,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(16,-36,2,0,Math.PI*2); ctx.fill();
+  // Руки
+  ctx.strokeStyle=sk; ctx.lineWidth=11; ctx.lineCap='round';
+  ctx.beginPath(); ctx.moveTo(-18,-36); ctx.lineTo(-26,-16); ctx.stroke(); ctx.beginPath(); ctx.moveTo(18,-36); ctx.lineTo(28,-14); ctx.stroke();
+  ctx.strokeStyle='#b06830'; ctx.lineWidth=13;
+  ctx.beginPath(); ctx.moveTo(-19,-36); ctx.lineTo(-23,-26); ctx.stroke(); ctx.beginPath(); ctx.moveTo(19,-36); ctx.lineTo(23,-24); ctx.stroke();
+  ctx.fillStyle='#3a1a08'; ctx.beginPath(); ctx.arc(-26,-14,7,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(28,-14,7,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#5a2a10'; ctx.beginPath(); ctx.arc(-26,-14,4,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(28,-14,4,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#AAA'; ctx.beginPath(); ctx.arc(-30,-12,1.5,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(-22,-16,1.5,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(32,-12,1.5,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(24,-16,1.5,0,Math.PI*2); ctx.fill();
+  // МЕЧ горизонтально в руках
+  ctx.strokeStyle='#4a2a08'; ctx.lineWidth=6; ctx.beginPath(); ctx.moveTo(14,-14); ctx.lineTo(30,-14); ctx.stroke();
+  ctx.strokeStyle='#8B1a00'; ctx.lineWidth=3;
+  for(let i=0;i<4;i++){ ctx.beginPath(); ctx.moveTo(16+i*3,-17); ctx.lineTo(16+i*3,-11); ctx.stroke(); }
+  ctx.fillStyle='#888'; ctx.beginPath(); ctx.arc(14,-14,5,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#AAA'; ctx.beginPath(); ctx.arc(13,-15,2.5,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#999'; ctx.beginPath(); ctx.moveTo(30,-20); ctx.lineTo(34,-20); ctx.lineTo(34,-8); ctx.lineTo(30,-8); ctx.closePath(); ctx.fill();
+  ctx.fillStyle='#BBB'; ctx.beginPath(); ctx.moveTo(30,-20); ctx.lineTo(32,-20); ctx.lineTo(32,-8); ctx.lineTo(30,-8); ctx.fill();
+  ctx.fillStyle='#CCCCCC'; ctx.beginPath(); ctx.moveTo(34,-18); ctx.lineTo(34,-10); ctx.lineTo(72,-12); ctx.lineTo(70,-16); ctx.closePath(); ctx.fill();
+  ctx.fillStyle='#EEEEEE'; ctx.beginPath(); ctx.moveTo(34,-18); ctx.lineTo(72,-16); ctx.lineTo(70,-14); ctx.lineTo(34,-14); ctx.fill();
+  ctx.strokeStyle='rgba(100,100,100,0.5)'; ctx.lineWidth=1.5; ctx.beginPath(); ctx.moveTo(36,-15); ctx.lineTo(68,-14); ctx.stroke();
+  ctx.strokeStyle='rgba(255,255,255,0.6)'; ctx.lineWidth=1.5; ctx.beginPath(); ctx.moveTo(36,-17); ctx.lineTo(70,-16); ctx.stroke();
+  ctx.fillStyle='#DDD'; ctx.beginPath(); ctx.moveTo(70,-18); ctx.lineTo(75,-14); ctx.lineTo(70,-10); ctx.fill();
+  // Лысая голова
+  ctx.fillStyle='#C07030'; ctx.beginPath(); ctx.arc(0,-58,14,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='rgba(255,220,160,0.25)'; ctx.beginPath(); ctx.ellipse(-4,-65,6,4,0.4,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='rgba(10,8,8,0.3)';
+  ctx.beginPath(); ctx.arc(-13,-60,4,Math.PI*0.5,Math.PI*1.5); ctx.fill(); ctx.beginPath(); ctx.arc(13,-60,4,Math.PI*1.5,Math.PI*0.5); ctx.fill();
+  ctx.fillStyle='#a05820'; ctx.beginPath(); ctx.ellipse(-5,-63,7,3,0.15,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.ellipse(5,-63,7,3,-0.15,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#fff'; ctx.beginPath(); ctx.arc(-5,-62,3.5,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(5,-62,3.5,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#3a5a2a'; ctx.beginPath(); ctx.arc(-4.5,-62,2,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(5.5,-62,2,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#000'; ctx.beginPath(); ctx.arc(-4.2,-62,1,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(5.8,-62,1,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='rgba(255,255,255,0.8)'; ctx.beginPath(); ctx.arc(-3.5,-63.5,0.7,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(6.5,-63.5,0.7,0,Math.PI*2); ctx.fill();
+  ctx.strokeStyle='#0a0808'; ctx.lineWidth=3; ctx.lineCap='round';
+  ctx.beginPath(); ctx.moveTo(-10,-67); ctx.lineTo(-1,-65); ctx.stroke(); ctx.beginPath(); ctx.moveTo(10,-67); ctx.lineTo(1,-65); ctx.stroke();
+  ctx.strokeStyle='#9a5820'; ctx.lineWidth=2; ctx.lineCap='round';
+  ctx.beginPath(); ctx.moveTo(0,-58); ctx.lineTo(-2,-54); ctx.lineTo(1,-52); ctx.stroke();
+  ctx.fillStyle='#a06020'; ctx.beginPath(); ctx.ellipse(0,-52,4,3,0,0,Math.PI*2); ctx.fill();
+  ctx.strokeStyle='#804020'; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(-5,-47); ctx.lineTo(5,-47); ctx.stroke();
+  ctx.strokeStyle='rgba(180,80,60,0.85)'; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(-2,-70); ctx.lineTo(5,-56); ctx.stroke();
+  ctx.fillStyle='rgba(10,8,8,0.55)';
+  for(let i=0;i<12;i++){ const bx=-8+(i%6)*3,by=-50+Math.floor(i/6)*3; ctx.beginPath(); ctx.arc(bx,by,1,0,Math.PI*2); ctx.fill(); }
+  ctx.strokeStyle='#888'; ctx.lineWidth=3.5; ctx.beginPath(); ctx.arc(0,-62,14,Math.PI+0.2,0-0.2); ctx.stroke();
+  ctx.fillStyle='#CC2200'; ctx.shadowColor='#FF4400'; ctx.shadowBlur=5;
+  ctx.beginPath(); ctx.arc(0,-76,3.5,0,Math.PI*2); ctx.fill(); ctx.shadowBlur=0;
 }
 
 function _drawMage(w,now){
-  const ac=w.armorColor,sk=w.skinTone,cc=w.cloakColor;
-  ctx.fillStyle='rgba(0,0,0,0.28)'; ctx.beginPath(); ctx.ellipse(0,20,17,5,0,0,Math.PI*2); ctx.fill();
-  ctx.fillStyle=ac; ctx.beginPath(); ctx.moveTo(-13,-44); ctx.lineTo(13,-44); ctx.lineTo(17,20); ctx.lineTo(-17,20); ctx.closePath(); ctx.fill();
-  ctx.strokeStyle='rgba(255,220,100,0.5)'; ctx.lineWidth=2;
-  ctx.beginPath(); ctx.moveTo(-13,-44); ctx.lineTo(-17,20); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(13,-44); ctx.lineTo(17,20); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(-17,20); ctx.lineTo(17,20); ctx.stroke();
-  if(w.hasCloak){ ctx.fillStyle=cc; ctx.globalAlpha*=0.75; ctx.beginPath(); ctx.moveTo(-11,-42); ctx.lineTo(-20,18); ctx.lineTo(0,26); ctx.lineTo(20,18); ctx.lineTo(11,-42); ctx.fill(); ctx.globalAlpha=ctx.globalAlpha/0.75; }
-  ctx.strokeStyle=ac; ctx.lineWidth=5;
-  ctx.beginPath(); ctx.moveTo(-11,-36); ctx.lineTo(-18,-24); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(11,-36); ctx.lineTo(20,-26); ctx.stroke();
-  ctx.beginPath(); ctx.arc(0,-56,11,0,Math.PI*2); ctx.fillStyle=sk; ctx.fill();
-  ctx.fillStyle=w.hairColor; ctx.beginPath(); ctx.arc(0,-58,11,Math.PI,0); ctx.fill();
-  ctx.beginPath(); ctx.moveTo(-11,-58); ctx.lineTo(-14,-42); ctx.lineTo(-8,-46); ctx.fill();
-  ctx.beginPath(); ctx.moveTo(11,-58); ctx.lineTo(14,-42); ctx.lineTo(8,-46); ctx.fill();
-  ctx.fillStyle='#fff'; ctx.beginPath(); ctx.arc(-3.5,-57,2.5,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(3.5,-57,2.5,0,Math.PI*2); ctx.fill();
-  ctx.fillStyle='#330066'; ctx.beginPath(); ctx.arc(-3,-57,1.4,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(4,-57,1.4,0,Math.PI*2); ctx.fill();
-  ctx.fillStyle='rgba(200,180,255,0.7)'; ctx.beginPath(); ctx.arc(-2.2,-57.6,0.5,0,Math.PI*2); ctx.fill();
-  ctx.strokeStyle='#804060'; ctx.lineWidth=1.6; ctx.lineCap='round'; ctx.beginPath(); ctx.arc(0,-50,4,-0.6,Math.PI+0.6); ctx.stroke();
-  ctx.fillStyle=ac; ctx.beginPath(); ctx.moveTo(-15,-62); ctx.lineTo(15,-62); ctx.lineTo(8,-88); ctx.lineTo(-8,-88); ctx.closePath(); ctx.fill();
-  ctx.beginPath(); ctx.ellipse(0,-62,17,5,0,0,Math.PI*2); ctx.fill();
-  ctx.strokeStyle='rgba(255,220,100,0.4)'; ctx.lineWidth=1.5; ctx.beginPath(); ctx.ellipse(0,-62,17,5,0,0,Math.PI*2); ctx.stroke();
-  ctx.strokeStyle='#8B6914'; ctx.lineWidth=4; ctx.beginPath(); ctx.moveTo(20,-26); ctx.lineTo(25,22); ctx.stroke();
-  const ot=now/500,hue=(w.id*55+ot*40)%360;
-  ctx.fillStyle=`hsl(${hue},80%,60%)`; ctx.beginPath(); ctx.arc(20,-30,8,0,Math.PI*2); ctx.fill();
-  ctx.fillStyle='rgba(255,255,255,0.55)'; ctx.beginPath(); ctx.arc(17,-33,3,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='rgba(0,0,0,0.25)'; ctx.beginPath(); ctx.ellipse(0,22,18,5,0,0,Math.PI*2); ctx.fill();
+  ctx.strokeStyle='#1a0a3a'; ctx.lineWidth=8; ctx.lineCap='round';
+  ctx.beginPath(); ctx.moveTo(-4,0); ctx.lineTo(-5,22); ctx.stroke(); ctx.beginPath(); ctx.moveTo(4,0); ctx.lineTo(5,22); ctx.stroke();
+  ctx.fillStyle='#1a0a3a'; ctx.beginPath(); ctx.moveTo(-16,-44); ctx.lineTo(16,-44); ctx.lineTo(20,22); ctx.lineTo(-20,22); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle='rgba(130,60,255,0.5)'; ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.moveTo(-14,-44); ctx.lineTo(-18,22); ctx.stroke(); ctx.beginPath(); ctx.moveTo(14,-44); ctx.lineTo(18,22); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(-18,0); ctx.lineTo(18,0); ctx.stroke(); ctx.beginPath(); ctx.moveTo(-17,-22); ctx.lineTo(17,-22); ctx.stroke();
+  const runeGlow=0.4+Math.sin(now*0.004)*0.3;
+  ctx.fillStyle=`rgba(160,80,255,${runeGlow})`; ctx.font='bold 9px Arial'; ctx.textAlign='center';
+  ctx.fillText('ᚨ',-8,-32); ctx.fillText('ᚱ',8,-32); ctx.fillText('ᚺ',-8,-10); ctx.fillText('ᚾ',8,-10);
+  ctx.fillStyle='#2a1a4a'; ctx.fillRect(-16,-6,32,6); ctx.strokeStyle='#7a3aCC'; ctx.lineWidth=1.5; ctx.strokeRect(-16,-6,32,6);
+  ctx.fillStyle='#AA44FF'; ctx.shadowColor='#AA44FF'; ctx.shadowBlur=8;
+  ctx.beginPath(); ctx.arc(0,-3,4,0,Math.PI*2); ctx.fill(); ctx.shadowBlur=0;
+  ctx.strokeStyle='#1a0a3a'; ctx.lineWidth=11;
+  ctx.beginPath(); ctx.moveTo(-14,-38); ctx.lineTo(-22,-18); ctx.stroke(); ctx.beginPath(); ctx.moveTo(14,-38); ctx.lineTo(22,-18); ctx.stroke();
+  ctx.strokeStyle='#C8A0D0'; ctx.lineWidth=5;
+  ctx.beginPath(); ctx.moveTo(-22,-18); ctx.lineTo(-26,-10); ctx.stroke(); ctx.beginPath(); ctx.moveTo(22,-18); ctx.lineTo(26,-10); ctx.stroke();
+  ctx.strokeStyle='#3a2010'; ctx.lineWidth=4; ctx.beginPath(); ctx.moveTo(26,-10); ctx.lineTo(32,28); ctx.stroke();
+  const crystalHue=(now/6)%360;
+  ctx.fillStyle=`hsl(${crystalHue},90%,65%)`; ctx.shadowColor=`hsl(${crystalHue},90%,65%)`; ctx.shadowBlur=18;
+  ctx.beginPath(); ctx.moveTo(26,-26); ctx.lineTo(32,-18); ctx.lineTo(32,-8); ctx.lineTo(26,-2); ctx.lineTo(20,-8); ctx.lineTo(20,-18); ctx.closePath(); ctx.fill(); ctx.shadowBlur=0;
+  ctx.strokeStyle=`hsl(${crystalHue},60%,90%)`; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(26,-26); ctx.lineTo(26,-2); ctx.stroke(); ctx.beginPath(); ctx.moveTo(26,-26); ctx.lineTo(20,-18); ctx.stroke(); ctx.beginPath(); ctx.moveTo(26,-26); ctx.lineTo(32,-18); ctx.stroke();
+  ctx.fillStyle='rgba(255,255,255,0.5)'; ctx.beginPath(); ctx.arc(23,-20,3,0,Math.PI*2); ctx.fill();
+  const aura=0.08+Math.sin(now*0.005)*0.05;
+  ctx.fillStyle=`hsla(${crystalHue},90%,65%,${aura})`; ctx.beginPath(); ctx.arc(26,-14,22,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#2a1400'; ctx.beginPath(); ctx.moveTo(-28,-22); ctx.lineTo(-14,-18); ctx.lineTo(-14,-2); ctx.lineTo(-28,-6); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle='#6a3010'; ctx.lineWidth=1.5; ctx.stroke();
+  ctx.fillStyle='#EEE0C0'; ctx.beginPath(); ctx.moveTo(-27,-21); ctx.lineTo(-15,-17); ctx.lineTo(-15,-3); ctx.lineTo(-27,-5); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle='rgba(80,40,0,0.5)'; ctx.lineWidth=0.8;
+  for(let i=0;i<4;i++){ ctx.beginPath(); ctx.moveTo(-25,-18+i*4); ctx.lineTo(-17,-16+i*3.5); ctx.stroke(); }
+  ctx.fillStyle='rgba(160,80,255,0.8)'; ctx.font='bold 8px Arial'; ctx.textAlign='center'; ctx.fillText('✦',-21,-11);
+  ctx.fillStyle='#FFD700'; ctx.beginPath(); ctx.arc(-14,-12,2.5,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#C8A0D0'; ctx.beginPath(); ctx.arc(0,-56,12,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#EEEEEE'; ctx.beginPath(); ctx.arc(0,-58,12,Math.PI,0); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(-12,-58); ctx.lineTo(-18,-24); ctx.lineTo(-10,-26); ctx.lineTo(-8,-58); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(12,-58); ctx.lineTo(18,-24); ctx.lineTo(10,-26); ctx.lineTo(8,-58); ctx.fill();
+  ctx.fillStyle='#DDDDDD'; ctx.beginPath(); ctx.moveTo(-8,-48); ctx.quadraticCurveTo(-10,-28,-5,-14); ctx.lineTo(0,-12); ctx.lineTo(5,-14); ctx.quadraticCurveTo(10,-28,8,-48); ctx.fill();
+  ctx.strokeStyle='#CCCCCC'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(-2,-46); ctx.quadraticCurveTo(-2,-26,0,-14); ctx.stroke(); ctx.beginPath(); ctx.moveTo(2,-46); ctx.quadraticCurveTo(4,-26,4,-14); ctx.stroke();
+  ctx.fillStyle='rgba(160,100,255,0.2)'; ctx.beginPath(); ctx.arc(-3.5,-57,5,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(3.5,-57,5,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#fff'; ctx.beginPath(); ctx.arc(-3.5,-57,3,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(3.5,-57,3,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#AA44FF'; ctx.shadowColor='#AA44FF'; ctx.shadowBlur=6;
+  ctx.beginPath(); ctx.arc(-3,-57,1.8,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(4,-57,1.8,0,Math.PI*2); ctx.fill(); ctx.shadowBlur=0;
+  ctx.fillStyle='#000'; ctx.beginPath(); ctx.arc(-2.8,-57,0.9,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(4.2,-57,0.9,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='rgba(255,255,255,0.8)'; ctx.beginPath(); ctx.arc(-2,-58.5,0.6,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(5,-58.5,0.6,0,Math.PI*2); ctx.fill();
+  ctx.strokeStyle='#888'; ctx.lineWidth=2.5; ctx.beginPath(); ctx.moveTo(-7,-62); ctx.lineTo(-1,-60); ctx.stroke(); ctx.beginPath(); ctx.moveTo(7,-62); ctx.lineTo(1,-60); ctx.stroke();
+  ctx.strokeStyle='#b090c0'; ctx.lineWidth=1.8; ctx.lineCap='round'; ctx.beginPath(); ctx.moveTo(0,-54); ctx.lineTo(2,-52); ctx.lineTo(1,-49); ctx.stroke();
+  ctx.strokeStyle='#9a7aAA'; ctx.lineWidth=1.5; ctx.beginPath(); ctx.arc(0,-46,3.5,0.3,Math.PI-0.3); ctx.stroke();
+  ctx.fillStyle='#1a0a3a'; ctx.beginPath(); ctx.moveTo(0,-88); ctx.lineTo(-18,-62); ctx.lineTo(18,-62); ctx.closePath(); ctx.fill();
+  const stars=[{x:-6,y:-80,s:0.8},{x:8,y:-74,s:1},{x:2,y:-68,s:0.7},{x:-10,y:-70,s:0.9}];
+  for(const s of stars){ ctx.fillStyle=`rgba(200,160,255,${0.6+Math.sin(now*0.003+s.x)*0.3})`; ctx.shadowColor='#AA88FF'; ctx.shadowBlur=4; ctx.font=`bold ${8*s.s}px Arial`; ctx.textAlign='center'; ctx.fillText('✦',s.x,s.y); ctx.shadowBlur=0; }
+  ctx.fillStyle='#1a0a3a'; ctx.beginPath(); ctx.ellipse(0,-62,22,6,0,0,Math.PI*2); ctx.fill();
+  ctx.strokeStyle='rgba(130,60,255,0.6)'; ctx.lineWidth=2; ctx.stroke();
+  ctx.strokeStyle='#AA44FF'; ctx.lineWidth=3; ctx.beginPath(); ctx.ellipse(0,-62,18,4.5,0,Math.PI+0.3,0-0.3); ctx.stroke();
+  ctx.fillStyle='#FFD700'; ctx.shadowColor='#FFD700'; ctx.shadowBlur=8; ctx.font='bold 10px Arial'; ctx.textAlign='center'; ctx.fillText('★',0,-86); ctx.shadowBlur=0;
+}
+
+function _drawSkeleton(w,now){
+  ctx.fillStyle='rgba(0,0,0,0.25)'; ctx.beginPath(); ctx.ellipse(0,22,16,5,0,0,Math.PI*2); ctx.fill();
+  ctx.strokeStyle='#DDD8C0'; ctx.lineWidth=6; ctx.lineCap='round';
+  ctx.beginPath(); ctx.moveTo(-5,-2); ctx.lineTo(-6,10); ctx.stroke(); ctx.beginPath(); ctx.moveTo(5,-2); ctx.lineTo(6,10); ctx.stroke();
+  ctx.fillStyle='#CCC8B0'; ctx.beginPath(); ctx.arc(-6,10,4,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(6,10,4,0,Math.PI*2); ctx.fill();
+  ctx.strokeStyle='#DDD8C0'; ctx.lineWidth=5;
+  ctx.beginPath(); ctx.moveTo(-6,10); ctx.lineTo(-7,22); ctx.stroke(); ctx.beginPath(); ctx.moveTo(6,10); ctx.lineTo(7,22); ctx.stroke();
+  ctx.fillStyle='#CCC8B0';
+  ctx.beginPath(); ctx.moveTo(-10,22); ctx.lineTo(-4,22); ctx.lineTo(-3,26); ctx.lineTo(-11,26); ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(10,22); ctx.lineTo(4,22); ctx.lineTo(3,26); ctx.lineTo(11,26); ctx.closePath(); ctx.fill();
+  for(let i=0;i<3;i++){ ctx.strokeStyle='#BBB8A0'; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(-10+i*3,26); ctx.lineTo(-11+i*3,30); ctx.stroke(); ctx.beginPath(); ctx.moveTo(4+i*3,26); ctx.lineTo(3+i*3,30); ctx.stroke(); }
+  ctx.fillStyle='#DDD8C0'; ctx.beginPath(); ctx.moveTo(-14,-4); ctx.lineTo(14,-4); ctx.lineTo(12,2); ctx.lineTo(-12,2); ctx.closePath(); ctx.fill();
+  ctx.fillStyle='#BBB8A0'; ctx.beginPath(); ctx.ellipse(-8,0,5,4,0.2,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.ellipse(8,0,5,4,-0.2,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='rgba(5,5,16,0.8)'; ctx.beginPath(); ctx.ellipse(-8,0,3,2.5,0.2,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.ellipse(8,0,3,2.5,-0.2,0,Math.PI*2); ctx.fill();
+  ctx.strokeStyle='#DDD8C0'; ctx.lineWidth=4; ctx.beginPath(); ctx.moveTo(0,-4); ctx.lineTo(0,-42); ctx.stroke();
+  ctx.fillStyle='#CCC8B0';
+  for(let i=0;i<5;i++){ ctx.beginPath(); ctx.ellipse(0,-8-i*7,5,3,0,0,Math.PI*2); ctx.fill(); ctx.fillStyle='#BBB8A0'; ctx.beginPath(); ctx.ellipse(0,-8-i*7,3,1.5,0,0,Math.PI*2); ctx.fill(); ctx.fillStyle='#CCC8B0'; }
+  ctx.strokeStyle='#CCC8B0'; ctx.lineWidth=2.5;
+  for(let i=0;i<4;i++){ const ry=-14-i*7; ctx.beginPath(); ctx.moveTo(-2,ry); ctx.quadraticCurveTo(-16,ry+2,-14,ry+8); ctx.stroke(); ctx.beginPath(); ctx.moveTo(2,ry); ctx.quadraticCurveTo(16,ry+2,14,ry+8); ctx.stroke(); }
+  ctx.fillStyle='#CCC8B0'; ctx.fillRect(-3,-42,6,30);
+  ctx.strokeStyle='#AAA890'; ctx.lineWidth=1; for(let i=0;i<4;i++){ ctx.beginPath(); ctx.moveTo(-3,-12-i*7); ctx.lineTo(3,-12-i*7); ctx.stroke(); }
+  ctx.strokeStyle='#DDD8C0'; ctx.lineWidth=4;
+  ctx.beginPath(); ctx.moveTo(0,-42); ctx.lineTo(-18,-38); ctx.stroke(); ctx.beginPath(); ctx.moveTo(0,-42); ctx.lineTo(18,-38); ctx.stroke();
+  ctx.strokeStyle='#DDD8C0'; ctx.lineWidth=5;
+  ctx.beginPath(); ctx.moveTo(-18,-38); ctx.lineTo(-24,-22); ctx.stroke();
+  ctx.fillStyle='#CCC8B0'; ctx.beginPath(); ctx.arc(-24,-22,4,0,Math.PI*2); ctx.fill();
+  ctx.strokeStyle='#DDD8C0'; ctx.lineWidth=4; ctx.beginPath(); ctx.moveTo(-24,-22); ctx.lineTo(-28,-8); ctx.stroke();
+  ctx.fillStyle='#CCC8B0'; ctx.beginPath(); ctx.arc(-28,-8,4,0,Math.PI*2); ctx.fill();
+  ctx.strokeStyle='#CCC8B0'; ctx.lineWidth=2;
+  for(let i=0;i<4;i++){ ctx.beginPath(); ctx.moveTo(-30+i,-8); ctx.lineTo(-32+i,-18); ctx.stroke(); }
+  ctx.strokeStyle='#DDD8C0'; ctx.lineWidth=5;
+  ctx.beginPath(); ctx.moveTo(18,-38); ctx.lineTo(24,-20); ctx.stroke();
+  ctx.fillStyle='#CCC8B0'; ctx.beginPath(); ctx.arc(24,-20,4,0,Math.PI*2); ctx.fill();
+  ctx.strokeStyle='#DDD8C0'; ctx.lineWidth=4; ctx.beginPath(); ctx.moveTo(24,-20); ctx.lineTo(26,-4); ctx.stroke();
+  ctx.fillStyle='#CCC8B0'; ctx.beginPath(); ctx.arc(26,-4,4,0,Math.PI*2); ctx.fill();
+  // Коса
+  ctx.strokeStyle='#5a3a10'; ctx.lineWidth=4;
+  ctx.beginPath(); ctx.moveTo(26,-4); ctx.lineTo(22,28); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(26,-4); ctx.lineTo(30,-44); ctx.stroke();
+  ctx.fillStyle='#AAAAAA'; ctx.beginPath(); ctx.moveTo(30,-44); ctx.quadraticCurveTo(54,-50,46,-30); ctx.quadraticCurveTo(40,-20,30,-36); ctx.closePath(); ctx.fill();
+  ctx.fillStyle='#CCCCCC'; ctx.beginPath(); ctx.moveTo(30,-44); ctx.quadraticCurveTo(50,-48,44,-32); ctx.quadraticCurveTo(36,-22,30,-36); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle='rgba(255,255,255,0.5)'; ctx.lineWidth=1.5; ctx.beginPath(); ctx.moveTo(32,-42); ctx.quadraticCurveTo(48,-46,42,-30); ctx.stroke();
+  ctx.fillStyle='#EEE'; ctx.beginPath(); ctx.moveTo(30,-44); ctx.lineTo(35,-48); ctx.lineTo(34,-42); ctx.fill();
+  // Череп
+  ctx.fillStyle='#E8E0C8'; ctx.beginPath(); ctx.arc(0,-56,14,0,Math.PI*2); ctx.fill();
+  ctx.strokeStyle='rgba(100,90,70,0.5)'; ctx.lineWidth=1.2;
+  ctx.beginPath(); ctx.moveTo(-4,-70); ctx.lineTo(-2,-62); ctx.lineTo(-6,-56); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(6,-70); ctx.lineTo(8,-64); ctx.stroke();
+  ctx.fillStyle='#D8D0B8'; ctx.beginPath(); ctx.ellipse(-5,-63,7,4,0.1,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.ellipse(5,-63,7,4,-0.1,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#050510'; ctx.beginPath(); ctx.ellipse(-5,-62,5,6,0,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.ellipse(5,-62,5,6,0,0,Math.PI*2); ctx.fill();
+  const eyeGlow=0.5+Math.sin(now*0.004)*0.3;
+  ctx.fillStyle=`rgba(0,255,80,${eyeGlow})`; ctx.shadowColor='#00FF50'; ctx.shadowBlur=8;
+  ctx.beginPath(); ctx.ellipse(-5,-62,3,4,0,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.ellipse(5,-62,3,4,0,0,Math.PI*2); ctx.fill(); ctx.shadowBlur=0;
+  ctx.fillStyle='#050510'; ctx.beginPath(); ctx.moveTo(-3,-52); ctx.lineTo(3,-52); ctx.lineTo(0,-47); ctx.closePath(); ctx.fill();
+  ctx.fillStyle='#E8E0C8'; ctx.beginPath(); ctx.moveTo(-10,-46); ctx.lineTo(10,-46); ctx.lineTo(10,-42); ctx.lineTo(-10,-42); ctx.fill();
+  ctx.fillStyle='#050510'; for(let i=0;i<5;i++){ ctx.beginPath(); ctx.rect(-9+i*4,-46,2,6); ctx.fill(); }
+  ctx.fillStyle='#D8D0B8'; ctx.beginPath(); ctx.moveTo(-10,-46); ctx.lineTo(-12,-40); ctx.lineTo(12,-40); ctx.lineTo(10,-46); ctx.fill();
+  ctx.fillStyle='#E8E0C8'; ctx.beginPath(); ctx.moveTo(-8,-44); ctx.lineTo(8,-44); ctx.lineTo(8,-42); ctx.lineTo(-8,-42); ctx.fill();
+  // Капюшон
+  ctx.fillStyle='rgba(20,10,30,0.7)'; ctx.beginPath(); ctx.moveTo(-20,-56); ctx.lineTo(-16,-36); ctx.lineTo(0,-32); ctx.lineTo(16,-36); ctx.lineTo(20,-56); ctx.lineTo(16,-72); ctx.lineTo(0,-78); ctx.lineTo(-16,-72); ctx.closePath(); ctx.fill();
+  ctx.fillStyle='rgba(5,5,16,0.9)'; ctx.beginPath(); ctx.moveTo(-18,-60); ctx.lineTo(-14,-56); ctx.lineTo(-16,-52); ctx.fill(); ctx.beginPath(); ctx.moveTo(14,-64); ctx.lineTo(18,-60); ctx.lineTo(15,-56); ctx.fill();
+  ctx.strokeStyle='rgba(40,20,60,0.8)'; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.moveTo(-20,-56); ctx.lineTo(-22,-48); ctx.lineTo(-18,-44); ctx.lineTo(-20,-38); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(20,-56); ctx.lineTo(22,-48); ctx.lineTo(18,-44); ctx.lineTo(20,-38); ctx.stroke();
+  const aura=0.05+Math.sin(now*0.003)*0.04;
+  ctx.fillStyle=`rgba(0,200,60,${aura})`; ctx.beginPath(); ctx.ellipse(0,-20,24,36,0,0,Math.PI*2); ctx.fill();
 }
 
 function _drawKing(w,now){
@@ -970,16 +1189,6 @@ function _drawKing(w,now){
   // Crown glow aura
   const glowA=0.12+Math.sin(now*0.003)*0.07;
   ctx.fillStyle=`rgba(255,215,0,${glowA})`; ctx.beginPath(); ctx.ellipse(0,-80,22,28,0,0,Math.PI*2); ctx.fill();
-}
-
-function _drawHelmet(style,color,cx,cy,r){
-  ctx.fillStyle=color;
-  switch(style%4){
-    case 0: ctx.beginPath(); ctx.arc(cx,cy,r+2,Math.PI,0); ctx.fill(); ctx.fillRect(cx-r-2,cy-2,(r+2)*2,5); ctx.fillStyle='rgba(0,0,0,0.3)'; ctx.fillRect(cx-4,cy-r,8,r*0.7); break;
-    case 1: ctx.beginPath(); ctx.arc(cx,cy,r+1.5,Math.PI,0); ctx.fill(); ctx.fillStyle='#AAA'; ctx.fillRect(cx-2.5,cy-r-1,5,r+5); break;
-    case 2: ctx.beginPath(); ctx.arc(cx,cy,r+2,Math.PI,0); ctx.fill(); ctx.fillRect(cx-r-2,cy,r*2+4,3); ctx.fillStyle='#CCC'; ctx.beginPath(); ctx.moveTo(cx-r-1,cy); ctx.lineTo(cx-r-12,cy-r-10); ctx.lineTo(cx-r+4,cy); ctx.fill(); ctx.beginPath(); ctx.moveTo(cx+r+1,cy); ctx.lineTo(cx+r+12,cy-r-10); ctx.lineTo(cx+r-4,cy); ctx.fill(); break;
-    case 3: ctx.fillRect(cx-r,cy-r,r*2,r*0.65); ctx.fillStyle='#FFD700'; for(let i=0;i<5;i++){const px=cx-r+(i/4)*r*2; ctx.fillRect(px-2.5,cy-r-(i%2===0?10:6),5,(i%2===0?10:6));} ctx.fillStyle='#FF3366'; ctx.beginPath(); ctx.arc(cx,cy-r-7,2.5,0,Math.PI*2); ctx.fill(); break;
-  }
 }
 
 // ── Victory ─────────────────────────────────────────────────
