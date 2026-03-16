@@ -45,30 +45,26 @@ function drawLeha(cx, cy, now) {
   ctx.beginPath(); ctx.moveTo(-12, 23); ctx.lineTo(-1, 23); ctx.stroke();
   ctx.beginPath(); ctx.moveTo(2, 23); ctx.lineTo(13, 23); ctx.stroke();
 
-  // Худи — тёмное с молнией
-  ctx.fillStyle = '#1a1a2a';
+  // Худи — серое без капюшона
+  ctx.fillStyle = '#555560';
   ctx.beginPath(); ctx.moveTo(-16, -44); ctx.lineTo(16, -44); ctx.lineTo(18, -2); ctx.lineTo(-18, -2); ctx.closePath(); ctx.fill();
   // Молния на худи
-  ctx.strokeStyle = '#333355'; ctx.lineWidth = 2;
+  ctx.strokeStyle = '#444450'; ctx.lineWidth = 2;
   ctx.beginPath(); ctx.moveTo(0, -44); ctx.lineTo(0, -2); ctx.stroke();
   // Карман кенгуру
-  ctx.strokeStyle = '#252535'; ctx.lineWidth = 1.5;
+  ctx.strokeStyle = '#444450'; ctx.lineWidth = 1.5;
   ctx.beginPath(); ctx.moveTo(-10, -16); ctx.lineTo(-10, -6); ctx.lineTo(10, -6); ctx.lineTo(10, -16); ctx.stroke();
   // Надпись на худи
-  ctx.fillStyle = 'rgba(255,50,50,0.7)';
+  ctx.fillStyle = 'rgba(255,50,50,0.85)';
   ctx.font = 'bold 7px Arial'; ctx.textAlign = 'center';
   ctx.fillText('BOSS', 0, -26);
-  // Капюшон (откинут назад)
-  ctx.fillStyle = '#151525';
-  ctx.beginPath(); ctx.moveTo(-16, -44); ctx.quadraticCurveTo(-22, -52, -16, -58); ctx.lineTo(-8, -52); ctx.lineTo(-8, -44); ctx.closePath(); ctx.fill();
-  ctx.beginPath(); ctx.moveTo(16, -44); ctx.quadraticCurveTo(22, -52, 16, -58); ctx.lineTo(8, -52); ctx.lineTo(8, -44); ctx.closePath(); ctx.fill();
 
   // Руки — в рукавах
-  ctx.strokeStyle = '#1a1a2a'; ctx.lineWidth = 9; ctx.lineCap = 'round';
+  ctx.strokeStyle = '#555560'; ctx.lineWidth = 9; ctx.lineCap = 'round';
   ctx.beginPath(); ctx.moveTo(-14, -38); ctx.lineTo(-22, -18); ctx.stroke();
   ctx.beginPath(); ctx.moveTo(14, -38); ctx.lineTo(22, -18); ctx.stroke();
   // Манжеты
-  ctx.strokeStyle = '#252535'; ctx.lineWidth = 10;
+  ctx.strokeStyle = '#444450'; ctx.lineWidth = 10;
   ctx.beginPath(); ctx.moveTo(-22, -20); ctx.lineTo(-22, -14); ctx.stroke();
   ctx.beginPath(); ctx.moveTo(22, -20); ctx.lineTo(22, -14); ctx.stroke();
   // Кисти
@@ -150,61 +146,17 @@ function drawLeha(cx, cy, now) {
   ctx.strokeStyle = 'rgba(120,60,20,0.5)'; ctx.lineWidth = 1;
   ctx.beginPath(); ctx.arc(5.5, -54, 1, 0, Math.PI); ctx.stroke();
 
-  // КЕПКА — с козырьком вперёд
-  // Тулья кепки
+  // ШАПКА — облегающая
   ctx.fillStyle = '#CC2200';
   ctx.beginPath();
-  ctx.ellipse(0, -76, 18, 6, 0, Math.PI, 0); // основание
-  ctx.fill();
-  ctx.beginPath();
-  ctx.moveTo(-18, -76);
-  ctx.quadraticCurveTo(-18, -96, 0, -98);
-  ctx.quadraticCurveTo(18, -96, 18, -76);
-  ctx.fill();
-  // Швы на кепке
-  ctx.strokeStyle = '#AA1100'; ctx.lineWidth = 1.5;
-  ctx.beginPath(); ctx.moveTo(0, -98); ctx.lineTo(0, -76); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(-18, -76); ctx.quadraticCurveTo(-14, -88, 0, -90); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(18, -76); ctx.quadraticCurveTo(14, -88, 0, -90); ctx.stroke();
-  // Пуговка на макушке
-  ctx.fillStyle = '#AA1100';
-  ctx.beginPath(); ctx.arc(0, -98, 2.5, 0, Math.PI*2); ctx.fill();
-  // Налобная лента (snapback полоса)
-  ctx.fillStyle = '#111111';
-  ctx.beginPath(); ctx.ellipse(0, -76, 18, 5, 0, Math.PI, 0); ctx.fill();
-  ctx.fillStyle = '#FFFFFF';
-  ctx.beginPath(); ctx.ellipse(0, -76, 18, 2, 0, Math.PI, 0); ctx.fill();
-  // КОЗЫРЁК
-  ctx.fillStyle = '#BB1100';
-  ctx.beginPath();
-  ctx.moveTo(-16, -76);
-  ctx.lineTo(-20, -70);
-  ctx.lineTo(20, -70);
-  ctx.lineTo(16, -76);
+  ctx.moveTo(-17, -74);
+  ctx.lineTo(17, -74);
+  ctx.bezierCurveTo(19, -82, 18, -96, 0, -100);
+  ctx.bezierCurveTo(-18, -96, -19, -82, -17, -74);
   ctx.closePath(); ctx.fill();
-  // Козырёк снизу — тень
-  ctx.fillStyle = '#881100';
-  ctx.beginPath();
-  ctx.moveTo(-16, -76);
-  ctx.lineTo(-20, -70);
-  ctx.lineTo(20, -70);
-  ctx.lineTo(16, -76);
-  ctx.closePath(); ctx.fill();
-  ctx.fillStyle = 'rgba(0,0,0,0.3)';
-  ctx.beginPath();
-  ctx.moveTo(-16, -76);
-  ctx.lineTo(-20, -70);
-  ctx.lineTo(20, -70);
-  ctx.lineTo(16, -76);
-  ctx.fill();
-  // Nike swoosh на козырьке
-  ctx.fillStyle = '#FFFFFF';
-  ctx.beginPath();
-  ctx.moveTo(-10, -72);
-  ctx.bezierCurveTo(-6, -77, 4, -76, 9, -72);
-  ctx.bezierCurveTo(2, -71.5, -4, -71, -10, -72);
-  ctx.closePath();
-  ctx.fill();
+  // Тонкий кант внизу
+  ctx.strokeStyle = '#991500'; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(-17, -74); ctx.lineTo(17, -74); ctx.stroke();
 
   // Специальная аура создателя
   const auraA = 0.06 + Math.sin(now * 0.002) * 0.03;

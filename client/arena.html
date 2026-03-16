@@ -1208,23 +1208,19 @@ function _drawLeha(w,now){
   ctx.beginPath(); ctx.moveTo(-12,22); ctx.lineTo(-2,22); ctx.lineTo(-1,26); ctx.lineTo(-13,26); ctx.closePath(); ctx.fill();
   ctx.beginPath(); ctx.moveTo(12,22); ctx.lineTo(2,22); ctx.lineTo(1,26); ctx.lineTo(13,26); ctx.closePath(); ctx.fill();
   ctx.fillStyle='#CC2200'; ctx.fillRect(-12,21,11,2); ctx.fillRect(2,21,11,2);
-  // Hoodie
-  ctx.fillStyle='#1a1a2a';
+  // Hoodie — grey, no hood
+  ctx.fillStyle='#555560';
   ctx.beginPath(); ctx.moveTo(-16,-44); ctx.lineTo(16,-44); ctx.lineTo(18,-2); ctx.lineTo(-18,-2); ctx.closePath(); ctx.fill();
-  ctx.strokeStyle='#333355'; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(0,-44); ctx.lineTo(0,-2); ctx.stroke();
-  ctx.strokeStyle='#252535'; ctx.lineWidth=1.5;
+  ctx.strokeStyle='#444450'; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(0,-44); ctx.lineTo(0,-2); ctx.stroke();
+  ctx.strokeStyle='#444450'; ctx.lineWidth=1.5;
   ctx.beginPath(); ctx.moveTo(-10,-16); ctx.lineTo(-10,-6); ctx.lineTo(10,-6); ctx.lineTo(10,-16); ctx.stroke();
-  ctx.fillStyle='rgba(255,50,50,0.7)'; ctx.font='bold 7px Arial'; ctx.textAlign='center';
+  ctx.fillStyle='rgba(255,50,50,0.85)'; ctx.font='bold 7px Arial'; ctx.textAlign='center';
   ctx.fillText('BOSS',0,-26);
-  // Hood flaps
-  ctx.fillStyle='#151525';
-  ctx.beginPath(); ctx.moveTo(-16,-44); ctx.quadraticCurveTo(-22,-52,-16,-58); ctx.lineTo(-8,-52); ctx.lineTo(-8,-44); ctx.closePath(); ctx.fill();
-  ctx.beginPath(); ctx.moveTo(16,-44); ctx.quadraticCurveTo(22,-52,16,-58); ctx.lineTo(8,-52); ctx.lineTo(8,-44); ctx.closePath(); ctx.fill();
   // Arms
-  ctx.strokeStyle='#1a1a2a'; ctx.lineWidth=9; ctx.lineCap='round';
+  ctx.strokeStyle='#555560'; ctx.lineWidth=9; ctx.lineCap='round';
   ctx.beginPath(); ctx.moveTo(-14,-38); ctx.lineTo(-22,-18); ctx.stroke();
   ctx.beginPath(); ctx.moveTo(14,-38); ctx.lineTo(22,-18); ctx.stroke();
-  ctx.strokeStyle='#252535'; ctx.lineWidth=10;
+  ctx.strokeStyle='#444450'; ctx.lineWidth=10;
   ctx.beginPath(); ctx.moveTo(-22,-20); ctx.lineTo(-22,-14); ctx.stroke();
   ctx.beginPath(); ctx.moveTo(22,-20); ctx.lineTo(22,-14); ctx.stroke();
   // Hands
@@ -1281,25 +1277,15 @@ function _drawLeha(w,now){
   // Mouth
   ctx.strokeStyle='#7a3a10'; ctx.lineWidth=2; ctx.lineCap='round';
   ctx.beginPath(); ctx.moveTo(-5,-54); ctx.quadraticCurveTo(0,-51,5,-54); ctx.stroke();
-  // Cap
+  // Шапка — облегающая
   ctx.fillStyle='#CC2200';
-  ctx.beginPath(); ctx.ellipse(0,-76,18,6,0,Math.PI,0); ctx.fill();
-  ctx.beginPath(); ctx.moveTo(-18,-76); ctx.quadraticCurveTo(-18,-96,0,-98); ctx.quadraticCurveTo(18,-96,18,-76); ctx.fill();
-  ctx.strokeStyle='#AA1100'; ctx.lineWidth=1.5;
-  ctx.beginPath(); ctx.moveTo(0,-98); ctx.lineTo(0,-76); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(-18,-76); ctx.quadraticCurveTo(-14,-88,0,-90); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(18,-76); ctx.quadraticCurveTo(14,-88,0,-90); ctx.stroke();
-  ctx.fillStyle='#AA1100'; ctx.beginPath(); ctx.arc(0,-98,2.5,0,Math.PI*2); ctx.fill();
-  ctx.fillStyle='#111111'; ctx.beginPath(); ctx.ellipse(0,-76,18,5,0,Math.PI,0); ctx.fill();
-  ctx.fillStyle='#FFFFFF'; ctx.beginPath(); ctx.ellipse(0,-76,18,2,0,Math.PI,0); ctx.fill();
-  // Visor
-  ctx.fillStyle='#BB1100';
-  ctx.beginPath(); ctx.moveTo(-16,-76); ctx.lineTo(-20,-70); ctx.lineTo(20,-70); ctx.lineTo(16,-76); ctx.closePath(); ctx.fill();
-  ctx.fillStyle='rgba(0,0,0,0.3)';
-  ctx.beginPath(); ctx.moveTo(-16,-76); ctx.lineTo(-20,-70); ctx.lineTo(20,-70); ctx.lineTo(16,-76); ctx.fill();
-  // Nike swoosh
-  ctx.fillStyle='#FFFFFF';
-  ctx.beginPath(); ctx.moveTo(-10,-72); ctx.bezierCurveTo(-6,-77,4,-76,9,-72); ctx.bezierCurveTo(2,-71.5,-4,-71,-10,-72); ctx.closePath(); ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(-17,-74); ctx.lineTo(17,-74);
+  ctx.bezierCurveTo(19,-82,18,-96,0,-100);
+  ctx.bezierCurveTo(-18,-96,-19,-82,-17,-74);
+  ctx.closePath(); ctx.fill();
+  ctx.strokeStyle='#991500'; ctx.lineWidth=3;
+  ctx.beginPath(); ctx.moveTo(-17,-74); ctx.lineTo(17,-74); ctx.stroke();
   // Creator aura
   const auraA=0.06+Math.sin(now*0.002)*0.03;
   ctx.fillStyle=`rgba(255,50,50,${auraA})`; ctx.beginPath(); ctx.ellipse(0,-40,28,50,0,0,Math.PI*2); ctx.fill();
