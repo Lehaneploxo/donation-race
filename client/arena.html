@@ -85,7 +85,7 @@ function playKill(){
 // CONSTANTS
 // ═══════════════════════════════════════════
 const CW = 600, CH = 1000;
-const MAX_WARRIORS = 10;
+const MAX_WARRIORS = 20;
 const SKY_H   = 185;
 const ARENA_CX = 300, ARENA_CY = 610;
 const ARENA_RX = 272, ARENA_RY = 305;
@@ -244,18 +244,20 @@ function startNewRound(){
   const prev = victoryState?.warrior || null;
   // Next round threshold: +20 more kills
   if(prev) nextKillsTarget = prev.kills + 20;
+  // Keep all survivors — only clear dead warriors
+  const survivors = warriors.filter(w => !w.dead);
   warriors=[]; particles=[]; dmgNums=[]; meteors=[]; armageddon=null;
   victoryState=null;
-  // Winner stays — same character, same HP/DMG, same appearance
-  if(prev){
+  // All survivors continue into next round with new positions
+  for(const w of survivors){
     const pos=rndArenaPos();
-    prev.ax=pos.ax; prev.ay=pos.ay;
-    prev.tax=pos.ax; prev.tay=pos.ay;
-    prev.walkTimer=0; prev.bumpCooldown=2000;
-    prev.dead=false; prev.deathTimer=0;
-    prev.flashTimer=0; prev.glowTimer=800;
-    warriors.push(prev);
-    spawnSpawnFX(prev);
+    w.ax=pos.ax; w.ay=pos.ay;
+    w.tax=pos.ax; w.tay=pos.ay;
+    w.walkTimer=0; w.bumpCooldown=2000;
+    w.dead=false; w.deathTimer=0; w.floatY=0; w.floatVY=0;
+    w.flashTimer=0; w.glowTimer=(w===prev)?800:400;
+    warriors.push(w);
+    spawnSpawnFX(w);
   }
   eventLabel='⚔️ NEW ROUND!'; eventLabelTimer=2500;
 }
