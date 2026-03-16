@@ -118,9 +118,12 @@ let mapStartTime = Date.now();
 const MAP_DURATION = 600000; // 10 min
 const MAP_NAMES = ['⚔️  ARENA CLASSIC', '🏜️  DESERT', '🌋  VOLCANO'];
 let mapLabelTimer = 0;
-const _volcEmbers = Array.from({length:45},()=>({x:290+(Math.random()-.5)*50,y:SKY_H*.1+Math.random()*30,vx:(Math.random()-.5)*1.8,vy:-(0.5+Math.random()*1.5),life:Math.random(),max:.5+Math.random()*.8,r:1+Math.random()*2.5}));
-const _volcAsh    = Array.from({length:65},()=>({x:Math.random()*600,y:Math.random()*1000,r:.6+Math.random()*1.8,spd:.3+Math.random()*.7,drift:(Math.random()-.5)*.5,alpha:.12+Math.random()*.35}));
-const _volcBubbles= Array.from({length:14},(_,i)=>({x:20+i*42,y:0,r:0,maxR:3+Math.random()*6,spd:.03+Math.random()*.06,phase:Math.random()*Math.PI*2}));
+const _volcEmbers = Array.from({length:20},()=>({x:290+(Math.random()-.5)*50,y:SKY_H*.1+Math.random()*30,vx:(Math.random()-.5)*1.8,vy:-(0.5+Math.random()*1.5),life:Math.random(),max:.5+Math.random()*.8,r:1+Math.random()*2.5}));
+const _volcAsh    = Array.from({length:28},()=>({x:Math.random()*600,y:Math.random()*1000,r:.8+Math.random()*1.6,spd:.3+Math.random()*.7,drift:(Math.random()-.5)*.5,alpha:.15+Math.random()*.3}));
+const _volcBubbles= Array.from({length:10},(_,i)=>({x:20+i*58,y:0,r:0,maxR:3+Math.random()*6,spd:.03+Math.random()*.06,phase:Math.random()*Math.PI*2}));
+// Cached gradients (created once)
+let _cacheDesertSky=null,_cacheDesertGnd=null,_cacheDesertSea=null;
+let _cacheVolcSky=null,_cacheVolcGnd=null;
 
 // ═══════════════════════════════════════════
 // WARRIOR MANAGEMENT
@@ -481,119 +484,83 @@ function drawBackground(now){
 }
 
 function _drawBgDesert(now){
+  // Cache static gradients
+  if(!_cacheDesertSky){ _cacheDesertSky=ctx.createLinearGradient(0,0,0,SKY_H); _cacheDesertSky.addColorStop(0,'#1a6ab0'); _cacheDesertSky.addColorStop(0.55,'#4ab0e8'); _cacheDesertSky.addColorStop(1,'#ffe0a0'); }
+  if(!_cacheDesertGnd){ _cacheDesertGnd=ctx.createLinearGradient(0,SKY_H,0,CH); _cacheDesertGnd.addColorStop(0,'#e8b860'); _cacheDesertGnd.addColorStop(0.25,'#d4963a'); _cacheDesertGnd.addColorStop(0.6,'#c07828'); _cacheDesertGnd.addColorStop(1,'#a86020'); }
+  const seaY=CH-180;
+  if(!_cacheDesertSea){ _cacheDesertSea=ctx.createLinearGradient(0,seaY,0,CH); _cacheDesertSea.addColorStop(0,'#1a7ab8'); _cacheDesertSea.addColorStop(0.4,'#0d5a90'); _cacheDesertSea.addColorStop(1,'#0a3a60'); }
   // Sky
-  const sky=ctx.createLinearGradient(0,0,0,SKY_H);
-  sky.addColorStop(0,'#1a6ab0'); sky.addColorStop(0.55,'#4ab0e8'); sky.addColorStop(1,'#ffe0a0');
-  ctx.fillStyle=sky; ctx.fillRect(0,0,CW,SKY_H);
-  // Sun
-  const sg=ctx.createRadialGradient(480,55,4,480,55,65);
-  sg.addColorStop(0,'rgba(255,240,100,0.5)'); sg.addColorStop(1,'rgba(255,160,0,0)');
-  ctx.fillStyle=sg; ctx.beginPath(); ctx.arc(480,55,65,0,Math.PI*2); ctx.fill();
-  const sd=ctx.createRadialGradient(477,52,2,480,55,22);
-  sd.addColorStop(0,'#FFF'); sd.addColorStop(0.4,'#FFE060'); sd.addColorStop(1,'#FFAA20');
-  ctx.fillStyle=sd; ctx.beginPath(); ctx.arc(480,55,22,0,Math.PI*2); ctx.fill();
-  // Horizon haze
-  const hz=ctx.createLinearGradient(0,SKY_H-25,0,SKY_H+15);
-  hz.addColorStop(0,'rgba(255,220,120,0)'); hz.addColorStop(1,'rgba(255,200,80,0.3)');
-  ctx.fillStyle=hz; ctx.fillRect(0,SKY_H-25,CW,40);
+  ctx.fillStyle=_cacheDesertSky; ctx.fillRect(0,0,CW,SKY_H);
+  // Sun (simple, no gradient)
+  ctx.fillStyle='rgba(255,220,80,0.35)'; ctx.beginPath(); ctx.arc(480,55,55,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#FFE060'; ctx.beginPath(); ctx.arc(480,55,22,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#FFFFFF'; ctx.beginPath(); ctx.arc(476,51,8,0,Math.PI*2); ctx.fill();
   // Sand ground
-  const gr=ctx.createLinearGradient(0,SKY_H,0,CH);
-  gr.addColorStop(0,'#e8b860'); gr.addColorStop(0.25,'#d4963a'); gr.addColorStop(0.6,'#c07828'); gr.addColorStop(1,'#a86020');
-  ctx.fillStyle=gr; ctx.fillRect(0,SKY_H,CW,CH-SKY_H);
-  // Sand ripples
-  ctx.strokeStyle='rgba(180,120,40,0.3)'; ctx.lineWidth=1;
-  for(let i=0;i<14;i++){
-    const ry=SKY_H+60+i*55;
+  ctx.fillStyle=_cacheDesertGnd; ctx.fillRect(0,SKY_H,CW,CH-SKY_H);
+  // Sand ripples (reduced: every 70px vertical, 20px horizontal)
+  ctx.strokeStyle='rgba(180,120,40,0.25)'; ctx.lineWidth=1;
+  for(let i=0;i<8;i++){
+    const ry=SKY_H+80+i*90;
     ctx.beginPath(); ctx.moveTo(20,ry);
-    for(let rx=20;rx<=580;rx+=8) ctx.lineTo(rx,ry+Math.sin(rx*.06+i)*2);
+    for(let rx=20;rx<=580;rx+=20) ctx.lineTo(rx,ry+Math.sin(rx*.06+i)*2);
     ctx.stroke();
   }
   // Sea at bottom
-  const seaY=CH-180;
-  const seaG=ctx.createLinearGradient(0,seaY,0,CH);
-  seaG.addColorStop(0,'#1a7ab8'); seaG.addColorStop(0.4,'#0d5a90'); seaG.addColorStop(1,'#0a3a60');
-  ctx.fillStyle=seaG;
+  ctx.fillStyle=_cacheDesertSea;
   ctx.beginPath(); ctx.moveTo(0,seaY);
-  for(let wx=0;wx<=CW;wx+=8) ctx.lineTo(wx,seaY+Math.sin(wx*.04+now*.002)*7+Math.sin(wx*.08+now*.0015)*3);
+  for(let wx=0;wx<=CW;wx+=18) ctx.lineTo(wx,seaY+Math.sin(wx*.04+now*.002)*7+Math.sin(wx*.08+now*.0015)*3);
   ctx.lineTo(CW,CH); ctx.lineTo(0,CH); ctx.closePath(); ctx.fill();
-  // Sea foam
-  ctx.strokeStyle='rgba(255,255,255,0.4)'; ctx.lineWidth=1.5;
+  // Sea foam (single pass)
+  ctx.strokeStyle='rgba(255,255,255,0.35)'; ctx.lineWidth=1.5;
   ctx.beginPath();
-  for(let wx=0;wx<=CW;wx+=8){ const wy=seaY+Math.sin(wx*.04+now*.002)*7+Math.sin(wx*.08+now*.0015)*3; wx===0?ctx.moveTo(wx,wy):ctx.lineTo(wx,wy); }
+  for(let wx=0;wx<=CW;wx+=18){ const wy=seaY+Math.sin(wx*.04+now*.002)*7+Math.sin(wx*.08+now*.0015)*3; wx===0?ctx.moveTo(wx,wy):ctx.lineTo(wx,wy); }
   ctx.stroke();
-  // Sea shimmer
-  ctx.globalAlpha=0.15+Math.sin(now*.002)*.05;
-  ctx.fillStyle='#88DDFF';
-  for(let i=0;i<6;i++){ const sx=50+i*90+Math.sin(now*.001+i)*12,sy=seaY+30+Math.sin(now*.002+i*.8)*10; ctx.beginPath(); ctx.ellipse(sx,sy,20+i%3*8,4,0,0,Math.PI*2); ctx.fill(); }
-  ctx.globalAlpha=1;
 }
 
 function _drawBgVolcano(now){
-  // Sky — infernal
-  const sky=ctx.createLinearGradient(0,0,0,SKY_H);
-  sky.addColorStop(0,'#050000'); sky.addColorStop(0.3,'#1a0500'); sky.addColorStop(0.65,'#6a1500'); sky.addColorStop(0.88,'#cc3a00'); sky.addColorStop(1,'#ff6600');
-  ctx.fillStyle=sky; ctx.fillRect(0,0,CW,SKY_H);
-  // Bg glow
-  const bg=ctx.createRadialGradient(300,SKY_H,5,300,SKY_H*.5,260);
-  bg.addColorStop(0,'rgba(255,120,0,0.3)'); bg.addColorStop(1,'rgba(0,0,0,0)');
-  ctx.fillStyle=bg; ctx.fillRect(0,0,CW,SKY_H);
-  // Smoke
-  for(let i=0;i<7;i++){
-    const sr=26+i*15,sx=300+Math.sin(now*.0006+i*.9)*16,sy=SKY_H*.06-28-i*26;
-    ctx.fillStyle=`rgba(28,6,0,${Math.max(0,.11-i*.012)})`;
-    ctx.beginPath(); ctx.arc(sx,sy,sr,0,Math.PI*2); ctx.fill();
-  }
-  // Volcano mountain
-  ctx.fillStyle='#0e0400';
-  ctx.beginPath();
-  ctx.moveTo(80,SKY_H+5); ctx.lineTo(180,SKY_H*.45); ctx.lineTo(270,SKY_H*.12); ctx.lineTo(300,SKY_H*.05);
-  ctx.lineTo(330,SKY_H*.12); ctx.lineTo(420,SKY_H*.45); ctx.lineTo(520,SKY_H+5);
-  ctx.closePath(); ctx.fill();
-  // Crater glow
+  // Cache static gradients
+  if(!_cacheVolcSky){ _cacheVolcSky=ctx.createLinearGradient(0,0,0,SKY_H); _cacheVolcSky.addColorStop(0,'#050000'); _cacheVolcSky.addColorStop(0.3,'#1a0500'); _cacheVolcSky.addColorStop(0.65,'#6a1500'); _cacheVolcSky.addColorStop(0.88,'#cc3a00'); _cacheVolcSky.addColorStop(1,'#ff6600'); }
+  if(!_cacheVolcGnd){ _cacheVolcGnd=ctx.createLinearGradient(0,SKY_H,0,CH); _cacheVolcGnd.addColorStop(0,'#1a0600'); _cacheVolcGnd.addColorStop(0.3,'#110400'); _cacheVolcGnd.addColorStop(0.75,'#0c0200'); _cacheVolcGnd.addColorStop(1,'#080100'); }
   const pulse=.8+Math.sin(now*.002)*.2;
-  const cg=ctx.createRadialGradient(300,SKY_H*.05,0,300,SKY_H*.05,55);
-  cg.addColorStop(0,`rgba(255,220,0,${.92*pulse})`); cg.addColorStop(0.28,`rgba(255,100,0,${.75*pulse})`); cg.addColorStop(0.65,`rgba(200,30,0,${.35*pulse})`); cg.addColorStop(1,'rgba(0,0,0,0)');
-  ctx.fillStyle=cg; ctx.beginPath(); ctx.arc(300,SKY_H*.05,55,0,Math.PI*2); ctx.fill();
+  // Sky
+  ctx.fillStyle=_cacheVolcSky; ctx.fillRect(0,0,CW,SKY_H);
+  // Volcano mountain (static shape)
+  ctx.fillStyle='#0e0400';
+  ctx.beginPath(); ctx.moveTo(80,SKY_H+5); ctx.lineTo(180,SKY_H*.45); ctx.lineTo(270,SKY_H*.12); ctx.lineTo(300,SKY_H*.05); ctx.lineTo(330,SKY_H*.12); ctx.lineTo(420,SKY_H*.45); ctx.lineTo(520,SKY_H+5); ctx.closePath(); ctx.fill();
+  // Crater glow (simple circle, no gradient)
+  ctx.fillStyle=`rgba(255,${Math.floor(150*pulse)},0,${0.6*pulse})`; ctx.beginPath(); ctx.arc(300,SKY_H*.05,40,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle=`rgba(255,230,50,${0.8*pulse})`; ctx.beginPath(); ctx.arc(300,SKY_H*.05,18,0,Math.PI*2); ctx.fill();
   // Lava streams
-  const lg=ctx.createLinearGradient(300,SKY_H*.12,300,SKY_H+5);
-  lg.addColorStop(0,`rgba(255,180,0,.9)`); lg.addColorStop(0.35,`rgba(255,80,0,.8)`); lg.addColorStop(0.75,`rgba(200,30,0,.65)`); lg.addColorStop(1,'rgba(150,20,0,.5)');
-  ctx.strokeStyle=lg; ctx.lineWidth=13; ctx.lineCap='round';
+  ctx.strokeStyle=`rgba(255,90,0,.75)`; ctx.lineWidth=12; ctx.lineCap='round';
   ctx.beginPath(); ctx.moveTo(300,SKY_H*.12); ctx.bezierCurveTo(290,SKY_H*.4,318,SKY_H*.65,305,SKY_H+5); ctx.stroke();
-  ctx.strokeStyle=`rgba(255,255,120,${.45*pulse})`; ctx.lineWidth=4;
-  ctx.beginPath(); ctx.moveTo(300,SKY_H*.12); ctx.bezierCurveTo(290,SKY_H*.4,318,SKY_H*.65,305,SKY_H+5); ctx.stroke();
-  ctx.strokeStyle=`rgba(255,80,0,.65)`; ctx.lineWidth=8;
+  ctx.strokeStyle=`rgba(255,80,0,.6)`; ctx.lineWidth=8;
   ctx.beginPath(); ctx.moveTo(282,SKY_H*.14); ctx.bezierCurveTo(230,SKY_H*.5,150,SKY_H*.7,110,SKY_H+5); ctx.stroke();
   ctx.beginPath(); ctx.moveTo(318,SKY_H*.14); ctx.bezierCurveTo(365,SKY_H*.5,450,SKY_H*.72,490,SKY_H+5); ctx.stroke();
   // Dark ground
-  const gr=ctx.createLinearGradient(0,SKY_H,0,CH);
-  gr.addColorStop(0,'#1a0600'); gr.addColorStop(0.3,'#110400'); gr.addColorStop(0.75,'#0c0200'); gr.addColorStop(1,'#080100');
-  ctx.fillStyle=gr; ctx.fillRect(0,SKY_H,CW,CH-SKY_H);
-  // Ground glow
-  const gg=ctx.createRadialGradient(300,SKY_H+10,10,300,SKY_H+60,260);
-  gg.addColorStop(0,'rgba(255,80,0,.22)'); gg.addColorStop(1,'rgba(0,0,0,0)');
-  ctx.fillStyle=gg; ctx.fillRect(0,SKY_H,CW,CH-SKY_H);
-  // Lava lake
-  const lk=ctx.createLinearGradient(0,CH-65,0,CH);
-  lk.addColorStop(0,`rgba(255,${Math.floor(100*pulse)},0,1)`); lk.addColorStop(0.5,`rgba(220,60,0,.95)`); lk.addColorStop(1,'rgba(160,20,0,.9)');
-  ctx.fillStyle=lk;
+  ctx.fillStyle=_cacheVolcGnd; ctx.fillRect(0,SKY_H,CW,CH-SKY_H);
+  // Ground lava glow (simple rect, no gradient)
+  ctx.fillStyle='rgba(255,60,0,0.08)'; ctx.fillRect(0,SKY_H,CW,200);
+  // Lava lake (reduced resolution)
+  ctx.fillStyle=`rgba(255,${Math.floor(90*pulse)},0,1)`;
   ctx.beginPath();
-  for(let x=0;x<=CW;x+=8){ const wy=CH-40+Math.sin(x*.05+now*.002)*7+Math.sin(x*.09+now*.0015)*3; x===0?ctx.moveTo(x,wy):ctx.lineTo(x,wy); }
+  for(let x=0;x<=CW;x+=18){ const wy=CH-40+Math.sin(x*.05+now*.002)*7+Math.sin(x*.09+now*.0015)*3; x===0?ctx.moveTo(x,wy):ctx.lineTo(x,wy); }
   ctx.lineTo(CW,CH); ctx.lineTo(0,CH); ctx.closePath(); ctx.fill();
-  // Lava shimmer
-  ctx.globalAlpha=.25+Math.sin(now*.003)*.08; ctx.fillStyle='#FFEE00';
-  for(let i=0;i<5;i++){ const hx=55+i*110+Math.sin(now*.001+i)*18,hy=CH-30+Math.sin(now*.002+i*.7)*5; ctx.beginPath(); ctx.ellipse(hx,hy,22+i%3*7,4,0,0,Math.PI*2); ctx.fill(); }
-  ctx.globalAlpha=1;
-  // Embers
+  // Embers (batched by hot/cool)
+  ctx.fillStyle='#FFEE44';
+  ctx.beginPath();
   _volcEmbers.forEach(e=>{
-    e.life+=.016; if(e.life>e.max){ e.life=0; e.x=275+(Math.random()-.5)*55; e.y=SKY_H*.10+Math.random()*28; e.vx=(Math.random()-.5)*2; e.vy=-(0.8+Math.random()*2); }
-    e.x+=e.vx+Math.sin(e.life*3)*.3; e.y+=e.vy; e.vy+=.03;
+    e.life+=.018; if(e.life>e.max){ e.life=0; e.x=275+(Math.random()-.5)*55; e.y=SKY_H*.10+Math.random()*28; e.vx=(Math.random()-.5)*2; e.vy=-(0.8+Math.random()*2); }
+    e.x+=e.vx; e.y+=e.vy; e.vy+=.03;
     const ea=Math.max(0,1-e.life/e.max);
-    ctx.fillStyle=ea>.6?`rgba(255,255,${Math.floor(255*ea*.3)},${ea})`:`rgba(255,${Math.floor(255*ea*.5)},0,${ea})`;
-    ctx.beginPath(); ctx.arc(e.x,e.y,e.r*ea+.5,0,Math.PI*2); ctx.fill();
+    if(ea>0.3){ ctx.moveTo(e.x+e.r*ea,e.y); ctx.arc(e.x,e.y,e.r*ea,0,Math.PI*2); }
   });
-  // Ash
-  _volcAsh.forEach(a=>{ a.y+=a.spd; a.x+=a.drift; if(a.y>CH){a.y=-4;a.x=Math.random()*CW;} if(a.x<0||a.x>CW)a.x=Math.random()*CW; ctx.globalAlpha=a.alpha; ctx.fillStyle='#996644'; ctx.beginPath(); ctx.arc(a.x,a.y,a.r,0,Math.PI*2); ctx.fill(); });
-  ctx.globalAlpha=1;
+  ctx.globalAlpha=0.8; ctx.fill(); ctx.globalAlpha=1;
+  // Ash (batched — all same color)
+  ctx.fillStyle='#886644';
+  _volcAsh.forEach(a=>{ a.y+=a.spd; a.x+=a.drift; if(a.y>CH){a.y=-4;a.x=Math.random()*CW;} if(a.x<0||a.x>CW)a.x=Math.random()*CW; });
+  ctx.globalAlpha=0.28; ctx.beginPath();
+  _volcAsh.forEach(a=>{ ctx.moveTo(a.x+a.r,a.y); ctx.arc(a.x,a.y,a.r,0,Math.PI*2); });
+  ctx.fill(); ctx.globalAlpha=1;
 }
 
 function drawArenaFloor(){
@@ -637,31 +604,35 @@ function drawDecorations(now){
   ctx.restore();
 }
 
+function _dune(x,y,w,h,c){ ctx.fillStyle=c; ctx.beginPath(); ctx.moveTo(x-w/2,y); ctx.bezierCurveTo(x-w*.3,y,x-w*.1,y-h,x,y-h); ctx.bezierCurveTo(x+w*.1,y-h,x+w*.3,y,x+w/2,y); ctx.closePath(); ctx.fill(); }
+function _palm(x,y,sc,lean,now){
+  // Trunk
+  ctx.strokeStyle='#7a4a1a'; ctx.lineWidth=9*sc; ctx.lineCap='round';
+  ctx.beginPath(); ctx.moveTo(x,y); ctx.bezierCurveTo(x+lean*8*sc,y-25*sc,x+lean*14*sc,y-55*sc,x+lean*18*sc,y-80*sc); ctx.stroke();
+  // Leaves as triangles (fast, no bezier)
+  const sw=Math.sin(now*.0012)*4; const tx=x+lean*18*sc, ty=y-80*sc;
+  const leafAngles=[-0.85,-0.42,0,0.42,0.85];
+  const leafCols=['#2d7a1a','#3a9020','#44a825','#3a9020','#2d7a1a'];
+  leafAngles.forEach((a,i)=>{
+    const ang=a+sw*.01; const len=36*sc;
+    const lx=tx+Math.cos(ang-Math.PI/2)*len, ly=ty+Math.sin(ang-Math.PI/2)*len;
+    ctx.fillStyle=leafCols[i];
+    ctx.beginPath(); ctx.moveTo(tx,ty); ctx.lineTo(lx-Math.cos(ang)*6*sc,ly-Math.sin(ang)*6*sc); ctx.lineTo(lx,ly); ctx.lineTo(lx+Math.cos(ang)*6*sc,ly+Math.sin(ang)*6*sc); ctx.closePath(); ctx.fill();
+  });
+  // Coconuts
+  ctx.fillStyle='#8B5E1A'; ctx.beginPath(); ctx.arc(tx-3*sc,ty-4*sc,4*sc,0,Math.PI*2); ctx.fill();
+}
 function _drawDecoDesert(now){
   // Background dunes
-  const _dune=(x,y,w,h,c)=>{ ctx.fillStyle=c; ctx.beginPath(); ctx.moveTo(x-w/2,y); ctx.bezierCurveTo(x-w*.3,y,x-w*.1,y-h,x,y-h); ctx.bezierCurveTo(x+w*.1,y-h,x+w*.3,y,x+w/2,y); ctx.closePath(); ctx.fill(); };
-  _dune(80, SKY_H+80,200,45,'rgba(200,140,55,0.45)');
+  _dune(80,SKY_H+80,200,45,'rgba(200,140,55,0.45)');
   _dune(320,SKY_H+70,270,55,'rgba(185,125,40,0.4)');
   _dune(520,SKY_H+85,180,40,'rgba(200,140,55,0.4)');
   // Foreground dunes
-  _dune(70, CH-170,220,70,'#cc8830'); _dune(300,CH-175,310,80,'#c07828'); _dune(545,CH-170,200,65,'#cc8830');
+  _dune(70,CH-170,220,70,'#cc8830'); _dune(300,CH-175,310,80,'#c07828'); _dune(545,CH-170,200,65,'#cc8830');
   // Palm trees
-  const _palm=(x,y,sc,lean)=>{
-    ctx.strokeStyle='#7a4a1a'; ctx.lineWidth=9*sc; ctx.lineCap='round';
-    ctx.beginPath(); ctx.moveTo(x,y); ctx.bezierCurveTo(x+lean*8*sc,y-25*sc,x+lean*14*sc,y-55*sc,x+lean*18*sc,y-80*sc); ctx.stroke();
-    const sw=Math.sin(now*.0012)*5;
-    [[-0.9,-0.45,0,0.45,0.9]].flat().forEach((a,i)=>{
-      ctx.save(); ctx.translate(x+lean*18*sc,y-80*sc); ctx.rotate(a+sw*.01);
-      ctx.fillStyle=['#2d7a1a','#3a9020','#44a825','#3a9020','#2d7a1a'][i];
-      ctx.beginPath(); ctx.moveTo(0,0); ctx.bezierCurveTo(8*sc,-12*sc,30*sc,-14*sc,38*sc,-8*sc); ctx.bezierCurveTo(28*sc,-4*sc,10*sc,2*sc,0,0); ctx.fill(); ctx.restore();
-    });
-    ctx.fillStyle='#8B5E1A';
-    ctx.beginPath(); ctx.arc(x+lean*18*sc-4*sc,y-76*sc,5*sc,0,Math.PI*2); ctx.fill();
-    ctx.beginPath(); ctx.arc(x+lean*18*sc+5*sc,y-80*sc,4*sc,0,Math.PI*2); ctx.fill();
-  };
-  _palm(40, SKY_H+200,1.0,-1); _palm(85,SKY_H+240,0.85,1); _palm(18,SKY_H+270,0.75,-0.8);
-  _palm(562,SKY_H+205,0.95,1); _palm(532,SKY_H+250,0.8,-1); _palm(582,SKY_H+275,0.85,0.6);
-  _palm(25, CH-175,1.1,-0.6); _palm(580,CH-178,1.05,0.7);
+  _palm(40,SKY_H+200,1.0,-1,now); _palm(85,SKY_H+240,0.85,1,now); _palm(18,SKY_H+270,0.75,-0.8,now);
+  _palm(562,SKY_H+205,0.95,1,now); _palm(532,SKY_H+250,0.8,-1,now); _palm(582,SKY_H+275,0.85,0.6,now);
+  _palm(25,CH-175,1.1,-0.6,now); _palm(580,CH-178,1.05,0.7,now);
 }
 
 function _drawDecoVolcano(now){
