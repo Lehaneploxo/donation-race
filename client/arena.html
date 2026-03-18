@@ -166,7 +166,7 @@ function addWarrior(username, coins){
   if(ex){
     if(ex.isBot) return;
     ex.coins+=coins; ex.maxHp=ex.coins*10;
-    ex.hp=Math.min(ex.hp+coins*10, ex.maxHp); ex.damage=ex.coins;
+    ex.hp=Math.min(ex.hp+coins*10, ex.maxHp); ex.damage+=coins;
     ex.flashTimer=600; ex.glowTimer=800; spawnUpgradeFX(ex); return;
   }
   if(warriors.filter(w=>!w.dead).length>=MAX_WARRIORS){
@@ -183,7 +183,7 @@ function helpWarrior(username){
   if(!w){ addWarrior(username, 1); return; }
   if(w.isBot) return;
   w.coins+=1; w.maxHp=w.coins*10;
-  w.hp=Math.min(w.hp+10,w.maxHp); w.damage=w.coins;
+  w.hp=Math.min(w.hp+10,w.maxHp); w.damage+=1;
   w.flashTimer=350; w.glowTimer=600; spawnUpgradeFX(w); playHelp();
 }
 
