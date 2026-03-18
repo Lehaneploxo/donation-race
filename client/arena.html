@@ -1343,19 +1343,18 @@ function drawHUD(now){
   ctx.strokeStyle=vg; ctx.beginPath(); ctx.moveTo(CW/2,T+56); ctx.lineTo(CW/2,T+TH-6); ctx.stroke();
 
   // ── ЛЕВАЯ КОЛОНКА — правила ──
-  const rY=T+60, step=27;
+  const rY=T+72, step=34;
   const rules=[
-    {text:'💰 coin = +100 HP  ⚔️+1',   color:'#FFD700', triRight:null},
-    {text:'👆 tap  = +100 HP  ⚔️+1',   color:'#44DDFF', triRight:null},
-    {text:'✍️ "help" = +100 HP  ⚔️+1', color:'#00FF99', triRight:null},
-    {text:'✍️ "team"  =  red team',     color:'#FF4455', triRight:'red'},
-    {text:'✍️ "team2" =  blue team',    color:'#5599FF', triRight:'blue'},
-    {text:'💤 AFK 5min = -10HP ⚔️-1',  color:'#FF7700', triRight:null},
+    {text:'🎁 GIFTS = +++ HP',   color:'#FFD700', triRight:null},
+    {text:'❤️ TAP = + HP',       color:'#44DDFF', triRight:null},
+    {text:'💬 "team" = 🚩',      color:'#FF4455', triRight:null},
+    {text:'💬 "team2" =',        color:'#5599FF', triRight:'blue'},
+    {text:'⏳ AFK 5 min = - HP', color:'#FF7700', triRight:null},
   ];
   rules.forEach((r,i)=>{
     const y=rY+i*step;
     ctx.shadowColor='rgba(0,0,0,1)'; ctx.shadowBlur=6;
-    ctx.font='bold 17px Arial'; ctx.textAlign='left';
+    ctx.font='bold 20px Arial'; ctx.textAlign='left';
     ctx.fillStyle=r.color; ctx.fillText(r.text, 12, y);
     // флажок справа после текста для team/team2
     if(r.triRight){
