@@ -214,11 +214,6 @@ class Room {
         // Arena game: any chat → try spawn if not on arena
         this.broadcast({ type: 'arena_member', username: data.username });
 
-        // Arena game: "help" command buffs warrior
-        if (msgLower === 'help') {
-          this.broadcast({ type: 'arena_chat', command: 'help', username: data.username });
-        }
-
         // Arena game: team commands
         if (msgLower === 'team') {
           this.broadcast({ type: 'arena_team', team: 1, username: data.username });
