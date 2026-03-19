@@ -1504,171 +1504,545 @@ function _drawSW(cls,w,now){
     case 'luke_sw':        _drawLuke_sw(w,now); break;
     case 'r2d2_sw':        _drawR2D2_sw(w,now); break;
     case 'chewbacca_sw':   _drawChewbacca_sw(w,now); break;
-    case 'stormtrooper_sw':_drawStormtrooper_sw(w); break;
+    case 'stormtrooper_sw':_drawStormtrooper_sw(w,now); break;
     default: _drawOrc(w);
   }
 }
 
 function _drawYoda_sw(w,now){
-  ctx.fillStyle='rgba(0,0,0,0.28)'; ctx.beginPath(); ctx.ellipse(0,24,18,5,0,0,Math.PI*2); ctx.fill();
-  // Ряса — коричневая, широкая
-  ctx.fillStyle='#5a3c18';
-  ctx.beginPath(); ctx.moveTo(-22,24); ctx.lineTo(-16,-30); ctx.lineTo(16,-30); ctx.lineTo(22,24); ctx.closePath(); ctx.fill();
-  ctx.fillStyle='#4a2c10';
-  ctx.beginPath(); ctx.moveTo(-22,24); ctx.lineTo(-20,6); ctx.lineTo(-14,6); ctx.lineTo(-16,24); ctx.fill();
-  ctx.beginPath(); ctx.moveTo(22,24); ctx.lineTo(20,6); ctx.lineTo(14,6); ctx.lineTo(16,24); ctx.fill();
-  ctx.fillStyle='#2a1808'; ctx.fillRect(-16,-2,32,6);
-  // Руки
-  ctx.strokeStyle='#6a4a20'; ctx.lineWidth=7; ctx.lineCap='round';
-  ctx.beginPath(); ctx.moveTo(-14,-22); ctx.lineTo(-28,-10); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(14,-22); ctx.lineTo(28,-10); ctx.stroke();
-  // Посох (левая рука)
-  ctx.strokeStyle='#4a2808'; ctx.lineWidth=3;
-  ctx.beginPath(); ctx.moveTo(-28,-10); ctx.lineTo(-32,22); ctx.stroke();
-  // Световой меч (правая рука) — зелёный
-  const sf=0.85+Math.sin(now*0.012)*0.15;
-  ctx.fillStyle='#555'; ctx.beginPath(); ctx.roundRect(24,-18,4,10,1); ctx.fill();
-  ctx.shadowColor='#00FF44'; ctx.shadowBlur=16;
-  ctx.fillStyle=`rgba(40,255,80,${sf})`; ctx.fillRect(25,-18,2,-36);
-  ctx.fillStyle=`rgba(200,255,200,${sf*0.8})`; ctx.fillRect(25.5,-18,1,-36);
-  ctx.shadowBlur=0;
-  // Шея
-  ctx.fillStyle='#5a8a2a';
-  ctx.beginPath(); ctx.ellipse(0,-32,5,4,0,0,Math.PI*2); ctx.fill();
-  // Голова — маленькая, зелёная
-  ctx.fillStyle='#5a8a2a';
-  ctx.beginPath(); ctx.ellipse(0,-44,13,11,0,0,Math.PI*2); ctx.fill();
-  // Большие уши
-  ctx.fillStyle='#4a7a1a';
-  ctx.beginPath(); ctx.moveTo(-13,-40); ctx.bezierCurveTo(-26,-38,-32,-54,-22,-58); ctx.bezierCurveTo(-14,-60,-14,-48,-13,-40); ctx.closePath(); ctx.fill();
-  ctx.beginPath(); ctx.moveTo(13,-40); ctx.bezierCurveTo(26,-38,32,-54,22,-58); ctx.bezierCurveTo(14,-60,14,-48,13,-40); ctx.closePath(); ctx.fill();
-  // Глаза
-  ctx.fillStyle='#F0D888';
-  ctx.beginPath(); ctx.arc(-5,-45,3.5,0,Math.PI*2); ctx.fill();
-  ctx.beginPath(); ctx.arc(5,-45,3.5,0,Math.PI*2); ctx.fill();
-  ctx.fillStyle='#2a6000'; ctx.beginPath(); ctx.arc(-5,-45,2,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(5,-45,2,0,Math.PI*2); ctx.fill();
-  ctx.fillStyle='#000'; ctx.beginPath(); ctx.arc(-5,-45,1,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(5,-45,1,0,Math.PI*2); ctx.fill();
-  ctx.fillStyle='rgba(255,255,255,0.7)'; ctx.beginPath(); ctx.arc(-4,-46,0.7,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(6,-46,0.7,0,Math.PI*2); ctx.fill();
-  // Белые волосы
-  ctx.strokeStyle='#E0D8C0'; ctx.lineWidth=1.5; ctx.lineCap='round';
-  ctx.beginPath(); ctx.moveTo(-8,-53); ctx.bezierCurveTo(-6,-56,-2,-54,0,-52); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(8,-53); ctx.bezierCurveTo(6,-56,2,-54,0,-52); ctx.stroke();
-  // Рот и морщины
-  ctx.strokeStyle='rgba(40,90,0,0.6)'; ctx.lineWidth=1.2;
-  ctx.beginPath(); ctx.moveTo(-4,-40); ctx.quadraticCurveTo(0,-38,4,-40); ctx.stroke();
-  // Force аура
-  const aura=0.04+Math.sin(now*0.002)*0.02;
-  ctx.fillStyle=`rgba(80,200,80,${aura})`; ctx.beginPath(); ctx.ellipse(0,-30,22,38,0,0,Math.PI*2); ctx.fill();
+  ctx.save();
+  ctx.translate(0, 16); ctx.scale(0.776, 0.776);
+
+  // Аура силы (Force glow)
+  const aura = 0.04 + Math.sin(now * 0.001) * 0.02;
+  ctx.fillStyle = `rgba(100,200,60,${aura})`;
+  ctx.beginPath(); ctx.ellipse(0, -60, 50, 80, 0, 0, Math.PI*2); ctx.fill();
+
+  // Тень
+  ctx.fillStyle = 'rgba(0,0,0,0.4)';
+  ctx.beginPath(); ctx.ellipse(0, 10, 22, 5, 0, 0, Math.PI*2); ctx.fill();
+
+  // ── МАНТИЯ — нижняя часть ──────────────
+  ctx.fillStyle = '#3a3418';
+  ctx.beginPath();
+  ctx.moveTo(-28, 8);
+  ctx.bezierCurveTo(-32, -20, -26, -55, -20, -75);
+  ctx.lineTo(20, -75);
+  ctx.bezierCurveTo(26, -55, 32, -20, 28, 8);
+  ctx.closePath(); ctx.fill();
+
+  // Внутренняя часть мантии (светлее)
+  ctx.fillStyle = '#504c28';
+  ctx.beginPath();
+  ctx.moveTo(-12, 8);
+  ctx.bezierCurveTo(-14, -20, -12, -55, -10, -74);
+  ctx.lineTo(10, -74);
+  ctx.bezierCurveTo(12, -55, 14, -20, 12, 8);
+  ctx.closePath(); ctx.fill();
+
+  // Складки мантии
+  ctx.strokeStyle = 'rgba(20,18,8,0.4)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(-8, 8); ctx.bezierCurveTo(-10, -25, -8, -55, -7, -74); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(8, 8); ctx.bezierCurveTo(10, -25, 8, -55, 7, -74); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(0, 8); ctx.bezierCurveTo(0, -25, 0, -55, 0, -74); ctx.stroke();
+
+  // Пояс
+  ctx.fillStyle = '#6a5818';
+  ctx.beginPath(); ctx.roundRect(-16, -44, 32, 8, 3); ctx.fill();
+  ctx.fillStyle = '#8a7828';
+  ctx.beginPath(); ctx.roundRect(-4, -46, 8, 12, 2); ctx.fill();
+
+  // ── РУКИ ───────────────────────────────
+  // Левая рука (держит посох)
+  ctx.fillStyle = '#4a7030';
+  ctx.beginPath(); ctx.ellipse(28, -60, 10, 7, 0.5, 0, Math.PI*2); ctx.fill();
+  // Пальцы на посохе
+  ctx.strokeStyle = '#3a5820';
+  ctx.lineWidth = 2.5; ctx.lineCap = 'round';
+  for(let i = 0; i < 3; i++) {
+    ctx.beginPath();
+    ctx.moveTo(23 + i*2, -56);
+    ctx.lineTo(22 + i*2, -50);
+    ctx.stroke();
+  }
+
+  // Правая рука — чуть поднята (сила Джедая)
+  const handLift = Math.sin(now * 0.0022) * 4;
+  ctx.fillStyle = '#4a7030';
+  ctx.beginPath(); ctx.ellipse(-28, -62 - handLift, 10, 7, -0.5, 0, Math.PI*2); ctx.fill();
+  // Пальцы
+  for(let i = 0; i < 3; i++) {
+    ctx.beginPath();
+    ctx.moveTo(-24 - i*2, -58 - handLift);
+    ctx.lineTo(-22 - i*2, -52 - handLift);
+    ctx.stroke();
+  }
+
+  // ── ВЕРХНЯЯ НАКИДКА (капюшон сзади) ────
+  ctx.fillStyle = '#2e2c14';
+  ctx.beginPath();
+  ctx.moveTo(-20, -74);
+  ctx.bezierCurveTo(-24, -80, -22, -88, -18, -86);
+  ctx.bezierCurveTo(-14, -84, -8, -80, 0, -79);
+  ctx.bezierCurveTo(8, -80, 14, -84, 18, -86);
+  ctx.bezierCurveTo(22, -88, 24, -80, 20, -74);
+  ctx.closePath(); ctx.fill();
+
+  // ── ШЕЯ ────────────────────────────────
+  ctx.fillStyle = '#4a7830';
+  ctx.beginPath(); ctx.ellipse(0, -78, 9, 7, 0, 0, Math.PI*2); ctx.fill();
+
+  // ── ГОЛОВА ─────────────────────────────
+  const headG = ctx.createRadialGradient(-6, -100, 4, 0, -97, 24);
+  headG.addColorStop(0, '#78b050');
+  headG.addColorStop(0.5, '#5a9038');
+  headG.addColorStop(1, '#3a6820');
+  ctx.fillStyle = headG;
+  ctx.beginPath(); ctx.ellipse(0, -98, 22, 20, 0, 0, Math.PI*2); ctx.fill();
+
+  // ── УШИ Йоды — узкий длинный лист горизонтально, кончик слегка вниз ──
+  for(let s of [-1, 1]) {
+    // Основа: тонкий длинный лист от головы наружу
+    ctx.fillStyle = '#527a32';
+    ctx.beginPath();
+    ctx.moveTo(s * 19, -107);
+    ctx.bezierCurveTo(s * 28, -110, s * 42, -108, s * 52, -101);
+    ctx.lineTo(s * 54, -98);
+    ctx.bezierCurveTo(s * 42, -93,  s * 28, -93,  s * 19, -96);
+    ctx.closePath(); ctx.fill();
+
+    // Нижняя тень
+    ctx.fillStyle = '#3a5820';
+    ctx.beginPath();
+    ctx.moveTo(s * 20, -96);
+    ctx.bezierCurveTo(s * 30, -93, s * 42, -93, s * 52, -99);
+    ctx.lineTo(s * 50, -98);
+    ctx.bezierCurveTo(s * 40, -95, s * 28, -96, s * 20, -98);
+    ctx.closePath(); ctx.fill();
+
+    // Центральная жилка
+    ctx.strokeStyle = 'rgba(28,52,10,0.6)';
+    ctx.lineWidth = 1.5; ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(s * 20, -102);
+    ctx.bezierCurveTo(s * 32, -103, s * 44, -101, s * 53, -99);
+    ctx.stroke();
+
+    // Тонкие прожилки
+    ctx.strokeStyle = 'rgba(28,52,10,0.28)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(s*21,-107); ctx.bezierCurveTo(s*32,-108,s*42,-106,s*50,-102); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(s*21,-97);  ctx.bezierCurveTo(s*32,-96, s*42,-95, s*50,-97);  ctx.stroke();
+
+    // Блик сверху
+    ctx.fillStyle = 'rgba(160,220,90,0.13)';
+    ctx.beginPath();
+    ctx.moveTo(s * 20, -106);
+    ctx.bezierCurveTo(s * 30, -109, s * 42, -107, s * 50, -102);
+    ctx.bezierCurveTo(s * 40, -103, s * 28, -105, s * 20, -103);
+    ctx.closePath(); ctx.fill();
+  }
+
+  // ── СВЕТОВОЙ МЕЧ — поверх ушей, в правой руке ──
+  const saberF = 0.88 + Math.sin(now * 0.014) * 0.12;
+  // Рукоятка
+  ctx.fillStyle = '#777'; ctx.beginPath(); ctx.roundRect(24, -72, 6, 16, 2); ctx.fill();
+  ctx.fillStyle = '#aaa'; ctx.fillRect(24, -71, 6, 3);
+  ctx.fillStyle = '#555'; ctx.fillRect(24, -62, 6, 2);
+  ctx.fillStyle = '#333'; ctx.beginPath(); ctx.roundRect(23, -75, 8, 5, 1); ctx.fill();
+  // Свечение лезвия
+  ctx.shadowColor = '#00FF44'; ctx.shadowBlur = 28;
+  ctx.fillStyle = `rgba(40,255,80,${saberF})`; ctx.fillRect(25.5, -72, 4, -60);
+  ctx.shadowColor = '#88FF88'; ctx.shadowBlur = 10;
+  ctx.fillStyle = `rgba(210,255,210,${saberF * 0.9})`; ctx.fillRect(26.5, -72, 2, -60);
+  ctx.shadowBlur = 0;
+
+  // ── ГЛАЗА — мудрые, светящиеся ─────────
+  const eyeGlow = 0.8 + Math.sin(now * 0.002) * 0.2;
+  for(let s of [-1, 1]) {
+    // Белок
+    ctx.fillStyle = `rgba(200,230,160,${eyeGlow * 0.9})`;
+    ctx.beginPath(); ctx.ellipse(s * 8, -102, 5, 4, s * 0.1, 0, Math.PI*2); ctx.fill();
+    // Радужка
+    ctx.fillStyle = `rgba(100,160,40,${eyeGlow})`;
+    ctx.shadowColor = '#88CC44'; ctx.shadowBlur = 6;
+    ctx.beginPath(); ctx.ellipse(s * 8, -102, 3.5, 3, s * 0.1, 0, Math.PI*2); ctx.fill();
+    ctx.shadowBlur = 0;
+    // Зрачок
+    ctx.fillStyle = '#0a1a04';
+    ctx.beginPath(); ctx.ellipse(s * 8, -102, 2, 2.2, 0, 0, Math.PI*2); ctx.fill();
+    // Блик
+    ctx.fillStyle = 'rgba(255,255,255,0.6)';
+    ctx.beginPath(); ctx.arc(s * 7, -103.5, 0.9, 0, Math.PI*2); ctx.fill();
+  }
+
+  // Брови морщинистые
+  ctx.strokeStyle = 'rgba(200,200,120,0.7)';
+  ctx.lineWidth = 2.5; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(-13, -108); ctx.bezierCurveTo(-8, -113, -4, -112, -3, -108); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(13, -108); ctx.bezierCurveTo(8, -113, 4, -112, 3, -108); ctx.stroke();
+
+  // ── НОС ────────────────────────────────
+  ctx.fillStyle = '#3a6020';
+  ctx.beginPath(); ctx.ellipse(0, -95, 5, 4, 0, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#1a3010';
+  ctx.beginPath(); ctx.ellipse(-2, -95, 2, 1.5, 0, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(2, -95, 2, 1.5, 0, 0, Math.PI*2); ctx.fill();
+
+  // Морщины
+  ctx.strokeStyle = 'rgba(30,55,10,0.5)';
+  ctx.lineWidth = 1.2;
+  ctx.beginPath(); ctx.moveTo(-10, -106); ctx.bezierCurveTo(-6, -110, 6, -110, 10, -106); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(-14, -102); ctx.lineTo(-16, -106); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(14, -102); ctx.lineTo(16, -106); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(-5, -90); ctx.bezierCurveTo(-8, -87, 8, -87, 5, -90); ctx.stroke();
+
+  // ── РОТ ────────────────────────────────
+  ctx.strokeStyle = 'rgba(30,60,10,0.65)';
+  ctx.lineWidth = 1.8;
+  ctx.beginPath(); ctx.moveTo(-7, -88); ctx.quadraticCurveTo(0, -84, 7, -88); ctx.stroke();
+
+  // ── ЛЫСИНА — макушка ───────────────────
+  ctx.fillStyle = '#4a8030';
+  ctx.beginPath();
+  ctx.moveTo(-18, -112);
+  ctx.bezierCurveTo(-16, -122, -8, -124, 0, -122);
+  ctx.bezierCurveTo(8, -124, 16, -122, 18, -112);
+  ctx.closePath(); ctx.fill();
+  // Блик на лысине
+  ctx.fillStyle = 'rgba(150,220,80,0.15)';
+  ctx.beginPath(); ctx.ellipse(-4, -116, 7, 4, -0.2, 0, Math.PI*2); ctx.fill();
+
+  ctx.restore();
 }
 
 function _drawLuke_sw(w,now){
-  ctx.fillStyle='rgba(0,0,0,0.28)'; ctx.beginPath(); ctx.ellipse(0,24,18,5,0,0,Math.PI*2); ctx.fill();
-  // Ноги — чёрные
-  ctx.strokeStyle='#1a1a1a'; ctx.lineWidth=11; ctx.lineCap='round';
-  ctx.beginPath(); ctx.moveTo(-6,0); ctx.lineTo(-8,24); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(6,0); ctx.lineTo(8,24); ctx.stroke();
-  // Туника
-  ctx.fillStyle='#1a1a1a';
-  ctx.beginPath(); ctx.moveTo(-18,-44); ctx.lineTo(18,-44); ctx.lineTo(20,0); ctx.lineTo(-20,0); ctx.closePath(); ctx.fill();
-  ctx.strokeStyle='rgba(60,60,60,0.5)'; ctx.lineWidth=1;
-  ctx.beginPath(); ctx.moveTo(-5,-44); ctx.lineTo(-6,0); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(5,-44); ctx.lineTo(6,0); ctx.stroke();
+  ctx.save();
+  ctx.translate(0, 24); ctx.scale(0.578, 0.578);
+  const bob = Math.sin(now * 0.0016) * 2; ctx.translate(0, bob);
+
+  // Аура Force glow
+  const aura = 0.03 + Math.sin(now * 0.001) * 0.015;
+  ctx.fillStyle = `rgba(60,120,255,${aura})`;
+  ctx.beginPath(); ctx.ellipse(0, -70, 55, 85, 0, 0, Math.PI*2); ctx.fill();
+
+  // Тень
+  ctx.fillStyle = 'rgba(0,0,0,0.4)';
+  ctx.beginPath(); ctx.ellipse(0, 10, 24, 5, 0, 0, Math.PI*2); ctx.fill();
+
+  // ── НОГИ — чёрные штаны ─────────────────
+  ctx.fillStyle = '#1a1a1a';
+  ctx.beginPath(); ctx.roundRect(-13, -62, 11, 62, 3); ctx.fill();
+  ctx.beginPath(); ctx.roundRect(2, -62, 11, 62, 3); ctx.fill();
+
+  // Сапоги
+  ctx.fillStyle = '#111';
+  ctx.beginPath(); ctx.roundRect(-13, -24, 11, 24, 3); ctx.fill();
+  ctx.beginPath(); ctx.roundRect(2, -24, 11, 24, 3); ctx.fill();
+  ctx.fillStyle = '#0a0a0a';
+  ctx.beginPath(); ctx.ellipse(-8, -1, 10, 5, 0, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(8, -1, 10, 5, 0, 0, Math.PI*2); ctx.fill();
+
   // Пояс
-  ctx.fillStyle='#2a2a2a'; ctx.fillRect(-20,-6,40,7);
-  ctx.fillStyle='#555'; ctx.fillRect(-4,-7,8,9);
-  // Плечи
-  ctx.fillStyle='#222';
-  ctx.beginPath(); ctx.ellipse(-20,-38,10,8,0.2,0,Math.PI*2); ctx.fill();
-  ctx.beginPath(); ctx.ellipse(20,-38,10,8,-0.2,0,Math.PI*2); ctx.fill();
-  // Руки
-  ctx.strokeStyle='#1e1e1e'; ctx.lineWidth=9;
-  ctx.beginPath(); ctx.moveTo(-18,-38); ctx.lineTo(-26,-18); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(18,-38); ctx.lineTo(26,-18); ctx.stroke();
-  // Кисти
-  ctx.fillStyle='#c8a878';
-  ctx.beginPath(); ctx.ellipse(-26,-12,5,6,0,0,Math.PI*2); ctx.fill();
-  ctx.beginPath(); ctx.ellipse(26,-12,5,6,0,0,Math.PI*2); ctx.fill();
-  // Световой меч — зелёный
-  const sf=0.88+Math.sin(now*0.015)*0.12;
-  ctx.fillStyle='#555'; ctx.beginPath(); ctx.roundRect(22,-18,4,10,1); ctx.fill();
-  ctx.shadowColor='#00FF44'; ctx.shadowBlur=22;
-  ctx.fillStyle=`rgba(40,255,80,${sf})`; ctx.fillRect(23,-18,2,-46);
-  ctx.shadowColor='#AAFFAA'; ctx.shadowBlur=8;
-  ctx.fillStyle=`rgba(200,255,200,${sf*0.9})`; ctx.fillRect(23.5,-18,1,-46);
-  ctx.shadowBlur=0;
-  // Шея
-  ctx.fillStyle='#c8a878'; ctx.beginPath(); ctx.ellipse(0,-47,6,5,0,0,Math.PI*2); ctx.fill();
-  // Голова
-  const fG=ctx.createRadialGradient(-4,-58,2,0,-55,14);
-  fG.addColorStop(0,'#dfc08a'); fG.addColorStop(1,'#b89060');
-  ctx.fillStyle=fG; ctx.beginPath(); ctx.ellipse(0,-56,12,14,0,0,Math.PI*2); ctx.fill();
-  // Волосы — блонд
-  ctx.fillStyle='#c8a020';
-  ctx.beginPath(); ctx.moveTo(-12,-56); ctx.bezierCurveTo(-14,-70,-6,-76,0,-76); ctx.bezierCurveTo(6,-76,14,-70,12,-56); ctx.bezierCurveTo(8,-60,0,-62,-12,-56); ctx.closePath(); ctx.fill();
-  // Глаза — синие
-  ctx.fillStyle='#f0e8d8';
-  ctx.beginPath(); ctx.ellipse(-5,-57,3.5,2.5,0,0,Math.PI*2); ctx.fill();
-  ctx.beginPath(); ctx.ellipse(5,-57,3.5,2.5,0,0,Math.PI*2); ctx.fill();
-  ctx.fillStyle='#4080c0'; ctx.shadowColor='#6699FF'; ctx.shadowBlur=3;
-  ctx.beginPath(); ctx.arc(-5,-57,2.2,0,Math.PI*2); ctx.fill();
-  ctx.beginPath(); ctx.arc(5,-57,2.2,0,Math.PI*2); ctx.fill(); ctx.shadowBlur=0;
-  ctx.fillStyle='#0a0810'; ctx.beginPath(); ctx.arc(-5,-57,1.1,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(5,-57,1.1,0,Math.PI*2); ctx.fill();
-  // Рот
-  ctx.strokeStyle='#9a6040'; ctx.lineWidth=1.5;
-  ctx.beginPath(); ctx.moveTo(-4,-50); ctx.quadraticCurveTo(0,-48,4,-50); ctx.stroke();
-  // Отблеск меча на лице
-  ctx.fillStyle=`rgba(40,200,60,${0.04+Math.sin(now*0.015)*0.02})`;
-  ctx.beginPath(); ctx.ellipse(8,-56,10,14,0.3,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#222'; ctx.fillRect(-18, -66, 36, 8);
+  ctx.fillStyle = '#555'; ctx.fillRect(-4, -67, 8, 10);
+
+  // ── ТУНИКА — чёрная джедайская ──────────
+  const tunic = ctx.createLinearGradient(-18, -130, 18, -130);
+  tunic.addColorStop(0, '#1a1a1a');
+  tunic.addColorStop(0.3, '#2a2a2a');
+  tunic.addColorStop(0.7, '#1e1e1e');
+  tunic.addColorStop(1, '#111');
+  ctx.fillStyle = tunic;
+  ctx.beginPath(); ctx.roundRect(-18, -136, 36, 72, 5); ctx.fill();
+
+  // Складки туники
+  ctx.strokeStyle = 'rgba(80,80,80,0.2)'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(-6, -136); ctx.lineTo(-8, -66); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(6, -136); ctx.lineTo(8, -66); ctx.stroke();
+
+  // Воротник
+  ctx.strokeStyle = '#333'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(-8, -136); ctx.lineTo(-4, -145); ctx.lineTo(4, -145); ctx.lineTo(8, -136); ctx.stroke();
+
+  // ── ПЛЕЧИ ───────────────────────────────
+  ctx.fillStyle = '#222';
+  ctx.beginPath(); ctx.ellipse(-22, -124, 11, 9, 0.2, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(22, -124, 11, 9, -0.2, 0, Math.PI*2); ctx.fill();
+
+  // ── РУКИ ────────────────────────────────
+  // Левая рука (свободна, немного поднята)
+  const handLift = Math.sin(now * 0.0018) * 5;
+  ctx.fillStyle = '#1e1e1e';
+  ctx.beginPath(); ctx.roundRect(-31, -136 - handLift, 12, 52, 4); ctx.fill();
+  // Кисть левой
+  ctx.fillStyle = '#c8a878';
+  ctx.beginPath(); ctx.ellipse(-25, -87 - handLift, 6, 7, 0, 0, Math.PI*2); ctx.fill();
+  // Пальцы левой
+  ctx.strokeStyle = '#b89868'; ctx.lineWidth = 2; ctx.lineCap = 'round';
+  for(let i = 0; i < 3; i++) {
+    ctx.beginPath();
+    ctx.moveTo(-22 + i*2, -82 - handLift);
+    ctx.lineTo(-22 + i*2, -76 - handLift);
+    ctx.stroke();
+  }
+
+  // Правая рука (держит световой меч)
+  ctx.fillStyle = '#1e1e1e';
+  ctx.beginPath(); ctx.roundRect(19, -136, 12, 44, 4); ctx.fill();
+  // Кисть правой
+  ctx.fillStyle = '#c8a878';
+  ctx.beginPath(); ctx.ellipse(25, -95, 6, 7, 0, 0, Math.PI*2); ctx.fill();
+
+  // ── СВЕТОВОЙ МЕЧ (ЗЕЛЁНЫЙ — Возвращение Джедая) ─
+  const saberFlicker = 0.88 + Math.sin(now * 0.017) * 0.12;
+  // Рукоятка
+  ctx.fillStyle = '#555'; ctx.beginPath(); ctx.roundRect(22, -100, 7, 18, 2); ctx.fill();
+  ctx.fillStyle = '#888'; ctx.fillRect(22, -99, 7, 3);
+  ctx.fillStyle = '#333'; ctx.fillRect(22, -88, 7, 2);
+  ctx.fillStyle = '#222'; ctx.beginPath(); ctx.roundRect(21, -103, 9, 6, 1); ctx.fill();
+  // Кнопка активации
+  ctx.fillStyle = '#00CC44';
+  ctx.beginPath(); ctx.arc(26, -86, 2, 0, Math.PI*2); ctx.fill();
+
+  // Свечение лезвия
+  ctx.shadowColor = '#00FF44'; ctx.shadowBlur = 32;
+  ctx.fillStyle = `rgba(40,255,80,${saberFlicker})`;
+  ctx.fillRect(23.5, -100, 5, -68);
+  ctx.shadowColor = '#AAFFAA'; ctx.shadowBlur = 12;
+  ctx.fillStyle = `rgba(210,255,210,${saberFlicker * 0.95})`;
+  ctx.fillRect(24.5, -100, 3, -68);
+  ctx.shadowColor = '#ffffff'; ctx.shadowBlur = 4;
+  ctx.fillStyle = `rgba(255,255,255,${saberFlicker * 0.7})`;
+  ctx.fillRect(25.5, -100, 1, -68);
+  ctx.shadowBlur = 0;
+
+  // Отблеск меча на теле
+  ctx.fillStyle = `rgba(40,200,60,${0.04 + Math.sin(now*0.015)*0.02})`;
+  ctx.beginPath(); ctx.ellipse(10, -120, 25, 40, 0.3, 0, Math.PI*2); ctx.fill();
+
+  // ── ШЕЯ ─────────────────────────────────
+  ctx.fillStyle = '#c8a878';
+  ctx.beginPath(); ctx.ellipse(0, -140, 8, 7, 0, 0, Math.PI*2); ctx.fill();
+
+  // ── ГОЛОВА ──────────────────────────────
+  const faceG = ctx.createRadialGradient(-5, -158, 3, 0, -154, 19);
+  faceG.addColorStop(0, '#dfc08a');
+  faceG.addColorStop(1, '#b89060');
+  ctx.fillStyle = faceG;
+  ctx.beginPath(); ctx.ellipse(0, -156, 16, 18, 0, 0, Math.PI*2); ctx.fill();
+
+  // Блик на лице (от светового меча)
+  ctx.fillStyle = `rgba(40,200,60,${0.06 + Math.sin(now*0.015)*0.03})`;
+  ctx.beginPath(); ctx.ellipse(6, -156, 12, 14, 0, 0, Math.PI*2); ctx.fill();
+
+  // ── ВОЛОСЫ — блондин ───────────────────
+  ctx.fillStyle = '#c8a020';
+  ctx.beginPath();
+  ctx.moveTo(-16, -156);
+  ctx.bezierCurveTo(-18, -172, -10, -180, 0, -180);
+  ctx.bezierCurveTo(10, -180, 18, -172, 16, -156);
+  ctx.bezierCurveTo(12, -162, 6, -165, 0, -164);
+  ctx.bezierCurveTo(-6, -165, -12, -162, -16, -156);
+  ctx.closePath(); ctx.fill();
+
+  // Чёлка
+  ctx.fillStyle = '#b89018';
+  ctx.beginPath();
+  ctx.moveTo(-10, -163);
+  ctx.bezierCurveTo(-5, -172, 5, -172, 10, -163);
+  ctx.bezierCurveTo(4, -167, -4, -167, -10, -163);
+  ctx.closePath(); ctx.fill();
+
+  // Прядь на лбу
+  ctx.strokeStyle = '#a07810'; ctx.lineWidth = 1.5; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(-4, -165); ctx.bezierCurveTo(-2, -160, 2, -158, 0, -155); ctx.stroke();
+
+  // ── ГЛАЗА — синие, решительные ──────────
+  const eyeGlow = 0.85 + Math.sin(now * 0.002) * 0.15;
+  for(let s of [-1, 1]) {
+    // Белок
+    ctx.fillStyle = '#f0e8d8';
+    ctx.beginPath(); ctx.ellipse(s * 6, -159, 4.5, 3.5, s * 0.05, 0, Math.PI*2); ctx.fill();
+    // Радужка синяя
+    ctx.fillStyle = '#4080c0';
+    ctx.shadowColor = '#6699FF'; ctx.shadowBlur = 4;
+    ctx.beginPath(); ctx.arc(s * 6, -159, 2.8, 0, Math.PI*2); ctx.fill();
+    ctx.shadowBlur = 0;
+    // Зрачок
+    ctx.fillStyle = '#0a0810';
+    ctx.beginPath(); ctx.arc(s * 6, -159, 1.5, 0, Math.PI*2); ctx.fill();
+    // Блик
+    ctx.fillStyle = 'rgba(255,255,255,0.7)';
+    ctx.beginPath(); ctx.arc(s * 5.2, -160.2, 0.9, 0, Math.PI*2); ctx.fill();
+  }
+
+  // Брови — сдвинуты (решимость)
+  ctx.strokeStyle = '#9a7818'; ctx.lineWidth = 2; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(-10, -165); ctx.bezierCurveTo(-7, -168, -3, -167, -1, -164); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(10, -165); ctx.bezierCurveTo(7, -168, 3, -167, 1, -164); ctx.stroke();
+
+  // Нос
+  ctx.strokeStyle = 'rgba(140,90,40,0.45)'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(0, -153); ctx.lineTo(-2, -149); ctx.lineTo(2, -149); ctx.stroke();
+
+  // Рот — упрямый
+  ctx.strokeStyle = '#9a6040'; ctx.lineWidth = 1.8;
+  ctx.beginPath(); ctx.moveTo(-6, -145); ctx.quadraticCurveTo(0, -142, 6, -145); ctx.stroke();
+
+  // Лёгкие скулы
+  ctx.strokeStyle = 'rgba(160,90,50,0.15)'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(-14, -155); ctx.bezierCurveTo(-12, -151, -10, -149, -8, -150); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(14, -155); ctx.bezierCurveTo(12, -151, 10, -149, 8, -150); ctx.stroke();
+
+  ctx.restore();
 }
 
 function _drawR2D2_sw(w,now){
-  ctx.fillStyle='rgba(0,0,0,0.28)'; ctx.beginPath(); ctx.ellipse(0,24,18,5,0,0,Math.PI*2); ctx.fill();
+  ctx.save();
+  ctx.translate(0,23); ctx.scale(0.50,0.50);
+  const bob=Math.sin(now*.0016)*1.5; ctx.translate(0,bob);
+
+  function wg_r2(x1,x2){
+    const g=ctx.createLinearGradient(x1,0,x2,0);
+    g.addColorStop(0,'#707e9a'); g.addColorStop(0.18,'#c8d8f0');
+    g.addColorStop(0.45,'#eef4ff'); g.addColorStop(0.78,'#c0cce4'); g.addColorStop(1,'#606c88');
+    return g;
+  }
+  function bg_r2(x1,x2){
+    const g=ctx.createLinearGradient(x1,0,x2,0);
+    g.addColorStop(0,'#0b2890'); g.addColorStop(0.45,'#1e4ed8'); g.addColorStop(1,'#0920a0');
+    return g;
+  }
+
+  const BT=-220, BH=130;
+  ctx.fillStyle='rgba(0,10,40,.5)';
+  ctx.beginPath();ctx.ellipse(0,2,52,8,0,0,Math.PI*2);ctx.fill();
+
   // Боковые ноги
-  const lG=ctx.createLinearGradient(-22,0,22,0);
-  lG.addColorStop(0,'#405080'); lG.addColorStop(0.5,'#7090c0'); lG.addColorStop(1,'#405080');
-  ctx.fillStyle=lG;
-  ctx.beginPath(); ctx.roundRect(-22,4,10,22,3); ctx.fill();
-  ctx.beginPath(); ctx.roundRect(12,4,10,22,3); ctx.fill();
-  // Ступни
-  ctx.fillStyle='#506090'; ctx.beginPath(); ctx.ellipse(-17,24,10,4,0,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.ellipse(17,24,10,4,0,0,Math.PI*2); ctx.fill();
-  ctx.fillStyle='#8090a0'; ctx.beginPath(); ctx.roundRect(-26,19,18,6,2); ctx.fill(); ctx.beginPath(); ctx.roundRect(8,19,18,6,2); ctx.fill();
-  // Тело
-  const bG=ctx.createLinearGradient(-16,0,16,0);
-  bG.addColorStop(0,'#c0c8d8'); bG.addColorStop(0.4,'#f0f4ff'); bG.addColorStop(1,'#8090a8');
-  ctx.fillStyle=bG; ctx.beginPath(); ctx.roundRect(-16,-46,32,52,5); ctx.fill();
-  // Синие панели
-  ctx.fillStyle='#3060b0';
-  ctx.beginPath(); ctx.roundRect(-12,-40,8,14,2); ctx.fill();
-  ctx.beginPath(); ctx.roundRect(4,-40,8,14,2); ctx.fill();
-  ctx.beginPath(); ctx.roundRect(-6,-22,12,8,2); ctx.fill();
-  ctx.fillStyle='#4080d0'; ctx.shadowColor='#4080ff'; ctx.shadowBlur=4;
-  ctx.beginPath(); ctx.roundRect(-5,-21,10,6,1); ctx.fill(); ctx.shadowBlur=0;
-  // Мигающий огонёк
-  const bl=0.5+Math.sin(now*0.008)*0.5;
-  ctx.fillStyle=`rgba(255,0,0,${bl})`; ctx.shadowColor='#FF0000'; ctx.shadowBlur=4;
-  ctx.beginPath(); ctx.arc(-6,-8,2.5,0,Math.PI*2); ctx.fill(); ctx.shadowBlur=0;
-  ctx.fillStyle='#2244aa'; ctx.beginPath(); ctx.arc(6,-8,2.5,0,Math.PI*2); ctx.fill();
-  ctx.strokeStyle='rgba(100,120,160,0.4)'; ctx.lineWidth=1;
-  for(let i=0;i<4;i++){ctx.beginPath(); ctx.moveTo(-16,-10+i*8); ctx.lineTo(16,-10+i*8); ctx.stroke();}
-  // Кольцо шеи
-  ctx.fillStyle='#7080a0'; ctx.beginPath(); ctx.ellipse(0,-46,16,4,0,0,Math.PI*2); ctx.fill();
-  // Купол головы
-  const dG=ctx.createRadialGradient(-6,-60,4,0,-56,18);
-  dG.addColorStop(0,'#e0e8f8'); dG.addColorStop(0.5,'#c0cce0'); dG.addColorStop(1,'#7888a0');
-  ctx.fillStyle=dG; ctx.beginPath(); ctx.arc(0,-56,18,Math.PI,0); ctx.fill();
-  ctx.fillStyle='#a0b0c8'; ctx.fillRect(-18,-58,36,14);
-  ctx.fillStyle=dG; ctx.beginPath(); ctx.ellipse(0,-58,18,6,0,0,Math.PI*2); ctx.fill();
-  // Синие панели купола
-  ctx.fillStyle='#3060b0';
-  ctx.beginPath(); ctx.arc(0,-62,6,Math.PI+0.4,0-0.4); ctx.closePath(); ctx.fill();
-  for(let s of[-1,1]){ctx.beginPath(); ctx.arc(s*10,-60,4,Math.PI+0.6,0-0.6); ctx.closePath(); ctx.fill();}
-  // Красный пульсирующий глаз
-  const ep=0.7+Math.sin(now*0.006)*0.3;
-  ctx.fillStyle=`rgba(255,0,0,${ep})`; ctx.shadowColor='#FF0000'; ctx.shadowBlur=8;
-  ctx.beginPath(); ctx.arc(0,-58,3.5,0,Math.PI*2); ctx.fill(); ctx.shadowBlur=0;
-  ctx.fillStyle='rgba(255,180,180,0.6)'; ctx.beginPath(); ctx.arc(-1,-59.5,1,0,Math.PI*2); ctx.fill();
-  ctx.fillStyle='#aabbcc';
-  for(let i of[-1,1]){ctx.beginPath(); ctx.arc(i*14,-58,2,0,Math.PI*2); ctx.fill();}
+  const lw=18, shoulderY=BT+10;
+  for(let s of[-1,1]){
+    const lx=s*52;
+    const shG=ctx.createRadialGradient(lx,shoulderY,2,lx,shoulderY,15);
+    shG.addColorStop(0,'#d0e0f4');shG.addColorStop(0.6,'#90a8c8');shG.addColorStop(1,'#506080');
+    ctx.fillStyle=shG; ctx.beginPath();ctx.arc(lx,shoulderY,15,0,Math.PI*2);ctx.fill();
+    ctx.strokeStyle='rgba(60,90,160,.4)';ctx.lineWidth=1.2;
+    ctx.beginPath();ctx.arc(lx,shoulderY,15,0,Math.PI*2);ctx.stroke();
+    ctx.fillStyle=bg_r2(lx-8,lx+8); ctx.beginPath();ctx.arc(lx,shoulderY,9,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='rgba(150,210,255,.35)'; ctx.beginPath();ctx.arc(lx-s*3,shoulderY-3,3.5,0,Math.PI*2);ctx.fill();
+    const legEnd=-80;
+    ctx.fillStyle=wg_r2(lx-lw/2,lx+lw/2);
+    ctx.beginPath();ctx.roundRect(lx-lw/2,shoulderY+12,lw,-shoulderY+legEnd-12,4);ctx.fill();
+    ctx.fillStyle=bg_r2(lx-lw/2+1,lx+lw/2-1);
+    ctx.beginPath();ctx.roundRect(lx-lw/2+1,shoulderY+14,lw-2,14,3);ctx.fill();
+    const midY=shoulderY+(-shoulderY+legEnd)/2;
+    ctx.fillStyle=bg_r2(lx-lw/2+1,lx+lw/2-1);
+    ctx.beginPath();ctx.roundRect(lx-lw/2+1,midY-5,lw-2,10,2);ctx.fill();
+    ctx.strokeStyle='rgba(50,75,140,.4)';ctx.lineWidth=1;
+    const step=(-shoulderY+legEnd-12)/4;
+    for(let i=1;i<4;i++){const ry=shoulderY+12+step*i;ctx.beginPath();ctx.moveTo(lx-lw/2+1,ry);ctx.lineTo(lx+lw/2-1,ry);ctx.stroke();}
+    ctx.fillStyle='rgba(255,255,255,.11)';
+    ctx.beginPath();ctx.roundRect(lx-lw/2+1,shoulderY+13,6,-shoulderY+legEnd-14,4);ctx.fill();
+    ctx.fillStyle=wg_r2(lx-26,lx+26); ctx.beginPath();ctx.roundRect(lx-26,legEnd-1,52,14,5);ctx.fill();
+    ctx.fillStyle=bg_r2(lx-24,lx+24); ctx.beginPath();ctx.roundRect(lx-24,legEnd+1,48,6,3);ctx.fill();
+    ctx.fillStyle='rgba(140,200,255,.2)';ctx.fillRect(lx-24,legEnd+1,48,2);
+    ctx.strokeStyle='rgba(50,75,140,.3)';ctx.lineWidth=1;
+    ctx.beginPath();ctx.roundRect(lx-26,legEnd-1,52,14,5);ctx.stroke();
+  }
+
+  // Основной корпус
+  ctx.fillStyle=wg_r2(-40,40); ctx.beginPath();ctx.roundRect(-40,BT,80,BH,10);ctx.fill();
+  ctx.fillStyle=bg_r2(-40,40); ctx.beginPath();ctx.roundRect(-40,BT,80,16,[10,10,0,0]);ctx.fill();
+  ctx.fillStyle='rgba(140,190,255,.22)';ctx.fillRect(-40,BT,80,3);
+  ctx.fillStyle=bg_r2(-40,40); ctx.beginPath();ctx.roundRect(-40,BT+BH-14,80,14,[0,0,10,10]);ctx.fill();
+
+  // Синие боковые панели
+  ctx.fillStyle=bg_r2(-36,-10); ctx.beginPath();ctx.roundRect(-36,BT+20,26,36,4);ctx.fill();
+  ctx.fillStyle='rgba(140,200,255,.22)'; ctx.beginPath();ctx.roundRect(-36,BT+20,26,9,4);ctx.fill();
+  ctx.strokeStyle='rgba(80,140,240,.4)';ctx.lineWidth=1; ctx.beginPath();ctx.roundRect(-36,BT+20,26,36,4);ctx.stroke();
+  ctx.strokeStyle='rgba(20,60,180,.5)';ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(-35,BT+32);ctx.lineTo(-11,BT+32);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(-35,BT+44);ctx.lineTo(-11,BT+44);ctx.stroke();
+  ctx.fillStyle=bg_r2(10,36); ctx.beginPath();ctx.roundRect(10,BT+20,26,36,4);ctx.fill();
+  ctx.fillStyle='rgba(140,200,255,.22)'; ctx.beginPath();ctx.roundRect(10,BT+20,26,9,4);ctx.fill();
+  ctx.strokeStyle='rgba(80,140,240,.4)';ctx.lineWidth=1; ctx.beginPath();ctx.roundRect(10,BT+20,26,36,4);ctx.stroke();
+  ctx.strokeStyle='rgba(20,60,180,.5)';ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(11,BT+32);ctx.lineTo(35,BT+32);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(11,BT+44);ctx.lineTo(35,BT+44);ctx.stroke();
+  ctx.fillStyle=bg_r2(-36,-10); ctx.beginPath();ctx.roundRect(-36,BT+62,26,18,4);ctx.fill();
+  ctx.strokeStyle='rgba(80,140,240,.35)';ctx.lineWidth=1; ctx.beginPath();ctx.roundRect(-36,BT+62,26,18,4);ctx.stroke();
+  ctx.fillStyle=bg_r2(10,36); ctx.beginPath();ctx.roundRect(10,BT+62,26,18,4);ctx.fill();
+  ctx.beginPath();ctx.roundRect(10,BT+62,26,18,4);ctx.stroke();
+
+  // Центральная панель
+  ctx.fillStyle='rgba(10,20,60,.7)'; ctx.beginPath();ctx.roundRect(-8,BT+20,16,36,3);ctx.fill();
+  ctx.strokeStyle='rgba(60,100,200,.4)';ctx.lineWidth=1; ctx.beginPath();ctx.roundRect(-8,BT+20,16,36,3);ctx.stroke();
+  for(let i=0;i<6;i++){
+    const a=0.5+Math.sin(now*.012+i*1.1)*.45;
+    const colors=['#ff3333','#33ff77','#3377ff','#ffcc00','#ff7733','#33ffee'];
+    ctx.fillStyle=colors[i];ctx.globalAlpha=a;
+    ctx.beginPath();ctx.arc(-4+i%3*4,BT+27+Math.floor(i/3)*10,2.5,0,Math.PI*2);ctx.fill();
+  }
+  ctx.globalAlpha=1;
+
+  // PSI глаз
+  const eyeY=BT+82, eyeP=0.85+Math.sin(now*.005)*.15;
+  ctx.fillStyle='#040610'; ctx.beginPath();ctx.arc(0,eyeY,12,0,Math.PI*2);ctx.fill();
+  ctx.strokeStyle='rgba(50,70,120,.6)';ctx.lineWidth=1.5; ctx.beginPath();ctx.arc(0,eyeY,12,0,Math.PI*2);ctx.stroke();
+  ctx.fillStyle=`rgba(215,22,0,${eyeP})`; ctx.shadowColor='#FF1100';ctx.shadowBlur=26;
+  ctx.beginPath();ctx.arc(0,eyeY,9,0,Math.PI*2);ctx.fill(); ctx.shadowBlur=0;
+  ctx.fillStyle='#500000'; ctx.beginPath();ctx.arc(0,eyeY,5,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='rgba(255,120,100,.6)'; ctx.beginPath();ctx.arc(-3,eyeY-3,3,0,Math.PI*2);ctx.fill();
+  ctx.strokeStyle='rgba(80,110,170,.35)';ctx.lineWidth=1.2;
+  ctx.beginPath();ctx.moveTo(-39,BT+18);ctx.lineTo(39,BT+18);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(-39,BT+60);ctx.lineTo(39,BT+60);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(-39,BT+84);ctx.lineTo(39,BT+84);ctx.stroke();
+  ctx.fillStyle='rgba(255,255,255,.09)'; ctx.beginPath();ctx.roundRect(-38,BT+3,12,BH-17,8);ctx.fill();
+
+  // Купол (с вращением головы)
+  const headSway=Math.sin(now*.0011)*.055;
+  ctx.save(); ctx.translate(0,BT); ctx.rotate(headSway);
+  const dG=ctx.createRadialGradient(-16,-22,4,0,-16,46);
+  dG.addColorStop(0,'#f2f8ff');dG.addColorStop(0.3,'#dce8fa');
+  dG.addColorStop(0.65,'#aabcd8');dG.addColorStop(1,'#6070a0');
+  ctx.fillStyle=dG;
+  ctx.beginPath();ctx.moveTo(-40,0);ctx.bezierCurveTo(-44,-14,-42,-58,0,-64);
+  ctx.bezierCurveTo(42,-58,44,-14,40,0);ctx.closePath();ctx.fill();
+  ctx.fillStyle='rgba(16,58,180,.75)'; ctx.beginPath();ctx.roundRect(-40,-8,80,10,2);ctx.fill();
+  ctx.fillStyle='rgba(120,180,255,.2)';ctx.fillRect(-40,-8,80,2);
+  ctx.fillStyle='rgba(16,58,180,.5)'; ctx.beginPath();ctx.roundRect(-38,-30,76,7,2);ctx.fill();
+  const rEyeX=-16,rEyeY=-44,rEyeR=11;
+  ctx.fillStyle='#040610'; ctx.beginPath();ctx.arc(rEyeX,rEyeY,rEyeR+3,0,Math.PI*2);ctx.fill();
+  const reG=ctx.createRadialGradient(rEyeX-3,rEyeY-3,2,rEyeX,rEyeY,rEyeR);
+  reG.addColorStop(0,'#3c7ae8');reG.addColorStop(0.5,'#1848d0');reG.addColorStop(1,'#0820a0');
+  ctx.fillStyle=reG; ctx.beginPath();ctx.arc(rEyeX,rEyeY,rEyeR,0,Math.PI*2);ctx.fill();
+  ctx.strokeStyle='rgba(80,140,255,.5)';ctx.lineWidth=1.5; ctx.beginPath();ctx.arc(rEyeX,rEyeY,rEyeR,0,Math.PI*2);ctx.stroke();
+  ctx.fillStyle='rgba(150,200,255,.45)'; ctx.beginPath();ctx.arc(rEyeX-4,rEyeY-4,4,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='rgba(255,255,255,.3)'; ctx.beginPath();ctx.arc(rEyeX-5,rEyeY-5,2,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='rgba(14,50,170,.75)'; ctx.beginPath();ctx.roundRect(8,-52,22,14,3);ctx.fill();
+  ctx.strokeStyle='rgba(60,120,220,.4)';ctx.lineWidth=1; ctx.beginPath();ctx.roundRect(8,-52,22,14,3);ctx.stroke();
+  const lc=['#ff3333','#33ff88','#3388ff','#ffcc00'];
+  for(let i=0;i<4;i++){const la=0.6+Math.sin(now*.014+i*1.5)*.4;ctx.fillStyle=lc[i];ctx.globalAlpha=la;ctx.beginPath();ctx.arc(10+i*5,-46,2,0,Math.PI*2);ctx.fill();}
+  ctx.globalAlpha=1;
+  const sc2=ctx.createRadialGradient(22,-32,1,22,-32,7);
+  sc2.addColorStop(0,'#2c68d8');sc2.addColorStop(1,'#0c2490');
+  ctx.fillStyle=sc2; ctx.beginPath();ctx.arc(22,-32,7,0,Math.PI*2);ctx.fill();
+  ctx.strokeStyle='rgba(70,130,220,.4)';ctx.lineWidth=1; ctx.beginPath();ctx.arc(22,-32,7,0,Math.PI*2);ctx.stroke();
+  ctx.fillStyle='rgba(130,190,255,.35)'; ctx.beginPath();ctx.arc(20,-34,2.5,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#060812'; ctx.beginPath();ctx.ellipse(0,-58,5,4,0,0,Math.PI*2);ctx.fill();
+  const pP=0.4+Math.sin(now*.003)*.3;
+  ctx.fillStyle=`rgba(0,200,255,${pP})`; ctx.shadowColor='#00ccff';ctx.shadowBlur=16;
+  ctx.beginPath();ctx.arc(0,-58,3,0,Math.PI*2);ctx.fill(); ctx.shadowBlur=0;
+  ctx.strokeStyle='rgba(50,80,130,.5)';ctx.lineWidth=1.2; ctx.beginPath();ctx.ellipse(0,-58,5,4,0,0,Math.PI*2);ctx.stroke();
+  ctx.strokeStyle='rgba(80,110,170,.25)';ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(0,-63);ctx.lineTo(0,-8);ctx.stroke();
+  const blik=ctx.createLinearGradient(-30,-60,-10,-2);
+  blik.addColorStop(0,'rgba(255,255,255,.18)');blik.addColorStop(1,'rgba(255,255,255,0)');
+  ctx.fillStyle=blik;
+  ctx.beginPath();ctx.moveTo(-26,-52);ctx.bezierCurveTo(-32,-34,-28,-14,-22,-3);
+  ctx.bezierCurveTo(-12,-12,-10,-34,-12,-48);ctx.closePath();ctx.fill();
+  ctx.restore(); // купол
+  ctx.restore(); // R2D2
 }
 
 function _drawChewbacca_sw(w,now){
@@ -1771,72 +2145,163 @@ function _drawChewbacca_sw(w,now){
   ctx.beginPath(); ctx.moveTo(3,-59); ctx.lineTo(5,-54); ctx.lineTo(7,-59); ctx.closePath(); ctx.fill();
 }
 
-function _drawStormtrooper_sw(w){
-  ctx.fillStyle='rgba(0,0,0,0.28)'; ctx.beginPath(); ctx.ellipse(0,24,18,5,0,0,Math.PI*2); ctx.fill();
-  const wg2=ctx.createLinearGradient(-10,0,10,0);
-  wg2.addColorStop(0,'#b0b8c8'); wg2.addColorStop(0.4,'#f0f5fa'); wg2.addColorStop(1,'#8090a0');
-  // Ноги
-  ctx.fillStyle=wg2;
-  for(let s of[-1,1]){
-    const lx=s*9;
-    ctx.beginPath(); ctx.roundRect(lx-7,0,14,24,3); ctx.fill();
-    ctx.beginPath(); ctx.ellipse(lx,6,8,5,0,0,Math.PI*2); ctx.fill();
+function _drawStormtrooper_sw(w,now){
+  ctx.save();
+  ctx.translate(0,22); ctx.scale(0.46,0.46);
+  const bob=Math.sin(now*.0018)*2; ctx.translate(0,bob);
+  const cx=0, G=0;
+
+  function wg_st(x,w_,y,h){
+    const gr=ctx.createLinearGradient(x,y,x+w_,y+h);
+    gr.addColorStop(0,'#b0b8c8'); gr.addColorStop(0.3,'#f2f5fa');
+    gr.addColorStop(0.65,'#d8dde8'); gr.addColorStop(1,'#8890a0');
+    return gr;
   }
-  ctx.fillStyle='#0d0d14';
-  ctx.beginPath(); ctx.roundRect(-16,18,14,8,2); ctx.fill();
-  ctx.beginPath(); ctx.roundRect(2,18,14,8,2); ctx.fill();
+
+  // Тень
+  ctx.fillStyle='rgba(0,0,0,.3)'; ctx.beginPath();ctx.ellipse(cx,G,22,5,0,0,Math.PI*2);ctx.fill();
+
+  // Ноги — чёрный комбез подложка
+  ctx.fillStyle='#0d0d14'; ctx.fillRect(cx-19,G-80,38,80);
+  for(let s of[-1,1]){
+    const lx=cx+s*10;
+    ctx.fillStyle=wg_st(lx-9,18,G-80,40); ctx.beginPath();ctx.roundRect(lx-9,G-80,18,38,4);ctx.fill();
+    ctx.fillStyle=wg_st(lx-6,12,G-68,14); ctx.beginPath();ctx.roundRect(lx-6,G-68,12,14,3);ctx.fill();
+    ctx.fillStyle=wg_st(lx-8,16,G-44,16); ctx.beginPath();ctx.ellipse(lx,G-42,9,8,0,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle=wg_st(lx-8,16,G-34,30); ctx.beginPath();ctx.roundRect(lx-8,G-34,16,30,4);ctx.fill();
+    ctx.fillStyle=wg_st(lx-5,10,G-28,16); ctx.beginPath();ctx.roundRect(lx-5,G-28,10,16,2);ctx.fill();
+    ctx.fillStyle='#0d0d14'; ctx.beginPath();ctx.roundRect(lx-10,G-6,20,10,3);ctx.fill();
+    ctx.strokeStyle='rgba(40,55,80,.4)';ctx.lineWidth=1;
+    ctx.beginPath();ctx.moveTo(lx-7,G-60);ctx.lineTo(lx+7,G-60);ctx.stroke();
+  }
+
   // Пояс
-  ctx.fillStyle='#0d0d14'; ctx.fillRect(-18,-4,36,6);
-  ctx.fillStyle=wg2;
-  for(let i=0;i<3;i++){ctx.beginPath(); ctx.roundRect(-10+i*9,-3.5,7,5,1); ctx.fill();}
-  // Грудной панцирь
-  ctx.fillStyle=wg2;
-  ctx.beginPath(); ctx.moveTo(-2,-46); ctx.lineTo(-20,-38); ctx.lineTo(-20,-4); ctx.lineTo(-2,-4); ctx.closePath(); ctx.fill();
-  ctx.beginPath(); ctx.moveTo(2,-46); ctx.lineTo(20,-38); ctx.lineTo(20,-4); ctx.lineTo(2,-4); ctx.closePath(); ctx.fill();
-  ctx.strokeStyle='rgba(40,55,80,0.3)'; ctx.lineWidth=1;
-  ctx.beginPath(); ctx.moveTo(0,-46); ctx.lineTo(0,-4); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(-18,-26); ctx.lineTo(18,-26); ctx.stroke();
-  // Плечи
-  ctx.fillStyle=wg2;
-  ctx.beginPath(); ctx.ellipse(-22,-36,12,10,0.1,0,Math.PI*2); ctx.fill();
-  ctx.beginPath(); ctx.ellipse(22,-36,12,10,-0.1,0,Math.PI*2); ctx.fill();
-  // Руки + предплечья
-  ctx.fillStyle=wg2;
-  for(let s of[-1,1]){
-    ctx.beginPath(); ctx.roundRect(s*28-6,-42,12,28,3); ctx.fill();
-    ctx.fillStyle='#0d0d14'; ctx.beginPath(); ctx.ellipse(s*28,-14,6,5,0,0,Math.PI*2); ctx.fill();
-    ctx.fillStyle=wg2; ctx.beginPath(); ctx.roundRect(s*28-5,-14,10,18,3); ctx.fill();
-    ctx.fillStyle='#0d0d14'; ctx.beginPath(); ctx.ellipse(s*28,5,5,6,0,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#0d0d14';ctx.fillRect(cx-21,G-86,42,10);
+  for(let i=0;i<3;i++){
+    ctx.fillStyle=wg_st(cx-14+i*10,9,G-86,10);
+    ctx.beginPath();ctx.roundRect(cx-14+i*10,G-85,9,8,1);ctx.fill();
   }
-  // Бластер
-  ctx.fillStyle='#1a1a24'; ctx.beginPath(); ctx.roundRect(26,-8,22,6,2); ctx.fill();
-  ctx.fillStyle='#0d0d14'; ctx.beginPath(); ctx.arc(48,-5,3,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle=wg_st(cx-18,36,G-95,12); ctx.beginPath();ctx.roundRect(cx-18,G-95,36,12,4);ctx.fill();
+
+  // Торс — грудные пластины
+  ctx.fillStyle='#0d0d14';ctx.beginPath();ctx.roundRect(cx-22,G-168,44,76,5);ctx.fill();
+  ctx.fillStyle=wg_st(cx-21,20,G-168,80);
+  ctx.beginPath();ctx.moveTo(cx-1,G-168);ctx.lineTo(cx-21,G-158);ctx.lineTo(cx-21,G-108);ctx.lineTo(cx-1,G-92);ctx.closePath();ctx.fill();
+  ctx.fillStyle=wg_st(cx+1,20,G-168,80);
+  ctx.beginPath();ctx.moveTo(cx+1,G-168);ctx.lineTo(cx+21,G-158);ctx.lineTo(cx+21,G-108);ctx.lineTo(cx+1,G-92);ctx.closePath();ctx.fill();
+  ctx.fillStyle='rgba(255,255,255,.12)';
+  ctx.beginPath();ctx.ellipse(cx-10,G-140,7,10,0,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.ellipse(cx+10,G-140,7,10,0,0,Math.PI*2);ctx.fill();
+  ctx.strokeStyle='rgba(40,55,80,.35)';ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(cx-20,G-128);ctx.lineTo(cx+20,G-128);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(cx-20,G-112);ctx.lineTo(cx+20,G-112);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(cx,G-168);ctx.lineTo(cx,G-92);ctx.stroke();
+  for(let i=0;i<3;i++){
+    ctx.fillStyle=wg_st(cx-16,32,G-96+i*10,8);
+    ctx.beginPath();ctx.roundRect(cx-16,G-96+i*10,32,8,2);ctx.fill();
+  }
+
+  // Плечи
+  for(let s of[-1,1]){
+    ctx.fillStyle=wg_st(cx+s*28-14,28,G-162,24);
+    ctx.beginPath();ctx.ellipse(cx+s*28,G-154,16,12,s*.1,0,Math.PI*2);ctx.fill();
+    ctx.strokeStyle='rgba(40,55,80,.3)';ctx.lineWidth=1;
+    ctx.beginPath();ctx.ellipse(cx+s*28,G-154,16,12,s*.1,0,Math.PI*2);ctx.stroke();
+  }
+
+  // Руки
+  for(let s of[-1,1]){
+    ctx.fillStyle=wg_st(cx+s*38-7,14,G-168,54);
+    ctx.beginPath();ctx.roundRect(cx+s*38-7,G-168,14,52,5);ctx.fill();
+    ctx.fillStyle='#0d0d14';ctx.beginPath();ctx.ellipse(cx+s*38,G-118,7,6,0,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle=wg_st(cx+s*38-6,12,G-116,38);
+    ctx.beginPath();ctx.roundRect(cx+s*38-6,G-116,12,38,4);ctx.fill();
+    ctx.strokeStyle='rgba(40,55,80,.35)';ctx.lineWidth=1;
+    for(let d=0;d<4;d++){ctx.beginPath();ctx.moveTo(cx+s*38-4,G-110+d*8);ctx.lineTo(cx+s*38+4,G-110+d*8);ctx.stroke();}
+    ctx.fillStyle='#0d0d14';ctx.beginPath();ctx.ellipse(cx+s*38,G-80,7,8,0,0,Math.PI*2);ctx.fill();
+  }
+
+  // Бластер E-11
+  const bx=cx+46, by=G-104;
+  ctx.fillStyle='#1a1a24';ctx.beginPath();ctx.roundRect(bx-2,by,26,7,3);ctx.fill();
+  ctx.fillStyle='#222230';ctx.beginPath();ctx.roundRect(bx+8,by-1,14,5,1);ctx.fill();
+  ctx.fillStyle='#141420';ctx.beginPath();ctx.roundRect(bx,by+6,8,16,2);ctx.fill();
+  ctx.fillStyle='#1e1e2c';ctx.beginPath();ctx.roundRect(bx+2,by+9,5,10,1);ctx.fill();
+  ctx.fillStyle='#333';ctx.fillRect(bx+4,by-3,4,3);
+  ctx.fillStyle='#080810';ctx.beginPath();ctx.arc(bx+24,by+3,3,0,Math.PI*2);ctx.fill();
+  ctx.strokeStyle='#333';ctx.lineWidth=1;ctx.beginPath();ctx.arc(bx+24,by+3,4,0,Math.PI*2);ctx.stroke();
+
   // Шея
-  ctx.fillStyle='#0d0d14'; ctx.beginPath(); ctx.roundRect(-6,-50,12,8,2); ctx.fill();
+  ctx.fillStyle='#0d0d14';ctx.beginPath();ctx.roundRect(cx-8,G-174,16,12,3);ctx.fill();
+
   // Шлем — купол
-  const hy=-50;
-  ctx.fillStyle=wg2;
-  ctx.beginPath(); ctx.moveTo(-18,hy); ctx.bezierCurveTo(-22,hy-16,-20,hy-42,0,hy-44); ctx.bezierCurveTo(20,hy-42,22,hy-16,18,hy); ctx.closePath(); ctx.fill();
+  const hy=G-174;
+  ctx.fillStyle=wg_st(cx-24,48,hy-62,62);
+  ctx.beginPath();ctx.moveTo(cx-24,hy);
+  ctx.bezierCurveTo(cx-28,hy-20,cx-26,hy-58,cx,hy-62);
+  ctx.bezierCurveTo(cx+26,hy-58,cx+28,hy-20,cx+24,hy);
+  ctx.closePath();ctx.fill();
+  ctx.strokeStyle='rgba(40,55,80,.25)';ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(cx,hy-62);ctx.lineTo(cx,hy);ctx.stroke();
+
   // Надбровный выступ
-  ctx.fillStyle=wg2;
-  ctx.beginPath(); ctx.moveTo(-18,hy-14); ctx.lineTo(18,hy-14); ctx.bezierCurveTo(18,hy-10,-18,hy-10,-18,hy-14); ctx.fill();
-  ctx.strokeStyle='rgba(40,55,80,0.4)'; ctx.lineWidth=1.2;
-  ctx.beginPath(); ctx.moveTo(-18,hy-14); ctx.lineTo(18,hy-14); ctx.stroke();
+  ctx.fillStyle=wg_st(cx-22,44,hy-32,10);
+  ctx.beginPath();ctx.moveTo(cx-22,hy-32);ctx.lineTo(cx+22,hy-32);
+  ctx.bezierCurveTo(cx+22,hy-28,cx-22,hy-28,cx-22,hy-32);ctx.closePath();ctx.fill();
+  ctx.strokeStyle='rgba(40,55,80,.35)';ctx.lineWidth=1.5;
+  ctx.beginPath();ctx.moveTo(cx-22,hy-32);ctx.lineTo(cx+22,hy-32);ctx.stroke();
+
+  // Лицевая плита
+  ctx.fillStyle=wg_st(cx-20,40,hy-32,32);
+  ctx.beginPath();ctx.roundRect(cx-20,hy-32,40,32,3);ctx.fill();
+
   // Глаза — трапеции
   ctx.fillStyle='#050510';
-  ctx.beginPath(); ctx.moveTo(-16,hy-14); ctx.lineTo(-5,hy-15); ctx.lineTo(-3,hy-7); ctx.lineTo(-14,hy-6); ctx.closePath(); ctx.fill();
-  ctx.beginPath(); ctx.moveTo(5,hy-15); ctx.lineTo(16,hy-14); ctx.lineTo(14,hy-6); ctx.lineTo(3,hy-7); ctx.closePath(); ctx.fill();
-  ctx.fillStyle='rgba(20,40,140,0.35)';
-  ctx.beginPath(); ctx.moveTo(-15,hy-13); ctx.lineTo(-6,hy-14); ctx.lineTo(-4,hy-8); ctx.lineTo(-13,hy-7); ctx.closePath(); ctx.fill();
-  ctx.beginPath(); ctx.moveTo(6,hy-14); ctx.lineTo(15,hy-13); ctx.lineTo(13,hy-7); ctx.lineTo(4,hy-8); ctx.closePath(); ctx.fill();
-  // Рот/маска
+  ctx.beginPath();ctx.moveTo(cx-20,hy-31);ctx.lineTo(cx-7,hy-32);ctx.lineTo(cx-5,hy-22);ctx.lineTo(cx-19,hy-21);ctx.closePath();ctx.fill();
+  ctx.beginPath();ctx.moveTo(cx+7,hy-32);ctx.lineTo(cx+20,hy-31);ctx.lineTo(cx+19,hy-21);ctx.lineTo(cx+5,hy-22);ctx.closePath();ctx.fill();
+  ctx.fillStyle='rgba(20,40,140,.4)';
+  ctx.beginPath();ctx.moveTo(cx-19,hy-30);ctx.lineTo(cx-8,hy-31);ctx.lineTo(cx-6,hy-25);ctx.lineTo(cx-18,hy-24);ctx.closePath();ctx.fill();
+  ctx.beginPath();ctx.moveTo(cx+8,hy-31);ctx.lineTo(cx+19,hy-30);ctx.lineTo(cx+18,hy-24);ctx.lineTo(cx+6,hy-25);ctx.closePath();ctx.fill();
+
+  // «Слёзы» под глазами
   ctx.fillStyle='#050510';
-  ctx.beginPath(); ctx.moveTo(-10,hy-6); ctx.bezierCurveTo(-11,hy-10,11,hy-10,10,hy-6); ctx.lineTo(8,hy); ctx.bezierCurveTo(7,hy+2,-7,hy+2,-8,hy); ctx.closePath(); ctx.fill();
-  ctx.fillStyle='rgba(20,24,40,0.85)';
-  for(let i=0;i<4;i++){ctx.beginPath(); ctx.roundRect(-8+i*5,hy-5,3,3,0.5); ctx.fill();}
+  ctx.beginPath();ctx.roundRect(cx-20,hy-21,3,8,1);ctx.fill();
+  ctx.beginPath();ctx.roundRect(cx-9,hy-21,2,6,1);ctx.fill();
+  ctx.beginPath();ctx.roundRect(cx+7,hy-21,2,6,1);ctx.fill();
+  ctx.beginPath();ctx.roundRect(cx+17,hy-21,3,8,1);ctx.fill();
+
+  // Нос Т-образный
+  ctx.fillStyle=wg_st(cx-6,12,hy-32,12); ctx.beginPath();ctx.roundRect(cx-6,hy-32,12,8,2);ctx.fill();
+  ctx.fillStyle=wg_st(cx-4,8,hy-24,16);  ctx.beginPath();ctx.roundRect(cx-4,hy-24,8,14,2);ctx.fill();
+
+  // Рот — трапеция с прорезями
+  ctx.fillStyle='#050510';
+  ctx.beginPath();ctx.moveTo(cx-15,hy-12);ctx.bezierCurveTo(cx-16,hy-16,cx+16,hy-16,cx+15,hy-12);
+  ctx.lineTo(cx+12,hy-2);ctx.bezierCurveTo(cx+11,hy,cx-11,hy,cx-12,hy-2);ctx.closePath();ctx.fill();
+  ctx.fillStyle='rgba(20,24,40,.9)';
+  for(let i=0;i<4;i++){
+    ctx.beginPath();ctx.roundRect(cx-13+i*7,hy-14,5,5,1);ctx.fill();
+    ctx.beginPath();ctx.roundRect(cx-12+i*7,hy-9,4,5,1);ctx.fill();
+  }
+
+  // Фильтры по бокам
+  for(let s of[-1,1]){
+    ctx.fillStyle='#0a0a16'; ctx.beginPath();ctx.arc(cx+s*21,hy-4,6,0,Math.PI*2);ctx.fill();
+    ctx.strokeStyle='rgba(100,110,140,.5)';ctx.lineWidth=1.2; ctx.beginPath();ctx.arc(cx+s*21,hy-4,6,0,Math.PI*2);ctx.stroke();
+    ctx.fillStyle='#141424'; ctx.beginPath();ctx.arc(cx+s*21,hy-4,3,0,Math.PI*2);ctx.fill();
+  }
+
+  // Боковые шланги
+  ctx.strokeStyle='rgba(40,55,80,.5)';ctx.lineWidth=2;ctx.lineCap='round';
+  ctx.beginPath();ctx.moveTo(cx-23,hy-10);ctx.bezierCurveTo(cx-26,hy-4,cx-24,hy,cx-22,hy+2);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(cx+23,hy-10);ctx.bezierCurveTo(cx+26,hy-4,cx+24,hy,cx+22,hy+2);ctx.stroke();
+
   // Блик на шлеме
-  ctx.fillStyle='rgba(255,255,255,0.05)';
-  ctx.beginPath(); ctx.moveTo(-6,hy-44); ctx.bezierCurveTo(-14,hy-30,-14,hy-16,-10,hy-6); ctx.bezierCurveTo(-6,hy-14,-4,hy-28,-2,hy-42); ctx.closePath(); ctx.fill();
+  ctx.fillStyle='rgba(255,255,255,.06)';
+  ctx.beginPath();ctx.moveTo(cx-8,hy-60);ctx.bezierCurveTo(cx-16,hy-48,cx-18,hy-34,cx-15,hy-22);
+  ctx.bezierCurveTo(cx-11,hy-30,cx-9,hy-46,cx-5,hy-58);ctx.closePath();ctx.fill();
+
+  ctx.restore();
 }
 
 // ── Victory ─────────────────────────────────────────────────
