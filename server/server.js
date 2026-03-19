@@ -222,6 +222,15 @@ class Room {
           this.broadcast({ type: 'arena_team', team: 2, username: data.username });
         }
 
+        // Arena: rating command — show player's kill rank
+        if (msgLower === 'rating') {
+          db.getUserRank(data.username)
+            .then(rank => {
+              this.broadcast({ type: 'arena_rating', username: data.username, rank: rank ? rank.rank : null, kills: rank ? rank.total_kills : 0 });
+            })
+            .catch(() => {});
+        }
+
         // Race game: GO command
         if (msg === 'go' && !this._raceEnded) {
           this.players.addChatGo(data.userId, data.username, data.avatarUrl);

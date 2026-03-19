@@ -53,7 +53,7 @@ function connectToTikTok(username, onGift, onStatus, onMember, onLike, onChat) {
     conn.on('chat', data => {
       if (!onChat) return;
       const msg = (data.comment || '').trim().toLowerCase();
-      if (['go','blue','red','help','team','team2'].includes(msg))
+      if (['go','blue','red','help','team','team2','rating'].includes(msg))
         onChat({ userId: String(data.userId), username: data.nickname || data.uniqueId || 'Unknown', avatarUrl: data.profilePictureUrl || '', message: msg });
     });
     conn.on('member', data => {

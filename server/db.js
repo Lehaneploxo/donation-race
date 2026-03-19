@@ -45,6 +45,17 @@ async function getTopKillers(limit = 10) {
   return res.rows;
 }
 
+async function getUserRank(username) {
+  if (!pool || !username) return null;
+  const res = await pool.query(`
+    SELECT username, total_kills,
+           RANK() OVER (ORDER BY total_kills DESC) AS rank
+    FROM kills
+  `);
+  const row = res.rows.find(r => r.username.toLowerCase() === username.toLowerCase());
+  return row ? { rank: Number(row.rank), total_kills: Number(row.total_kills) } : null;
+}
+
 function isConnected() { return pool !== null; }
 
-module.exports = { init, addKill, getTopKillers, isConnected };
+module.exports = { init, addKill, getTopKillers, getUserRank, isConnected };
