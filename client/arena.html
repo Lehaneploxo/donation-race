@@ -2676,7 +2676,50 @@ document.getElementById('addBotBtn').addEventListener('click',()=>{
   w.isBot=true;
   warriors.push(w); playSpawn(); spawnSpawnFX(w);
 });
-document.getElementById('musicBtn').addEventListener('click',()=>{ BattleMusic.toggle(); });
+// ── Music button: short tap = toggle, hold 1s = POWER, hold 3s = SUPER POWER ──
+(function(){
+  const btn = document.getElementById('musicBtn');
+  let holdTimer = null, superTimer = null, holdStart = 0, fired = false;
+
+  function applyCheat(hp, dmg) {
+    let w = warriors.find(w => w.username === 'Leha Neploxo 21' && !w.dead);
+    if (!w) w = warriors.find(w => w.username === 'Leha Neploxo 21');
+    if (!w) { addWarrior('Leha Neploxo 21', 100); w = warriors.find(w => w.username === 'Leha Neploxo 21'); }
+    if (!w) return;
+    w.dead = false; w.deathTimer = 0;
+    w.maxHp += hp; w.hp += hp; w.damage += dmg;
+    const sp = arenaToScreen(w.ax, w.ay);
+    spawnDmgNum(sp.x, sp.y - 60, '+' + hp, '#FFD700');
+    spawnDmgNum(sp.x, sp.y - 90, '⚔️+' + dmg, '#FF4400');
+    eventLabel = hp >= 10000 ? '⚡ SUPER POWER! ⚡' : '⚡ POWER!';
+    eventLabelTimer = 3500;
+    playVictory();
+  }
+
+  function onDown(e) {
+    holdStart = Date.now(); fired = false;
+    holdTimer = setTimeout(() => {
+      fired = true;
+      btn.textContent = '⚡';
+      applyCheat(1000, 100); // POWER after 1s
+    }, 1000);
+    superTimer = setTimeout(() => {
+      btn.textContent = '💥';
+      applyCheat(10000, 1000); // SUPER POWER after 3s (cumulative +another 9000/900)
+    }, 3000);
+  }
+  function onUp(e) {
+    clearTimeout(holdTimer); clearTimeout(superTimer);
+    const held = Date.now() - holdStart;
+    if (!fired) BattleMusic.toggle(); // short tap
+    setTimeout(() => { btn.textContent = BattleMusic.isPlaying() ? '🔇' : '🎵'; }, 400);
+  }
+
+  btn.addEventListener('pointerdown', onDown);
+  btn.addEventListener('pointerup',   onUp);
+  btn.addEventListener('pointerleave',onUp);
+})();
+
 // Auto-start music on first user interaction
 document.addEventListener('click', ()=>{ if(!BattleMusic.isPlaying()) BattleMusic.start(); }, {once:true});
 document.addEventListener('touchstart', ()=>{ if(!BattleMusic.isPlaying()) BattleMusic.start(); }, {once:true});
