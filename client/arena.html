@@ -16,7 +16,6 @@
     #backBtn { top: calc(50% - 13px); right: 10px; }
     #addBotBtn { top: calc(50% + 85px); right: 10px; }
     #mapBtn    { top: calc(50% + 134px); right: 10px; font-size: 13px; }
-    #musicBtn  { top: calc(50% + 183px); right: 10px; font-size: 13px; }
     #statusBadge { position: absolute; bottom: 52px; left: 50%; transform: translateX(-50%); font-size: 13px; padding: 4px 13px; border-radius: 8px; border: 2px solid #555; background: rgba(0,0,0,0.78); color: #AAA; white-space: nowrap; z-index: 100; display: none; }
     #statusBadge.live  { color: #00FF88; border-color: #00FF88; }
     #statusBadge.demo  { color: #FF9900; border-color: #FF9900; }
@@ -28,7 +27,6 @@
 <button id="backBtn" class="ui-btn" title="Back">⌂</button>
 <button id="addBotBtn" class="ui-btn" title="Add bot">🤖</button>
 <button id="mapBtn"    class="ui-btn" title="Switch map">🌍</button>
-<button id="musicBtn"  class="ui-btn" title="Music on/off">🎵</button>
 <div id="scaleWrapper">
   <canvas id="gameCanvas" width="600" height="1000"></canvas>
   <div id="statusBadge">⏳ Connecting…</div>
@@ -84,44 +82,6 @@ function playKill(){
   if(!_ok('kill',300))return;
   try{ const ctx=getACtx(); [440,554,659].forEach((f,i)=>{ const t=ctx.currentTime+i*0.07,o=ctx.createOscillator(),g=ctx.createGain(); o.type='triangle'; o.frequency.value=f; g.gain.setValueAtTime(0.2,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.2); o.connect(g); g.connect(ctx.destination); o.start(t); o.stop(t+0.22); }); }catch(e){}
 }
-
-// ═══════════════════════════════════════════
-// BATTLE MUSIC ENGINE
-// ═══════════════════════════════════════════
-const BattleMusic = (function(){
-  const BPM=124,BEAT=60/124,STEP=BEAT/4;
-  const N={E2:82.41,G2:98,A2:110,B2:123.47,D3:146.83,
-           E3:164.81,G3:196,A3:220,B3:246.94,D4:293.66,
-           E4:329.63,G4:392,A4:440,B4:493.88,D5:587.33,E5:659.25};
-  const KICK =[1,0,0,0,0,0,1,0,1,0,0,0,0,0,1,0];
-  const SNARE=[0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,1];
-  const HIHAT=[1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0];
-  const BASS_SEQ=[N.E2,N.G2,N.A2,N.B2,N.E2,N.G2,N.A2,N.E2];
-  const MELS=[
-    [N.E4,null,null,null,null,null,N.G4,null,N.A4,null,null,N.B4,N.D5,null,null,null],
-    [N.B4,null,N.A4,null,N.G4,null,null,null,N.E4,null,N.D4,null,N.E4,null,N.G4,null],
-    [N.E5,null,null,N.D5,N.B4,null,null,null,N.A4,null,N.G4,null,N.A4,N.B4,null,null],
-    [N.E4,null,null,null,N.D4,null,N.E4,null,N.G4,null,null,null,N.A4,null,N.B4,null]
-  ];
-  let mg=null,playing=false,step=0,bar=0,nextT=0,timer=null,padO=[];
-  function _c(){ return getACtx(); }
-  function _noise(d){ const c=_c(),n=Math.floor(c.sampleRate*d),b=c.createBuffer(1,n,c.sampleRate),a=b.getChannelData(0); for(let i=0;i<n;i++)a[i]=Math.random()*2-1; return b; }
-  function _mg(){ if(!mg){mg=_c().createGain();mg.gain.value=0;mg.connect(_c().destination);} return mg; }
-  function kick(t){ const c=_c(),o=c.createOscillator(),g=c.createGain(); o.frequency.setValueAtTime(160,t);o.frequency.exponentialRampToValueAtTime(42,t+0.09);g.gain.setValueAtTime(0.85,t);g.gain.exponentialRampToValueAtTime(0.001,t+0.26);o.connect(g);g.connect(_mg());o.start(t);o.stop(t+0.3); const s=c.createBufferSource(),sg=c.createGain();sg.gain.value=0.45;s.buffer=_noise(0.012);s.connect(sg);sg.connect(_mg());s.start(t); }
-  function snare(t){ const c=_c(),o=c.createOscillator(),og=c.createGain();o.type='triangle';o.frequency.setValueAtTime(240,t);o.frequency.exponentialRampToValueAtTime(120,t+0.1);og.gain.setValueAtTime(0.4,t);og.gain.exponentialRampToValueAtTime(0.001,t+0.18);o.connect(og);og.connect(_mg());o.start(t);o.stop(t+0.2); const s=c.createBufferSource(),f=c.createBiquadFilter(),g=c.createGain();f.type='bandpass';f.frequency.value=2800;f.Q.value=1.0;g.gain.setValueAtTime(0.48,t);g.gain.exponentialRampToValueAtTime(0.001,t+0.2);s.buffer=_noise(0.22);s.connect(f);f.connect(g);g.connect(_mg());s.start(t); }
-  function hihat(t,op){ const c=_c(),dur=op?0.14:0.035,s=c.createBufferSource(),f=c.createBiquadFilter(),g=c.createGain();f.type='highpass';f.frequency.value=7500;g.gain.setValueAtTime(op?0.16:0.08,t);g.gain.exponentialRampToValueAtTime(0.001,t+dur);s.buffer=_noise(dur);s.connect(f);f.connect(g);g.connect(_mg());s.start(t); }
-  function bass(freq,t){ const c=_c(),dur=BEAT*0.9,o=c.createOscillator(),f=c.createBiquadFilter(),g=c.createGain();o.type='sawtooth';o.frequency.value=freq;f.type='lowpass';f.frequency.value=500;f.Q.value=3;g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(0.48,t+0.015);g.gain.setValueAtTime(0.48,t+dur*0.72);g.gain.linearRampToValueAtTime(0,t+dur);o.connect(f);f.connect(g);g.connect(_mg());o.start(t);o.stop(t+dur+0.05); const o2=c.createOscillator(),g2=c.createGain();o2.type='sine';o2.frequency.value=freq*0.5;g2.gain.setValueAtTime(0,t);g2.gain.linearRampToValueAtTime(0.22,t+0.01);g2.gain.exponentialRampToValueAtTime(0.001,t+dur);o2.connect(g2);g2.connect(_mg());o2.start(t);o2.stop(t+dur+0.05); }
-  function melody(freq,t){ if(!freq)return; const c=_c(),dur=STEP*3.8,o=c.createOscillator(),g=c.createGain(),dl=c.createDelay(1.5),dfb=c.createGain(),dmx=c.createGain();o.type='triangle';o.frequency.value=freq;dl.delayTime.value=BEAT*0.75;dfb.gain.value=0.28;dmx.gain.value=0.24;dl.connect(dfb);dfb.connect(dl);dl.connect(dmx);dmx.connect(_mg());g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(0.26,t+0.012);g.gain.setValueAtTime(0.26,t+dur*0.5);g.gain.linearRampToValueAtTime(0,t+dur);o.connect(g);g.connect(_mg());g.connect(dl);o.start(t);o.stop(t+dur+0.15); }
-  function startPad(){ const c=_c();[N.E2,N.B2,N.E3,N.G3,N.B3,N.D4,N.E4].forEach((f,i)=>{ const o=c.createOscillator(),g=c.createGain();o.type='sine';o.frequency.value=f;o.detune.value=(i%2?-1:1)*i*1.8;g.gain.setValueAtTime(0,c.currentTime);g.gain.linearRampToValueAtTime(0.02-i*0.002,c.currentTime+4);o.connect(g);g.connect(_mg());o.start();padO.push({o,g}); }); }
-  function stopPad(){ padO.forEach(({g})=>{ const c=_c();g.gain.cancelScheduledValues(c.currentTime);g.gain.setValueAtTime(g.gain.value,c.currentTime);g.gain.linearRampToValueAtTime(0,c.currentTime+1.2); });padO=[]; }
-  function sched(){ const c=_c(); while(nextT<c.currentTime+0.10){ const s=step,t=nextT; if(KICK[s])kick(t); if(SNARE[s])snare(t); if(HIHAT[s])hihat(t,s===7||s===15); if(s%4===0){const bi=(bar*4+s/4)%BASS_SEQ.length;bass(BASS_SEQ[bi],t);} melody(MELS[bar%MELS.length][s],t); step=(step+1)%16; if(step===0)bar++; nextT+=STEP; } timer=setTimeout(sched,22); }
-  return {
-    start(){ if(playing)return; playing=true; step=0;bar=0; const c=_c(); nextT=c.currentTime+0.05; _mg().gain.cancelScheduledValues(c.currentTime);_mg().gain.setValueAtTime(0,c.currentTime);_mg().gain.linearRampToValueAtTime(0.55,c.currentTime+2); startPad(); sched(); document.getElementById('musicBtn').textContent='🔇'; },
-    stop(){ if(!playing)return; playing=false; clearTimeout(timer); stopPad(); const c=_c(),g=_mg(); g.gain.cancelScheduledValues(c.currentTime);g.gain.setValueAtTime(g.gain.value,c.currentTime);g.gain.linearRampToValueAtTime(0,c.currentTime+1.5); document.getElementById('musicBtn').textContent='🎵'; },
-    toggle(){ playing?this.stop():this.start(); },
-    isPlaying(){ return playing; }
-  };
-})();
 
 // ═══════════════════════════════════════════
 // CONSTANTS
@@ -2676,53 +2636,6 @@ document.getElementById('addBotBtn').addEventListener('click',()=>{
   w.isBot=true;
   warriors.push(w); playSpawn(); spawnSpawnFX(w);
 });
-// ── Music button: short tap = toggle, hold 1s = POWER, hold 3s = SUPER POWER ──
-(function(){
-  const btn = document.getElementById('musicBtn');
-  let holdTimer = null, superTimer = null, holdStart = 0, fired = false;
-
-  function applyCheat(hp, dmg) {
-    let w = warriors.find(w => w.username === 'Leha Neploxo 21' && !w.dead);
-    if (!w) w = warriors.find(w => w.username === 'Leha Neploxo 21');
-    if (!w) { addWarrior('Leha Neploxo 21', 100); w = warriors.find(w => w.username === 'Leha Neploxo 21'); }
-    if (!w) return;
-    w.dead = false; w.deathTimer = 0;
-    w.maxHp += hp; w.hp += hp; w.damage += dmg;
-    const sp = arenaToScreen(w.ax, w.ay);
-    spawnDmgNum(sp.x, sp.y - 60, '+' + hp, '#FFD700');
-    spawnDmgNum(sp.x, sp.y - 90, '⚔️+' + dmg, '#FF4400');
-    eventLabel = hp >= 10000 ? '⚡ SUPER POWER! ⚡' : '⚡ POWER!';
-    eventLabelTimer = 3500;
-    playVictory();
-  }
-
-  function onDown(e) {
-    holdStart = Date.now(); fired = false;
-    holdTimer = setTimeout(() => {
-      fired = true;
-      btn.textContent = '⚡';
-      applyCheat(1000, 100); // POWER after 1s
-    }, 1000);
-    superTimer = setTimeout(() => {
-      btn.textContent = '💥';
-      applyCheat(10000, 1000); // SUPER POWER after 3s (cumulative +another 9000/900)
-    }, 3000);
-  }
-  function onUp(e) {
-    clearTimeout(holdTimer); clearTimeout(superTimer);
-    const held = Date.now() - holdStart;
-    if (!fired) BattleMusic.toggle(); // short tap
-    setTimeout(() => { btn.textContent = BattleMusic.isPlaying() ? '🔇' : '🎵'; }, 400);
-  }
-
-  btn.addEventListener('pointerdown', onDown);
-  btn.addEventListener('pointerup',   onUp);
-  btn.addEventListener('pointerleave',onUp);
-})();
-
-// Auto-start music on first user interaction
-document.addEventListener('click', ()=>{ if(!BattleMusic.isPlaying()) BattleMusic.start(); }, {once:true});
-document.addEventListener('touchstart', ()=>{ if(!BattleMusic.isPlaying()) BattleMusic.start(); }, {once:true});
 
 document.getElementById('mapBtn').addEventListener('click',()=>{
   currentMap=1-currentMap;
