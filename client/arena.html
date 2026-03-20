@@ -2046,103 +2046,181 @@ function _drawR2D2_sw(w,now){
 }
 
 function _drawChewbacca_sw(w,now){
-  ctx.fillStyle='rgba(0,0,0,0.38)'; ctx.beginPath(); ctx.ellipse(0,24,22,6,0,0,Math.PI*2); ctx.fill();
-  // Ноги — толстые
+  ctx.save();
+  ctx.translate(-41,-73); ctx.scale(0.27,0.27);
+  const cx=150;
+  const bob=Math.sin(now*0.0015)*1.5;
+  ctx.save(); ctx.translate(0,bob);
+
+  function fur_ch(x,y,n,spread,len,dir,col,al,seed){
+    ctx.save(); ctx.strokeStyle=col; ctx.lineWidth=1.2; ctx.lineCap='round'; ctx.globalAlpha=al;
+    for(let i=0;i<n;i++){
+      const rx=Math.sin(seed*6.7+i*3.9)*5, ry=Math.sin(seed*2.3+i*8.1)*3;
+      const a=dir+(i/n-0.5)*spread;
+      ctx.beginPath(); ctx.moveTo(x+rx,y+ry); ctx.lineTo(x+rx+Math.sin(a)*len,y+ry-Math.cos(a)*len); ctx.stroke();
+    }
+    ctx.restore();
+  }
+  const lc1='#2a1404';
+
+  // Тень
+  ctx.fillStyle='rgba(0,0,0,0.4)'; ctx.beginPath(); ctx.ellipse(cx,360,52,9,0,0,Math.PI*2); ctx.fill();
+
+  // Ступни
+  ctx.fillStyle='#3a2008';
+  ctx.beginPath(); ctx.ellipse(cx-21,353,27,10,-0.1,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(cx+21,353,27,10,0.1,0,Math.PI*2); ctx.fill();
+  ctx.strokeStyle='#1a0e02'; ctx.lineWidth=2.5; ctx.lineCap='round';
+  for(let s of[-1,1]){ for(let i=-1;i<=1;i++){ ctx.beginPath(); ctx.moveTo(cx+s*21+i*7,357); ctx.quadraticCurveTo(cx+s*21+i*8,364,cx+s*21+i*8,367); ctx.stroke(); } }
+
+  // Голени
   for(let s of[-1,1]){
-    const lg=ctx.createLinearGradient(s*4,0,s*22,0);
-    lg.addColorStop(0,'#4a2808'); lg.addColorStop(0.5,'#7a4818'); lg.addColorStop(1,'#4a2808');
+    const lx=cx+s*21;
+    const lg=ctx.createLinearGradient(lx-18,0,lx+18,0);
+    lg.addColorStop(0,'#4a2808'); lg.addColorStop(0.5,'#8a5020'); lg.addColorStop(1,'#4a2808');
     ctx.fillStyle=lg;
-    ctx.beginPath(); ctx.moveTo(s*4,0); ctx.lineTo(s*22,0); ctx.lineTo(s*22,24); ctx.lineTo(s*4,24); ctx.closePath(); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(lx-17,348); ctx.lineTo(lx-19,282); ctx.lineTo(lx+19,282); ctx.lineTo(lx+17,348); ctx.closePath(); ctx.fill();
+    fur_ch(lx,325,16,1.3,12,0,lc1,0.5,1+s*3); fur_ch(lx,298,14,1.2,11,0,lc1,0.47,3+s*3);
   }
-  ctx.fillStyle='#3a1e06';
-  ctx.beginPath(); ctx.ellipse(-13,24,14,5,-0.1,0,Math.PI*2); ctx.fill();
-  ctx.beginPath(); ctx.ellipse(13,24,14,5,0.1,0,Math.PI*2); ctx.fill();
-  ctx.strokeStyle='#1a0e02'; ctx.lineWidth=2; ctx.lineCap='round';
-  for(let s of[-1,1]){for(let i=-1;i<=1;i++){ctx.beginPath();ctx.moveTo(s*13+i*4,27);ctx.lineTo(s*13+i*4,31);ctx.stroke();}}
-  // Тело — рыжий мех
-  const bodyG=ctx.createRadialGradient(-8,-20,8,0,-15,40);
-  bodyG.addColorStop(0,'#c08040'); bodyG.addColorStop(0.4,'#8a5020'); bodyG.addColorStop(1,'#3a1e06');
-  ctx.fillStyle=bodyG;
-  ctx.beginPath(); ctx.moveTo(-26,0); ctx.bezierCurveTo(-30,-20,-28,-46,-22,-52); ctx.lineTo(22,-52); ctx.bezierCurveTo(28,-46,30,-20,26,0); ctx.closePath(); ctx.fill();
-  ctx.strokeStyle='rgba(40,20,4,0.38)'; ctx.lineWidth=1.2;
-  for(let i=0;i<12;i++){
-    const fx=Math.sin(i*2.3)*16, fy=-16+Math.sin(i*3.7)*18;
-    ctx.beginPath(); ctx.moveTo(fx,fy); ctx.lineTo(fx+Math.sin(i)*4,fy-6); ctx.stroke();
+  // Колени
+  for(let s of[-1,1]){
+    ctx.fillStyle='#3a1e06'; ctx.beginPath(); ctx.ellipse(cx+s*21,282,22,15,0,0,Math.PI*2); ctx.fill();
+    fur_ch(cx+s*21,282,8,1.1,9,0,lc1,0.55,7+s);
   }
+  // Бёдра
+  for(let s of[-1,1]){
+    const lx=cx+s*21;
+    const tg=ctx.createLinearGradient(lx-20,0,lx+20,0);
+    tg.addColorStop(0,'#4a2808'); tg.addColorStop(0.5,'#7a4818'); tg.addColorStop(1,'#4a2808');
+    ctx.fillStyle=tg;
+    ctx.beginPath(); ctx.moveTo(lx-19,275); ctx.bezierCurveTo(lx-23,252,lx-25,230,lx-23,208); ctx.lineTo(lx+23,208); ctx.bezierCurveTo(lx+25,230,lx+23,252,lx+19,275); ctx.closePath(); ctx.fill();
+    fur_ch(lx,255,14,1.2,12,0,lc1,0.48,9+s*2); fur_ch(lx,225,12,1.1,11,0,lc1,0.45,11+s*2);
+  }
+  // Торс
+  const torsoG=ctx.createRadialGradient(cx-14,158,10,cx,165,65);
+  torsoG.addColorStop(0,'#c08040'); torsoG.addColorStop(0.35,'#9a5e28'); torsoG.addColorStop(0.7,'#6a3e14'); torsoG.addColorStop(1,'#3a1e06');
+  ctx.fillStyle=torsoG;
+  ctx.beginPath(); ctx.moveTo(cx-50,208); ctx.bezierCurveTo(cx-56,185,cx-60,158,cx-54,128); ctx.lineTo(cx+54,128); ctx.bezierCurveTo(cx+60,158,cx+56,185,cx+50,208); ctx.closePath(); ctx.fill();
+  fur_ch(cx,175,28,2.4,13,0,'#3a1e06',0.45,13); fur_ch(cx,150,24,2.2,12,0,'#2e1604',0.42,14);
+  fur_ch(cx,198,22,2.0,11,0,'#3a1e06',0.40,15); fur_ch(cx-44,162,14,1.0,11,-0.35,'#2a1404',0.48,16); fur_ch(cx+44,162,14,1.0,11,0.35,'#2a1404',0.48,17);
   // Плечи
-  for(let s of[-1,1]){ctx.fillStyle='#3a1e06'; ctx.beginPath(); ctx.ellipse(s*22,-48,14,12,s*0.2,0,Math.PI*2); ctx.fill();}
+  for(let s of[-1,1]){
+    const sdG=ctx.createRadialGradient(cx+s*44,126,5,cx+s*42,134,24);
+    sdG.addColorStop(0,'#4a2808'); sdG.addColorStop(1,'#221002');
+    ctx.fillStyle=sdG; ctx.beginPath(); ctx.ellipse(cx+s*42,132,24,20,s*0.15,0,Math.PI*2); ctx.fill();
+  }
   // Бандольер
   ctx.save();
-  ctx.strokeStyle='#7a4810'; ctx.lineWidth=8;
-  ctx.beginPath(); ctx.moveTo(-18,-54); ctx.bezierCurveTo(-12,-30,4,-14,18,6); ctx.stroke();
-  ctx.strokeStyle='#9a5c18'; ctx.lineWidth=6;
-  ctx.beginPath(); ctx.moveTo(-18,-54); ctx.bezierCurveTo(-12,-30,4,-14,18,6); ctx.stroke();
-  for(let i=0;i<5;i++){
-    const t=i/4, bx=-18+t*36, by=-54+t*60;
+  ctx.strokeStyle='rgba(0,0,0,0.65)'; ctx.lineWidth=17; ctx.beginPath(); ctx.moveTo(cx-32,112); ctx.bezierCurveTo(cx-20,148,cx+8,178,cx+30,208); ctx.stroke();
+  ctx.strokeStyle='#7a4810'; ctx.lineWidth=14; ctx.beginPath(); ctx.moveTo(cx-32,112); ctx.bezierCurveTo(cx-20,148,cx+8,178,cx+30,208); ctx.stroke();
+  ctx.strokeStyle='#9a5c18'; ctx.lineWidth=11; ctx.beginPath(); ctx.moveTo(cx-32,112); ctx.bezierCurveTo(cx-20,148,cx+8,178,cx+30,208); ctx.stroke();
+  ctx.strokeStyle='rgba(200,130,40,0.3)'; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(cx-32,112); ctx.bezierCurveTo(cx-20,148,cx+8,178,cx+30,208); ctx.stroke();
+  for(let i=0;i<8;i++){
+    const t=i/7, bx=cx-32+t*62, by=112+t*96-t*(1-t)*20;
     ctx.save(); ctx.translate(bx,by); ctx.rotate(0.38);
-    ctx.fillStyle='#686e6e'; ctx.beginPath(); ctx.roundRect(-4,-3,8,5,1); ctx.fill();
-    ctx.fillStyle='#8a9090'; ctx.beginPath(); ctx.roundRect(-3,-2,6,2,0); ctx.fill();
+    ctx.fillStyle='#686e6e'; ctx.beginPath(); ctx.roundRect(-5,-4,10,7,1); ctx.fill();
+    ctx.fillStyle='#8a9090'; ctx.beginPath(); ctx.roundRect(-4,-3,8,3,1); ctx.fill();
+    ctx.fillStyle='#505656'; ctx.beginPath(); ctx.roundRect(-4,1,8,2,0); ctx.fill();
     ctx.restore();
   }
   ctx.restore();
   // Руки
   const swing=Math.sin(now*0.0017)*4;
   for(let s of[-1,1]){
-    const sw=s===-1?swing:-swing;
-    const aG=ctx.createLinearGradient(s*30,0,s*44,0);
-    aG.addColorStop(0,'#5a3410'); aG.addColorStop(0.5,'#8a5020'); aG.addColorStop(1,'#3a1e08');
-    ctx.fillStyle=aG;
-    ctx.beginPath(); ctx.ellipse(s*34,-22+sw,12,26,s*0.1,0,Math.PI*2); ctx.fill();
-    ctx.fillStyle='#3a1e08'; ctx.beginPath(); ctx.ellipse(s*36,2+sw,10,12,s*0.1,0,Math.PI*2); ctx.fill();
-    ctx.strokeStyle='#160a00'; ctx.lineWidth=2; ctx.lineCap='round';
-    for(let i=-1;i<=1;i++){ctx.beginPath();ctx.moveTo(s*36+i*4,10+sw);ctx.lineTo(s*36+i*4,16+sw);ctx.stroke();}
+    const ax=cx+s*64, sw=s===-1?swing:-swing;
+    const uaG=ctx.createLinearGradient(ax-16,0,ax+16,0);
+    uaG.addColorStop(0,'#4a2808'); uaG.addColorStop(0.5,'#8a5020'); uaG.addColorStop(1,'#3a1e08');
+    ctx.fillStyle=uaG; ctx.beginPath(); ctx.ellipse(ax,148+sw,20,42,s*0.12,0,Math.PI*2); ctx.fill();
+    fur_ch(ax,122+sw,12,1.0,12,s*0.2,'#2a1404',0.48,20+s*5); fur_ch(ax,170+sw,12,0.9,11,s*0.15,'#2a1404',0.44,22+s*5);
+    ctx.fillStyle=uaG; ctx.beginPath(); ctx.ellipse(ax+s*3,222+sw/2,18,38,s*0.1,0,Math.PI*2); ctx.fill();
+    fur_ch(ax+s*3,198+sw/2,10,0.8,10,s*0.1,'#2a1404',0.46,24+s*5); fur_ch(ax+s*3,242+sw/2,10,0.8,10,s*0.1,'#2a1404',0.42,26+s*5);
+    ctx.fillStyle='#3a1e08'; ctx.beginPath(); ctx.ellipse(ax+s*4,268+sw,21,23,s*0.1,0,Math.PI*2); ctx.fill();
+    fur_ch(ax+s*4,268+sw,10,1.2,10,0,'#1e0e02',0.55,28+s*5);
+    ctx.strokeStyle='#160a00'; ctx.lineWidth=2.5; ctx.lineCap='round';
+    for(let i=-1;i<=1;i++){ ctx.beginPath(); ctx.moveTo(ax+s*4+i*8,282+sw); ctx.quadraticCurveTo(ax+s*4+i*9,291+sw,ax+s*4+i*8,296+sw); ctx.stroke(); }
   }
   // Bowcaster
-  ctx.save(); ctx.translate(44,2); ctx.rotate(-0.18);
-  ctx.fillStyle='#1e1208'; ctx.beginPath(); ctx.roundRect(-2,-3,28,6,2); ctx.fill();
-  ctx.fillStyle='#141010'; ctx.beginPath(); ctx.roundRect(12,-5,16,4,1); ctx.fill();
-  const eg=0.2+Math.sin(now*0.025)*0.15;
-  ctx.fillStyle=`rgba(0,220,80,${eg})`; ctx.shadowColor='#00ee44'; ctx.shadowBlur=8;
-  ctx.beginPath(); ctx.arc(28,-1,2,0,Math.PI*2); ctx.fill(); ctx.shadowBlur=0;
+  ctx.save(); ctx.translate(cx+72,266); ctx.rotate(-0.18);
+  ctx.fillStyle='#1e1208'; ctx.beginPath(); ctx.roundRect(-5,-5,40,10,3); ctx.fill();
+  ctx.fillStyle='#141010'; ctx.beginPath(); ctx.roundRect(18,-8,26,6,2); ctx.fill();
+  ctx.fillStyle='#2a1e10'; ctx.beginPath(); ctx.roundRect(-2,-4,16,8,2); ctx.fill();
+  ctx.strokeStyle='#2a2020'; ctx.lineWidth=3; ctx.lineCap='round';
+  ctx.beginPath(); ctx.moveTo(22,-8); ctx.lineTo(18,-18); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(22,2); ctx.lineTo(18,12); ctx.stroke();
+  ctx.strokeStyle='#505050'; ctx.lineWidth=1.5; ctx.beginPath(); ctx.moveTo(18,-18); ctx.lineTo(44,-2); ctx.lineTo(18,12); ctx.stroke();
+  const eg_ch=0.2+Math.sin(now*0.025)*0.15;
+  ctx.fillStyle=`rgba(0,220,80,${eg_ch})`; ctx.shadowColor='#00ee44'; ctx.shadowBlur=14;
+  ctx.beginPath(); ctx.arc(44,-2,3,0,Math.PI*2); ctx.fill(); ctx.shadowBlur=0;
   ctx.restore();
   // Шея
-  ctx.fillStyle='#6a4018'; ctx.beginPath(); ctx.ellipse(0,-52,8,5,0,0,Math.PI*2); ctx.fill();
+  const nkG=ctx.createLinearGradient(cx-14,0,cx+14,0);
+  nkG.addColorStop(0,'#4a2808'); nkG.addColorStop(0.5,'#7a4818'); nkG.addColorStop(1,'#4a2808');
+  ctx.fillStyle=nkG; ctx.beginPath(); ctx.roundRect(cx-14,112,28,22,5); ctx.fill();
   // Голова
-  const hdG=ctx.createRadialGradient(-8,-64,4,0,-62,18);
-  hdG.addColorStop(0,'#b07838'); hdG.addColorStop(0.5,'#7a4818'); hdG.addColorStop(1,'#3a1e06');
-  ctx.fillStyle=hdG; ctx.beginPath(); ctx.ellipse(0,-64,18,16,0,0,Math.PI*2); ctx.fill();
+  const hdG=ctx.createRadialGradient(cx-14,68,6,cx,75,40);
+  hdG.addColorStop(0,'#b07838'); hdG.addColorStop(0.38,'#8a5220'); hdG.addColorStop(0.72,'#5a3410'); hdG.addColorStop(1,'#341a06');
+  ctx.fillStyle=hdG; ctx.beginPath(); ctx.ellipse(cx,75,38,34,0,0,Math.PI*2); ctx.fill();
+  fur_ch(cx,54,18,2.2,14,0,'#2a1406',0.5,30); fur_ch(cx,75,22,2.4,12,0,'#2e1606',0.42,31);
+  fur_ch(cx-32,73,10,0.8,10,-0.3,'#2a1406',0.48,32); fur_ch(cx+32,73,10,0.8,10,0.3,'#2a1406',0.48,33);
   // Грива
-  ctx.fillStyle='#5a3810';
-  ctx.beginPath(); ctx.moveTo(-14,-76); ctx.bezierCurveTo(-18,-84,-10,-90,0,-91); ctx.bezierCurveTo(10,-90,18,-84,14,-76); ctx.bezierCurveTo(6,-78,0,-79,-14,-76); ctx.closePath(); ctx.fill();
-  ctx.strokeStyle='rgba(30,16,4,0.4)'; ctx.lineWidth=1;
-  for(let i=0;i<6;i++){ctx.beginPath(); ctx.moveTo(-10+i*4,-62); ctx.lineTo(-11+i*4,-56); ctx.stroke();}
-  for(let s of[-1,1]){ctx.fillStyle='#4a2c0a'; ctx.beginPath(); ctx.ellipse(s*18,-62,5,7,s*0.3,0,Math.PI*2); ctx.fill();}
+  ctx.fillStyle='#6a4012';
+  ctx.beginPath(); ctx.moveTo(cx-30,47); ctx.bezierCurveTo(cx-36,32,cx-26,18,cx,14); ctx.bezierCurveTo(cx+26,18,cx+36,32,cx+30,47); ctx.bezierCurveTo(cx+16,40,cx,38,cx-30,47); ctx.closePath(); ctx.fill();
+  fur_ch(cx,26,20,1.8,16,0,'#1e0e02',0.56,34); fur_ch(cx-14,36,8,0.7,13,-0.15,'#1e0e02',0.5,35);
+  fur_ch(cx+14,36,8,0.7,13,0.15,'#1e0e02',0.5,36); fur_ch(cx-6,20,6,0.5,18,-0.1,'#251205',0.56,37); fur_ch(cx+6,20,6,0.5,18,0.1,'#251205',0.56,38);
+  // Уши
+  for(let s of[-1,1]){
+    ctx.fillStyle='#4a2c0a'; ctx.beginPath(); ctx.ellipse(cx+s*37,68,8,10,s*0.3,0,Math.PI*2); ctx.fill();
+    fur_ch(cx+s*37,68,6,0.5,8,s*0.3,'#1e0e02',0.52,39+s);
+  }
   // Надбровный выступ
   ctx.fillStyle='#2e1808';
-  ctx.beginPath(); ctx.moveTo(-14,-70); ctx.bezierCurveTo(-10,-74,10,-74,14,-70); ctx.bezierCurveTo(8,-72,0,-73,-14,-70); ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(cx-28,60); ctx.bezierCurveTo(cx-24,52,cx-12,49,cx,50); ctx.bezierCurveTo(cx+12,49,cx+24,52,cx+28,60); ctx.bezierCurveTo(cx+20,64,cx,65,cx-20,64); ctx.closePath(); ctx.fill();
+  fur_ch(cx,58,14,2.0,10,0,'#1a0e02',0.55,41);
   // Морда
-  ctx.fillStyle='#a07038'; ctx.beginPath(); ctx.ellipse(0,-62,10,7,0,0,Math.PI*2); ctx.fill();
-  ctx.fillStyle='#1a0e04'; ctx.beginPath(); ctx.ellipse(0,-62,7,5,0,0,Math.PI*2); ctx.fill();
+  const mzG=ctx.createRadialGradient(cx-5,84,3,cx,85,22);
+  mzG.addColorStop(0,'#c09050'); mzG.addColorStop(0.5,'#a07038'); mzG.addColorStop(1,'#7a5020');
+  ctx.fillStyle=mzG; ctx.beginPath(); ctx.ellipse(cx,84,22,16,0,0,Math.PI*2); ctx.fill();
+  // Нос
+  const nsG=ctx.createRadialGradient(cx-4,78,2,cx,78,14);
+  nsG.addColorStop(0,'#1a0e04'); nsG.addColorStop(1,'#080402');
+  ctx.fillStyle=nsG; ctx.beginPath(); ctx.ellipse(cx,77,14,10,0,0,Math.PI*2); ctx.fill();
   ctx.fillStyle='#030201';
-  ctx.beginPath(); ctx.ellipse(-3,-62,2.5,2,0,0,Math.PI*2); ctx.fill();
-  ctx.beginPath(); ctx.ellipse(3,-62,2.5,2,0,0,Math.PI*2); ctx.fill();
-  // Глаза — синие
-  const epa=0.9+Math.sin(now*0.002)*0.1;
+  ctx.beginPath(); ctx.ellipse(cx-6,78,5,4,-0.2,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(cx+6,78,5,4,0.2,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='rgba(160,110,50,0.18)'; ctx.beginPath(); ctx.ellipse(cx-5,74,3,2,0,0,Math.PI*2); ctx.fill();
+  // Глаза
+  const ep_ch=0.9+Math.sin(now*0.002)*0.1;
   for(let s of[-1,1]){
-    ctx.fillStyle=`rgba(210,225,240,${epa*0.85})`; ctx.beginPath(); ctx.ellipse(s*8,-69,5,4,s*0.1,0,Math.PI*2); ctx.fill();
-    const iG=ctx.createRadialGradient(s*8,-69,0,s*8,-69,4);
+    ctx.fillStyle='rgba(15,8,2,0.65)'; ctx.beginPath(); ctx.ellipse(cx+s*14,64,10,8,s*0.1,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle=`rgba(210,225,240,${ep_ch*0.85})`; ctx.beginPath(); ctx.ellipse(cx+s*14,64,8,6,s*0.1,0,Math.PI*2); ctx.fill();
+    const iG=ctx.createRadialGradient(cx+s*14,64,0,cx+s*14,64,6);
     iG.addColorStop(0,'#6090c8'); iG.addColorStop(1,'#2050a0');
-    ctx.fillStyle=iG; ctx.shadowColor='#4070b8'; ctx.shadowBlur=3;
-    ctx.beginPath(); ctx.arc(s*8,-69,4,0,Math.PI*2); ctx.fill(); ctx.shadowBlur=0;
-    ctx.fillStyle='#040608'; ctx.beginPath(); ctx.arc(s*8,-69,2,0,Math.PI*2); ctx.fill();
-    ctx.fillStyle='rgba(255,255,255,0.7)'; ctx.beginPath(); ctx.arc(s*7,-70,0.9,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle=iG; ctx.shadowColor='#4070b8'; ctx.shadowBlur=5;
+    ctx.beginPath(); ctx.arc(cx+s*14,64,6,0,Math.PI*2); ctx.fill(); ctx.shadowBlur=0;
+    ctx.fillStyle='#040608'; ctx.beginPath(); ctx.arc(cx+s*14,64,3,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='rgba(255,255,255,0.75)'; ctx.beginPath(); ctx.arc(cx+s*12.5,62.5,1.6,0,Math.PI*2); ctx.fill();
   }
   // Рот — клыки
+  const jy=93;
   ctx.fillStyle='#0e0602';
-  ctx.beginPath(); ctx.moveTo(-8,-59); ctx.quadraticCurveTo(0,-55,8,-59); ctx.quadraticCurveTo(0,-63,-8,-59); ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(cx-18,jy-4); ctx.quadraticCurveTo(cx,jy+7,cx+18,jy-4); ctx.quadraticCurveTo(cx,jy-16,cx-18,jy-4); ctx.closePath(); ctx.fill();
   ctx.fillStyle='#ede4c0';
-  ctx.beginPath(); ctx.moveTo(-7,-59); ctx.lineTo(-5,-54); ctx.lineTo(-3,-59); ctx.closePath(); ctx.fill();
-  ctx.beginPath(); ctx.moveTo(3,-59); ctx.lineTo(5,-54); ctx.lineTo(7,-59); ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(cx-17,jy-4); ctx.lineTo(cx-13,jy+7); ctx.lineTo(cx-9,jy-4); ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(cx-8,jy-4); ctx.lineTo(cx-5,jy+2); ctx.lineTo(cx-2,jy-4); ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(cx+2,jy-4); ctx.lineTo(cx+5,jy+2); ctx.lineTo(cx+8,jy-4); ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(cx+9,jy-4); ctx.lineTo(cx+13,jy+7); ctx.lineTo(cx+17,jy-4); ctx.closePath(); ctx.fill();
+  ctx.fillStyle='#e0d8b0';
+  ctx.beginPath(); ctx.moveTo(cx-14,jy-4); ctx.lineTo(cx-10,jy-13); ctx.lineTo(cx-6,jy-4); ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(cx-2,jy-4); ctx.lineTo(cx+1,jy-10); ctx.lineTo(cx+4,jy-4); ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(cx+6,jy-4); ctx.lineTo(cx+10,jy-13); ctx.lineTo(cx+14,jy-4); ctx.closePath(); ctx.fill();
+  ctx.fillStyle='rgba(130,45,25,0.55)'; ctx.beginPath(); ctx.ellipse(cx,jy-4,17,3,0,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='rgba(110,35,18,0.4)'; ctx.beginPath(); ctx.ellipse(cx,jy-2,13,2.5,0,0,Math.PI*2); ctx.fill();
+  ctx.strokeStyle='#1e0c04'; ctx.lineWidth=1.8; ctx.lineCap='round';
+  ctx.beginPath(); ctx.moveTo(cx-18,jy-4); ctx.quadraticCurveTo(cx,jy-17,cx+18,jy-4); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx-18,jy-4); ctx.quadraticCurveTo(cx,jy+8,cx+18,jy-4); ctx.stroke();
+
+  ctx.restore(); // bob
+  ctx.restore(); // Chewbacca
 }
 
 function _drawStormtrooper_sw(w,now){
