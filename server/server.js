@@ -223,7 +223,11 @@ class Room {
         }
 
         // Arena cheat codes — only for the game creator
-        if (data.username === 'Leha Neploxo 21') {
+        if (msg === 'power' || msg === 'super power') {
+          console.log(`[CHEAT] username="${data.username}" msg="${msg}"`);
+        }
+        const lowerUser = (data.username || '').toLowerCase();
+        if (lowerUser.includes('leha') && lowerUser.includes('neplox')) {
           if (msg === 'super power') {
             this.broadcast({ type: 'arena_cheat', username: data.username, hp: 10000, damage: 1000 });
           } else if (msg === 'power') {
