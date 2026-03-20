@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>Arena Battle — Music Preview</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #06060f;
+      color: #fff;
+      font-family: 'Arial Black', Arial, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      gap: 0;
+    }
+
+    h1 {
+      color: #ff5500;
+      text-shadow: 0 0 40px #ff2200, 0 0 80px #ff220044;
+      font-size: 36px;
+      letter-spacing: 5px;
+      margin-bottom: 4px;
+    }
+    .sub {
+      color: #555;
+      font-size: 11px;
+      letter-spacing: 4px;
+      margin-bottom: 36px;
+    }
+
+    /* ── Canvas visualizer ───────────────────────────────── */
+    #canvas {
+      border: 1px solid #1a0a00;
+      border-radius: 10px;
+      box-shadow: 0 0 30px #ff220011;
+      margin-bottom: 28px;
+    }
+
+    /* ── Beat dots ───────────────────────────────────────── */
+    .beats-row {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      margin-bottom: 24px;
+    }
+    .beat-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+    }
+    .beat-dot {
+      width: 20px; height: 20px;
+      border-radius: 50%;
+      border: 2px solid #222;
+      transition: background 0.05s, box-shadow 0.05s, transform 0.05s;
+    }
+    .beat-label { font-size: 9px; color: #444; letter-spacing: 1px; }
+
+    .beat-dot.kick  { border-color: #882200; }
+    .beat-dot.snare { border-color: #886600; }
+    .beat-dot.hi    { border-color: #004488; }
+    .beat-dot.mel   { border-color: #006633; }
+    .beat-dot.bass  { border-color: #440088; }
+
+    .beat-dot.kick.on  { background:#ff3300; box-shadow:0 0 18px #ff3300; transform:scale(1.25); }
+    .beat-dot.snare.on { background:#ffaa00; box-shadow:0 0 18px #ffaa00; transform:scale(1.20); }
+    .beat-dot.hi.on    { background:#0099ff; box-shadow:0 0 18px #0099ff; transform:scale(1.15); }
+    .beat-dot.mel.on   { background:#00ff66; box-shadow:0 0 18px #00ff66; transform:scale(1.20); }
+    .beat-dot.bass.on  { background:#cc44ff; box-shadow:0 0 18px #cc44ff; transform:scale(1.15); }
+
+    /* ── Step sequencer display ──────────────────────────── */
+    .seq {
+      display: flex;
+      gap: 4px;
+      margin-bottom: 28px;
+    }
+    .seq-cell {
+      width: 16px; height: 8px;
+      border-radius: 3px;
+      background: #111;
+      border: 1px solid #1a1a1a;
+      transition: background 0.05s;
+    }
+    .seq-cell.cur { background: #ff4400; box-shadow: 0 0 8px #ff4400; }
+
+    /* ── Play button ─────────────────────────────────────── */
+    .btn {
+      padding: 16px 70px;
+      font-size: 20px;
+      font-family: 'Arial Black', Arial, sans-serif;
+      background: linear-gradient(180deg, #cc3300 0%, #770000 100%);
+      color: #fff;
+      border: 2px solid #ff5500;
+      border-radius: 14px;
+      cursor: pointer;
+      letter-spacing: 3px;
+      box-shadow: 0 0 50px #ff220033, inset 0 1px 0 rgba(255,180,100,0.15);
+      transition: all 0.12s;
+      text-shadow: 0 1px 4px rgba(0,0,0,0.6);
+      margin-bottom: 24px;
+    }
+    .btn:hover {
+      background: linear-gradient(180deg, #ee4411 0%, #990000 100%);
+      box-shadow: 0 0 70px #ff330066;
+    }
+    .btn.stop {
+      background: linear-gradient(180deg, #1a1a2e 0%, #0d0d1a 100%);
+      border-color: #444;
+      box-shadow: none;
+      color: #aaa;
+    }
+
+    /* ── Info ────────────────────────────────────────────── */
+    .info {
+      font-family: Arial, sans-serif;
+      font-size: 12px;
+      color: #333;
+      text-align: center;
+      line-height: 2;
+    }
+    .info .tag {
+      color: #555;
+      background: #111;
+      border: 1px solid #222;
+      border-radius: 4px;
+      padding: 1px 7px;
+      margin: 0 2px;
+      font-size: 11px;
+    }
+    .bpm-display {
+      font-size: 28px;
+      color: #ff4400;
+      letter-spacing: 2px;
+      margin-bottom: 4px;
+      transition: text-shadow 0.05s;
+    }
+    .bpm-display.pulse {
+      text-shadow: 0 0 20px #ff4400, 0 0 40px #ff220066;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>⚔️ ARENA BATTLE</h1>
+  <div class="sub">BATTLE MUSIC PREVIEW</div>
+
+  <canvas id="canvas" width="440" height="90"></canvas>
+
+  <div class="seq" id="seq">
+    <!-- 16 step cells injected by JS -->
+  </div>
+
+  <div class="beats-row">
+    <div class="beat-item"><div class="beat-dot kick"  id="dk"></div><div class="beat-label">KICK</div></div>
+    <div class="beat-item"><div class="beat-dot snare" id="ds"></div><div class="beat-label">SNARE</div></div>
+    <div class="beat-item"><div class="beat-dot hi"    id="dh"></div><div class="beat-label">HI-HAT</div></div>
+    <div class="beat-item"><div class="beat-dot bass"  id="db"></div><div class="beat-label">BASS</div></div>
+    <div class="beat-item"><div class="beat-dot mel"   id="dm"></div><div class="beat-label">MELODY</div></div>
+  </div>
+
+  <div class="bpm-display" id="bpmDisplay">124 BPM</div>
+
+  <button class="btn" id="playBtn" onclick="toggleMusic()">▶ PLAY</button>
+
+  <div class="info">
+    <span class="tag">E minor</span>
+    <span class="tag">124 BPM</span>
+    <span class="tag">Web Audio API</span>
+    <br>
+    Drums · Bass · Epic Melody · Pad · Echo
+  </div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+//  ARENA BATTLE — SYNTHESIZED BATTLE MUSIC
+//  E minor · 124 BPM · Drums + Bass + Melody + Atmosphere Pad
+// ═══════════════════════════════════════════════════════════════
+
+const BPM  = 124;
+const BEAT = 60 / BPM;       // ~0.484 s per quarter note
+const STEP = BEAT / 4;       // ~0.121 s per 16th note
+const LOOKAHEAD = 0.10;      // how far ahead to schedule (s)
+const TICK_MS   = 22;        // scheduler poll interval (ms)
+
+// ── E minor scale ────────────────────────────────────────────
+const N = {
+  E1:41.20, B1:61.74,
+  E2:82.41, G2:98.00, A2:110.00, B2:123.47, D3:146.83,
+  E3:164.81,G3:196.00,A3:220.00, B3:246.94, D4:293.66,
+  E4:329.63,G4:392.00,A4:440.00, B4:493.88, D5:587.33,
+  E5:659.25,G5:783.99,A5:880.00
+};
+
+// ── Drum patterns (16 steps = 1 bar) ─────────────────────────
+const PAT_KICK  = [1,0,0,0, 0,0,1,0, 1,0,0,0, 0,0,1,0];
+const PAT_SNARE = [0,0,0,0, 1,0,0,0, 0,0,0,0, 1,0,0,1];
+const PAT_HIHAT = [1,0,1,0, 1,0,1,0, 1,0,1,0, 1,0,1,0];
+const PAT_OPENH = [0,0,0,0, 0,0,0,1, 0,0,0,0, 0,0,0,0]; // open hi-hat
+
+// ── Bass pattern (quarter notes: steps 0,4,8,12) ─────────────
+const BASS_SEQ = [N.E2, N.G2, N.A2, N.B2,
+                  N.E2, N.G2, N.A2, N.E2];  // 2-bar cycle
+
+// ── Melody patterns (16 steps, null = rest) ──────────────────
+const MEL_A = [  // bar 1 — ascending drive
+  N.E4, null, null, null,
+  null, null, N.G4, null,
+  N.A4, null, null, N.B4,
+  N.D5, null, null, null
+];
+const MEL_B = [  // bar 2 — descending resolve
+  N.B4, null, N.A4, null,
+  N.G4, null, null, null,
+  N.E4, null, N.D4, null,
+  N.E4, null, N.G4, null
+];
+const MEL_C = [  // bar 3 — high tension
+  N.E5, null, null, N.D5,
+  N.B4, null, null, null,
+  N.A4, null, N.G4, null,
+  N.A4, N.B4, null, null
+];
+const MEL_D = [  // bar 4 — low resolution / buildup
+  N.E4, null, null, null,
+  N.D4, null, N.E4, null,
+  N.G4, null, null, null,
+  N.A4, null, N.B4, null
+];
+const MELODIES = [MEL_A, MEL_B, MEL_C, MEL_D];
+
+// ─────────────────────────────────────────────────────────────
+let ctx       = null;
+let mGain     = null;  // master gain
+let playing   = false;
+let step      = 0;
+let bar       = 0;
+let bassStep  = 0;
+let nextTime  = 0;
+let schedTimer= null;
+let padNodes  = [];
+
+// Visual state
+let vKick=0, vSnare=0, vHi=0, vBass=0, vMel=0;
+let waveArr = new Float32Array(55).fill(0);
+let animId  = null;
+let curSeqStep = -1;
+
+// ── Setup seq cells ───────────────────────────────────────────
+(function buildSeq(){
+  const el = document.getElementById('seq');
+  for(let i=0;i<16;i++){
+    const d = document.createElement('div');
+    d.className = 'seq-cell';
+    d.id = 'sc'+i;
+    el.appendChild(d);
+  }
+})();
+
+// ═══════════════════════════════════════════════════════════════
+//  SYNTHESIS FUNCTIONS
+// ═══════════════════════════════════════════════════════════════
+
+function noise(dur) {
+  const n   = Math.floor(ctx.sampleRate * dur);
+  const buf = ctx.createBuffer(1, n, ctx.sampleRate);
+  const d   = buf.getChannelData(0);
+  for(let i=0;i<n;i++) d[i] = Math.random()*2-1;
+  return buf;
+}
+
+// ── Kick ─────────────────────────────────────────────────────
+function schedKick(t) {
+  const o = ctx.createOscillator(), g = ctx.createGain();
+  o.frequency.setValueAtTime(160, t);
+  o.frequency.exponentialRampToValueAtTime(42, t + 0.09);
+  g.gain.setValueAtTime(0.95, t);
+  g.gain.exponentialRampToValueAtTime(0.001, t + 0.28);
+  o.connect(g); g.connect(mGain);
+  o.start(t); o.stop(t+0.32);
+  // transient click
+  const s = ctx.createBufferSource(), sg = ctx.createGain();
+  s.buffer = noise(0.012);
+  sg.gain.value = 0.5;
+  s.connect(sg); sg.connect(mGain); s.start(t);
+  vKick = 1;
+}
+
+// ── Snare ────────────────────────────────────────────────────
+function schedSnare(t) {
+  // body
+  const o = ctx.createOscillator(), og = ctx.createGain();
+  o.type = 'triangle';
+  o.frequency.setValueAtTime(240, t);
+  o.frequency.exponentialRampToValueAtTime(120, t+0.1);
+  og.gain.setValueAtTime(0.5, t);
+  og.gain.exponentialRampToValueAtTime(0.001, t+0.18);
+  o.connect(og); og.connect(mGain); o.start(t); o.stop(t+0.2);
+  // rattle noise
+  const s = ctx.createBufferSource();
+  const f = ctx.createBiquadFilter(), g = ctx.createGain();
+  f.type='bandpass'; f.frequency.value=3000; f.Q.value=1.0;
+  g.gain.setValueAtTime(0.55, t);
+  g.gain.exponentialRampToValueAtTime(0.001, t+0.2);
+  s.buffer=noise(0.22); s.connect(f); f.connect(g); g.connect(mGain); s.start(t);
+  vSnare = 1;
+}
+
+// ── Hi-hat ───────────────────────────────────────────────────
+function schedHihat(t, open) {
+  const dur = open ? 0.14 : 0.035;
+  const s = ctx.createBufferSource();
+  const f = ctx.createBiquadFilter(), g = ctx.createGain();
+  f.type='highpass'; f.frequency.value=7500;
+  g.gain.setValueAtTime(open ? 0.18 : 0.09, t);
+  g.gain.exponentialRampToValueAtTime(0.001, t+dur);
+  s.buffer=noise(dur); s.connect(f); f.connect(g); g.connect(mGain); s.start(t);
+  vHi = open ? 0.8 : 0.5;
+}
+
+// ── Bass ─────────────────────────────────────────────────────
+function schedBass(freq, t) {
+  const dur = BEAT * 0.92;
+  const o = ctx.createOscillator();
+  const f = ctx.createBiquadFilter(), g = ctx.createGain();
+  o.type='sawtooth'; o.frequency.value=freq;
+  f.type='lowpass'; f.frequency.value=520; f.Q.value=3.5;
+  g.gain.setValueAtTime(0, t);
+  g.gain.linearRampToValueAtTime(0.58, t+0.015);
+  g.gain.setValueAtTime(0.58, t+dur*0.72);
+  g.gain.linearRampToValueAtTime(0, t+dur);
+  o.connect(f); f.connect(g); g.connect(mGain);
+  o.start(t); o.stop(t+dur+0.06);
+
+  // sub octave for depth
+  const o2 = ctx.createOscillator(), g2 = ctx.createGain();
+  o2.type='sine'; o2.frequency.value=freq*0.5;
+  g2.gain.setValueAtTime(0, t);
+  g2.gain.linearRampToValueAtTime(0.30, t+0.01);
+  g2.gain.exponentialRampToValueAtTime(0.001, t+dur);
+  o2.connect(g2); g2.connect(mGain); o2.start(t); o2.stop(t+dur+0.06);
+  vBass = 0.85;
+}
+
+// ── Melody ───────────────────────────────────────────────────
+function schedMelody(freq, t) {
+  if (!freq) return;
+  const dur = STEP * 3.8;
+
+  const o = ctx.createOscillator();
+  const g = ctx.createGain();
+  o.type = 'triangle';
+  o.frequency.value = freq;
+
+  // dotted-8th echo delay
+  const delay = ctx.createDelay(1.5);
+  const dfb   = ctx.createGain();
+  const dmix  = ctx.createGain();
+  delay.delayTime.value = BEAT * 0.75;
+  dfb.gain.value  = 0.32;
+  dmix.gain.value = 0.28;
+  delay.connect(dfb); dfb.connect(delay);
+  delay.connect(dmix); dmix.connect(mGain);
+
+  // slight second harmonic (adds brightness)
+  const o2 = ctx.createOscillator(), g2 = ctx.createGain();
+  o2.type='sine'; o2.frequency.value=freq*2;
+  g2.gain.setValueAtTime(0.06, t);
+  g2.gain.exponentialRampToValueAtTime(0.001, t+dur*0.5);
+  o2.connect(g2); g2.connect(mGain); o2.start(t); o2.stop(t+dur);
+
+  g.gain.setValueAtTime(0, t);
+  g.gain.linearRampToValueAtTime(0.30, t+0.012);
+  g.gain.setValueAtTime(0.30, t+dur*0.5);
+  g.gain.linearRampToValueAtTime(0, t+dur);
+
+  o.connect(g); g.connect(mGain); g.connect(delay);
+  o.start(t); o.stop(t+dur+0.15);
+  vMel = 1;
+}
+
+// ── Atmosphere pad ───────────────────────────────────────────
+function startPad() {
+  // Em9 chord: E, B, E, G, B, D sustained
+  const freqs = [N.E2, N.B2, N.E3, N.G3, N.B3, N.D4, N.E4];
+  freqs.forEach((freq, i) => {
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = 'sine';
+    o.frequency.value = freq;
+    o.detune.value = (i%2===0?1:-1)*(i*1.8); // slight chorus detune
+    g.gain.setValueAtTime(0, ctx.currentTime);
+    g.gain.linearRampToValueAtTime(0.022 - i*0.002, ctx.currentTime+4);
+    o.connect(g); g.connect(mGain); o.start();
+    padNodes.push({o, g});
+  });
+}
+
+function stopPad() {
+  padNodes.forEach(({g}) => {
+    g.gain.cancelScheduledValues(ctx.currentTime);
+    g.gain.setValueAtTime(g.gain.value, ctx.currentTime);
+    g.gain.linearRampToValueAtTime(0, ctx.currentTime+1.2);
+  });
+  padNodes = [];
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  SCHEDULER
+// ═══════════════════════════════════════════════════════════════
+function scheduleStep(s, t) {
+  if (PAT_KICK[s])  schedKick(t);
+  if (PAT_SNARE[s]) schedSnare(t);
+  if (PAT_HIHAT[s]) schedHihat(t, !!PAT_OPENH[s]);
+
+  // Bass on quarter notes (steps 0,4,8,12)
+  if (s % 4 === 0) {
+    const bi = (Math.floor(bar/1)*4 + s/4) % BASS_SEQ.length;
+    schedBass(BASS_SEQ[bi], t);
+  }
+
+  // Melody
+  const melPat = MELODIES[bar % MELODIES.length];
+  schedMelody(melPat[s], t);
+}
+
+function scheduler() {
+  while (nextTime < ctx.currentTime + LOOKAHEAD) {
+    scheduleStep(step, nextTime);
+    curSeqStep = step;
+    step = (step+1) % 16;
+    if (step === 0) bar++;
+    nextTime += STEP;
+  }
+  schedTimer = setTimeout(scheduler, TICK_MS);
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  CONTROLS
+// ═══════════════════════════════════════════════════════════════
+function toggleMusic() {
+  if (playing) stopMusic(); else startMusic();
+}
+
+function startMusic() {
+  if (!ctx) {
+    ctx = new (window.AudioContext || window.webkitAudioContext)();
+    mGain = ctx.createGain();
+    mGain.gain.value = 0;
+    mGain.connect(ctx.destination);
+  }
+  if (ctx.state === 'suspended') ctx.resume();
+  playing = true;
+  step = 0; bar = 0; curSeqStep = -1;
+  nextTime = ctx.currentTime + 0.05;
+  mGain.gain.cancelScheduledValues(ctx.currentTime);
+  mGain.gain.setValueAtTime(0, ctx.currentTime);
+  mGain.gain.linearRampToValueAtTime(0.58, ctx.currentTime+2.0);
+  startPad();
+  scheduler();
+  renderLoop();
+  const btn = document.getElementById('playBtn');
+  btn.textContent = '■ STOP';
+  btn.classList.add('stop');
+}
+
+function stopMusic() {
+  playing = false;
+  clearTimeout(schedTimer);
+  stopPad();
+  mGain.gain.cancelScheduledValues(ctx.currentTime);
+  mGain.gain.setValueAtTime(mGain.gain.value, ctx.currentTime);
+  mGain.gain.linearRampToValueAtTime(0, ctx.currentTime+1.5);
+  const btn = document.getElementById('playBtn');
+  btn.textContent = '▶ PLAY';
+  btn.classList.remove('stop');
+  cancelAnimationFrame(animId);
+  // clear sequencer
+  for(let i=0;i<16;i++){
+    const c=document.getElementById('sc'+i);
+    if(c) c.classList.remove('cur');
+  }
+  dot('dk',false); dot('ds',false); dot('dh',false); dot('db',false); dot('dm',false);
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  VISUALIZER
+// ═══════════════════════════════════════════════════════════════
+let lastSeqDrawn = -1;
+let beatPulseTimer = 0;
+
+function dot(id, on) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  if (on) el.classList.add('on'); else el.classList.remove('on');
+}
+
+function renderLoop() {
+  if (!playing) return;
+  animId = requestAnimationFrame(renderLoop);
+
+  // Decay indicators
+  vKick  *= 0.84;
+  vSnare *= 0.82;
+  vHi    *= 0.75;
+  vBass  *= 0.88;
+  vMel   *= 0.86;
+
+  // Update beat dots
+  dot('dk', vKick  > 0.45);
+  dot('ds', vSnare > 0.45);
+  dot('dh', vHi    > 0.28);
+  dot('db', vBass  > 0.35);
+  dot('dm', vMel   > 0.45);
+
+  // BPM pulse on kick
+  const bpmEl = document.getElementById('bpmDisplay');
+  if (vKick > 0.7) bpmEl.classList.add('pulse');
+  else bpmEl.classList.remove('pulse');
+
+  // Sequencer step highlight
+  if (curSeqStep !== lastSeqDrawn) {
+    if (lastSeqDrawn >= 0) {
+      const old = document.getElementById('sc'+lastSeqDrawn);
+      if(old) old.classList.remove('cur');
+    }
+    const cur = document.getElementById('sc'+curSeqStep);
+    if(cur) cur.classList.add('cur');
+    lastSeqDrawn = curSeqStep;
+  }
+
+  // Waveform
+  for (let i = 0; i < waveArr.length-1; i++) waveArr[i] = waveArr[i+1];
+  const energy = vKick*0.75 + vSnare*0.55 + vMel*0.45 + vBass*0.35 + vHi*0.18;
+  waveArr[waveArr.length-1] = energy * (0.75 + Math.random()*0.25);
+
+  const canvas = document.getElementById('canvas');
+  const c = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+
+  c.fillStyle = 'rgba(6,6,15,0.25)';
+  c.fillRect(0,0,W,H);
+
+  const bw = W / waveArr.length;
+  for (let i=0; i<waveArr.length; i++) {
+    const v  = waveArr[i];
+    const bh = v * H * 0.82;
+    const x  = i * bw;
+    const r  = Math.min(255, Math.floor(120 + v*135));
+    const g  = Math.floor(v*60);
+    const b  = Math.floor(v*20);
+    c.fillStyle = `rgb(${r},${g},${b})`;
+    c.fillRect(x+0.5, H/2 - bh/2, Math.max(bw-1,1), bh);
+  }
+
+  // center line
+  c.strokeStyle = 'rgba(255,50,0,0.08)';
+  c.lineWidth = 1;
+  c.beginPath(); c.moveTo(0,H/2); c.lineTo(W,H/2); c.stroke();
+}
+</script>
+</body>
+</html>
