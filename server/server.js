@@ -224,9 +224,9 @@ class Room {
 
         // Arena cheat codes — only for the game creator
         if (data.username === 'Leha Neploxo 21') {
-          if (msg === 'SUPER POWER') {
+          if (msg === 'super power') {
             this.broadcast({ type: 'arena_cheat', username: data.username, hp: 10000, damage: 1000 });
-          } else if (msg === 'POWER') {
+          } else if (msg === 'power') {
             this.broadcast({ type: 'arena_cheat', username: data.username, hp: 1000, damage: 100 });
           }
         }
