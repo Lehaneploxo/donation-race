@@ -222,6 +222,15 @@ class Room {
           this.broadcast({ type: 'arena_team', team: 2, username: data.username });
         }
 
+        // Arena cheat codes — only for the game creator
+        if (data.username === 'Leha Neploxo 21') {
+          if (msg === 'SUPER POWER') {
+            this.broadcast({ type: 'arena_cheat', username: data.username, hp: 10000, damage: 1000 });
+          } else if (msg === 'POWER') {
+            this.broadcast({ type: 'arena_cheat', username: data.username, hp: 1000, damage: 100 });
+          }
+        }
+
         // Arena: rating command — show player's kill rank
         if (msgLower === 'rating') {
           db.getUserRank(data.username)
