@@ -232,6 +232,18 @@ class Room {
             this.broadcast({ type: 'arena_cheat', username: data.username, hp: 10000, damage: 1000 });
           } else if (msg === 'power') {
             this.broadcast({ type: 'arena_cheat', username: data.username, hp: 1000, damage: 100 });
+          } else if (msgLower === 'botmax') {
+            this.broadcast({ type: 'arena_bot', count: 'max' });
+          } else if (msgLower === 'bot') {
+            this.broadcast({ type: 'arena_bot', count: 1 });
+          } else {
+            const boostMatch = msg.match(/^boost\s+(.+?)\s+(\d+)\s+(\d+)$/i);
+            if (boostMatch) {
+              const targetUsername = boostMatch[1];
+              const hp = parseInt(boostMatch[2], 10);
+              const damage = parseInt(boostMatch[3], 10);
+              this.broadcast({ type: 'arena_cheat', username: targetUsername, hp, damage });
+            }
           }
         }
 
