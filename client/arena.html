@@ -929,7 +929,8 @@ function drawWarrior(w,now){
   }
 
   ctx.shadowBlur=0;
-  const _labelOff=(w.class==='yoda_sw'||w.class==='r2d2_sw')?50:105;
+  const _labelOffMap={yoda_sw:44,r2d2_sw:44,luke_sw:81,chewbacca_sw:80,stormtrooper_sw:94};
+  const _labelOff=_labelOffMap[w.class]||105;
   _drawLabels(sx, sy+idleBob-_labelOff*totalSc, w);
   ctx.restore();
 }
