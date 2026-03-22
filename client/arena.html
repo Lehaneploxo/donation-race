@@ -174,10 +174,12 @@ function arenaToScreen(ax,ay){ return { x: ARENA_CX+ax*ARENA_RX, y: ARENA_CY+ay*
 
 function getWarriorScale(coins){ return 1.3 + Math.min(1.1, Math.log10(Math.max(1,coins))*0.38); }
 
+function _isMetsukiUsername(u){ return u.trim().toLowerCase().replace(/[^a-z]/g,'')==='metsukisutemi'; }
 function makeWarrior(username, coins){
   const pos=rndArenaPos(), tgt=rndArenaPos();
   return {
     id:++uidSeq, username, coins,
+    isMetsuki: _isMetsukiUsername(username),
     hp:coins*10, maxHp:coins*10, damage:coins,
     class: currentMap===1 ? rndFrom(SW_CLASSES) : rndFrom(CLASSES),
     armorColor:rndFrom(ARMOR_COLORS),
@@ -865,7 +867,7 @@ function drawWarrior(w,now){
   ctx.globalAlpha=alpha;
   // Glow: king gets permanent gold glow, others glow on events or high coins
   const _isLehaGlow    = w.username==='Leha Neploxo 21';
-  const _isMetsukiGlow = w.username.toLowerCase().replace(/[\s_\.]/g,'')==='metsukisutemi';
+  const _isMetsukiGlow = !!w.isMetsuki;
   const _isKingGlow    = !_isLehaGlow && !_isMetsukiGlow && topKillers.length>0 && w.username===topKillers[0].username;
   if(_isLehaGlow){    ctx.shadowColor='#CC0000'; ctx.shadowBlur=28; }
   else if(_isMetsukiGlow){ ctx.shadowColor='#4488FF'; ctx.shadowBlur=24; }
@@ -877,7 +879,7 @@ function drawWarrior(w,now){
   ctx.rotate(idleLean);
   ctx.scale(totalSc,totalSc);
   const isLeha    = w.username==='Leha Neploxo 21';
-  const isMetsuki = w.username.toLowerCase().replace(/[\s_\.]/g,'')==='metsukisutemi';
+  const isMetsuki = !!w.isMetsuki;
   const isKing    = !isLeha && !isMetsuki && topKillers.length>0 && w.username===topKillers[0].username;
   if(isLeha){
     _drawLeha(w,now);
@@ -2817,7 +2819,7 @@ document.getElementById('mapBtn').addEventListener('click',()=>{
   mapTransAlpha=0.92;
   document.getElementById('mapBtn').textContent=currentMap===0?'🌍':'🌌';
   for(const w of warriors){
-    if(!w.dead && w.username!=='Leha Neploxo 21' && w.username!=='Metsuki Sutemi' && !(topKillers.length>0&&w.username===topKillers[0].username)){
+    if(!w.dead && w.username!=='Leha Neploxo 21' && !w.isMetsuki && !(topKillers.length>0&&w.username===topKillers[0].username)){
       w.class=currentMap===1?rndFrom(SW_CLASSES):rndFrom(CLASSES);
     }
   }
