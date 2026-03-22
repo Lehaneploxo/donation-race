@@ -929,7 +929,8 @@ function drawWarrior(w,now){
   }
 
   ctx.shadowBlur=0;
-  _drawLabels(sx, sy+idleBob-105*totalSc, w);
+  const _labelOff=(w.class==='yoda_sw'||w.class==='r2d2_sw')?50:105;
+  _drawLabels(sx, sy+idleBob-_labelOff*totalSc, w);
   ctx.restore();
 }
 
