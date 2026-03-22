@@ -865,7 +865,7 @@ function drawWarrior(w,now){
   ctx.globalAlpha=alpha;
   // Glow: king gets permanent gold glow, others glow on events or high coins
   const _isLehaGlow    = w.username==='Leha Neploxo 21';
-  const _isMetsukiGlow = w.username.toLowerCase()==='metsuki sutemi';
+  const _isMetsukiGlow = w.username.toLowerCase().replace(/[\s_\.]/g,'')==='metsukisutemi';
   const _isKingGlow    = !_isLehaGlow && !_isMetsukiGlow && topKillers.length>0 && w.username===topKillers[0].username;
   if(_isLehaGlow){    ctx.shadowColor='#CC0000'; ctx.shadowBlur=28; }
   else if(_isMetsukiGlow){ ctx.shadowColor='#4488FF'; ctx.shadowBlur=24; }
@@ -877,7 +877,7 @@ function drawWarrior(w,now){
   ctx.rotate(idleLean);
   ctx.scale(totalSc,totalSc);
   const isLeha    = w.username==='Leha Neploxo 21';
-  const isMetsuki = w.username.toLowerCase()==='metsuki sutemi';
+  const isMetsuki = w.username.toLowerCase().replace(/[\s_\.]/g,'')==='metsukisutemi';
   const isKing    = !isLeha && !isMetsuki && topKillers.length>0 && w.username===topKillers[0].username;
   if(isLeha){
     _drawLeha(w,now);
