@@ -21,9 +21,9 @@
     #statusBadge.demo  { color: #FF9900; border-color: #FF9900; }
     #statusBadge.error { color: #FF4444; border-color: #FF4444; }
     /* ── KING ARRIVAL ── */
-    #kingOverlay { position:absolute; top:0; left:0; right:0; z-index:50; pointer-events:none; display:none; text-align:center; padding-top:32px; }
-    #kingOverlay.show { display:block; }
-    #kingOverlay.hiding { display:block; animation:_kvOut 0.5s forwards; }
+    #kingOverlay { position:absolute; top:0; left:0; right:0; bottom:0; z-index:50; pointer-events:none; display:none; text-align:center; }
+    #kingOverlay.show { display:flex; flex-direction:column; align-items:center; justify-content:center; }
+    #kingOverlay.hiding { display:flex; flex-direction:column; align-items:center; justify-content:center; animation:_kvOut 0.5s forwards; }
     @keyframes _kvOut { to { opacity:0; transform:translateY(-10px); } }
     #kingParticles { position:absolute; top:0; left:0; width:600px; height:350px; pointer-events:none; z-index:49; display:none; }
     #kingParticles.show { display:block; }
@@ -865,7 +865,7 @@ function drawWarrior(w,now){
   ctx.globalAlpha=alpha;
   // Glow: king gets permanent gold glow, others glow on events or high coins
   const _isLehaGlow    = w.username==='Leha Neploxo 21';
-  const _isMetsukiGlow = w.username==='Metsuki Sutemi';
+  const _isMetsukiGlow = w.username.toLowerCase()==='metsuki sutemi';
   const _isKingGlow    = !_isLehaGlow && !_isMetsukiGlow && topKillers.length>0 && w.username===topKillers[0].username;
   if(_isLehaGlow){    ctx.shadowColor='#CC0000'; ctx.shadowBlur=28; }
   else if(_isMetsukiGlow){ ctx.shadowColor='#4488FF'; ctx.shadowBlur=24; }
@@ -877,7 +877,7 @@ function drawWarrior(w,now){
   ctx.rotate(idleLean);
   ctx.scale(totalSc,totalSc);
   const isLeha    = w.username==='Leha Neploxo 21';
-  const isMetsuki = w.username==='Metsuki Sutemi';
+  const isMetsuki = w.username.toLowerCase()==='metsuki sutemi';
   const isKing    = !isLeha && !isMetsuki && topKillers.length>0 && w.username===topKillers[0].username;
   if(isLeha){
     _drawLeha(w,now);
