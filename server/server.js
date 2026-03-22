@@ -172,6 +172,7 @@ class Room {
         }
         // Arena: viewer joins stream → spawn with 1 coin if slot available
         this.broadcast({ type: 'arena_member', username: data.username });
+        this.broadcast({ type: 'arena_join',   username: data.username });
       },
       // onLike — лайки
       (data) => {
