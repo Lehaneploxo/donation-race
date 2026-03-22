@@ -1541,17 +1541,17 @@ function _drawSW(cls,w,now){
     case 'stormtrooper_sw':_drawStormtrooper_sw(w,now); break;
     case 'hansolo_sw':     _drawHanSolo_sw(w,now); break;
     case 'jabba_sw':       _drawJabba_sw(w,now); break;
-    case 'dartmaul_sw':    _drawDarthMaul_sw(w,now); break;
-    case 'c3po_sw':        _drawC3PO_sw(w,now); break;
-    case 'leia_sw':        _drawLeia_sw(w,now); break;
-    case 'grievous_sw':    _drawGrievous_sw(w,now); break;
+    case 'dartmaul_sw':    ctx.save();ctx.scale(0.93,0.93);_drawDarthMaul_sw(w,now);ctx.restore(); break;
+    case 'c3po_sw':        ctx.save();ctx.translate(0,-101);_drawC3PO_sw(w,now);ctx.restore(); break;
+    case 'leia_sw':        ctx.save();ctx.translate(0,-62);_drawLeia_sw(w,now);ctx.restore(); break;
+    case 'grievous_sw':    ctx.save();ctx.translate(0,-78);_drawGrievous_sw(w,now);ctx.restore(); break;
     default: _drawOrc(w);
   }
 }
 
 function _drawYoda_sw(w,now){
   ctx.save();
-  ctx.translate(0, 16); ctx.scale(0.776, 0.776);
+  ctx.translate(0, 2); ctx.scale(0.746, 0.746);
 
   // Аура силы (Force glow)
   const aura = 0.04 + Math.sin(now * 0.001) * 0.02;
@@ -1758,7 +1758,7 @@ function _drawYoda_sw(w,now){
 
 function _drawLuke_sw(w,now){
   ctx.save();
-  ctx.translate(0, 24); ctx.scale(0.578, 0.578);
+  ctx.translate(0, 10); ctx.scale(1.12, 1.12);
   const bob = Math.sin(now * 0.0016) * 2; ctx.translate(0, bob);
 
   // Аура Force glow
@@ -1940,7 +1940,7 @@ function _drawLuke_sw(w,now){
 
 function _drawR2D2_sw(w,now){
   ctx.save();
-  ctx.translate(0,23); ctx.scale(0.50,0.50);
+  ctx.translate(0,10); ctx.scale(0.36,0.36);
   const bob=Math.sin(now*.0016)*1.5; ctx.translate(0,bob);
 
   function wg_r2(x1,x2){
@@ -2087,7 +2087,7 @@ function _drawR2D2_sw(w,now){
 
 function _drawChewbacca_sw(w,now){
   ctx.save();
-  ctx.translate(-41,-73); ctx.scale(0.27,0.27);
+  ctx.translate(-80,-181); ctx.scale(0.53,0.53);
   const cx=150;
   const bob=Math.sin(now*0.0015)*1.5;
   ctx.save(); ctx.translate(0,bob);
@@ -2265,7 +2265,7 @@ function _drawChewbacca_sw(w,now){
 
 function _drawStormtrooper_sw(w,now){
   ctx.save();
-  ctx.translate(0,22); ctx.scale(0.46,0.46);
+  ctx.translate(0,10); ctx.scale(0.83,0.83);
   const bob=Math.sin(now*.0018)*2; ctx.translate(0,bob);
   const cx=0, G=0;
 
