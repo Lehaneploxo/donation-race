@@ -1111,7 +1111,12 @@ function drawWarrior(w,now){
   }
 
   ctx.shadowBlur=0;
-  const _labelOffMap={yoda_sw:44,r2d2_sw:44,luke_sw:81,chewbacca_sw:80,stormtrooper_sw:94,liukang_mk:100,kitana_mk:105,goro_mk:118,cyrax_mk:105,subzero_mk:107,raiden_mk:111};
+  const _labelOffMap={
+    orc:145, elf:124, gnome:141, barbarian:135, mage:147, skeleton:137,
+    yoda_sw:100, r2d2_sw:100, luke_sw:140, chewbacca_sw:155, stormtrooper_sw:150,
+    hansolo_sw:155, jabba_sw:160, dartmaul_sw:146, c3po_sw:160, leia_sw:153, grievous_sw:154,
+    liukang_mk:159, kitana_mk:164, goro_mk:177, cyrax_mk:164, subzero_mk:166, raiden_mk:170
+  };
   const _labelOff=_labelOffMap[w.class]||105;
   _drawLabels(sx, sy+idleBob-_labelOff*totalSc, w);
   ctx.restore();
