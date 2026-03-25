@@ -1,4 +1,4 @@
-const { TikTokLive } = require('@tiktool/live');
+const WebSocket = require('ws');
 
 const DEMO_USERS = [
   { id: 'd1', name: 'SuperFan_Anya' }, { id: 'd2', name: 'TikTokKing99' },
@@ -22,9 +22,9 @@ function connectToTikTok(username, onGift, onStatus, onMember, onLike, onChat) {
     return handle;
   }
 
+  let ws = null;
   let retryTimer = null;
   let reconnectTimer = null;
-  let live = null;
 
   function scheduleRetry(delayMs) {
     if (retryTimer) clearTimeout(retryTimer);
@@ -32,81 +32,57 @@ function connectToTikTok(username, onGift, onStatus, onMember, onLike, onChat) {
   }
 
   function tryOnce() {
-    if (live) { try { live.disconnect(); } catch(e) {} live = null; }
+    if (ws) { try { ws.terminate(); } catch(e) {} ws = null; }
     if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
 
     console.log(`[TikTok][${username}] Попытка подключения…`);
 
-    live = new TikTokLive({ uniqueId: username, apiKey: API_KEY });
+    const url = `wss://api.tik.tools?uniqueId=${encodeURIComponent(username)}&apiKey=${API_KEY}`;
+    ws = new WebSocket(url);
 
-    const seenGifts = new Set();
-    live.on('gift', e => {
-      const d = e.data || e;
-      const user = d.user || {};
-      const key = `${user.userId}_${d.giftId||d.giftName}_${Math.floor(Date.now()/2000)}`;
-      if (seenGifts.has(key)) return;
-      seenGifts.add(key); if (seenGifts.size > 500) seenGifts.clear();
-      const coins = Math.max(1, Math.floor(d.diamondCount || d.giftDetails?.diamondCount || 1));
-      onGift({
-        userId: String(user.userId || user.uniqueId || 'u'),
-        username: user.nickname || user.uniqueId || 'Unknown',
-        avatarUrl: user.avatarUrl || user.profilePictureUrl || '',
-        giftName: d.giftName || '',
-        coins
-      });
-    });
-
-    live.on('like', e => {
-      if (!onLike) return;
-      const d = e.data || e;
-      const user = d.user || {};
-      onLike({
-        userId: String(user.userId || user.uniqueId || 'u'),
-        username: user.nickname || user.uniqueId || 'Unknown',
-        avatarUrl: user.avatarUrl || '',
-        likes: d.likeCount || d.likes || 1
-      });
-    });
-
-    live.on('chat', e => {
-      if (!onChat) return;
-      const d = e.data || e;
-      const user = d.user || {};
-      const msg = (d.comment || d.message || '').trim().toLowerCase();
-      if (['go','blue','red','help','team','team2','rating','power','super power','bot','botmax'].includes(msg) || msg.startsWith('boost '))
-        onChat({
-          userId: String(user.userId || user.uniqueId || 'u'),
-          username: user.nickname || user.uniqueId || 'Unknown',
-          avatarUrl: user.avatarUrl || '',
-          message: msg
-        });
-    });
-
-    live.on('member', e => {
-      if (!onMember) return;
-      const d = e.data || e;
-      const user = d.user || {};
-      onMember({
-        userId: String(user.userId || user.uniqueId || 'u'),
-        username: user.nickname || user.uniqueId || 'Unknown',
-        avatarUrl: user.avatarUrl || ''
-      });
-    });
-
-    live.on('connected', () => {
+    ws.on('open', () => {
       console.log(`[TikTok][${username}] ✅ Подключён!`);
       handle._tiktokMode = 'tiktok';
       _stopDemo(handle);
       notify({ connected: true, mode: 'tiktok', message: `Подключён к @${username}` });
-      // Sandbox: max 5 min session — переподключаемся каждые 4.5 мин
+      // Sandbox: макс 5 мин — переподключаемся каждые 4.5 мин
       reconnectTimer = setTimeout(() => {
-        console.log(`[TikTok][${username}] ♻️ Переподключение (sandbox limit)…`);
+        console.log(`[TikTok][${username}] ♻️ Переподключение (лимит сессии)…`);
         tryOnce();
       }, 4.5 * 60 * 1000);
     });
 
-    live.on('disconnected', () => {
-      console.log(`[TikTok][${username}] Отключился от стрима`);
+    ws.on('message', (raw) => {
+      try {
+        const msg = JSON.parse(raw);
+        const event = msg.event;
+        const d = msg.data || {};
+        const user = d.user || {};
+
+        const userId = String(user.userId || user.uniqueId || 'u');
+        const uname  = user.nickname || user.uniqueId || 'Unknown';
+        const avatar = user.avatarUrl || user.profilePictureUrl || '';
+
+        if (event === 'gift') {
+          const coins = Math.max(1, Math.floor(d.diamondCount || 1));
+          onGift({ userId, username: uname, avatarUrl: avatar, giftName: d.giftName || '', coins });
+        } else if (event === 'like' && onLike) {
+          onLike({ userId, username: uname, avatarUrl: avatar, likes: d.likeCount || d.likes || 1 });
+        } else if (event === 'chat' && onChat) {
+          const msg2 = (d.comment || d.message || '').trim().toLowerCase();
+          if (['go','blue','red','help','team','team2','rating','power','super power','bot','botmax'].includes(msg2) || msg2.startsWith('boost '))
+            onChat({ userId, username: uname, avatarUrl: avatar, message: msg2 });
+        } else if (event === 'member' && onMember) {
+          onMember({ userId, username: uname, avatarUrl: avatar });
+        } else if (event === 'follow' && onMember) {
+          onMember({ userId, username: uname, avatarUrl: avatar });
+        }
+      } catch(e) {}
+    });
+
+    ws.on('close', (code, reason) => {
+      console.log(`[TikTok][${username}] Отключился (${code})`);
+      ws = null;
       handle._tiktokMode = 'demo';
       notify({ connected: false, mode: 'demo', message: `@${username} вышел из эфира` });
       if (!handle._demoStarted) {
@@ -116,12 +92,9 @@ function connectToTikTok(username, onGift, onStatus, onMember, onLike, onChat) {
       scheduleRetry(15000);
     });
 
-    live.on('error', err => {
-      console.error(`[TikTok][${username}] event error:`, (err && err.message) || err);
-    });
-
-    live.connect().catch(err => {
-      console.error(`[TikTok][${username}] ❌ Ошибка: ${err.message || err} | retry через 30с`);
+    ws.on('error', (err) => {
+      console.error(`[TikTok][${username}] ❌ Ошибка: ${err.message} | retry через 30с`);
+      ws = null;
       handle._tiktokMode = 'demo';
       if (!handle._demoStarted) {
         handle._demoStarted = true;
