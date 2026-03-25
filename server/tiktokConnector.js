@@ -24,16 +24,31 @@ function connectToTikTok(username, onGift, onStatus, onMember, onLike, onChat) {
 
   let ws = null;
   let retryTimer = null;
-  let reconnectTimer = null;
 
   function scheduleRetry(delayMs) {
     if (retryTimer) clearTimeout(retryTimer);
     retryTimer = setTimeout(tryOnce, delayMs);
   }
 
-  function tryOnce() {
+  handle.stop = function() {
+    handle._stopped = true;
+    if (retryTimer) { clearTimeout(retryTimer); retryTimer = null; }
     if (ws) { try { ws.terminate(); } catch(e) {} ws = null; }
-    if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+    handle._tiktokMode = 'demo';
+    console.log(`[TikTok][${username}] ⏸ Пауза (нет зрителей)`);
+  };
+
+  handle.restart = function() {
+    if (handle._stopped) {
+      handle._stopped = false;
+      console.log(`[TikTok][${username}] ▶️ Возобновление (зритель вошёл)`);
+      tryOnce();
+    }
+  };
+
+  function tryOnce() {
+    if (handle._stopped) return;
+    if (ws) { try { ws.terminate(); } catch(e) {} ws = null; }
 
     console.log(`[TikTok][${username}] Попытка подключения…`);
 
@@ -45,11 +60,6 @@ function connectToTikTok(username, onGift, onStatus, onMember, onLike, onChat) {
       handle._tiktokMode = 'tiktok';
       _stopDemo(handle);
       notify({ connected: true, mode: 'tiktok', message: `Подключён к @${username}` });
-      // Sandbox: макс 5 мин — переподключаемся каждые 4.5 мин
-      reconnectTimer = setTimeout(() => {
-        console.log(`[TikTok][${username}] ♻️ Переподключение (лимит сессии)…`);
-        tryOnce();
-      }, 4.5 * 60 * 1000);
     });
 
     ws.on('message', (raw) => {
@@ -89,8 +99,7 @@ function connectToTikTok(username, onGift, onStatus, onMember, onLike, onChat) {
         handle._demoStarted = true;
         _startDemo(onGift, handle, onLike, onChat, onMember);
       }
-      // code 4429 = rate limit exceeded, wait longer
-      scheduleRetry(code === 4429 ? 120000 : 30000);
+      if (!handle._stopped) scheduleRetry(code === 4429 ? 120000 : 30000);
     });
 
     ws.on('error', (err) => {
@@ -102,7 +111,7 @@ function connectToTikTok(username, onGift, onStatus, onMember, onLike, onChat) {
         notify({ connected: false, mode: 'demo', message: `@${username} не в эфире, жду подключения…` });
         _startDemo(onGift, handle, onLike, onChat, onMember);
       }
-      scheduleRetry(120000);
+      if (!handle._stopped) scheduleRetry(120000);
     });
   }
 

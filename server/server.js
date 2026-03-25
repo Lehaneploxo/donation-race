@@ -301,8 +301,13 @@ class Room {
   }
 
   addClient(ws) {
+    const wasEmpty = this.clients.size === 0;
     this.clients.add(ws);
     if (this._destroyTimer) { clearTimeout(this._destroyTimer); this._destroyTimer = null; }
+    // Возобновляем TikTok-подключение когда приходит первый зритель
+    if (wasEmpty && this.connection && this.connection._stopped) {
+      this.connection.restart();
+    }
     db.getTopKillers(5).then(top => {
       ws.send(JSON.stringify({
         type:         'init',
@@ -328,7 +333,13 @@ class Room {
     });
   }
 
-  removeClient(ws) { this.clients.delete(ws); }
+  removeClient(ws) {
+    this.clients.delete(ws);
+    // Останавливаем TikTok-подключение когда уходит последний зритель
+    if (this.clients.size === 0 && this.connection) {
+      this.connection.stop();
+    }
+  }
 
   destroy() {
     clearInterval(this._inactiveCheck);
