@@ -37,7 +37,8 @@ function connectToTikTok(username, onGift, onStatus, onMember, onLike, onChat) {
     const sessionId = process.env.TIKTOK_SESSION_ID || '';
     const conn = new WebcastPushConnection(username, {
       ...(sessionId ? { sessionId } : {}),
-      signProviderOptions: { host: `http://localhost:${process.env.PORT || 3000}/` }
+      signProviderOptions: { host: `http://localhost:${process.env.PORT || 3000}/` },
+      fetchRoomInfoOnConnect: false
     });
 
     // ── Обработчики TikTok событий ──
