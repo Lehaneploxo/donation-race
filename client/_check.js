@@ -1,64 +1,4 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <title>⚔️ Arena Battle</title>
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    html, body { width: 100vw; height: 100vh; height: 100dvh; background: #050510; overflow: hidden; font-family: 'Arial Black', Arial, sans-serif; }
-    #scaleWrapper { position: absolute; top: 0; left: 0; width: 600px; height: 1000px; transform-origin: top left; }
-    #gameCanvas { position: absolute; top: 0; left: 0; display: block; }
-    .ui-btn { position: fixed; z-index: 99999; width: 26px; height: 26px; font-size: 12px; background: rgba(0,0,0,0.55); color: rgba(255,255,255,0.55); border: 1px solid rgba(255,255,255,0.2); border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
-    #fsBtn   { top: calc(50% + 36px); right: 10px; }
-    #backBtn { top: calc(50% - 13px); right: 10px; }
-    #addBotBtn { top: calc(50% + 85px); right: 10px; }
-    #mapBtn    { top: calc(50% + 134px); right: 10px; font-size: 13px; }
-    #statusBadge { position: absolute; bottom: 52px; left: 50%; transform: translateX(-50%); font-size: 13px; padding: 4px 13px; border-radius: 8px; border: 2px solid #555; background: rgba(0,0,0,0.78); color: #AAA; white-space: nowrap; z-index: 100; display: none; }
-    #statusBadge.live  { color: #00FF88; border-color: #00FF88; }
-    #statusBadge.demo  { color: #FF9900; border-color: #FF9900; }
-    #statusBadge.error { color: #FF4444; border-color: #FF4444; }
-    /* ── KING ARRIVAL ── */
-    #kingOverlay { position:absolute; top:0; left:0; right:0; bottom:0; z-index:50; pointer-events:none; display:none; text-align:center; }
-    #kingOverlay.show { display:flex; flex-direction:column; align-items:center; justify-content:center; }
-    #kingOverlay.hiding { display:flex; flex-direction:column; align-items:center; justify-content:center; animation:_kvOut 0.5s forwards; }
-    @keyframes _kvOut { to { opacity:0; transform:translateY(-10px); } }
-    #kingParticles { position:absolute; top:0; left:0; width:600px; height:350px; pointer-events:none; z-index:49; display:none; }
-    #kingParticles.show { display:block; }
-    ._ke { font-size:13px; letter-spacing:5px; color:rgba(220,150,0,0.9); text-transform:uppercase; margin-bottom:7px; text-shadow:0 0 10px rgba(255,180,0,0.7); opacity:0; animation:_kfsd 0.4s 0.1s forwards; }
-    ._kt { font-size:38px; font-weight:900; letter-spacing:4px; line-height:1.15; color:#FFD700; text-shadow:0 0 12px rgba(255,215,0,1),0 0 28px rgba(255,180,0,0.9),0 0 55px rgba(255,120,0,0.6); opacity:0; animation:_kfsd 0.4s 0.3s forwards,_kgf 1.8s 0.7s infinite; }
-    ._ks { font-size:14px; letter-spacing:8px; color:#FF3300; text-transform:uppercase; margin-top:3px; text-shadow:0 0 12px rgba(255,50,0,0.9),0 0 28px rgba(200,0,0,0.6); opacity:0; animation:_kfsd 0.4s 0.55s forwards,_krp 1.4s 0.9s infinite; }
-    ._kd { font-size:15px; letter-spacing:10px; color:rgba(255,215,0,0.4); margin:8px 0 5px; opacity:0; animation:_kfsd 0.4s 0.7s forwards; }
-    ._kn { font-size:32px; font-weight:900; letter-spacing:3px; color:#fff; text-shadow:0 0 10px #fff,0 0 22px rgba(255,100,0,1),0 0 45px rgba(255,50,0,0.7),0 0 75px rgba(200,0,0,0.4); opacity:0; animation:_knp 0.65s 0.85s cubic-bezier(0.175,0.885,0.32,1.275) forwards,_kwf 2s 1.5s infinite; }
-    ._kb { font-size:11px; letter-spacing:4px; color:rgba(255,215,0,0.6); text-transform:uppercase; margin-top:9px; text-shadow:0 0 8px rgba(255,215,0,0.5); opacity:0; animation:_kfsd 0.4s 1.15s forwards; }
-    @keyframes _kfsd { from{opacity:0;transform:translateY(-11px)} to{opacity:1;transform:translateY(0)} }
-    @keyframes _knp   { from{opacity:0;transform:scale(0.35)} to{opacity:1;transform:scale(1)} }
-    @keyframes _kgf { 0%,100%{text-shadow:0 0 12px rgba(255,215,0,1),0 0 28px rgba(255,180,0,0.9),0 0 55px rgba(255,120,0,0.6)} 25%{text-shadow:0 0 20px rgba(255,215,0,1),0 0 48px rgba(255,210,0,1),0 0 90px rgba(255,160,0,0.8)} 55%{text-shadow:0 0 7px rgba(255,215,0,0.8),0 0 20px rgba(255,160,0,0.7),0 0 38px rgba(255,100,0,0.5)} 80%{text-shadow:0 0 22px rgba(255,230,0,1),0 0 52px rgba(255,210,0,1),0 0 95px rgba(255,160,0,0.9)} }
-    @keyframes _krp { 0%,100%{text-shadow:0 0 12px rgba(255,50,0,0.9),0 0 28px rgba(200,0,0,0.6);color:#FF3300} 50%{text-shadow:0 0 24px rgba(255,80,0,1),0 0 50px rgba(255,20,0,0.9);color:#FF6600} }
-    @keyframes _kwf { 0%,100%{text-shadow:0 0 10px #fff,0 0 22px rgba(255,100,0,1),0 0 45px rgba(255,50,0,0.7),0 0 75px rgba(200,0,0,0.4)} 35%{text-shadow:0 0 18px #fff,0 0 38px rgba(255,150,0,1),0 0 70px rgba(255,80,0,0.8),0 0 105px rgba(220,0,0,0.5)} 65%{text-shadow:0 0 5px #fff,0 0 14px rgba(255,80,0,0.8),0 0 28px rgba(255,30,0,0.5)} }
-  </style>
-</head>
-<body>
-<button id="fsBtn"   class="ui-btn" title="Fullscreen">⛶</button>
-<button id="backBtn" class="ui-btn" title="Back">⌂</button>
-<button id="addBotBtn" class="ui-btn" title="Add bot">🤖</button>
-<button id="mapBtn"    class="ui-btn" title="Switch map">🌍</button>
-<div id="scaleWrapper">
-  <canvas id="gameCanvas" width="600" height="1000"></canvas>
-  <canvas id="kingParticles" width="600" height="350"></canvas>
-  <div id="kingOverlay">
-    <div class="_ke">⚔️ &nbsp; ARENA BATTLE &nbsp; ⚔️</div>
-    <div class="_kt">👑 &nbsp; KING OF THE ARENA &nbsp; 👑</div>
-    <div class="_ks">— &nbsp; HAS ARRIVED &nbsp; —</div>
-    <div class="_kd">· · · · · · · · · · · · · ·</div>
-    <div class="_kn" id="kingArenaName">★ &nbsp; PLAYER &nbsp; ★</div>
-    <div class="_kb">💀 &nbsp; TOP KILLER &nbsp; · &nbsp; #1 RANKING &nbsp; 💀</div>
-  </div>
-  <div id="statusBadge">⏳ Connecting…</div>
-</div>
-<script>
+
 // ═══════════════════════════════════════════
 // SOUND ENGINE
 // ═══════════════════════════════════════════
@@ -1111,12 +1051,7 @@ function drawWarrior(w,now){
   }
 
   ctx.shadowBlur=0;
-  const _labelOffMap={
-    orc:125, elf:105, gnome:121, barbarian:115, mage:127, skeleton:117,
-    yoda_sw:80, r2d2_sw:80, luke_sw:120, chewbacca_sw:135, stormtrooper_sw:130,
-    hansolo_sw:135, jabba_sw:140, dartmaul_sw:126, c3po_sw:140, leia_sw:133, grievous_sw:134,
-    liukang_mk:139, kitana_mk:144, goro_mk:157, cyrax_mk:144, subzero_mk:146, raiden_mk:150
-  };
+  const _labelOffMap={yoda_sw:44,r2d2_sw:44,luke_sw:81,chewbacca_sw:80,stormtrooper_sw:94,liukang_mk:100,kitana_mk:105,goro_mk:118,cyrax_mk:105,subzero_mk:107,raiden_mk:111};
   const _labelOff=_labelOffMap[w.class]||105;
   _drawLabels(sx, sy+idleBob-_labelOff*totalSc, w);
   ctx.restore();
@@ -3651,6 +3586,3 @@ document.getElementById('mapBtn').addEventListener('click',()=>{
     }
   }
 });
-</script>
-</body>
-</html>

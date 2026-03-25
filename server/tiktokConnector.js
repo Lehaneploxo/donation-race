@@ -1,5 +1,11 @@
 const { WebcastPushConnection } = require('tiktok-live-connector');
 
+// Отключаем eulerstream — их прокси сломан, работаем напрямую через sessionId
+try {
+  const signProvider = require('tiktok-live-connector/dist/lib/tiktokSignatureProvider');
+  signProvider.config.enabled = false;
+} catch(e) {};
+
 const DEMO_USERS = [
   { id: 'd1', name: 'SuperFan_Anya' }, { id: 'd2', name: 'TikTokKing99' },
   { id: 'd3', name: 'Donator_Pro' },   { id: 'd4', name: 'StreamQueen' },
@@ -34,7 +40,8 @@ function connectToTikTok(username, onGift, onStatus, onMember, onLike, onChat) {
     connecting = true;
     console.log(`[TikTok][${username}] Попытка подключения…`);
 
-    const conn = new WebcastPushConnection(username);
+    const sessionId = process.env.TIKTOK_SESSION_ID || '';
+    const conn = new WebcastPushConnection(username, sessionId ? { sessionId } : {});
 
     // ── Обработчики TikTok событий ──
     const seenGifts = new Set();

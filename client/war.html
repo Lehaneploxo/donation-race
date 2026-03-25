@@ -1458,8 +1458,9 @@ function wsConnect(username) {
         handleLikes(data.likes || 0);
       }
       if (data.type === 'init' || data.type === 'status') {
-        if (data.mode === 'tiktok') setStatus('live', '🔴 LIVE @' + (data.username || username));
-        else if (data.mode === 'demo') setStatus('demo', '🟡 DEMO — type blue/red in chat sim');
+        const _m = data.tiktokMode || data.mode;
+        if (_m === 'tiktok') setStatus('live', '🔴 LIVE @' + (data.username || username));
+        else if (_m === 'demo') setStatus('demo', '🟡 DEMO — type blue/red in chat sim');
         else setStatus('connecting', '⏳ @' + username + '…');
       }
     } catch(e) {}
