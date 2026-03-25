@@ -134,6 +134,15 @@ function connectToTikTok(username, onGift, onStatus, onMember, onLike, onChat) {
       console.error(`[TikTok][${username}] ❌ ${err.message || err}`);
     });
 
+    // Логируем ВСЕ события чтобы понять что приходит
+    const _origEmit = connection.emit.bind(connection);
+    connection.emit = function(event, ...args) {
+      if (!['connected','disconnected','error','rawData'].includes(event)) {
+        console.log(`[TikTok] event="${event}" data=${JSON.stringify(args[0]||{}).slice(0,150)}`);
+      }
+      return _origEmit(event, ...args);
+    };
+
     connection.connect()
       .then(() => {
         console.log(`[TikTok][${username}] ✅ Подключён!`);
