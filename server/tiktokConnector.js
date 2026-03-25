@@ -89,11 +89,12 @@ function connectToTikTok(username, onGift, onStatus, onMember, onLike, onChat) {
         handle._demoStarted = true;
         _startDemo(onGift, handle, onLike, onChat, onMember);
       }
-      scheduleRetry(15000);
+      // code 4429 = rate limit exceeded, wait longer
+      scheduleRetry(code === 4429 ? 120000 : 30000);
     });
 
     ws.on('error', (err) => {
-      console.error(`[TikTok][${username}] ❌ Ошибка: ${err.message} | retry через 30с`);
+      console.error(`[TikTok][${username}] ❌ Ошибка: ${err.message} | retry через 2 мин`);
       ws = null;
       handle._tiktokMode = 'demo';
       if (!handle._demoStarted) {
@@ -101,7 +102,7 @@ function connectToTikTok(username, onGift, onStatus, onMember, onLike, onChat) {
         notify({ connected: false, mode: 'demo', message: `@${username} не в эфире, жду подключения…` });
         _startDemo(onGift, handle, onLike, onChat, onMember);
       }
-      scheduleRetry(30000);
+      scheduleRetry(120000);
     });
   }
 
