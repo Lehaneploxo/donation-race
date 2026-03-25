@@ -1,4 +1,4 @@
-const WebSocket = require('ws');
+const { WebcastPushConnection } = require('tiktok-live-connector');
 
 const DEMO_USERS = [
   { id: 'd1', name: 'SuperFan_Anya' }, { id: 'd2', name: 'TikTokKing99' },
@@ -9,7 +9,8 @@ const DEMO_USERS = [
   { id: 'd11', name: 'SpeedRunner' },  { id: 'd12', name: 'GoldRush' },
 ];
 
-const API_KEY = process.env.TIKTOOL_API_KEY || '';
+const SESSION_ID = process.env.TIKTOK_SESSION_ID || '';
+const PORT       = process.env.PORT || 3000;
 
 function connectToTikTok(username, onGift, onStatus, onMember, onLike, onChat) {
   const notify = onStatus || (() => {});
@@ -22,7 +23,7 @@ function connectToTikTok(username, onGift, onStatus, onMember, onLike, onChat) {
     return handle;
   }
 
-  let ws = null;
+  let connection = null;
   let retryTimer = null;
 
   function scheduleRetry(delayMs) {
@@ -33,7 +34,7 @@ function connectToTikTok(username, onGift, onStatus, onMember, onLike, onChat) {
   handle.stop = function() {
     handle._stopped = true;
     if (retryTimer) { clearTimeout(retryTimer); retryTimer = null; }
-    if (ws) { try { ws.terminate(); } catch(e) {} ws = null; }
+    if (connection) { try { connection.disconnect(); } catch(e) {} connection = null; }
     handle._tiktokMode = 'demo';
     console.log(`[TikTok][${username}] ⏸ Пауза (нет зрителей)`);
   };
@@ -48,71 +49,104 @@ function connectToTikTok(username, onGift, onStatus, onMember, onLike, onChat) {
 
   function tryOnce() {
     if (handle._stopped) return;
-    if (ws) { try { ws.terminate(); } catch(e) {} ws = null; }
+    if (connection) { try { connection.disconnect(); } catch(e) {} connection = null; }
 
     console.log(`[TikTok][${username}] Попытка подключения…`);
 
-    const url = `wss://api.tik.tools?uniqueId=${encodeURIComponent(username)}&apiKey=${API_KEY}`;
-    ws = new WebSocket(url);
-
-    ws.on('open', () => {
-      console.log(`[TikTok][${username}] ✅ Подключён!`);
-      handle._tiktokMode = 'tiktok';
-      _stopDemo(handle);
-      notify({ connected: true, mode: 'tiktok', message: `Подключён к @${username}` });
+    connection = new WebcastPushConnection(username, {
+      sessionId: SESSION_ID,
+      fetchRoomInfoOnConnect: false,
+      signProviderOptions: {
+        signProviderHost: `http://localhost:${PORT}`,
+        enabled: true,
+      },
     });
 
-    ws.on('message', (raw) => {
-      try {
-        const msg = JSON.parse(raw);
-        const event = msg.event;
-        const d = msg.data || {};
-        const user = d.user || {};
-
-        const userId = String(user.userId || user.uniqueId || 'u');
-        const uname  = user.nickname || user.uniqueId || 'Unknown';
-        const avatar = user.avatarUrl || user.profilePictureUrl || '';
-
-        if (event === 'gift') {
-          const coins = Math.max(1, Math.floor(d.diamondCount || 1));
-          onGift({ userId, username: uname, avatarUrl: avatar, giftName: d.giftName || '', coins });
-        } else if (event === 'like' && onLike) {
-          onLike({ userId, username: uname, avatarUrl: avatar, likes: d.likeCount || d.likes || 1 });
-        } else if (event === 'chat' && onChat) {
-          const msg2 = (d.comment || d.message || '').trim().toLowerCase();
-          if (['go','blue','red','help','team','team2','rating','power','super power','bot','botmax'].includes(msg2) || msg2.startsWith('boost '))
-            onChat({ userId, username: uname, avatarUrl: avatar, message: msg2 });
-        } else if (event === 'member' && onMember) {
-          onMember({ userId, username: uname, avatarUrl: avatar });
-        } else if (event === 'follow' && onMember) {
-          onMember({ userId, username: uname, avatarUrl: avatar });
-        }
-      } catch(e) {}
+    connection.on('gift', (data) => {
+      const coins = Math.max(1, Math.floor(data.diamondCount || 1));
+      onGift({
+        userId:    String(data.userId || data.uniqueId || 'u'),
+        username:  data.nickname || data.uniqueId || 'Unknown',
+        avatarUrl: data.profilePictureUrl || '',
+        giftName:  data.giftName || '',
+        coins,
+      });
     });
 
-    ws.on('close', (code, reason) => {
-      console.log(`[TikTok][${username}] Отключился (${code})`);
-      ws = null;
+    connection.on('like', (data) => {
+      if (!onLike) return;
+      onLike({
+        userId:    String(data.userId || data.uniqueId || 'u'),
+        username:  data.nickname || data.uniqueId || 'Unknown',
+        avatarUrl: data.profilePictureUrl || '',
+        likes:     data.likeCount || 1,
+      });
+    });
+
+    connection.on('chat', (data) => {
+      if (!onChat) return;
+      const msg = (data.comment || '').trim().toLowerCase();
+      if (['go','blue','red','help','team','team2','rating','power','super power','bot','botmax'].includes(msg) || msg.startsWith('boost '))
+        onChat({
+          userId:    String(data.userId || data.uniqueId || 'u'),
+          username:  data.nickname || data.uniqueId || 'Unknown',
+          avatarUrl: data.profilePictureUrl || '',
+          message:   msg,
+        });
+    });
+
+    connection.on('member', (data) => {
+      if (!onMember) return;
+      onMember({
+        userId:    String(data.userId || data.uniqueId || 'u'),
+        username:  data.nickname || data.uniqueId || 'Unknown',
+        avatarUrl: data.profilePictureUrl || '',
+      });
+    });
+
+    connection.on('follow', (data) => {
+      if (!onMember) return;
+      onMember({
+        userId:    String(data.userId || data.uniqueId || 'u'),
+        username:  data.nickname || data.uniqueId || 'Unknown',
+        avatarUrl: data.profilePictureUrl || '',
+      });
+    });
+
+    connection.on('disconnected', () => {
+      console.log(`[TikTok][${username}] Отключился`);
+      connection = null;
       handle._tiktokMode = 'demo';
       notify({ connected: false, mode: 'demo', message: `@${username} вышел из эфира` });
       if (!handle._demoStarted) {
         handle._demoStarted = true;
         _startDemo(onGift, handle, onLike, onChat, onMember);
       }
-      if (!handle._stopped) scheduleRetry(code === 4429 ? 120000 : 30000);
+      if (!handle._stopped) scheduleRetry(30000);
     });
 
-    ws.on('error', (err) => {
-      console.error(`[TikTok][${username}] ❌ Ошибка: ${err.message} | retry через 2 мин`);
-      ws = null;
-      handle._tiktokMode = 'demo';
-      if (!handle._demoStarted) {
-        handle._demoStarted = true;
-        notify({ connected: false, mode: 'demo', message: `@${username} не в эфире, жду подключения…` });
-        _startDemo(onGift, handle, onLike, onChat, onMember);
-      }
-      if (!handle._stopped) scheduleRetry(120000);
+    connection.on('error', (err) => {
+      console.error(`[TikTok][${username}] ❌ ${err.message || err}`);
     });
+
+    connection.connect()
+      .then(() => {
+        console.log(`[TikTok][${username}] ✅ Подключён!`);
+        handle._tiktokMode = 'tiktok';
+        _stopDemo(handle);
+        notify({ connected: true, mode: 'tiktok', message: `Подключён к @${username}` });
+      })
+      .catch((err) => {
+        console.error(`[TikTok][${username}] ❌ Ошибка подключения: ${err.message || err}`);
+        connection = null;
+        handle._tiktokMode = 'demo';
+        if (!handle._demoStarted) {
+          handle._demoStarted = true;
+          notify({ connected: false, mode: 'demo', message: `@${username} не в эфире, жду…` });
+          _startDemo(onGift, handle, onLike, onChat, onMember);
+        }
+        if (!handle._stopped) scheduleRetry(60000);
+      });
   }
 
   tryOnce();
