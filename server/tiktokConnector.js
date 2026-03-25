@@ -96,6 +96,7 @@ function connectToTikTok(username, onGift, onStatus, onMember, onLike, onChat) {
     });
 
     connection.on('member', (data) => {
+      console.log(`[TikTok] member raw: ${JSON.stringify(data).slice(0,200)}`);
       if (!onMember) return;
       onMember({
         userId:    String(data.userId || data.uniqueId || 'u'),
@@ -111,6 +112,10 @@ function connectToTikTok(username, onGift, onStatus, onMember, onLike, onChat) {
         username:  data.nickname || data.uniqueId || 'Unknown',
         avatarUrl: data.profilePictureUrl || '',
       });
+    });
+
+    connection.on('gift', (data) => {
+      console.log(`[TikTok] gift raw: ${JSON.stringify(data).slice(0,200)}`);
     });
 
     connection.on('disconnected', () => {
