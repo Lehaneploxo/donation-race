@@ -35,7 +35,10 @@ function connectToTikTok(username, onGift, onStatus, onMember, onLike, onChat) {
     console.log(`[TikTok][${username}] Попытка подключения…`);
 
     const sessionId = process.env.TIKTOK_SESSION_ID || '';
-    const conn = new WebcastPushConnection(username, sessionId ? { sessionId } : {});
+    const conn = new WebcastPushConnection(username, {
+      ...(sessionId ? { sessionId } : {}),
+      signProviderOptions: { host: `http://localhost:${process.env.PORT || 3000}/` }
+    });
 
     // ── Обработчики TikTok событий ──
     const seenGifts = new Set();

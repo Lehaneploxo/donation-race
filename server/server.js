@@ -50,6 +50,19 @@ app.get('/arena', (req, res) => {
   res.sendFile(path.join(__dirname, '../client/arena.html'));
 });
 
+// Локальный no-op сервис подписи — возвращает URL без изменений
+// Библиотека tiktok-live-connector использует его вместо eulerstream
+app.get('/webcast/sign_url', (req, res) => {
+  const originalUrl = req.query.url || '';
+  res.json({
+    signedUrl: originalUrl,
+    msToken: '',
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36',
+    _signature: '',
+    'X-Bogus': ''
+  });
+});
+
 app.get('/top', async (req, res) => {
   try {
     const top = await db.getTopKillers(20);
