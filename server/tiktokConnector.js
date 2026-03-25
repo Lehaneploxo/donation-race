@@ -1,4 +1,4 @@
-const { WebcastPushConnection } = require('tiktok-live-connector');
+const { TikTokLive } = require('@tiktool/live');
 
 const DEMO_USERS = [
   { id: 'd1', name: 'SuperFan_Anya' }, { id: 'd2', name: 'TikTokKing99' },
@@ -8,6 +8,8 @@ const DEMO_USERS = [
   { id: 'd9', name: 'PurpleStar' },    { id: 'd10', name: 'NightOwl' },
   { id: 'd11', name: 'SpeedRunner' },  { id: 'd12', name: 'GoldRush' },
 ];
+
+const API_KEY = process.env.TIKTOOL_API_KEY || '';
 
 function connectToTikTok(username, onGift, onStatus, onMember, onLike, onChat) {
   const notify = onStatus || (() => {});
@@ -20,9 +22,9 @@ function connectToTikTok(username, onGift, onStatus, onMember, onLike, onChat) {
     return handle;
   }
 
-  let connecting = false;
-  let connected  = false;
   let retryTimer = null;
+  let reconnectTimer = null;
+  let live = null;
 
   function scheduleRetry(delayMs) {
     if (retryTimer) clearTimeout(retryTimer);
@@ -30,45 +32,81 @@ function connectToTikTok(username, onGift, onStatus, onMember, onLike, onChat) {
   }
 
   function tryOnce() {
-    if (connecting || connected) return;
-    connecting = true;
+    if (live) { try { live.disconnect(); } catch(e) {} live = null; }
+    if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+
     console.log(`[TikTok][${username}] Попытка подключения…`);
 
-    const sessionId = process.env.TIKTOK_SESSION_ID || '';
-    const conn = new WebcastPushConnection(username, {
-      ...(sessionId ? { sessionId } : {}),
-      signProviderOptions: { host: `http://localhost:${process.env.PORT || 3000}/` },
-      fetchRoomInfoOnConnect: false
-    });
+    live = new TikTokLive({ uniqueId: username, apiKey: API_KEY });
 
-    // ── Обработчики TikTok событий ──
     const seenGifts = new Set();
-    conn.on('gift', data => {
-      const key = `${data.userId}_${data.giftId||data.giftName}_${data.repeatCount}_${Math.floor(Date.now()/2000)}`;
+    live.on('gift', e => {
+      const d = e.data || e;
+      const user = d.user || {};
+      const key = `${user.userId}_${d.giftId||d.giftName}_${Math.floor(Date.now()/2000)}`;
       if (seenGifts.has(key)) return;
       seenGifts.add(key); if (seenGifts.size > 500) seenGifts.clear();
-      const coins = Math.max(1, Math.floor(data.diamondCount || data.giftDetails?.diamondCount || 1));
-      const giftName = data.giftName || data.giftDetails?.giftName || '';
-      onGift({ userId: String(data.userId), username: data.nickname || data.uniqueId || 'Unknown', avatarUrl: data.profilePictureUrl || '', giftName, coins });
+      const coins = Math.max(1, Math.floor(d.diamondCount || d.giftDetails?.diamondCount || 1));
+      onGift({
+        userId: String(user.userId || user.uniqueId || 'u'),
+        username: user.nickname || user.uniqueId || 'Unknown',
+        avatarUrl: user.avatarUrl || user.profilePictureUrl || '',
+        giftName: d.giftName || '',
+        coins
+      });
     });
-    conn.on('like', data => {
+
+    live.on('like', e => {
       if (!onLike) return;
-      onLike({ userId: String(data.userId), username: data.nickname || data.uniqueId || 'Unknown', avatarUrl: data.profilePictureUrl || '', likes: data.likeCount || 1 });
+      const d = e.data || e;
+      const user = d.user || {};
+      onLike({
+        userId: String(user.userId || user.uniqueId || 'u'),
+        username: user.nickname || user.uniqueId || 'Unknown',
+        avatarUrl: user.avatarUrl || '',
+        likes: d.likeCount || d.likes || 1
+      });
     });
-    conn.on('chat', data => {
+
+    live.on('chat', e => {
       if (!onChat) return;
-      const msg = (data.comment || '').trim().toLowerCase();
+      const d = e.data || e;
+      const user = d.user || {};
+      const msg = (d.comment || d.message || '').trim().toLowerCase();
       if (['go','blue','red','help','team','team2','rating','power','super power','bot','botmax'].includes(msg) || msg.startsWith('boost '))
-        onChat({ userId: String(data.userId), username: data.nickname || data.uniqueId || 'Unknown', avatarUrl: data.profilePictureUrl || '', message: msg });
+        onChat({
+          userId: String(user.userId || user.uniqueId || 'u'),
+          username: user.nickname || user.uniqueId || 'Unknown',
+          avatarUrl: user.avatarUrl || '',
+          message: msg
+        });
     });
-    conn.on('member', data => {
-      onMember?.({ userId: String(data.userId), username: data.nickname || data.uniqueId || 'Unknown', avatarUrl: data.profilePictureUrl || '' });
+
+    live.on('member', e => {
+      if (!onMember) return;
+      const d = e.data || e;
+      const user = d.user || {};
+      onMember({
+        userId: String(user.userId || user.uniqueId || 'u'),
+        username: user.nickname || user.uniqueId || 'Unknown',
+        avatarUrl: user.avatarUrl || ''
+      });
     });
-    conn.on('error', err => console.error(`[TikTok][${username}] event error:`, err.message || err));
-    conn.on('disconnected', () => {
+
+    live.on('connected', () => {
+      console.log(`[TikTok][${username}] ✅ Подключён!`);
+      handle._tiktokMode = 'tiktok';
+      _stopDemo(handle);
+      notify({ connected: true, mode: 'tiktok', message: `Подключён к @${username}` });
+      // Sandbox: max 5 min session — переподключаемся каждые 4.5 мин
+      reconnectTimer = setTimeout(() => {
+        console.log(`[TikTok][${username}] ♻️ Переподключение (sandbox limit)…`);
+        tryOnce();
+      }, 4.5 * 60 * 1000);
+    });
+
+    live.on('disconnected', () => {
       console.log(`[TikTok][${username}] Отключился от стрима`);
-      connected  = false;
-      connecting = false;
       handle._tiktokMode = 'demo';
       notify({ connected: false, mode: 'demo', message: `@${username} вышел из эфира` });
       if (!handle._demoStarted) {
@@ -78,38 +116,23 @@ function connectToTikTok(username, onGift, onStatus, onMember, onLike, onChat) {
       scheduleRetry(15000);
     });
 
-    conn.connect()
-      .then(s => {
-        console.log(`[TikTok][${username}] ✅ Подключён! room: ${s.roomId}`);
-        connected  = true;
-        connecting = false;
-        handle._tiktokMode = 'tiktok';
-        _stopDemo(handle);
-        notify({ connected: true, mode: 'tiktok', message: `Подключён к @${username}` });
-      })
-      .catch(err => {
-        connected  = false;
-        connecting = false;
-        // Уважаем retryAfter от TikTok — не спамим
-        // Если TikTok rate-limit (retryAfter задан) — ждём минимум 5 минут чтобы окно сбросилось.
-        // Повтор через 70с только сбрасывает таймер блокировки снова.
-        const retryAfter = (err.retryAfter && err.retryAfter > 0)
-          ? Math.max(err.retryAfter, 5 * 60 * 1000)
-          : 30000;
-        console.error(`[TikTok][${username}] ❌ Ошибка: ${err.message || err} | retry через ${Math.round(retryAfter/1000)}с`);
-        handle._tiktokMode = 'demo';
-        if (!handle._demoStarted) {
-          handle._demoStarted = true;
-          notify({ connected: false, mode: 'demo', message: `@${username} не в эфире, жду подключения…` });
-          _startDemo(onGift, handle, onLike, onChat, onMember);
-        }
-        scheduleRetry(retryAfter);
-      });
+    live.on('error', err => {
+      console.error(`[TikTok][${username}] event error:`, (err && err.message) || err);
+    });
+
+    live.connect().catch(err => {
+      console.error(`[TikTok][${username}] ❌ Ошибка: ${err.message || err} | retry через 30с`);
+      handle._tiktokMode = 'demo';
+      if (!handle._demoStarted) {
+        handle._demoStarted = true;
+        notify({ connected: false, mode: 'demo', message: `@${username} не в эфире, жду подключения…` });
+        _startDemo(onGift, handle, onLike, onChat, onMember);
+      }
+      scheduleRetry(30000);
+    });
   }
 
-  // Первая попытка сразу
   tryOnce();
-
   return handle;
 }
 
