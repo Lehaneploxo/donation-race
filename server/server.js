@@ -50,6 +50,11 @@ app.get('/arena', (req, res) => {
   res.sendFile(path.join(__dirname, '../client/arena.html'));
 });
 
+app.get('/civilization', (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  res.sendFile(path.join(__dirname, '../client/civilization.html'));
+});
+
 // Локальный no-op сервис подписи — возвращает URL без изменений
 // Библиотека tiktok-live-connector использует его вместо eulerstream
 app.get('/webcast/sign_url', (req, res) => {
@@ -219,6 +224,9 @@ class Room {
       (data) => {
         const msg = (data.message || '').trim();
         const msgLower = msg.toLowerCase();
+
+        // Civilization game: broadcast raw chat so client can react to keywords
+        this.broadcast({ type: 'chat', uniqueId: data.uniqueId, username: data.username, comment: msg });
 
         // War game: broadcast team command to all clients
         if (msg === 'blue' || msg === 'red') {
