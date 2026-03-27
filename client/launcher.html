@@ -271,8 +271,7 @@
 
     <div class="error-msg" id="civError">Введи никнейм TikTok</div>
 
-    <button class="btn-start" id="civStart" style="background:linear-gradient(90deg,#226600,#44CC00);color:#fff;box-shadow:0 4px 20px rgba(0,180,0,0.4)">🏛️ START ЦИВИЛИЗАЦИЮ</button>
-    <button class="btn-demo"  id="civDemo">Демо-режим (без TikTok)</button>
+    <button class="btn-start" id="civStart" style="background:linear-gradient(90deg,#226600,#44CC00);color:#fff;box-shadow:0 4px 20px rgba(0,180,0,0.4)">🏛️ START CIVILIZATION</button>
 
     <div class="status-msg" id="civStatus">⏳ Открываю игру…</div>
   </div>
@@ -349,9 +348,7 @@
 
   // Civilization
   document.getElementById('civStart').addEventListener('click', () =>
-    handleClick('civInput','civError','civStatus','civStart','civDemo','/civilization'));
-  document.getElementById('civDemo').addEventListener('click', () =>
-    go('demo', '/civilization', 'civStatus', 'civStart', 'civDemo'));
+    handleClick('civInput','civError','civStatus','civStart','civStart','/civilization'));
   document.getElementById('civInput').addEventListener('keydown', e => {
     if (e.key === 'Enter') document.getElementById('civStart').click();
   });

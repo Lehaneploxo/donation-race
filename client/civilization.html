@@ -625,6 +625,7 @@ let civPop=0,likeCount=0,eraIdx=0;
 const LIKES_PER_DISASTER=1000,MAX_FIGURES=250;
 const figures=[],donors={};
 const buildings=[],MIN_BLDG_DIST=75,MAX_BUILDINGS=55;
+let isDemo=false; // always false — civ is TikTok-only
 const blockedZones=[];// {x,y,until} — no building can appear here until `until` ms
 function targetBldgCount(){
   if(eraIdx===0) return Math.min(MAX_BUILDINGS,Math.max(6,Math.floor(civPop/5)));
@@ -1217,11 +1218,7 @@ function drawTornadoAnim(cx,a,now){
 // ── Game loop ─────────────────────────────────────────────────────────────────
 function gameLoop(now){
   const dt=Math.min(now-lastTime,64);lastTime=now;
-  if(isDemo){
-    if(Math.random()<0.06){const names=['Vasya','Petya','Kolya','Masha','Dasha','Igor'];spawnPeople(names[Math.floor(Math.random()*names.length)],Math.floor(Math.random()*10)+1);}
-    // в демо-режиме симулируем лайки
-    if(Math.random()<0.04) addLike();
-  }
+  // No demo mode — civilization is TikTok-only
   figures.forEach(f=>{
     f.phase+=dt*0.005;f.x+=f.vx;f.y+=f.vy;
     if(f.x<15){f.x=15;f.vx=Math.abs(f.vx);}if(f.x>W-15){f.x=W-15;f.vx=-Math.abs(f.vx);}
@@ -1409,8 +1406,9 @@ if(location.hostname==='localhost'||location.hostname==='127.0.0.1'){
   document.getElementById('devPanel').style.display='flex';
 }
 
-if(username==='demo'){isDemo=true;connMsg.textContent='🎮 Demo mode';setTimeout(()=>connMsg.style.display='none',2500);}
-else connectWS();
+// Always connect to WebSocket — no demo mode for civilization
+connMsg.textContent='⏳ Waiting for stream…';
+connectWS();
 updateUI();
 requestAnimationFrame(t=>{lastTime=t;gameLoop(t);});
 
