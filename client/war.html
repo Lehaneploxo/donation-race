@@ -53,11 +53,6 @@
       color: #FFF; cursor: pointer; transition: transform 0.1s;
     }
     #usernameBtn:hover { transform: scale(1.04); }
-    #demoWarBtn {
-      font-size: 14px; color: #888; background: none;
-      border: none; cursor: pointer; text-decoration: underline;
-    }
-    #demoWarBtn:hover { color: #CCC; }
 
     /* Status */
     #statusBadge {
@@ -99,7 +94,6 @@
     <p>Enter TikTok username for stream</p>
     <input id="usernameInput" type="text" placeholder="@your_username" autocomplete="off" spellcheck="false">
     <button id="usernameBtn">▶ START</button>
-    <button id="demoWarBtn">Demo mode (no TikTok)</button>
   </div>
 
   <div id="statusBadge">⏳ Connecting…</div>
@@ -1510,15 +1504,6 @@ function setStatus(cls, text) {
 
   document.getElementById('usernameInput').addEventListener('keydown', e => {
     if (e.key === 'Enter') document.getElementById('usernameBtn').click();
-  });
-
-  // Demo button
-  document.getElementById('demoWarBtn').addEventListener('click', () => {
-    const u = new URL(location.href);
-    u.searchParams.set('username', 'demo');
-    history.replaceState({}, '', u);
-    document.getElementById('usernameOverlay').style.display = 'none';
-    wsConnect('demo');
   });
 
   // Prefill last saved username

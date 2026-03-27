@@ -143,16 +143,6 @@
       box-shadow: 0 4px 20px rgba(130,0,255,0.4);
     }
 
-    .btn-demo {
-      font-size: 13px;
-      color: rgba(255,255,255,0.35);
-      background: none;
-      border: none;
-      cursor: pointer;
-      text-decoration: underline;
-      font-family: 'Segoe UI', sans-serif;
-    }
-    .btn-demo:hover { color: rgba(255,255,255,0.65); }
 
     /* Error */
     .error-msg {
@@ -233,7 +223,6 @@
     <div class="error-msg" id="raceError">Введи никнейм TikTok</div>
 
     <button class="btn-start" id="raceStart">▶ START</button>
-    <button class="btn-demo"  id="raceDemo">Демо-режим (без TikTok)</button>
 
     <div class="status-msg" id="raceStatus">⏳ Открываю игру…</div>
   </div>
@@ -253,7 +242,6 @@
     <div class="error-msg" id="warError">Введи никнейм TikTok</div>
 
     <button class="btn-start" id="warStart">⚔️ START WAR</button>
-    <button class="btn-demo"  id="warDemo">Демо-режим (без TikTok)</button>
 
     <div class="status-msg" id="warStatus">⏳ Открываю игру…</div>
   </div>
@@ -288,7 +276,6 @@
     <div class="error-msg" id="arenaError">Введи никнейм TikTok</div>
 
     <button class="btn-start" id="arenaStart">⚔️ START ARENA</button>
-    <button class="btn-demo"  id="arenaDemo">Демо-режим (без TikTok)</button>
 
     <div class="status-msg" id="arenaStatus">⏳ Открываю игру…</div>
   </div>
@@ -315,16 +302,15 @@
     });
   });
 
-  function go(username, path, statusId, startId, demoId) {
+  function go(username, path, statusId, startId) {
     const s  = document.getElementById(statusId);
     const b1 = document.getElementById(startId);
-    const b2 = document.getElementById(demoId);
     s.style.display = 'block';
-    b1.disabled = b2.disabled = true;
+    b1.disabled = true;
     setTimeout(() => { window.location.href = path + '?username=' + encodeURIComponent(username); }, 300);
   }
 
-  function handleClick(inputId, errorId, statusId, startId, demoId, path) {
+  function handleClick(inputId, errorId, statusId, startId, path) {
     const val = document.getElementById(inputId).value.replace(/^@/, '').trim();
     if (!val) {
       const e = document.getElementById(errorId);
@@ -334,39 +320,33 @@
       return;
     }
     localStorage.setItem('tiktok_username', val);
-    go(val, path, statusId, startId, demoId);
+    go(val, path, statusId, startId);
   }
 
   // Race
   document.getElementById('raceStart').addEventListener('click', () =>
-    handleClick('raceInput','raceError','raceStatus','raceStart','raceDemo','/game'));
-  document.getElementById('raceDemo').addEventListener('click', () =>
-    go('demo', '/game', 'raceStatus', 'raceStart', 'raceDemo'));
+    handleClick('raceInput','raceError','raceStatus','raceStart','/game'));
   document.getElementById('raceInput').addEventListener('keydown', e => {
     if (e.key === 'Enter') document.getElementById('raceStart').click();
   });
 
   // Civilization
   document.getElementById('civStart').addEventListener('click', () =>
-    handleClick('civInput','civError','civStatus','civStart','civStart','/civilization'));
+    handleClick('civInput','civError','civStatus','civStart','/civilization'));
   document.getElementById('civInput').addEventListener('keydown', e => {
     if (e.key === 'Enter') document.getElementById('civStart').click();
   });
 
   // War
   document.getElementById('warStart').addEventListener('click', () =>
-    handleClick('warInput','warError','warStatus','warStart','warDemo','/war'));
-  document.getElementById('warDemo').addEventListener('click', () =>
-    go('demo', '/war', 'warStatus', 'warStart', 'warDemo'));
+    handleClick('warInput','warError','warStatus','warStart','/war'));
   document.getElementById('warInput').addEventListener('keydown', e => {
     if (e.key === 'Enter') document.getElementById('warStart').click();
   });
 
   // Arena
   document.getElementById('arenaStart').addEventListener('click', () =>
-    handleClick('arenaInput','arenaError','arenaStatus','arenaStart','arenaDemo','/arena'));
-  document.getElementById('arenaDemo').addEventListener('click', () =>
-    go('demo', '/arena', 'arenaStatus', 'arenaStart', 'arenaDemo'));
+    handleClick('arenaInput','arenaError','arenaStatus','arenaStart','/arena'));
   document.getElementById('arenaInput').addEventListener('keydown', e => {
     if (e.key === 'Enter') document.getElementById('arenaStart').click();
   });
