@@ -701,7 +701,7 @@ function tryAddBuilding(){
     if(ok){buildings.push({x:bx,y:by,era:ei,variant:Math.floor(Math.random()*vc)});return;}
   }
 }
-let topDonors=[],lastTime=performance.now(),isDemo=false;
+let topDonors=[],lastTime=performance.now();
 
 const SPAWN_ZONES=[
   {x1:20,y1:165,x2:140,y2:SEA_Y-20},
