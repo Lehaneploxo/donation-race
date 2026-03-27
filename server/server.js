@@ -98,6 +98,9 @@ class Room {
       this.username,
       // onGift — донат
       (data) => {
+        // Always send to civilization regardless of race state
+        this.broadcast({ type: 'civ_gift', username: data.username, uniqueId: data.userId, coins: data.coins });
+
         if (this._raceEnded) return; // не считаем во время перерыва
         this.players.addCoins(data.userId, data.username, data.avatarUrl, data.coins);
         this._totalCoins += (Number(data.coins) || 0);
@@ -194,6 +197,8 @@ class Room {
       },
       // onLike — лайки
       (data) => {
+        // Always send to civilization
+        this.broadcast({ type: 'civ_like', likes: data.likes || 1, username: data.username });
         // War game: broadcast raw like count regardless of race state
         this.broadcast({ type: 'war_like', likes: data.likes || 0, username: data.username });
         this.broadcast({ type: 'arena_like', likes: data.likes || 0, username: data.username });

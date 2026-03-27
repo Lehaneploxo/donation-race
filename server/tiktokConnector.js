@@ -86,13 +86,13 @@ function connectToTikTok(username, onGift, onStatus, onMember, onLike, onChat) {
     connection.on('chat', (data) => {
       if (!onChat) return;
       const msg = (data.comment || '').trim().toLowerCase();
-      if (['go','blue','red','help','team','team2','rating','power','super power','bot','botmax'].includes(msg) || msg.startsWith('boost '))
-        onChat({
-          userId:    String(data.userId || data.uniqueId || 'u'),
-          username:  data.nickname || data.uniqueId || 'Unknown',
-          avatarUrl: data.profilePictureUrl || '',
-          message:   msg,
-        });
+      // Pass all messages (civilization needs any keyword like "man")
+      onChat({
+        userId:    String(data.userId || data.uniqueId || 'u'),
+        username:  data.nickname || data.uniqueId || 'Unknown',
+        avatarUrl: data.profilePictureUrl || '',
+        message:   data.comment || '',
+      });
     });
 
     connection.on('member', (data) => {
