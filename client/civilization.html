@@ -151,7 +151,7 @@ const W=563,H=1000,GND=145,SEA_Y=H-88;
 
 // ── Eras ──────────────────────────────────────────────────────────────────────
 const ERAS=[
-  {name:'🦕 PRIMITIVE ERA',    year:'20,000 BC', minPop:0,    maxPop:200,  skyT:'#120800',skyB:'#3d2200',gndT:'#4a3010',gndM:'#5a4020',gndB:'#2d1e08'},
+  {name:'🦕 PRIMITIVE ERA',    year:'20,000 BC', minPop:0,    maxPop:200,  skyT:'#1a1200',skyB:'#6b3a00',gndT:'#5a3a10',gndM:'#6a4820',gndB:'#3d2808'},
   {name:'🏛️ ANCIENT GREECE',   year:'3,000 BC',  minPop:200,  maxPop:500,  skyT:'#0a1a3d',skyB:'#1a4a8a',gndT:'#8B9B5A',gndM:'#6B7B3A',gndB:'#4d5e2a'},
   {name:'⚔️ MIDDLE AGES',      year:'900 AD',    minPop:500,  maxPop:1000, skyT:'#080a18',skyB:'#1a2040',gndT:'#3d4820',gndM:'#4a5828',gndB:'#252d12'},
   {name:'🎩 INDUSTRIAL AGE',   year:'1700 AD',   minPop:1000, maxPop:3000, skyT:'#1a1a2e',skyB:'#2d3d5a',gndT:'#405530',gndM:'#506040',gndB:'#283520'},
@@ -1299,6 +1299,27 @@ function gameLoop(now){
     eraTransition.t+=dt;
     drawEraTransition(ctx,eraTransition);
     if(eraTransition.t>=eraTransition.dur) eraTransition=null;
+  }
+
+  // "Send gifts" hint when empty
+  if(civPop===0){
+    ctx.save();
+    const cy=H/2;
+    ctx.fillStyle='rgba(0,0,0,0.45)';
+    ctx.beginPath();ctx.roundRect(W/2-190,cy-60,380,120,18);ctx.fill();
+    ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.font='bold 28px Arial Black,Arial';
+    ctx.fillStyle='#FFD700';
+    ctx.shadowColor='rgba(255,180,0,0.7)';ctx.shadowBlur=14;
+    ctx.fillText('🏛️ CIVILIZATION',W/2,cy-24);
+    ctx.shadowBlur=0;
+    ctx.font='bold 16px Segoe UI,Arial';
+    ctx.fillStyle='rgba(255,255,255,0.8)';
+    ctx.fillText('Send gifts → spawn people!',W/2,cy+12);
+    ctx.font='14px Segoe UI,Arial';
+    ctx.fillStyle='rgba(255,255,255,0.45)';
+    ctx.fillText('Likes → disasters every 1000 ❤️',W/2,cy+38);
+    ctx.restore();
   }
 
   requestAnimationFrame(gameLoop);
