@@ -66,6 +66,10 @@
       background-image: linear-gradient(135deg, #080018 0%, #2a0050 40%, #080018 100%);
       opacity: 1;
     }
+    .panel-civ::before {
+      background-image: linear-gradient(135deg, #080a00 0%, #1a2800 40%, #080a00 100%);
+      opacity: 1;
+    }
 
     .game-panel > * { position: relative; z-index: 1; }
 
@@ -79,6 +83,7 @@
     .panel-race .panel-title  { color: #FFD700; text-shadow: 0 0 18px #FF6600; }
     .panel-war  .panel-title  { color: #88CCFF; text-shadow: 0 0 18px #0055FF; }
     .panel-arena .panel-title { color: #DD88FF; text-shadow: 0 0 18px #8800FF; }
+    .panel-civ  .panel-title  { color: #88FF88; text-shadow: 0 0 18px #00AA00; }
 
     .panel-sub {
       font-size: 14px;
@@ -255,6 +260,23 @@
 
   <div class="divider">— ИЛИ —</div>
 
+  <!-- ── ЦИВИЛИЗАЦИЯ ── -->
+  <div class="game-panel panel-civ">
+    <div class="panel-title">🏛️ ЦИВИЛИЗАЦИЯ 🏛️</div>
+    <div class="panel-sub">Монеты = жители · Каждые 30 сек катастрофа!</div>
+
+    <input class="nick-input" id="civInput" type="text"
+           placeholder="@your_username"
+           autocomplete="off" autocorrect="off" spellcheck="false">
+
+    <div class="error-msg" id="civError">Введи никнейм TikTok</div>
+
+    <button class="btn-start" id="civStart" style="background:linear-gradient(90deg,#226600,#44CC00);color:#fff;box-shadow:0 4px 20px rgba(0,180,0,0.4)">🏛️ START ЦИВИЛИЗАЦИЮ</button>
+    <button class="btn-demo"  id="civDemo">Демо-режим (без TikTok)</button>
+
+    <div class="status-msg" id="civStatus">⏳ Открываю игру…</div>
+  </div>
+
   <!-- ── ARENA BATTLE ── -->
   <div class="game-panel panel-arena">
     <div class="panel-title">⚔️ ARENA BATTLE ⚔️</div>
@@ -282,12 +304,13 @@
   document.getElementById('raceInput').value  = saved;
   document.getElementById('warInput').value   = saved;
   document.getElementById('arenaInput').value = saved;
+  document.getElementById('civInput').value   = saved;
 
   // Sync all inputs when typing
-  ['raceInput','warInput','arenaInput'].forEach(id => {
+  ['raceInput','warInput','arenaInput','civInput'].forEach(id => {
     document.getElementById(id).addEventListener('input', function() {
       if (this.value.startsWith('@')) this.value = this.value.slice(1);
-      ['raceInput','warInput','arenaInput'].forEach(oid => {
+      ['raceInput','warInput','arenaInput','civInput'].forEach(oid => {
         if (oid !== id) document.getElementById(oid).value = this.value;
       });
     });
@@ -322,6 +345,15 @@
     go('demo', '/game', 'raceStatus', 'raceStart', 'raceDemo'));
   document.getElementById('raceInput').addEventListener('keydown', e => {
     if (e.key === 'Enter') document.getElementById('raceStart').click();
+  });
+
+  // Civilization
+  document.getElementById('civStart').addEventListener('click', () =>
+    handleClick('civInput','civError','civStatus','civStart','civDemo','/civilization'));
+  document.getElementById('civDemo').addEventListener('click', () =>
+    go('demo', '/civilization', 'civStatus', 'civStart', 'civDemo'));
+  document.getElementById('civInput').addEventListener('keydown', e => {
+    if (e.key === 'Enter') document.getElementById('civStart').click();
   });
 
   // War
