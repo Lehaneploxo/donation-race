@@ -1311,7 +1311,7 @@ const connMsg=document.getElementById('connMsg');
 function connectWS(){
   const proto=location.protocol==='https:'?'wss':'ws';
   socket=new WebSocket(`${proto}://${location.host}?username=${encodeURIComponent(username)}`);
-  socket.addEventListener('open',()=>{connMsg.textContent='🔗 Connected';setTimeout(()=>connMsg.style.display='none',2000);});
+  socket.addEventListener('open',()=>{connMsg.textContent='🔗 Connecting to TikTok…';connMsg.style.display='block';});
   socket.addEventListener('message',e=>{let m;try{m=JSON.parse(e.data);}catch{return;}handleEvent(m);});
   socket.addEventListener('close',()=>{connMsg.textContent='⚠️ Reconnecting…';connMsg.style.display='block';setTimeout(connectWS,3000);});
   socket.addEventListener('error',()=>socket.close());
@@ -1338,8 +1338,14 @@ function handleEvent(m){
     const txt=(m.comment||m.message||'').toLowerCase();
     if(txt.includes('man')) spawnNeutral();
   }
-  else if(m.type==='tiktok_connected'){connMsg.textContent=`✅ ${username} online`;setTimeout(()=>connMsg.style.display='none',2000);}
-  else if(m.type==='tiktok_error'){connMsg.textContent='⚠️ TikTok error';connMsg.style.display='block';}
+  else if(m.type==='status'){
+    if(m.connected){connMsg.textContent=`✅ @${username} live!`;setTimeout(()=>connMsg.style.display='none',2000);}
+    else{connMsg.textContent=`⏳ Waiting for @${username} stream…`;connMsg.style.display='block';}
+  }
+  else if(m.type==='init'){
+    if(m.tiktokMode==='tiktok'){connMsg.textContent=`✅ @${username} live!`;setTimeout(()=>connMsg.style.display='none',2000);}
+    else{connMsg.textContent=`⏳ Waiting for @${username} stream…`;connMsg.style.display='block';}
+  }
 }
 
 // ── Coin hint graphic ─────────────────────────────────────────────────────────
