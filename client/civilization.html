@@ -76,8 +76,8 @@ canvas { display:block; }
   </div>
 </div>
 
-<!-- ── DEV PANEL ── -->
-<div id="devPanel">
+<!-- ── DEV PANEL (localhost only) ── -->
+<div id="devPanel" style="display:none">
   <div class="dev-title">🎮 TEST</div>
   <div class="dev-divider"></div>
   <div class="dev-section">
@@ -1394,6 +1394,11 @@ function handleEvent(m){
     drawNeutralPerson();
   }
 })();
+
+// Show dev panel only on localhost
+if(location.hostname==='localhost'||location.hostname==='127.0.0.1'){
+  document.getElementById('devPanel').style.display='flex';
+}
 
 if(username==='demo'){isDemo=true;connMsg.textContent='🎮 Demo mode';setTimeout(()=>connMsg.style.display='none',2500);}
 else connectWS();
