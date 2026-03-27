@@ -1305,8 +1305,8 @@ function gameLoop(now){
   if(civPop===0){
     ctx.save();
     const cy=H/2;
-    ctx.fillStyle='rgba(0,0,0,0.45)';
-    ctx.beginPath();ctx.roundRect(W/2-190,cy-60,380,120,18);ctx.fill();
+    ctx.fillStyle='rgba(0,0,0,0.55)';
+    ctx.fillRect(W/2-190,cy-60,380,120);
     ctx.textAlign='center';ctx.textBaseline='middle';
     ctx.font='bold 28px Arial Black,Arial';
     ctx.fillStyle='#FFD700';
@@ -1314,11 +1314,11 @@ function gameLoop(now){
     ctx.fillText('🏛️ CIVILIZATION',W/2,cy-24);
     ctx.shadowBlur=0;
     ctx.font='bold 16px Segoe UI,Arial';
-    ctx.fillStyle='rgba(255,255,255,0.8)';
+    ctx.fillStyle='rgba(255,255,255,0.85)';
     ctx.fillText('Send gifts → spawn people!',W/2,cy+12);
     ctx.font='14px Segoe UI,Arial';
-    ctx.fillStyle='rgba(255,255,255,0.45)';
-    ctx.fillText('Likes → disasters every 1000 ❤️',W/2,cy+38);
+    ctx.fillStyle='rgba(255,255,255,0.5)';
+    ctx.fillText('Likes → disasters every 1000 \u2764\ufe0f',W/2,cy+40);
     ctx.restore();
   }
 
