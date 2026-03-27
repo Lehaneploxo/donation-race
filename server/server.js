@@ -70,7 +70,7 @@ app.get('/webcast/sign_url', (req, res) => {
 
 app.get('/top', async (req, res) => {
   try {
-    const top = await db.getTopKillers(20);
+    const top = await db.getTopKillers(50);
     res.json({ ok: true, count: top.length, top });
   } catch(e) {
     res.json({ ok: false, error: e.message });
