@@ -32,6 +32,7 @@ canvas { display:block; }
 #likeFill { height:100%; background:linear-gradient(90deg,#FF44AA,#FF0044,#FF6600); border-radius:8px; transition:width 0.15s; }
 #likeLabel { font-size:19px; font-weight:900; color:#FF8888; font-family:'Arial Black',Arial,sans-serif; text-align:center; margin-top:4px; text-shadow:0 0 10px rgba(255,80,80,0.6),0 2px 4px rgba(0,0,0,1); letter-spacing:0.5px; }
 #connMsg { position:absolute; bottom:50px; left:50%; transform:translateX(-50%); font-size:14px; font-weight:700; color:rgba(255,255,255,0.6); font-family:'Segoe UI',sans-serif; text-align:center; white-space:nowrap; text-shadow:0 1px 4px rgba(0,0,0,1); }
+#fsBtn { position:fixed; z-index:99999; top:50%; right:10px; transform:translateY(-50%); width:26px; height:26px; font-size:12px; background:rgba(0,0,0,0.55); color:rgba(255,255,255,0.55); border:1px solid rgba(255,255,255,0.2); border-radius:6px; cursor:pointer; display:flex; align-items:center; justify-content:center; }
 #coinHint {
   position:absolute; top:148px; right:10px;
   background:rgba(0,0,0,0.82); border-radius:10px;
@@ -43,6 +44,7 @@ canvas { display:block; }
 </style>
 </head>
 <body>
+<button id="fsBtn" title="Fullscreen">⛶</button>
 <div id="scaleWrapper">
   <canvas id="cvs" width="563" height="1000"></canvas>
   <div id="uiOverlay">
@@ -1627,6 +1629,7 @@ function gameLoop(now){
 let socket;
 const username=new URLSearchParams(location.search).get('username')||'demo';
 const connMsg=document.getElementById('connMsg');
+document.getElementById('fsBtn').addEventListener('click',()=>{if(document.fullscreenElement)document.exitFullscreen&&document.exitFullscreen();else document.documentElement.requestFullscreen&&document.documentElement.requestFullscreen().then(()=>{if(screen.orientation&&screen.orientation.lock)screen.orientation.lock('portrait').catch(()=>{});}).catch(()=>{});});
 function connectWS(){
   const proto=location.protocol==='https:'?'wss':'ws';
   socket=new WebSocket(`${proto}://${location.host}?username=${encodeURIComponent(username)}`);
