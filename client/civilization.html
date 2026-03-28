@@ -1655,7 +1655,9 @@ function handleEvent(m){
   // Fallback: legacy events
   else if(m.type==='arena_gift'||m.type==='gift'){spawnPeople(m.username||m.uniqueId||'?',Math.max(1,Number(m.coins||m.diamondCount)||1));}
   else if(m.type==='arena_like'||m.type==='like'){addLike();}
-  else if(m.type==='arena_member'||m.type==='member'){/* ignore — civ_gift already handles it */}
+  else if(m.type==='arena_member'||m.type==='member'){/* ignore */}
+  else if(m.type==='arena_bot'){/* ignore — arena AI bots must not affect civilization */}
+  else if(m.type==='chat'&&(m.comment||'').trim().toLowerCase()==='man'){spawnNeutral();}
   else if(m.type==='status'){
     if(m.connected){connMsg.textContent=`✅ @${username} live!`;setTimeout(()=>connMsg.style.display='none',2000);}
     else{connMsg.textContent=`⏳ Waiting for @${username} stream…`;connMsg.style.display='block';}
