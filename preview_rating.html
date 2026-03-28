@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+  body { background: #1a1a2e; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; font-family: Arial; flex-direction: column; gap: 30px; }
+  .phone { width: 360px; height: 640px; background: #222; border-radius: 20px; border: 2px solid #444; position: relative; overflow: hidden; }
+  .arena-bg { width: 100%; height: 100%; background: linear-gradient(180deg, #1a3a1a 0%, #2d5a2d 60%, #3a7a3a 100%); }
+  .rating-label {
+    position: absolute;
+    bottom: 80px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0,0,0,0.55);
+    border-radius: 10px;
+    padding: 10px 20px;
+    white-space: nowrap;
+    font-size: 16px;
+    font-weight: bold;
+    color: #00EEFF;
+    text-shadow: 0 0 14px #00CCFF, 0 0 6px #00CCFF;
+    border: 1px solid rgba(0,200,255,0.2);
+    animation: fadeIn 0.3s ease;
+  }
+  @keyframes fadeIn { from { opacity:0; transform: translateX(-50%) translateY(10px); } to { opacity:1; transform: translateX(-50%) translateY(0); } }
+  .warriors { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); display: flex; gap: 40px; }
+  .warrior { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .warrior-body { width: 30px; height: 40px; background: #FF4444; border-radius: 50% 50% 30% 30%; border: 2px solid #FFD700; }
+  .warrior-head { width: 18px; height: 18px; background: #FFD700; border-radius: 50%; }
+  .warrior2 .warrior-body { background: #4488FF; }
+  .warrior2 .warrior-head { background: #AADDFF; }
+  .label { color: #aaa; font-size: 11px; text-align: center; margin-bottom: 6px; }
+  .variant-title { color: #888; font-size: 13px; text-align: center; margin-top: 4px; }
+</style>
+</head>
+<body>
+
+  <!-- Вариант 1: есть в рейтинге -->
+  <div>
+    <div class="label">✅ Если игрок есть в рейтинге</div>
+    <div class="phone">
+      <div class="arena-bg"></div>
+      <div class="warriors">
+        <div class="warrior"><div class="warrior-head"></div><div class="warrior-body"></div></div>
+        <div class="warrior warrior2"><div class="warrior-head"></div><div class="warrior-body"></div></div>
+      </div>
+      <div class="rating-label">📊 @SuperFan_Anya — #3 место · 47 убийств</div>
+    </div>
+  </div>
+
+  <!-- Вариант 2: нет в рейтинге -->
+  <div>
+    <div class="label">❌ Если игрока нет в рейтинге (ещё не убивал)</div>
+    <div class="phone">
+      <div class="arena-bg"></div>
+      <div class="warriors">
+        <div class="warrior"><div class="warrior-head"></div><div class="warrior-body"></div></div>
+        <div class="warrior warrior2"><div class="warrior-head"></div><div class="warrior-body"></div></div>
+      </div>
+      <div class="rating-label">📊 @NewViewer — не в рейтинге</div>
+    </div>
+  </div>
+
+</body>
+</html>

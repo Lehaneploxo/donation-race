@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>C-3PO Preview</title>
+<style>
+  body { background: #1a1a2e; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+  canvas { border: 1px solid #333; }
+</style>
+</head>
+<body>
+<canvas id="c" width="300" height="450"></canvas>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+function drawC3PO(cx, cy, now) {
+  ctx.save();
+  ctx.translate(cx, cy);
+
+  const t = now / 1000;
+  const legSwing = Math.sin(t * 2) * 0.15;
+  const armSwing = -legSwing;
+  const eyeGlow = 0.7 + 0.3 * Math.sin(t * 3);
+
+  const gold1 = '#FFD700';
+  const gold2 = '#DAA520';
+  const gold3 = '#B8860B';
+  const goldDark = '#8B6914';
+  const goldLight = '#FFE87C';
+
+  // --- LEGS (longer, start lower) ---
+  // Left leg
+  ctx.save();
+  ctx.rotate(legSwing);
+  ctx.fillStyle = gold2;
+  ctx.beginPath(); ctx.roundRect(-18, 42, 14, 32, 4); ctx.fill(); // thigh h=32 (was 22)
+  ctx.strokeStyle = goldDark; ctx.lineWidth = 1; ctx.stroke();
+  ctx.fillStyle = goldLight;
+  ctx.beginPath(); ctx.arc(-11, 76, 7, 0, Math.PI * 2); ctx.fill(); // knee lower
+  ctx.strokeStyle = goldDark; ctx.stroke();
+  ctx.fillStyle = gold2;
+  ctx.beginPath(); ctx.roundRect(-16, 82, 12, 28, 3); ctx.fill(); // shin h=28 (was 20)
+  ctx.strokeStyle = goldDark; ctx.stroke();
+  ctx.fillStyle = gold3;
+  ctx.beginPath(); ctx.ellipse(-10, 111, 9, 5, 0, 0, Math.PI * 2); ctx.fill(); // foot
+  ctx.strokeStyle = goldDark; ctx.stroke();
+  ctx.restore();
+
+  // Right leg
+  ctx.save();
+  ctx.rotate(-legSwing);
+  ctx.fillStyle = gold2;
+  ctx.beginPath(); ctx.roundRect(4, 42, 14, 32, 4); ctx.fill();
+  ctx.strokeStyle = goldDark; ctx.lineWidth = 1; ctx.stroke();
+  ctx.fillStyle = goldLight;
+  ctx.beginPath(); ctx.arc(11, 76, 7, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = goldDark; ctx.stroke();
+  ctx.fillStyle = gold2;
+  ctx.beginPath(); ctx.roundRect(4, 82, 12, 28, 3); ctx.fill();
+  ctx.strokeStyle = goldDark; ctx.stroke();
+  ctx.fillStyle = gold3;
+  ctx.beginPath(); ctx.ellipse(10, 111, 9, 5, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = goldDark; ctx.stroke();
+  ctx.restore();
+
+  // --- TORSO (taller: h=62 was 44) ---
+  ctx.fillStyle = gold1;
+  ctx.beginPath(); ctx.roundRect(-20, -20, 40, 62, 6); ctx.fill();
+  ctx.strokeStyle = goldDark; ctx.lineWidth = 1.5; ctx.stroke();
+  // Panel lines
+  ctx.strokeStyle = goldDark; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(-12, -10); ctx.lineTo(-12, 34); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(12, -10); ctx.lineTo(12, 34); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(-18, 10); ctx.lineTo(18, 10); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(-18, 28); ctx.lineTo(18, 28); ctx.stroke();
+  // Indicator lights
+  ctx.fillStyle = '#FF4444'; ctx.beginPath(); ctx.arc(-8, -8, 3, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#4488FF'; ctx.beginPath(); ctx.arc(0, -8, 3, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#44FF88'; ctx.beginPath(); ctx.arc(8, -8, 3, 0, Math.PI*2); ctx.fill();
+  // Center chest circle (lower now)
+  ctx.fillStyle = gold3; ctx.beginPath(); ctx.arc(0, 18, 9, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = goldDark; ctx.lineWidth = 1; ctx.stroke();
+  ctx.fillStyle = goldLight; ctx.beginPath(); ctx.arc(0, 18, 4.5, 0, Math.PI * 2); ctx.fill();
+
+  // --- ARMS (longer) ---
+  // Left arm
+  ctx.save();
+  ctx.translate(-20, -10);
+  ctx.rotate(armSwing + 0.1);
+  ctx.fillStyle = gold2; ctx.beginPath(); ctx.roundRect(-10, 0, 10, 24, 4); ctx.fill(); // h=24 was 18
+  ctx.strokeStyle = goldDark; ctx.lineWidth = 1; ctx.stroke();
+  ctx.fillStyle = goldLight; ctx.beginPath(); ctx.arc(-5, 27, 6, 0, Math.PI*2); ctx.fill(); // elbow lower
+  ctx.strokeStyle = goldDark; ctx.stroke();
+  ctx.fillStyle = gold2; ctx.beginPath(); ctx.roundRect(-8, 32, 9, 22, 3); ctx.fill(); // forearm h=22 was 16
+  ctx.strokeStyle = goldDark; ctx.stroke();
+  ctx.fillStyle = gold3; ctx.beginPath(); ctx.ellipse(-4, 57, 5, 7, 0, 0, Math.PI*2); ctx.fill(); // hand lower
+  ctx.strokeStyle = goldDark; ctx.stroke();
+  ctx.restore();
+
+  // Right arm
+  ctx.save();
+  ctx.translate(20, -10);
+  ctx.rotate(-armSwing - 0.1);
+  ctx.fillStyle = gold2; ctx.beginPath(); ctx.roundRect(0, 0, 10, 24, 4); ctx.fill();
+  ctx.strokeStyle = goldDark; ctx.lineWidth = 1; ctx.stroke();
+  ctx.fillStyle = goldLight; ctx.beginPath(); ctx.arc(5, 27, 6, 0, Math.PI*2); ctx.fill();
+  ctx.strokeStyle = goldDark; ctx.stroke();
+  ctx.fillStyle = gold2; ctx.beginPath(); ctx.roundRect(-1, 32, 9, 22, 3); ctx.fill();
+  ctx.strokeStyle = goldDark; ctx.stroke();
+  ctx.fillStyle = gold3; ctx.beginPath(); ctx.ellipse(4, 57, 5, 7, 0, 0, Math.PI*2); ctx.fill();
+  ctx.strokeStyle = goldDark; ctx.stroke();
+  ctx.restore();
+
+  // --- NECK ---
+  ctx.fillStyle = gold2; ctx.beginPath(); ctx.roundRect(-7, -28, 14, 10, 3); ctx.fill();
+  ctx.strokeStyle = goldDark; ctx.lineWidth = 1; ctx.stroke();
+  for (let i = 0; i < 3; i++) {
+    ctx.beginPath(); ctx.moveTo(-7, -26 + i*3); ctx.lineTo(7, -26 + i*3); ctx.stroke();
+  }
+
+  // --- EAR PANELS ---
+  ctx.fillStyle = gold2;
+  ctx.beginPath(); ctx.roundRect(-28, -55, 8, 22, 4); ctx.fill();
+  ctx.strokeStyle = goldDark; ctx.lineWidth = 1; ctx.stroke();
+  ctx.beginPath(); ctx.roundRect(20, -55, 8, 22, 4); ctx.fill(); ctx.stroke();
+
+  // Antenna
+  ctx.strokeStyle = gold3; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(-22, -55); ctx.lineTo(-20, -65); ctx.stroke();
+  ctx.fillStyle = goldLight; ctx.beginPath(); ctx.arc(-20, -66, 2.5, 0, Math.PI*2); ctx.fill();
+
+  // --- HEAD DOME ---
+  ctx.fillStyle = gold1;
+  ctx.beginPath(); ctx.ellipse(0, -50, 20, 24, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = goldDark; ctx.lineWidth = 1.5; ctx.stroke();
+  ctx.strokeStyle = goldDark; ctx.lineWidth = 0.8;
+  ctx.beginPath(); ctx.moveTo(0, -73); ctx.lineTo(0, -28); ctx.stroke();
+
+  // --- EYES ---
+  const eyeR = 7;
+  let eg = ctx.createRadialGradient(-9, -52, 1, -9, -52, eyeR);
+  eg.addColorStop(0, `rgba(255,255,180,${eyeGlow})`);
+  eg.addColorStop(0.5, `rgba(255,220,0,${eyeGlow*0.8})`);
+  eg.addColorStop(1, 'rgba(150,100,0,0.3)');
+  ctx.fillStyle = eg; ctx.beginPath(); ctx.arc(-9, -52, eyeR, 0, Math.PI*2); ctx.fill();
+  ctx.strokeStyle = goldDark; ctx.lineWidth = 1.5; ctx.stroke();
+  ctx.fillStyle = `rgba(80,40,0,${eyeGlow})`; ctx.beginPath(); ctx.arc(-9, -52, 3, 0, Math.PI*2); ctx.fill();
+
+  eg = ctx.createRadialGradient(9, -52, 1, 9, -52, eyeR);
+  eg.addColorStop(0, `rgba(255,255,180,${eyeGlow})`);
+  eg.addColorStop(0.5, `rgba(255,220,0,${eyeGlow*0.8})`);
+  eg.addColorStop(1, 'rgba(150,100,0,0.3)');
+  ctx.fillStyle = eg; ctx.beginPath(); ctx.arc(9, -52, eyeR, 0, Math.PI*2); ctx.fill();
+  ctx.strokeStyle = goldDark; ctx.lineWidth = 1.5; ctx.stroke();
+  ctx.fillStyle = `rgba(80,40,0,${eyeGlow})`; ctx.beginPath(); ctx.arc(9, -52, 3, 0, Math.PI*2); ctx.fill();
+
+  // --- MOUTH GRILLE ---
+  ctx.fillStyle = gold3; ctx.beginPath(); ctx.roundRect(-10, -40, 20, 8, 2); ctx.fill();
+  ctx.strokeStyle = goldDark; ctx.lineWidth = 1; ctx.stroke();
+  ctx.lineWidth = 0.8;
+  for (let i = 1; i < 4; i++) {
+    ctx.beginPath(); ctx.moveTo(-10+i*5, -40); ctx.lineTo(-10+i*5, -32); ctx.stroke();
+  }
+  ctx.beginPath(); ctx.moveTo(-10, -36); ctx.lineTo(10, -36); ctx.stroke();
+
+  ctx.restore();
+}
+
+function loop() {
+  ctx.clearRect(0, 0, 300, 450);
+  ctx.fillStyle = '#1a1a2e';
+  ctx.fillRect(0, 0, 300, 450);
+  ctx.fillStyle = '#FFD700';
+  ctx.font = 'bold 18px Arial';
+  ctx.textAlign = 'center';
+  ctx.fillText('C-3PO', 150, 30);
+  drawC3PO(150, 210, Date.now());
+  requestAnimationFrame(loop);
+}
+loop();
+</script>
+</body>
+</html>

@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>⚔️ Самурай — Arena Battle</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #05050a;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      height: 100vh; font-family: Arial, sans-serif; color: #fff;
+      overflow: hidden;
+    }
+    h2 { margin-bottom: 4px; font-size: 22px; color: #CC0000; letter-spacing: 3px; text-shadow: 0 0 18px rgba(200,0,0,0.8); }
+    p  { margin-bottom: 14px; font-size: 11px; color: #555; letter-spacing: 2px; }
+    canvas {
+      border: 1px solid #1a0000; border-radius: 14px;
+      background: radial-gradient(ellipse at 50% 55%, #120003 0%, #05050a 100%);
+      box-shadow: 0 0 50px rgba(140,0,0,0.35);
+    }
+  </style>
+</head>
+<body>
+  <h2>⚔️ ARENA BATTLE</h2>
+  <p>НОВЫЙ ПЕРСОНАЖ · ПРЕВЬЮ</p>
+  <canvas id="c" width="300" height="380"></canvas>
+<script>
+const canvas = document.getElementById('c');
+const ctx    = canvas.getContext('2d');
+
+// ── Precomputed hamon (static blade-edge wave) ──
+const hamonOff = Array.from({length: 22}, (_, i) => Math.sin(i * 1.4 + 0.8) * 0.9);
+
+// ── Cherry-blossom petals ──
+const petals = Array.from({length: 22}, () => ({
+  x: Math.random() * 300, y: Math.random() * 380,
+  vx: (Math.random() - 0.5) * 0.45,
+  vy: Math.random() * 0.5 + 0.15,
+  rot: Math.random() * Math.PI * 2,
+  vrot: (Math.random() - 0.5) * 0.03,
+  size: Math.random() * 3.5 + 1.8
+}));
+
+// ══════════════════════════════════════════════
+//  SAMURAI  (centered at cx, cy)
+// ══════════════════════════════════════════════
+function drawSamurai(cx, cy, now) {
+  ctx.save();
+  ctx.translate(cx, cy);
+  const bob = Math.sin(now * 0.0018) * 3;
+  ctx.translate(0, bob);
+
+  // — Crimson aura —
+  const ap = 0.09 + Math.sin(now * 0.0016) * 0.05;
+  const ag = ctx.createRadialGradient(0, -28, 0, 0, -28, 74);
+  ag.addColorStop(0, `rgba(200,0,0,${ap * 1.6})`);
+  ag.addColorStop(0.55, `rgba(100,0,0,${ap * 0.7})`);
+  ag.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = ag;
+  ctx.beginPath(); ctx.ellipse(0, -28, 68, 82, 0, 0, Math.PI * 2); ctx.fill();
+
+  // — Ground shadow —
+  ctx.fillStyle = 'rgba(0,0,0,0.55)';
+  ctx.beginPath(); ctx.ellipse(2, 30, 24, 5.5, 0, 0, Math.PI * 2); ctx.fill();
+
+  // ── SAYA (scabbard) left hip ──
+  ctx.save();
+  ctx.translate(-13, -8); ctx.rotate(0.28);
+  ctx.fillStyle = '#0d0d1e';
+  ctx.beginPath(); ctx.roundRect(-3.5, 0, 7, 38, 3); ctx.fill();
+  ctx.strokeStyle = '#B8860B'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(-3.5, 9); ctx.lineTo(3.5, 9); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(-3.5, 26); ctx.lineTo(3.5, 26); ctx.stroke();
+  ctx.fillStyle = '#B8860B';
+  ctx.beginPath(); ctx.roundRect(-3.5, 35, 7, 4, 1); ctx.fill();
+  ctx.restore();
+
+  // ── HAKAMA (wide pleated pants) ──
+  ctx.fillStyle = '#1c0808';
+  ctx.beginPath();
+  ctx.moveTo(-17, -4); ctx.lineTo(-22, 29);
+  ctx.lineTo(-1, 29);  ctx.lineTo(0, 9);
+  ctx.lineTo(1, 29);   ctx.lineTo(22, 29);
+  ctx.lineTo(17, -4);  ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = '#2c1212'; ctx.lineWidth = 1;
+  [-9, -4.5, 0, 4.5, 9].forEach(x => {
+    ctx.beginPath(); ctx.moveTo(x, -4); ctx.lineTo(x * 1.4, 29); ctx.stroke();
+  });
+
+  // ── SUNEATE (shin guards) ──
+  ctx.fillStyle = '#8B0000';
+  ctx.beginPath(); ctx.roundRect(-22, 13, 10, 17, 3); ctx.fill();
+  ctx.beginPath(); ctx.roundRect(12, 13, 10, 17, 3); ctx.fill();
+  ctx.strokeStyle = '#B8860B'; ctx.lineWidth = 1;
+  for (let i = 0; i < 3; i++) {
+    ctx.beginPath(); ctx.moveTo(-22, 16 + i * 4); ctx.lineTo(-12, 16 + i * 4); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(12, 16 + i * 4); ctx.lineTo(22, 16 + i * 4); ctx.stroke();
+  }
+  // Tabi (feet)
+  ctx.fillStyle = '#0f0f0f';
+  ctx.beginPath(); ctx.ellipse(-16, 30, 10, 4, -0.08, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(16, 30, 10, 4,  0.08, 0, Math.PI * 2); ctx.fill();
+
+  // ── DO-MARU (lamellar chest armor) ──
+  ctx.fillStyle = '#520000';
+  ctx.beginPath();
+  ctx.moveTo(-18, -53); ctx.lineTo(18, -53);
+  ctx.lineTo(20, -4);   ctx.lineTo(-20, -4);
+  ctx.closePath(); ctx.fill();
+  for (let i = 0; i < 6; i++) {
+    const y  = -51 + i * 8;
+    const ex = i * 0.45;
+    ctx.fillStyle = i % 2 === 0 ? '#8B0000' : '#720000';
+    ctx.beginPath();
+    ctx.moveTo(-17 - ex, y);    ctx.lineTo(17 + ex, y);
+    ctx.lineTo(18 + ex, y + 7.5); ctx.lineTo(-18 - ex, y + 7.5);
+    ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = '#B8860B'; ctx.lineWidth = 0.7;
+    ctx.beginPath(); ctx.moveTo(-17 - ex, y); ctx.lineTo(17 + ex, y); ctx.stroke();
+  }
+
+  // Mitsudomoe mon (clan crest, slowly spinning)
+  ctx.save();
+  ctx.translate(0, -30); ctx.rotate(now * 0.00028);
+  const mp = 0.6 + Math.sin(now * 0.0022) * 0.4;
+  ctx.shadowColor = '#FFD700'; ctx.shadowBlur = 9 * mp;
+  ctx.fillStyle = '#FFD700';
+  for (let i = 0; i < 3; i++) {
+    ctx.save(); ctx.rotate(i * Math.PI * 2 / 3);
+    ctx.beginPath(); ctx.arc(4.5, 0, 4, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  }
+  ctx.fillStyle = '#580000';
+  ctx.beginPath(); ctx.arc(0, 0, 3.5, 0, Math.PI * 2); ctx.fill();
+  ctx.shadowBlur = 0;
+  ctx.restore();
+
+  // ── O-SODE (big shoulder guards) ──
+  for (const side of [-1, 1]) {
+    ctx.save(); ctx.translate(side * 20, -45); ctx.rotate(side * 0.18);
+    for (let i = 0; i < 4; i++) {
+      ctx.fillStyle = i % 2 === 0 ? '#8B0000' : '#700000';
+      ctx.beginPath();
+      ctx.moveTo(0, i * 5.5); ctx.lineTo(side * 13, i * 4.8);
+      ctx.lineTo(side * (14 - i * 0.4), i * 4.8 + 5.2); ctx.lineTo(side * 0.5, i * 5.5 + 5);
+      ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = '#B8860B'; ctx.lineWidth = 0.7;
+      ctx.beginPath(); ctx.moveTo(0, i * 5.5); ctx.lineTo(side * 13, i * 4.8); ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  // ── ARMS (kote sleeves) ──
+  ctx.strokeStyle = '#680000'; ctx.lineWidth = 11; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(-15, -45); ctx.lineTo(-22, -16); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(15, -45); ctx.lineTo(22, -16); ctx.stroke();
+  // Kote scale segments
+  ctx.fillStyle = '#8B0000';
+  for (let i = 0; i < 3; i++) {
+    ctx.beginPath(); ctx.ellipse(-19 - i, -37 + i * 8, 5, 3.5, -0.25, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(19 + i,  -37 + i * 8, 5, 3.5,  0.25, 0, Math.PI * 2); ctx.fill();
+  }
+  // Tekko (gauntlets)
+  ctx.fillStyle = '#680000';
+  ctx.beginPath(); ctx.arc(-22, -14, 7.5, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc( 22, -14, 7.5, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = '#FFD700'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.arc(-22, -14, 7.5, 0, Math.PI * 2); ctx.stroke();
+  ctx.beginPath(); ctx.arc( 22, -14, 7.5, 0, Math.PI * 2); ctx.stroke();
+
+  // ── KATANA (drawn, held right hand, raised upper-left) ──
+  ctx.save();
+  ctx.translate(20, -20); ctx.rotate(-Math.PI / 4);
+
+  // Handle (tsuka)
+  ctx.fillStyle = '#181010';
+  ctx.beginPath(); ctx.roundRect(-3.5, -2, 7, 22, 2); ctx.fill();
+  ctx.strokeStyle = '#CC2200'; ctx.lineWidth = 1.8;
+  for (let i = 0; i < 7; i++) {
+    ctx.beginPath(); ctx.moveTo(-3.5, 2 + i * 2.8); ctx.lineTo(3.5, 2 + i * 2.8); ctx.stroke();
+  }
+  ctx.strokeStyle = '#FF5555'; ctx.lineWidth = 0.8;
+  for (let i = 0; i < 6; i++) {
+    ctx.beginPath(); ctx.moveTo(-3.5, 1.5 + i * 3.3); ctx.lineTo(0, 3 + i * 3.3); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo( 3.5, 1.5 + i * 3.3); ctx.lineTo(0, 3 + i * 3.3); ctx.stroke();
+  }
+  // Tsuba (guard)
+  ctx.fillStyle = '#B8860B';
+  ctx.beginPath(); ctx.ellipse(0, 0, 11, 5.5, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = '#FFD700'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.ellipse(0, 0, 11, 5.5, 0, 0, Math.PI * 2); ctx.stroke();
+  ctx.fillStyle = '#7A5C00';
+  ctx.beginPath(); ctx.ellipse(-6.5, 0, 2.5, 1.5, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse( 6.5, 0, 2.5, 1.5, 0, 0, Math.PI * 2); ctx.fill();
+
+  // Blade glow
+  const bf = 0.78 + Math.sin(now * 0.005) * 0.22;
+  ctx.shadowColor = '#88CCFF'; ctx.shadowBlur = 32;
+  ctx.fillStyle = `rgba(140, 200, 255, ${bf * 0.85})`;
+  ctx.beginPath();
+  ctx.moveTo(-3.5, 0); ctx.lineTo(3.5, 0);
+  ctx.lineTo(1.2, -76); ctx.lineTo(0, -78); ctx.lineTo(-1.2, -76);
+  ctx.closePath(); ctx.fill();
+  // Blade core
+  ctx.shadowColor = '#E0F0FF'; ctx.shadowBlur = 14;
+  ctx.fillStyle = `rgba(220, 242, 255, ${bf * 0.96})`;
+  ctx.beginPath();
+  ctx.moveTo(-1.5, 0); ctx.lineTo(1.5, 0);
+  ctx.lineTo(0.4, -76); ctx.lineTo(0, -78); ctx.lineTo(-0.4, -76);
+  ctx.closePath(); ctx.fill();
+  // Static hamon
+  ctx.shadowBlur = 0;
+  ctx.strokeStyle = `rgba(180, 225, 255, ${bf * 0.35})`;
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(-2, -4);
+  for (let i = 0; i < hamonOff.length; i++) {
+    ctx.lineTo(-2 + hamonOff[i], -4 - i * 3.4);
+  }
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+  ctx.restore();
+
+  // ── NECK GORGET ──
+  ctx.fillStyle = '#680000';
+  ctx.beginPath();
+  ctx.moveTo(-12, -53); ctx.lineTo(12, -53);
+  ctx.lineTo(13, -59); ctx.lineTo(-13, -59);
+  ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = '#B8860B'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(-12, -56); ctx.lineTo(12, -56); ctx.stroke();
+
+  // ── SHIKORO (kabuto neck-skirt, 3 flaps) ──
+  for (let i = 0; i < 3; i++) {
+    const w = 15 - i * 1.8, y = -60 - i * 3;
+    ctx.fillStyle = i % 2 === 0 ? '#8B0000' : '#670000';
+    ctx.beginPath();
+    ctx.moveTo(-w, y);
+    ctx.quadraticCurveTo(0, y + 4, w, y);
+    ctx.quadraticCurveTo(w + 2, y - 4, 0, y - 3);
+    ctx.quadraticCurveTo(-w - 2, y - 4, -w, y);
+    ctx.fill();
+    ctx.strokeStyle = '#B8860B'; ctx.lineWidth = 0.6;
+    ctx.beginPath(); ctx.moveTo(-w, y); ctx.quadraticCurveTo(0, y + 4, w, y); ctx.stroke();
+  }
+
+  // ── KABUTO (helmet dome) — wider, taller, more imposing ──
+  ctx.fillStyle = '#140000';
+  ctx.beginPath();
+  ctx.moveTo(-18, -67);
+  ctx.bezierCurveTo(-22, -72, -20, -93, 0, -97);
+  ctx.bezierCurveTo(20, -93, 22, -72, 18, -67);
+  ctx.closePath(); ctx.fill();
+  // Surface ribs
+  ctx.strokeStyle = '#280000'; ctx.lineWidth = 1.5;
+  [-11, -6, 6, 11].forEach(x => {
+    ctx.beginPath();
+    ctx.moveTo(x, -67);
+    ctx.bezierCurveTo(x * 1.35, -76, x * 1.2, -92, x * 0.12, -97);
+    ctx.stroke();
+  });
+  ctx.strokeStyle = '#2e0000'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(0, -67); ctx.lineTo(0, -97); ctx.stroke();
+  // Gold trim base edge
+  ctx.strokeStyle = '#B8860B'; ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  ctx.moveTo(-18, -67);
+  ctx.bezierCurveTo(-22, -72, -20, -93, 0, -97);
+  ctx.bezierCurveTo(20, -93, 22, -72, 18, -67);
+  ctx.stroke();
+  // Gold horizontal band mid-dome
+  ctx.strokeStyle = 'rgba(184,134,11,0.5)'; ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(-19, -76);
+  ctx.bezierCurveTo(-10, -74, 10, -74, 19, -76);
+  ctx.stroke();
+  // Fukigaeshi (side wing-flaps)
+  for (const s of [-1, 1]) {
+    ctx.fillStyle = '#1c0000';
+    ctx.beginPath();
+    ctx.moveTo(s * 18, -67);
+    ctx.bezierCurveTo(s * 26, -67, s * 28, -75, s * 24, -80);
+    ctx.bezierCurveTo(s * 20, -84, s * 18, -78, s * 18, -75);
+    ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = '#B8860B'; ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(s * 18, -67);
+    ctx.bezierCurveTo(s * 26, -67, s * 28, -75, s * 24, -80);
+    ctx.stroke();
+  }
+  // Subtle red shine
+  ctx.fillStyle = 'rgba(255,40,40,0.06)';
+  ctx.beginPath(); ctx.ellipse(-5, -84, 5, 8, -0.2, 0, Math.PI * 2); ctx.fill();
+
+  // ── MENGU (oni demon face mask) — bigger, wider, more menacing ──
+  // Mask base — wider and taller
+  ctx.fillStyle = '#C82020';
+  ctx.beginPath();
+  ctx.moveTo(-15, -59); ctx.lineTo(15, -59);
+  ctx.lineTo(14, -71); ctx.lineTo(-14, -71);
+  ctx.closePath(); ctx.fill();
+  // Cheek bulges
+  ctx.fillStyle = '#B01C1C';
+  ctx.beginPath(); ctx.ellipse(-13, -64, 4, 5, 0.2, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse( 13, -64, 4, 5, -0.2, 0, Math.PI * 2); ctx.fill();
+  // Cheek wrinkle lines
+  ctx.strokeStyle = '#8B0000'; ctx.lineWidth = 1.2;
+  ctx.beginPath(); ctx.moveTo(-16, -62); ctx.quadraticCurveTo(-12, -65, -10, -68); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(-15, -64); ctx.quadraticCurveTo(-12, -66, -10, -69); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(16, -62); ctx.quadraticCurveTo(12, -65, 10, -68); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(15, -64); ctx.quadraticCurveTo(12, -66, 10, -69); ctx.stroke();
+  // Forehead strip (under dome)
+  ctx.fillStyle = '#8B0000';
+  ctx.beginPath();
+  ctx.moveTo(-14, -71); ctx.lineTo(14, -71);
+  ctx.lineTo(13, -76); ctx.lineTo(-13, -76);
+  ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = '#FFD700'; ctx.lineWidth = 1.2;
+  ctx.beginPath(); ctx.moveTo(-14, -71); ctx.lineTo(14, -71); ctx.stroke();
+  // Heavy brow ridge
+  ctx.strokeStyle = '#6a0000'; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(-12, -73); ctx.quadraticCurveTo(-6, -77, -1, -74); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(12, -73); ctx.quadraticCurveTo(6, -77, 1, -74); ctx.stroke();
+  ctx.strokeStyle = '#3a0000'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(-11, -72); ctx.quadraticCurveTo(-6, -76, -1, -73); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(11, -72); ctx.quadraticCurveTo(6, -76, 1, -73); ctx.stroke();
+
+  // Eye sockets — wide and deep
+  ctx.fillStyle = '#120000';
+  ctx.beginPath(); ctx.ellipse(-6, -67, 6.5, 4, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse( 6, -67, 6.5, 4, 0, 0, Math.PI * 2); ctx.fill();
+  // Glowing demon eyes — bigger
+  const eg = 0.65 + Math.sin(now * 0.0035) * 0.35;
+  ctx.shadowColor = '#FF2200'; ctx.shadowBlur = 18 * eg;
+  ctx.fillStyle = `rgba(255, 60, 0, ${eg})`;
+  ctx.beginPath(); ctx.ellipse(-6, -67, 5.2, 3.4, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse( 6, -67, 5.2, 3.4, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.shadowBlur = 0;
+  // Slit pupils
+  ctx.fillStyle = '#080000';
+  ctx.beginPath(); ctx.ellipse(-6, -67, 1.4, 3.4, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse( 6, -67, 1.4, 3.4, 0, 0, Math.PI * 2); ctx.fill();
+  // Eye shine
+  ctx.fillStyle = 'rgba(255,200,80,0.7)';
+  ctx.beginPath(); ctx.arc(-7.8, -68.5, 1.2, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc( 4.2, -68.5, 1.2, 0, Math.PI * 2); ctx.fill();
+  // Nose — broader
+  ctx.fillStyle = '#9E1515';
+  ctx.beginPath();
+  ctx.moveTo(-4, -61); ctx.lineTo(4, -61);
+  ctx.lineTo(3, -65); ctx.lineTo(-3, -65);
+  ctx.closePath(); ctx.fill();
+  // Nostrils
+  ctx.fillStyle = '#600';
+  ctx.beginPath(); ctx.ellipse(-2.5, -62, 1.5, 1, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse( 2.5, -62, 1.5, 1, 0, 0, Math.PI * 2); ctx.fill();
+  // Grimace mouth
+  ctx.fillStyle = '#080000';
+  ctx.beginPath();
+  ctx.moveTo(-10, -59);
+  ctx.quadraticCurveTo(0, -55, 10, -59);
+  ctx.lineTo(9, -61);
+  ctx.quadraticCurveTo(0, -57, -9, -61);
+  ctx.closePath(); ctx.fill();
+  // Teeth — more
+  ctx.fillStyle = '#EEE0CC';
+  [-7, -4.5, -2, 0.5, 3, 5.5].forEach(tx => {
+    ctx.beginPath(); ctx.moveTo(tx - 1.2, -60); ctx.lineTo(tx + 1.2, -60);
+    ctx.lineTo(tx, -63); ctx.closePath(); ctx.fill();
+  });
+  // Big fangs
+  ctx.fillStyle = '#FFFFF0';
+  ctx.beginPath(); ctx.moveTo(-10, -59); ctx.lineTo(-7, -59); ctx.lineTo(-9, -64.5); ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(10, -59); ctx.lineTo(7, -59); ctx.lineTo(9, -64.5); ctx.closePath(); ctx.fill();
+
+  ctx.restore();
+}
+
+// ══════════════════════════════════════════════
+//  STATS LABELS
+// ══════════════════════════════════════════════
+function drawLabels(cx, cy) {
+  ctx.save();
+  ctx.translate(cx, cy - 132);
+  ctx.textAlign = 'center';
+
+  ctx.font = 'bold 10px Arial';
+  ctx.fillStyle = '#CC0000'; ctx.shadowColor = '#CC0000'; ctx.shadowBlur = 7;
+  ctx.fillText('⚔️ НОВЫЙ ПЕРСОНАЖ', 0, -10); ctx.shadowBlur = 0;
+
+  ctx.font = 'bold 17px Arial';
+  ctx.strokeStyle = 'rgba(0,0,0,0.95)'; ctx.lineWidth = 4;
+  ctx.strokeText('САМУРАЙ', 0, 8);
+  ctx.fillStyle = '#FFD700'; ctx.shadowColor = '#FFD700'; ctx.shadowBlur = 8;
+  ctx.fillText('САМУРАЙ', 0, 8); ctx.shadowBlur = 0;
+
+  ctx.font = 'bold 12px Arial';
+  ctx.strokeStyle = 'rgba(0,0,0,0.9)'; ctx.lineWidth = 3;
+  ctx.strokeText('❤️ 420', 0, 26); ctx.fillStyle = '#FF6688'; ctx.fillText('❤️ 420', 0, 26);
+  ctx.strokeText('⚔️ 38',  0, 41); ctx.fillStyle = '#88BBFF'; ctx.fillText('⚔️ 38',  0, 41);
+  ctx.strokeText('💀 28',  0, 56); ctx.fillStyle = '#FF4444'; ctx.fillText('💀 28',  0, 56);
+
+  ctx.restore();
+}
+
+// ══════════════════════════════════════════════
+//  RENDER LOOP
+// ══════════════════════════════════════════════
+function render(now) {
+  ctx.clearRect(0, 0, 300, 380);
+
+  // Subtle bg radial
+  const bg = ctx.createRadialGradient(150, 210, 0, 150, 210, 190);
+  bg.addColorStop(0, 'rgba(55, 2, 2, 0.38)');
+  bg.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = bg; ctx.fillRect(0, 0, 300, 380);
+
+  // Ground mist
+  ctx.fillStyle = 'rgba(80,5,5,0.18)';
+  ctx.beginPath(); ctx.ellipse(150, 325, 90, 20, 0, 0, Math.PI * 2); ctx.fill();
+
+  // Cherry blossoms
+  petals.forEach(p => {
+    p.x += p.vx + Math.sin(p.y * 0.018) * 0.35;
+    p.y += p.vy; p.rot += p.vrot;
+    if (p.y > 390) { p.y = -10; p.x = Math.random() * 300; }
+    ctx.save();
+    ctx.translate(p.x, p.y); ctx.rotate(p.rot); ctx.globalAlpha = 0.45;
+    ctx.fillStyle = '#FF9090';
+    ctx.beginPath(); ctx.ellipse(0, 0, p.size * 0.55, p.size, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#FFCCCC';
+    ctx.beginPath(); ctx.ellipse(0, 0, p.size * 0.28, p.size * 0.5, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.globalAlpha = 1; ctx.restore();
+  });
+
+  drawLabels(150, 290);
+  drawSamurai(150, 290, now);
+  requestAnimationFrame(render);
+}
+requestAnimationFrame(render);
+</script>
+</body>
+</html>

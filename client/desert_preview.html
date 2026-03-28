@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>🏜️ Desert Map Preview</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #050510; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; font-family: Arial, sans-serif; color: #fff; }
+    h2 { margin-bottom: 6px; font-size: 20px; color: #FFD700; letter-spacing: 2px; }
+    p  { margin-bottom: 14px; font-size: 12px; color: #666; }
+    canvas { border: 1px solid #333; border-radius: 10px; }
+  </style>
+</head>
+<body>
+  <h2>🏜️ DESERT MAP — ПРЕВЬЮ</h2>
+  <p>Карта пустыня с пальмами и морем на краю</p>
+  <canvas id="c" width="600" height="520"></canvas>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const CW = 600, CH = 520;
+const SKY_H = 180;
+
+function drawPalm(x, y, scale, lean, now) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(scale, scale);
+
+  // Trunk
+  ctx.strokeStyle = '#7a4a1a';
+  ctx.lineWidth = 9;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.bezierCurveTo(lean * 8, -25, lean * 14, -55, lean * 18, -80);
+  ctx.stroke();
+  // Trunk texture rings
+  ctx.strokeStyle = '#5a3410';
+  ctx.lineWidth = 1.5;
+  for (let i = 1; i < 6; i++) {
+    const ty = -i * 14;
+    const tx = lean * i * 3;
+    ctx.beginPath();
+    ctx.moveTo(tx - 5, ty); ctx.lineTo(tx + 5, ty);
+    ctx.stroke();
+  }
+
+  // Leaves (5 fronds)
+  const sway = Math.sin(now * 0.0012) * 6;
+  const leafAngles = [-0.9, -0.45, 0, 0.45, 0.9];
+  const leafColors = ['#2d7a1a', '#3a9020', '#44a825', '#3a9020', '#2d7a1a'];
+  leafAngles.forEach((angle, i) => {
+    ctx.save();
+    ctx.translate(lean * 18, -80);
+    ctx.rotate(angle + sway * 0.01 + (i - 2) * 0.05);
+    ctx.fillStyle = leafColors[i];
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.bezierCurveTo(8, -12, 30, -14, 38, -8);
+    ctx.bezierCurveTo(28, -4, 10, 2, 0, 0);
+    ctx.fill();
+    // Leaf vein
+    ctx.strokeStyle = '#1e5a10';
+    ctx.lineWidth = 0.8;
+    ctx.beginPath();
+    ctx.moveTo(0, 0); ctx.lineTo(35, -9);
+    ctx.stroke();
+    ctx.restore();
+  });
+
+  // Coconuts
+  ctx.fillStyle = '#8B5E1A';
+  ctx.beginPath(); ctx.arc(lean * 18 - 4, -76, 5, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(lean * 18 + 5, -80, 4, 0, Math.PI * 2); ctx.fill();
+
+  ctx.restore();
+}
+
+function drawSea(now) {
+  // Sea — bottom strip
+  const seaY = CH - 90;
+  const seaGrad = ctx.createLinearGradient(0, seaY, 0, CH);
+  seaGrad.addColorStop(0, '#1a7ab8');
+  seaGrad.addColorStop(0.4, '#0d5a90');
+  seaGrad.addColorStop(1, '#0a3a60');
+  ctx.fillStyle = seaGrad;
+  ctx.beginPath();
+  ctx.moveTo(0, seaY + 10);
+  // Wave top
+  for (let wx = 0; wx <= CW; wx += 8) {
+    const wy = seaY + Math.sin((wx * 0.04) + now * 0.002) * 5 + Math.sin((wx * 0.07) + now * 0.003) * 3;
+    ctx.lineTo(wx, wy);
+  }
+  ctx.lineTo(CW, CH); ctx.lineTo(0, CH);
+  ctx.closePath();
+  ctx.fill();
+
+  // Sea shimmer
+  ctx.globalAlpha = 0.18 + Math.sin(now * 0.002) * 0.06;
+  ctx.fillStyle = '#88DDFF';
+  for (let i = 0; i < 8; i++) {
+    const sx = 40 + i * 70 + Math.sin(now * 0.001 + i) * 15;
+    const sy = seaY + 20 + Math.sin(now * 0.002 + i * 0.8) * 8;
+    ctx.beginPath();
+    ctx.ellipse(sx, sy, 18 + i % 3 * 8, 3, 0.1, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+
+  // Foam/wave crest
+  ctx.strokeStyle = 'rgba(255,255,255,0.55)';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  for (let wx = 0; wx <= CW; wx += 8) {
+    const wy = seaY + Math.sin((wx * 0.04) + now * 0.002) * 5 + Math.sin((wx * 0.07) + now * 0.003) * 3;
+    wx === 0 ? ctx.moveTo(wx, wy) : ctx.lineTo(wx, wy);
+  }
+  ctx.stroke();
+}
+
+function drawDune(x, y, w, h, col) {
+  ctx.fillStyle = col;
+  ctx.beginPath();
+  ctx.moveTo(x - w / 2, y);
+  ctx.bezierCurveTo(x - w * 0.3, y, x - w * 0.1, y - h, x, y - h);
+  ctx.bezierCurveTo(x + w * 0.1, y - h, x + w * 0.3, y, x + w / 2, y);
+  ctx.closePath();
+  ctx.fill();
+}
+
+function drawScene(now) {
+  ctx.clearRect(0, 0, CW, CH);
+
+  // ── SKY ──
+  const skyGrad = ctx.createLinearGradient(0, 0, 0, SKY_H);
+  skyGrad.addColorStop(0, '#1a6ab0');
+  skyGrad.addColorStop(0.5, '#4ab0e8');
+  skyGrad.addColorStop(1, '#ffe0a0');
+  ctx.fillStyle = skyGrad;
+  ctx.fillRect(0, 0, CW, SKY_H);
+
+  // Sun
+  const sunX = 480, sunY = 55;
+  const sunGlow = ctx.createRadialGradient(sunX, sunY, 4, sunX, sunY, 60);
+  sunGlow.addColorStop(0, 'rgba(255,240,100,0.5)');
+  sunGlow.addColorStop(1, 'rgba(255,160,0,0)');
+  ctx.fillStyle = sunGlow;
+  ctx.beginPath(); ctx.arc(sunX, sunY, 60, 0, Math.PI * 2); ctx.fill();
+  const sunDisc = ctx.createRadialGradient(sunX - 3, sunY - 3, 2, sunX, sunY, 22);
+  sunDisc.addColorStop(0, '#FFFFFF');
+  sunDisc.addColorStop(0.4, '#FFE060');
+  sunDisc.addColorStop(1, '#FFAA20');
+  ctx.fillStyle = sunDisc;
+  ctx.beginPath(); ctx.arc(sunX, sunY, 22, 0, Math.PI * 2); ctx.fill();
+
+  // Horizon haze
+  const haze = ctx.createLinearGradient(0, SKY_H - 30, 0, SKY_H + 20);
+  haze.addColorStop(0, 'rgba(255,220,120,0)');
+  haze.addColorStop(1, 'rgba(255,200,80,0.35)');
+  ctx.fillStyle = haze;
+  ctx.fillRect(0, SKY_H - 30, CW, 50);
+
+  // ── SAND GROUND ──
+  const sandGrad = ctx.createLinearGradient(0, SKY_H, 0, CH - 90);
+  sandGrad.addColorStop(0, '#e8b860');
+  sandGrad.addColorStop(0.3, '#d4963a');
+  sandGrad.addColorStop(0.7, '#c07828');
+  sandGrad.addColorStop(1, '#a86020');
+  ctx.fillStyle = sandGrad;
+  ctx.fillRect(0, SKY_H, CW, CH - 90 - SKY_H);
+
+  // Background dunes (distant)
+  drawDune(100, SKY_H + 60, 200, 40, 'rgba(200,140,60,0.5)');
+  drawDune(320, SKY_H + 50, 280, 55, 'rgba(180,120,40,0.45)');
+  drawDune(520, SKY_H + 65, 180, 38, 'rgba(200,140,60,0.4)');
+
+  // Foreground dunes
+  drawDune(80, CH - 90, 220, 60, '#cc8830');
+  drawDune(300, CH - 92, 300, 70, '#c07828');
+  drawDune(540, CH - 90, 200, 55, '#cc8830');
+
+  // Sand ripples
+  ctx.strokeStyle = 'rgba(180,120,40,0.35)';
+  ctx.lineWidth = 1;
+  for (let i = 0; i < 10; i++) {
+    const ry = SKY_H + 80 + i * 28;
+    ctx.beginPath();
+    ctx.moveTo(20, ry);
+    for (let rx = 20; rx <= CW - 20; rx += 6) {
+      ctx.lineTo(rx, ry + Math.sin(rx * 0.06 + i) * 2);
+    }
+    ctx.stroke();
+  }
+
+  // ── SEA (bottom) ──
+  drawSea(now);
+
+  // ── PALM TREES ──
+  // Left side
+  drawPalm(50, SKY_H + 130, 1.1, -1, now);
+  drawPalm(90, SKY_H + 170, 0.9, 1, now);
+  drawPalm(22, SKY_H + 200, 0.8, -0.8, now);
+
+  // Right side
+  drawPalm(560, SKY_H + 140, 1.0, 1, now);
+  drawPalm(530, SKY_H + 185, 0.85, -1, now);
+  drawPalm(582, SKY_H + 210, 0.9, 0.6, now);
+
+  // Near sea (bottom corners)
+  drawPalm(30, CH - 92, 1.2, -0.6, now);
+  drawPalm(580, CH - 94, 1.15, 0.7, now);
+
+  // ── ARENA FLOOR hint ──
+  ctx.save();
+  const af = ctx.createRadialGradient(300, 340, 30, 300, 360, 180);
+  af.addColorStop(0, 'rgba(200,140,50,0.4)');
+  af.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = af;
+  ctx.fillRect(0, SKY_H, CW, CH - 90 - SKY_H);
+  ctx.restore();
+
+  // Label
+  ctx.save();
+  ctx.font = 'bold 13px Arial';
+  ctx.fillStyle = 'rgba(255,220,100,0.7)';
+  ctx.textAlign = 'center';
+  ctx.fillText('🏟️  ARENA ZONE', 300, 350);
+  ctx.restore();
+
+  requestAnimationFrame(drawScene);
+}
+
+requestAnimationFrame(drawScene);
+</script>
+</body>
+</html>

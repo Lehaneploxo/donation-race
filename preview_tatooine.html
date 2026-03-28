@@ -1,0 +1,866 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Tatooine Map Preview</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:#0a0805; display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:100vh; font-family:Arial; gap:16px; }
+  .label { color:#FFD0A0; font-size:16px; letter-spacing:2px; }
+  canvas { border:2px solid #3a2800; border-radius:6px; }
+</style>
+</head>
+<body>
+<div class="label">🏜️ TATOOINE</div>
+<canvas id="c" width="600" height="1000"></canvas>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
+
+// Горизонт на y=280 — персонажи ходят от y=305, всё на земле
+const HORIZON = 280;
+
+
+function draw(now) {
+  ctx.clearRect(0,0,W,H);
+
+  // ── SKY — розовое, только верхние 30% ──────
+  const sky = ctx.createLinearGradient(0,0,0,HORIZON);
+  sky.addColorStop(0,   '#1a0818');
+  sky.addColorStop(0.2, '#4a1530');
+  sky.addColorStop(0.5, '#9a3550');
+  sky.addColorStop(0.8, '#cc6060');
+  sky.addColorStop(1,   '#dd9070');
+  ctx.fillStyle=sky; ctx.fillRect(0,0,W,HORIZON);
+
+  // ── SUN 1 — белое яркое (самый верх, над HUD) ──
+  const s1x=W*0.28, s1y=H*0.04;
+  const sg1 = ctx.createRadialGradient(s1x,s1y,0,s1x,s1y,130);
+  sg1.addColorStop(0,'rgba(255,245,220,0.28)');
+  sg1.addColorStop(0.5,'rgba(255,200,160,0.1)');
+  sg1.addColorStop(1,'rgba(255,140,100,0)');
+  ctx.fillStyle=sg1; ctx.fillRect(s1x-130,s1y-130,260,260);
+  const sc1 = ctx.createRadialGradient(s1x,s1y,0,s1x,s1y,55);
+  sc1.addColorStop(0,'rgba(255,255,255,1)');
+  sc1.addColorStop(0.5,'rgba(255,245,210,0.7)');
+  sc1.addColorStop(1,'rgba(255,180,120,0)');
+  ctx.fillStyle=sc1; ctx.fillRect(s1x-55,s1y-55,110,110);
+  ctx.save(); ctx.shadowColor='#FFFAE0'; ctx.shadowBlur=50;
+  ctx.fillStyle='#FFFFFF';
+  ctx.beginPath(); ctx.arc(s1x,s1y,38,0,Math.PI*2); ctx.fill();
+  ctx.restore();
+
+  // ── SUN 2 — большое оранжевое (самый верх, над HUD) ───────
+  const s2x=W*0.66, s2y=H*0.065;
+  const sg2 = ctx.createRadialGradient(s2x,s2y,0,s2x,s2y,120);
+  sg2.addColorStop(0,'rgba(255,150,80,0.3)');
+  sg2.addColorStop(0.5,'rgba(255,100,60,0.1)');
+  sg2.addColorStop(1,'rgba(255,60,30,0)');
+  ctx.fillStyle=sg2; ctx.fillRect(s2x-120,s2y-120,240,240);
+  ctx.save(); ctx.shadowColor='#FF9966'; ctx.shadowBlur=30;
+  const sc2 = ctx.createRadialGradient(s2x-10,s2y-10,0,s2x,s2y,62);
+  sc2.addColorStop(0,'#FFF0D0');
+  sc2.addColorStop(0.3,'#FFD080');
+  sc2.addColorStop(0.65,'#FF9040');
+  sc2.addColorStop(1,'#C03010');
+  ctx.fillStyle=sc2;
+  ctx.beginPath(); ctx.arc(s2x,s2y,62,0,Math.PI*2); ctx.fill();
+  ctx.restore();
+
+  // ── ГОРЫ — у горизонта ──────────────────────
+  // Дальние (бледно-пурпурные)
+  ctx.fillStyle='rgba(130,70,90,0.4)';
+  ctx.beginPath(); ctx.moveTo(0,HORIZON);
+  ctx.lineTo(W*0.05,HORIZON-65); ctx.lineTo(W*0.12,HORIZON-45);
+  ctx.lineTo(W*0.2,HORIZON-80); ctx.lineTo(W*0.28,HORIZON-55);
+  ctx.lineTo(W*0.36,HORIZON-90); ctx.lineTo(W*0.44,HORIZON-60);
+  ctx.lineTo(W*0.52,HORIZON-75); ctx.lineTo(W*0.6,HORIZON-50);
+  ctx.lineTo(W*0.68,HORIZON-85); ctx.lineTo(W*0.76,HORIZON-55);
+  ctx.lineTo(W*0.84,HORIZON-70); ctx.lineTo(W*0.92,HORIZON-45);
+  ctx.lineTo(W,HORIZON-60); ctx.lineTo(W,HORIZON);
+  ctx.closePath(); ctx.fill();
+
+  // Средние
+  ctx.fillStyle='rgba(150,80,60,0.55)';
+  ctx.beginPath(); ctx.moveTo(0,HORIZON);
+  ctx.lineTo(W*0.07,HORIZON-45); ctx.lineTo(W*0.15,HORIZON-30);
+  ctx.lineTo(W*0.24,HORIZON-55); ctx.lineTo(W*0.33,HORIZON-38);
+  ctx.lineTo(W*0.42,HORIZON-50); ctx.lineTo(W*0.51,HORIZON-35);
+  ctx.lineTo(W*0.6,HORIZON-48); ctx.lineTo(W*0.69,HORIZON-32);
+  ctx.lineTo(W*0.78,HORIZON-52); ctx.lineTo(W*0.87,HORIZON-35);
+  ctx.lineTo(W*0.94,HORIZON-42); ctx.lineTo(W,HORIZON-30);
+  ctx.lineTo(W,HORIZON); ctx.closePath(); ctx.fill();
+
+  // Ближние (тёмно-коричневые)
+  ctx.fillStyle='rgba(140,75,40,0.75)';
+  ctx.beginPath(); ctx.moveTo(0,HORIZON);
+  ctx.lineTo(W*0.1,HORIZON-22); ctx.lineTo(W*0.2,HORIZON-14);
+  ctx.lineTo(W*0.32,HORIZON-28); ctx.lineTo(W*0.44,HORIZON-18);
+  ctx.lineTo(W*0.55,HORIZON-24); ctx.lineTo(W*0.66,HORIZON-15);
+  ctx.lineTo(W*0.78,HORIZON-26); ctx.lineTo(W*0.88,HORIZON-16);
+  ctx.lineTo(W,HORIZON-20); ctx.lineTo(W,HORIZON);
+  ctx.closePath(); ctx.fill();
+
+  // Туман у горизонта
+  const hmist = ctx.createLinearGradient(0,HORIZON-30,0,HORIZON+40);
+  hmist.addColorStop(0,'rgba(210,150,110,0)');
+  hmist.addColorStop(0.5,'rgba(210,150,110,0.22)');
+  hmist.addColorStop(1,'rgba(190,110,70,0)');
+  ctx.fillStyle=hmist; ctx.fillRect(0,HORIZON-30,W,70);
+
+  // ── ЗЕМЛЯ — нижние 70% ──────────────────────
+  const ground = ctx.createLinearGradient(0,HORIZON,0,H);
+  ground.addColorStop(0,   '#c89060');
+  ground.addColorStop(0.05,'#b87840');
+  ground.addColorStop(0.2, '#a06030');
+  ground.addColorStop(0.5, '#8a4e22');
+  ground.addColorStop(1,   '#6a3810');
+  ctx.fillStyle=ground; ctx.fillRect(0,HORIZON,W,H-HORIZON);
+
+  // Цветовые пятна на земле
+  ctx.fillStyle='rgba(160,90,35,0.3)';
+  ctx.beginPath(); ctx.ellipse(W*0.25,HORIZON+180,160,35,0.05,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='rgba(100,50,15,0.25)';
+  ctx.beginPath(); ctx.ellipse(W*0.72,HORIZON+420,200,40,-0.05,0,Math.PI*2); ctx.fill();
+
+  // Дюны
+  ctx.fillStyle='#c07020';
+  ctx.beginPath(); ctx.moveTo(0,HORIZON+160);
+  ctx.bezierCurveTo(W*0.15,HORIZON+80, W*0.28,HORIZON+60, W*0.4,HORIZON+120);
+  ctx.bezierCurveTo(W*0.52,HORIZON+180, W*0.62,HORIZON+190, W*0.75,HORIZON+160);
+  ctx.lineTo(W*0.75,H); ctx.lineTo(0,H); ctx.closePath(); ctx.fill();
+
+  ctx.fillStyle='#b06818';
+  ctx.beginPath(); ctx.moveTo(W*0.55,HORIZON+250);
+  ctx.bezierCurveTo(W*0.65,HORIZON+180, W*0.76,HORIZON+165, W*0.88,HORIZON+200);
+  ctx.bezierCurveTo(W*0.94,HORIZON+220, W,HORIZON+210, W,HORIZON+215);
+  ctx.lineTo(W,H); ctx.lineTo(W*0.55,H); ctx.closePath(); ctx.fill();
+
+  // Блики на дюнах
+  ctx.strokeStyle='rgba(220,150,60,0.45)'; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.moveTo(W*0.06,HORIZON+118);
+  ctx.bezierCurveTo(W*0.18,HORIZON+72, W*0.28,HORIZON+62, W*0.38,HORIZON+108);
+  ctx.stroke();
+
+  // ── СЛЕДЫ ЛЭНДСПИДЕРА (колеи в песке) ────────
+  ctx.save();
+  // Две колеи уходят к горизонту (перспектива)
+  ctx.strokeStyle='rgba(80,45,10,0.55)'; ctx.lineWidth=4; ctx.lineCap='round';
+  // Левая колея
+  ctx.beginPath();
+  ctx.moveTo(W*0.09, HORIZON+620);
+  ctx.bezierCurveTo(W*0.10, HORIZON+400, W*0.13, HORIZON+200, W*0.19, HORIZON+60);
+  ctx.stroke();
+  // Правая колея
+  ctx.beginPath();
+  ctx.moveTo(W*0.22, HORIZON+620);
+  ctx.bezierCurveTo(W*0.22, HORIZON+400, W*0.22, HORIZON+200, W*0.22, HORIZON+60);
+  ctx.stroke();
+  // Потемнение между колеями (примятый песок)
+  ctx.fillStyle='rgba(60,30,5,0.18)';
+  ctx.beginPath();
+  ctx.moveTo(W*0.09, HORIZON+620); ctx.bezierCurveTo(W*0.10,HORIZON+400,W*0.13,HORIZON+200,W*0.19,HORIZON+60);
+  ctx.lineTo(W*0.22, HORIZON+60); ctx.bezierCurveTo(W*0.22,HORIZON+200,W*0.22,HORIZON+400,W*0.22,HORIZON+620);
+  ctx.closePath(); ctx.fill();
+  // Тонкие краевые тени колей
+  ctx.strokeStyle='rgba(40,20,0,0.3)'; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.moveTo(W*0.08,HORIZON+620); ctx.bezierCurveTo(W*0.09,HORIZON+400,W*0.12,HORIZON+200,W*0.18,HORIZON+60); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(W*0.23,HORIZON+620); ctx.bezierCurveTo(W*0.23,HORIZON+400,W*0.23,HORIZON+200,W*0.23,HORIZON+60); ctx.stroke();
+  ctx.restore();
+
+  // ── СКЕЛЕТ ЖИВОТНОГО (краньт, середина) ──────
+  ctx.save();
+  const sx=W*0.45, sy=HORIZON+480;
+  // Тень скелета
+  ctx.fillStyle='rgba(0,0,0,0.2)';
+  ctx.beginPath(); ctx.ellipse(sx+10,sy+8,80,10,0,0,Math.PI*2); ctx.fill();
+  // Позвоночник
+  ctx.strokeStyle='rgba(210,185,140,0.9)'; ctx.lineWidth=5; ctx.lineCap='round';
+  ctx.beginPath(); ctx.moveTo(sx-80,sy-5); ctx.bezierCurveTo(sx-30,sy-18,sx+30,sy-14,sx+80,sy-8); ctx.stroke();
+  // Рёбра (по 6 с каждой стороны)
+  ctx.lineWidth=2.5;
+  for(let i=0;i<6;i++){
+    const rx=sx-55+i*20, topY=sy-14;
+    // Верхние рёбра
+    ctx.beginPath();
+    ctx.moveTo(rx,topY);
+    ctx.bezierCurveTo(rx-10,topY-18, rx-18,topY-6, rx-14,topY+10);
+    ctx.stroke();
+    // Нижние рёбра
+    ctx.beginPath();
+    ctx.moveTo(rx,topY);
+    ctx.bezierCurveTo(rx+4,topY+14, rx-2,topY+22, rx-8,topY+18);
+    ctx.stroke();
+  }
+  // Череп
+  ctx.fillStyle='rgba(215,190,145,0.92)';
+  ctx.beginPath(); ctx.ellipse(sx-88,sy-12,16,11,0.2,0,Math.PI*2); ctx.fill();
+  // Морда (вытянутая)
+  ctx.beginPath(); ctx.ellipse(sx-108,sy-8,14,7,-0.15,0,Math.PI*2); ctx.fill();
+  // Глазница
+  ctx.fillStyle='rgba(40,20,5,0.7)';
+  ctx.beginPath(); ctx.ellipse(sx-92,sy-14,4,4,0,0,Math.PI*2); ctx.fill();
+  // Зубы
+  ctx.fillStyle='rgba(200,175,130,0.9)';
+  for(let t=0;t<4;t++){
+    ctx.beginPath();
+    ctx.moveTo(sx-116+t*5,sy-5);
+    ctx.lineTo(sx-115+t*5,sy+4);
+    ctx.lineTo(sx-113+t*5,sy-5);
+    ctx.closePath(); ctx.fill();
+  }
+  // Хвостовые позвонки
+  ctx.strokeStyle='rgba(200,175,130,0.7)'; ctx.lineWidth=3;
+  ctx.beginPath(); ctx.moveTo(sx+80,sy-8); ctx.bezierCurveTo(sx+100,sy-2,sx+115,sy+5,sx+125,sy+10); ctx.stroke();
+  ctx.lineWidth=2;
+  ctx.beginPath(); ctx.moveTo(sx+125,sy+10); ctx.bezierCurveTo(sx+132,sy+14,sx+138,sy+16,sx+142,sy+14); ctx.stroke();
+  // Несколько упавших костей рядом
+  ctx.lineWidth=3;
+  ctx.beginPath(); ctx.moveTo(sx+10,sy+16); ctx.lineTo(sx+30,sy+20); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(sx-30,sy+20); ctx.lineTo(sx-10,sy+15); ctx.stroke();
+  ctx.restore();
+
+  // ── LANDSPEEDER X-34 Люка (слева) ────────────
+  const lx=W*0.19, ly=HORIZON+340;
+  ctx.save();
+
+  // Парение — тень на земле (размытая)
+  ctx.fillStyle='rgba(0,0,0,0.22)';
+  ctx.beginPath(); ctx.ellipse(lx+8,ly+18,90,12,0,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='rgba(0,0,0,0.1)';
+  ctx.beginPath(); ctx.ellipse(lx+8,ly+26,70,7,0,0,Math.PI*2); ctx.fill();
+
+  // ── Корпус нижняя часть (брюхо) ──
+  const belly = ctx.createLinearGradient(lx-88,ly+8,lx+88,ly+16);
+  belly.addColorStop(0,'#4a3010'); belly.addColorStop(0.5,'#6a4818'); belly.addColorStop(1,'#3a2008');
+  ctx.fillStyle=belly;
+  ctx.beginPath();
+  ctx.moveTo(lx-82,ly+6);
+  ctx.bezierCurveTo(lx-88,ly+10, lx-80,ly+18, lx-40,ly+16);
+  ctx.lineTo(lx+60,ly+16);
+  ctx.bezierCurveTo(lx+88,ly+14, lx+90,ly+8, lx+84,ly+4);
+  ctx.closePath(); ctx.fill();
+
+  // ── Корпус основной — кремово-бежевый ──
+  const body = ctx.createLinearGradient(lx-88,ly-30,lx+88,ly+10);
+  body.addColorStop(0,'#e8dbb0');
+  body.addColorStop(0.25,'#f0e4c0');
+  body.addColorStop(0.55,'#d8c898');
+  body.addColorStop(0.8,'#b8a070');
+  body.addColorStop(1,'#907850');
+  ctx.fillStyle=body;
+  ctx.beginPath();
+  ctx.moveTo(lx-82,ly+4);
+  ctx.bezierCurveTo(lx-90,ly-6,  lx-70,ly-28, lx-30,ly-30);
+  ctx.lineTo(lx+28,ly-30);
+  ctx.bezierCurveTo(lx+70,ly-28, lx+90,ly-10, lx+84,ly+4);
+  ctx.lineTo(lx-82,ly+4);
+  ctx.closePath(); ctx.fill();
+
+  // Боковая грань (перспектива)
+  const side = ctx.createLinearGradient(lx-88,ly,lx-88,ly+8);
+  side.addColorStop(0,'#c0a870'); side.addColorStop(1,'#806838');
+  ctx.fillStyle=side;
+  ctx.beginPath();
+  ctx.moveTo(lx-82,ly+4); ctx.lineTo(lx+84,ly+4);
+  ctx.lineTo(lx+84,ly+10); ctx.lineTo(lx-82,ly+10);
+  ctx.closePath(); ctx.fill();
+
+  // Линии панелей на корпусе
+  ctx.strokeStyle='rgba(100,70,20,0.35)'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(lx-20,ly-30); ctx.lineTo(lx-20,ly+4); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(lx+22,ly-30); ctx.lineTo(lx+22,ly+4); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(lx-82,ly-4); ctx.lineTo(lx+84,ly-4); ctx.stroke();
+
+  // Задний спойлер / хвост
+  ctx.fillStyle='#c8b880';
+  ctx.beginPath();
+  ctx.moveTo(lx+70,ly-30); ctx.lineTo(lx+88,ly-38);
+  ctx.lineTo(lx+90,ly-28); ctx.lineTo(lx+84,ly-22);
+  ctx.closePath(); ctx.fill();
+  ctx.strokeStyle='rgba(80,55,15,0.4)'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(lx+70,ly-30); ctx.lineTo(lx+88,ly-38); ctx.lineTo(lx+90,ly-28); ctx.stroke();
+
+  // ── Кокпит — открытый, с ветровым стеклом ──
+  // Яма кокпита
+  ctx.fillStyle='#1a1008';
+  ctx.beginPath();
+  ctx.moveTo(lx-62,ly-24);
+  ctx.bezierCurveTo(lx-64,ly-48, lx-20,ly-56, lx+12,ly-50);
+  ctx.bezierCurveTo(lx+30,ly-44, lx+28,ly-24, lx+22,ly-24);
+  ctx.closePath(); ctx.fill();
+
+  // Ветровое стекло (отражение неба)
+  const glass = ctx.createLinearGradient(lx-58,ly-50,lx+20,ly-24);
+  glass.addColorStop(0,'rgba(180,220,240,0.75)');
+  glass.addColorStop(0.3,'rgba(140,190,220,0.55)');
+  glass.addColorStop(0.7,'rgba(80,130,170,0.35)');
+  glass.addColorStop(1,'rgba(30,60,100,0.2)');
+  ctx.fillStyle=glass;
+  ctx.beginPath();
+  ctx.moveTo(lx-60,ly-24);
+  ctx.bezierCurveTo(lx-62,ly-46, lx-22,ly-54, lx+10,ly-48);
+  ctx.bezierCurveTo(lx+28,ly-42, lx+26,ly-24, lx+20,ly-24);
+  ctx.closePath(); ctx.fill();
+  // Блик на стекле
+  ctx.fillStyle='rgba(255,255,255,0.25)';
+  ctx.beginPath();
+  ctx.moveTo(lx-52,ly-38);
+  ctx.bezierCurveTo(lx-48,ly-50, lx-28,ly-54, lx-12,ly-50);
+  ctx.bezierCurveTo(lx-28,ly-46, lx-46,ly-40, lx-52,ly-38);
+  ctx.closePath(); ctx.fill();
+  // Рамка стекла
+  ctx.strokeStyle='rgba(100,70,20,0.6)'; ctx.lineWidth=1.5;
+  ctx.beginPath();
+  ctx.moveTo(lx-60,ly-24);
+  ctx.bezierCurveTo(lx-62,ly-46, lx-22,ly-54, lx+10,ly-48);
+  ctx.bezierCurveTo(lx+28,ly-42, lx+26,ly-24, lx+20,ly-24);
+  ctx.stroke();
+
+  // Приборная панель
+  ctx.fillStyle='#2a1a08';
+  ctx.beginPath(); ctx.roundRect(lx-44,ly-28,40,10,3); ctx.fill();
+  for(let i=0;i<5;i++){
+    const cols2=['#FF3300','#FF8800','#FFEE00','#00FF88','#00CCFF'];
+    ctx.fillStyle=cols2[i];
+    ctx.beginPath(); ctx.arc(lx-41+i*8,ly-23,2,0,Math.PI*2); ctx.fill();
+  }
+
+  // ── Три турбодвигателя слева/спереди ──
+  const engines = [{ex:lx-84,ey:ly-20},{ex:lx-84,ey:ly-8},{ex:lx-84,ey:ly+2}];
+  for(const e of engines){
+    // Крепёж двигателя
+    ctx.strokeStyle='#7a5828'; ctx.lineWidth=4;
+    ctx.beginPath(); ctx.moveTo(e.ex+10,e.ey); ctx.lineTo(e.ex+26,e.ey); ctx.stroke();
+    // Гондола двигателя
+    const eng = ctx.createLinearGradient(e.ex,e.ey-9,e.ex,e.ey+9);
+    eng.addColorStop(0,'#888070'); eng.addColorStop(0.4,'#a09080'); eng.addColorStop(1,'#504030');
+    ctx.fillStyle=eng;
+    ctx.beginPath(); ctx.ellipse(e.ex,e.ey,14,9,0,0,Math.PI*2); ctx.fill();
+    ctx.strokeStyle='rgba(30,20,5,0.5)'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.ellipse(e.ex,e.ey,14,9,0,0,Math.PI*2); ctx.stroke();
+    // Входное отверстие
+    ctx.fillStyle='#1a1008';
+    ctx.beginPath(); ctx.ellipse(e.ex+12,e.ey,5,6,0,0,Math.PI*2); ctx.fill();
+    // Сопло с огнём
+    const flame = ctx.createRadialGradient(e.ex-10,e.ey,0,e.ex-10,e.ey,10);
+    flame.addColorStop(0,'rgba(255,240,180,0.95)');
+    flame.addColorStop(0.3,'rgba(255,140,40,0.8)');
+    flame.addColorStop(0.7,'rgba(255,60,10,0.4)');
+    flame.addColorStop(1,'rgba(255,30,0,0)');
+    ctx.fillStyle=flame;
+    ctx.beginPath(); ctx.ellipse(e.ex-10,e.ey,10,6,0,0,Math.PI*2); ctx.fill();
+    // Кольца на двигателе
+    ctx.strokeStyle='rgba(60,40,10,0.4)'; ctx.lineWidth=1;
+    for(let r2=0;r2<3;r2++){
+      ctx.beginPath(); ctx.ellipse(e.ex+2+r2*4,e.ey,3,8,0,0,Math.PI*2); ctx.stroke();
+    }
+  }
+  // Соединительная пластина двигателей
+  ctx.fillStyle='#8a6838';
+  ctx.beginPath(); ctx.roundRect(lx-72,ly-24,18,30,3); ctx.fill();
+  ctx.strokeStyle='rgba(50,30,5,0.4)'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(lx-70,ly-16); ctx.lineTo(lx-56,ly-16); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(lx-70,ly-8); ctx.lineTo(lx-56,ly-8); ctx.stroke();
+
+  // ── Антенна ──
+  ctx.strokeStyle='#6a5030'; ctx.lineWidth=2; ctx.lineCap='round';
+  ctx.beginPath(); ctx.moveTo(lx+40,ly-30); ctx.lineTo(lx+48,ly-50); ctx.stroke();
+  ctx.fillStyle='#888'; ctx.beginPath(); ctx.arc(lx+48,ly-50,2.5,0,Math.PI*2); ctx.fill();
+  ctx.strokeStyle='#555'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(lx+40,ly-42); ctx.lineTo(lx+52,ly-42); ctx.stroke();
+
+  // Пылевой шлейф сзади (парение)
+  for(let d=0;d<5;d++){
+    ctx.fillStyle=`rgba(210,170,100,${0.12-d*0.02})`;
+    ctx.beginPath(); ctx.ellipse(lx-82-d*10,ly+10,14+d*6,4+d*2,0.1,0,Math.PI*2); ctx.fill();
+  }
+
+  ctx.restore();
+
+  // ── КУПОЛ (правый угол, пониже) ──────────────
+  const dx=W*0.84, dy=HORIZON+260;
+  // Тень
+  ctx.fillStyle='rgba(0,0,0,0.2)';
+  ctx.beginPath(); ctx.ellipse(dx+18,dy+12,85,16,0,0,Math.PI*2); ctx.fill();
+  // Основание
+  ctx.fillStyle='#7a4824';
+  ctx.beginPath();
+  ctx.moveTo(dx-82,dy+10); ctx.lineTo(dx-82,dy-12);
+  ctx.lineTo(dx+82,dy-12); ctx.lineTo(dx+82,dy+10);
+  ctx.closePath(); ctx.fill();
+  ctx.fillStyle='#6a3e1c';
+  ctx.fillRect(dx-88,dy-4,176,16);
+  ctx.fillStyle='#5a3214';
+  ctx.fillRect(dx-92,dy+8,184,8);
+  // Купол
+  const dg = ctx.createRadialGradient(dx-22,dy-65,8,dx,dy-15,90);
+  dg.addColorStop(0,'#b87840');
+  dg.addColorStop(0.4,'#9a6030');
+  dg.addColorStop(0.8,'#7a4820');
+  dg.addColorStop(1,'#5a3010');
+  ctx.fillStyle=dg;
+  ctx.beginPath();
+  ctx.moveTo(dx-82,dy-12);
+  ctx.bezierCurveTo(dx-82,dy-100, dx-48,dy-148, dx,dy-148);
+  ctx.bezierCurveTo(dx+48,dy-148, dx+82,dy-100, dx+82,dy-12);
+  ctx.closePath(); ctx.fill();
+  // Полосы текстуры
+  ctx.strokeStyle='rgba(70,30,8,0.3)'; ctx.lineWidth=1.5;
+  for(let b=0;b<4;b++){
+    const by=dy-30-b*28, bw=68-b*14;
+    ctx.beginPath(); ctx.moveTo(dx-bw,by);
+    ctx.bezierCurveTo(dx-bw,by-12,dx+bw,by-12,dx+bw,by);
+    ctx.stroke();
+  }
+  // Блик
+  ctx.fillStyle='rgba(200,150,80,0.13)';
+  ctx.beginPath();
+  ctx.moveTo(dx-48,dy-12);
+  ctx.bezierCurveTo(dx-64,dy-75, dx-28,dy-142, dx-4,dy-146);
+  ctx.bezierCurveTo(dx-38,dy-118, dx-52,dy-68, dx-32,dy-12);
+  ctx.closePath(); ctx.fill();
+  // Дверной проём
+  ctx.fillStyle='#180a02';
+  ctx.beginPath();
+  ctx.moveTo(dx-21,dy-12); ctx.lineTo(dx-21,dy-46);
+  ctx.bezierCurveTo(dx-21,dy-64, dx+21,dy-64, dx+21,dy-46);
+  ctx.lineTo(dx+21,dy-12); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle='#5a3010'; ctx.lineWidth=2.5;
+  ctx.beginPath();
+  ctx.moveTo(dx-21,dy-12); ctx.lineTo(dx-21,dy-46);
+  ctx.bezierCurveTo(dx-21,dy-64, dx+21,dy-64, dx+21,dy-46);
+  ctx.lineTo(dx+21,dy-12); ctx.stroke();
+
+  // ── ИСПАРИТЕЛЬ (дальше справа, у горизонта) ─
+  const vx=W*0.88, vy=HORIZON+8;
+  ctx.fillStyle='rgba(0,0,0,0.18)';
+  ctx.beginPath(); ctx.ellipse(vx+12,vy+8,28,7,0.2,0,Math.PI*2); ctx.fill();
+  // База
+  ctx.fillStyle='#6a3e18';
+  ctx.beginPath();
+  ctx.moveTo(vx-20,vy); ctx.lineTo(vx+20,vy);
+  ctx.lineTo(vx+14,vy-14); ctx.lineTo(vx-14,vy-14);
+  ctx.closePath(); ctx.fill();
+  // Башня
+  const tg = ctx.createLinearGradient(vx-12,0,vx+12,0);
+  tg.addColorStop(0,'#8a5030'); tg.addColorStop(0.4,'#6a3e18'); tg.addColorStop(1,'#4a2808');
+  ctx.fillStyle=tg;
+  ctx.beginPath();
+  ctx.moveTo(vx-12,vy-14); ctx.lineTo(vx+12,vy-14);
+  ctx.lineTo(vx+7,vy-80); ctx.lineTo(vx-7,vy-80);
+  ctx.closePath(); ctx.fill();
+  // Кольца
+  for(let r=0;r<6;r++){
+    ctx.fillStyle=r%2===0?'#7a4828':'#5a3010';
+    ctx.fillRect(vx-11+r*0.8, vy-22-r*10, 22-r*1.6, 5);
+  }
+  // Верхняя часть
+  ctx.fillStyle='#4a2808';
+  ctx.beginPath();
+  ctx.moveTo(vx-11,vy-80); ctx.lineTo(vx+11,vy-80);
+  ctx.lineTo(vx+8,vy-98); ctx.lineTo(vx-8,vy-98);
+  ctx.closePath(); ctx.fill();
+  // Антенна
+  ctx.strokeStyle='#3a2008'; ctx.lineWidth=3; ctx.lineCap='round';
+  ctx.beginPath(); ctx.moveTo(vx,vy-98); ctx.lineTo(vx,vy-128); ctx.stroke();
+  ctx.lineWidth=2;
+  ctx.beginPath(); ctx.moveTo(vx-22,vy-118); ctx.lineTo(vx+22,vy-118); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(vx-16,vy-110); ctx.lineTo(vx+16,vy-110); ctx.stroke();
+  // Лопасти
+  ctx.fillStyle='#2a1808';
+  ctx.beginPath(); ctx.moveTo(vx,vy-128); ctx.lineTo(vx-18,vy-142); ctx.lineTo(vx-3,vy-130); ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(vx,vy-128); ctx.lineTo(vx+20,vy-136); ctx.lineTo(vx+3,vy-130); ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(vx,vy-128); ctx.lineTo(vx+4,vy-146); ctx.lineTo(vx+1,vy-130); ctx.closePath(); ctx.fill();
+
+  // Маленький испаритель вдали
+  ctx.fillStyle='rgba(80,44,16,0.65)';
+  ctx.fillRect(W*0.18-2,HORIZON-35,4,45);
+  ctx.fillRect(W*0.18-5,HORIZON-37,10,4);
+  ctx.strokeStyle='rgba(60,28,8,0.5)'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(W*0.18-8,HORIZON-30); ctx.lineTo(W*0.18+8,HORIZON-30); ctx.stroke();
+
+  // ── ОТРАЖЕНИЕ НЕБА НА ЗЕМЛЕ у горизонта ─────
+  const skyRef = ctx.createLinearGradient(0,HORIZON,0,HORIZON+80);
+  skyRef.addColorStop(0,'rgba(200,110,90,0.18)');
+  skyRef.addColorStop(1,'rgba(180,80,50,0)');
+  ctx.fillStyle=skyRef; ctx.fillRect(0,HORIZON,W,80);
+}
+
+function drawZones() {
+  ctx.save();
+
+  // ── HUD панель (y=88, высота=220) ──
+  ctx.fillStyle='rgba(10,5,30,0.75)';
+  ctx.fillRect(0,88,600,220);
+  ctx.strokeStyle='rgba(255,215,0,0.7)';
+  ctx.lineWidth=2; ctx.setLineDash([]);
+  ctx.strokeRect(0,88,600,220);
+  ctx.font='bold 16px Arial'; ctx.textAlign='center';
+  ctx.fillStyle='#FFD700';
+  ctx.fillText('📋 HUD — правила + топ убийств  (y=88…308)', 300, 120);
+  ctx.font='13px Arial'; ctx.fillStyle='rgba(255,215,0,0.7)';
+  ctx.fillText('⚔️ ARENA BATTLE  |  правила  |  топ 5  |  кнопки', 300, 148);
+
+  // Статус бейдж сверху (y=0..88)
+  ctx.fillStyle='rgba(0,200,100,0.15)';
+  ctx.fillRect(0,0,600,88);
+  ctx.strokeStyle='rgba(0,255,120,0.5)';
+  ctx.lineWidth=1.5; ctx.setLineDash([6,4]);
+  ctx.strokeRect(0,0,600,88);
+  ctx.font='bold 13px Arial'; ctx.fillStyle='rgba(0,255,120,0.85)';
+  ctx.fillText('🟢 STATUS BADGE — @username / LIVE / DEMO  (y=0…88)', 300, 50);
+  ctx.setLineDash([]);
+
+  // ── Зона ходьбы аватаров ──
+  ctx.strokeStyle='rgba(255,60,60,0.9)';
+  ctx.lineWidth=3; ctx.setLineDash([12,6]);
+  ctx.beginPath(); ctx.ellipse(300,610,272,305,0,0,Math.PI*2); ctx.stroke();
+  ctx.fillStyle='rgba(255,50,50,0.07)';
+  ctx.beginPath(); ctx.ellipse(300,610,272,305,0,0,Math.PI*2); ctx.fill();
+  ctx.setLineDash([]);
+  ctx.font='bold 15px Arial';
+  ctx.fillStyle='rgba(0,0,0,0.7)'; ctx.fillRect(148,290,304,30);
+  ctx.fillStyle='#FF5555'; ctx.fillText('⚔️ ЗОНА ХОДЬБЫ АВАТАРОВ', 300, 310);
+
+  ctx.restore();
+}
+
+// ─── (персонажи в отдельном файле sw_chars_preview.html) ───
+
+function drawChewbacca(cx, ground) {
+  ctx.save(); ctx.translate(cx, ground);
+  ctx.fillStyle='rgba(0,0,0,0.3)'; ctx.beginPath(); ctx.ellipse(0,0,28,6,0,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#4a2a08';
+  ctx.beginPath(); ctx.roundRect(-16,-60,13,60,4); ctx.fill();
+  ctx.beginPath(); ctx.roundRect(3,-60,13,60,4); ctx.fill();
+  ctx.fillStyle='#2a1404';
+  ctx.beginPath(); ctx.ellipse(-10,-2,10,5,0,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(10,-2,10,5,0,0,Math.PI*2); ctx.fill();
+  const bodyG = ctx.createRadialGradient(-10,-110,5,0,-100,45);
+  bodyG.addColorStop(0,'#7a4818'); bodyG.addColorStop(0.5,'#5a3410'); bodyG.addColorStop(1,'#3a2008');
+  ctx.fillStyle=bodyG; ctx.beginPath(); ctx.ellipse(0,-100,36,55,0,0,Math.PI*2); ctx.fill();
+  ctx.strokeStyle='rgba(30,15,0,0.5)'; ctx.lineWidth=1.2;
+  for(let i=0;i<14;i++){ const fx=-28+i*4,fy=-130+Math.sin(i*0.8)*8; ctx.beginPath(); ctx.moveTo(fx,fy); ctx.lineTo(fx+2,fy+12); ctx.stroke(); }
+  ctx.strokeStyle='#c8a030'; ctx.lineWidth=5; ctx.lineCap='round';
+  ctx.beginPath(); ctx.moveTo(-22,-148); ctx.lineTo(18,-80); ctx.stroke();
+  for(let i=0;i<5;i++){ const bx=-22+i*8,by=-148+i*14; ctx.fillStyle='#888'; ctx.beginPath(); ctx.ellipse(bx+2,by+5,4,3,0.5,0,Math.PI*2); ctx.fill(); }
+  ctx.fillStyle='#4a2808';
+  ctx.beginPath(); ctx.ellipse(-42,-108,10,30,0.3,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(42,-108,10,30,-0.3,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#2a1404';
+  ctx.beginPath(); ctx.ellipse(-44,-82,8,10,0.1,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(44,-82,8,10,-0.1,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#4a2808'; ctx.beginPath(); ctx.ellipse(0,-152,14,10,0,0,Math.PI*2); ctx.fill();
+  const headG = ctx.createRadialGradient(-8,-178,4,0,-172,30);
+  headG.addColorStop(0,'#6a3c10'); headG.addColorStop(1,'#3a2008');
+  ctx.fillStyle=headG; ctx.beginPath(); ctx.ellipse(0,-174,28,26,0,0,Math.PI*2); ctx.fill();
+  for(let i=0;i<10;i++){ const fx=-20+i*4.5,fy=-196+Math.sin(i*0.9)*5; ctx.beginPath(); ctx.moveTo(fx,fy); ctx.lineTo(fx+1,fy+8); ctx.stroke(); }
+  ctx.fillStyle='#1a0a02'; ctx.beginPath(); ctx.ellipse(0,-172,10,7,0,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#0a0400';
+  ctx.beginPath(); ctx.ellipse(-4,-173,3,2.5,0,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(4,-173,3,2.5,0,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#88AACC';
+  ctx.beginPath(); ctx.arc(-10,-180,5,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(10,-180,5,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#000';
+  ctx.beginPath(); ctx.arc(-10,-180,2.5,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(10,-180,2.5,0,Math.PI*2); ctx.fill();
+  ctx.strokeStyle='#1a0a02'; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.moveTo(-8,-163); ctx.quadraticCurveTo(0,-158,8,-163); ctx.stroke();
+  ctx.restore();
+}
+
+function drawR2D2(cx, ground) {
+  ctx.save(); ctx.translate(cx, ground);
+  ctx.fillStyle='rgba(0,0,0,0.25)'; ctx.beginPath(); ctx.ellipse(0,0,22,5,0,0,Math.PI*2); ctx.fill();
+  for(let s of[-12,12]){
+    ctx.fillStyle='#d0d8e8'; ctx.beginPath(); ctx.roundRect(s-6,-45,12,45,3); ctx.fill();
+    ctx.fillStyle='#3060a0'; ctx.fillRect(s-5,-38,10,6);
+    ctx.fillStyle='#c0c8d8'; ctx.fillRect(s-5,-28,10,3);
+  }
+  for(let s of[-13,13]){ ctx.fillStyle='#b0b8c8'; ctx.beginPath(); ctx.ellipse(s,-2,10,5,0,0,Math.PI*2); ctx.fill(); }
+  const b2=ctx.createLinearGradient(-24,-115,24,-115);
+  b2.addColorStop(0,'#a0a8b8'); b2.addColorStop(0.3,'#e0e8f8'); b2.addColorStop(0.7,'#c0c8d8'); b2.addColorStop(1,'#8090a0');
+  ctx.fillStyle=b2; ctx.beginPath(); ctx.roundRect(-24,-115,48,72,6); ctx.fill();
+  ctx.fillStyle='#2060c0';
+  ctx.fillRect(-20,-112,16,20); ctx.fillRect(4,-112,16,20);
+  ctx.fillRect(-20,-86,16,12); ctx.fillRect(4,-86,16,12);
+  ctx.strokeStyle='rgba(80,100,140,0.5)'; ctx.lineWidth=1.5;
+  for(let i=0;i<4;i++){ ctx.beginPath(); ctx.moveTo(-24,-108+i*14); ctx.lineTo(24,-108+i*14); ctx.stroke(); }
+  ctx.fillStyle='#FF3300'; ctx.shadowColor='#FF3300'; ctx.shadowBlur=8;
+  ctx.beginPath(); ctx.arc(0,-100,6,0,Math.PI*2); ctx.fill(); ctx.shadowBlur=0;
+  ctx.fillStyle='#aa1100'; ctx.beginPath(); ctx.arc(0,-100,3,0,Math.PI*2); ctx.fill();
+  const dG=ctx.createRadialGradient(-8,-138,3,0,-130,28);
+  dG.addColorStop(0,'#f0f4ff'); dG.addColorStop(0.5,'#d0d8f0'); dG.addColorStop(1,'#8090b0');
+  ctx.fillStyle=dG;
+  ctx.beginPath(); ctx.arc(0,-130,28,Math.PI,0); ctx.lineTo(28,-118); ctx.lineTo(-28,-118); ctx.closePath(); ctx.fill();
+  ctx.fillStyle='rgba(30,80,180,0.7)';
+  ctx.beginPath(); ctx.arc(-10,-132,5,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(10,-132,4,0,Math.PI*2); ctx.fill();
+  ctx.restore();
+}
+
+function drawC3PO(cx, ground) {
+  ctx.save(); ctx.translate(cx, ground);
+  ctx.fillStyle='rgba(0,0,0,0.25)'; ctx.beginPath(); ctx.ellipse(0,0,22,5,0,0,Math.PI*2); ctx.fill();
+  const gold=()=>{ const g=ctx.createLinearGradient(-20,0,20,0); g.addColorStop(0,'#a07010'); g.addColorStop(0.3,'#ffd700'); g.addColorStop(0.6,'#e0a020'); g.addColorStop(1,'#806010'); return g; };
+  for(let s of[-9,9]){
+    ctx.fillStyle=gold(); ctx.beginPath(); ctx.roundRect(s-6,-62,12,62,4); ctx.fill();
+    ctx.strokeStyle='rgba(80,50,0,0.4)'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(s-5,-50); ctx.lineTo(s+5,-50); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(s-5,-36); ctx.lineTo(s+5,-36); ctx.stroke();
+    ctx.fillStyle=gold(); ctx.beginPath(); ctx.ellipse(s,-2,9,5,0,0,Math.PI*2); ctx.fill();
+  }
+  ctx.fillStyle=gold(); ctx.beginPath(); ctx.ellipse(0,-64,18,8,0,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle=gold(); ctx.beginPath(); ctx.roundRect(-18,-130,36,68,8); ctx.fill();
+  ctx.strokeStyle='rgba(80,50,0,0.35)'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(-16,-120); ctx.lineTo(16,-120); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(-16,-106); ctx.lineTo(16,-106); ctx.stroke();
+  ctx.fillStyle=gold(); ctx.beginPath(); ctx.ellipse(-22,-126,10,10,0,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(22,-126,10,10,0,0,Math.PI*2); ctx.fill();
+  for(let s of[-1,1]){
+    ctx.fillStyle=gold(); ctx.beginPath(); ctx.roundRect(s*18-6,-138,12,52,5); ctx.fill();
+  }
+  ctx.fillStyle=gold();
+  ctx.beginPath(); ctx.ellipse(-20,-90,7,9,0,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(20,-90,7,9,0,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle=gold(); ctx.beginPath(); ctx.roundRect(-8,-138,16,12,4); ctx.fill();
+  ctx.fillStyle=gold(); ctx.beginPath(); ctx.ellipse(0,-156,20,22,0,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='rgba(60,35,0,0.5)'; ctx.beginPath(); ctx.ellipse(0,-158,14,15,0,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#FF8800'; ctx.shadowColor='#FF8800'; ctx.shadowBlur=8;
+  ctx.beginPath(); ctx.arc(-7,-162,5,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(7,-162,5,0,Math.PI*2); ctx.fill(); ctx.shadowBlur=0;
+  ctx.fillStyle='#CC4400';
+  ctx.beginPath(); ctx.arc(-7,-162,2.5,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(7,-162,2.5,0,Math.PI*2); ctx.fill();
+  ctx.strokeStyle='rgba(80,50,0,0.6)'; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.moveTo(-8,-149); ctx.lineTo(8,-149); ctx.stroke();
+  ctx.restore();
+}
+
+function drawYoda(cx, ground) {
+  ctx.save(); ctx.translate(cx, ground);
+  ctx.fillStyle='rgba(0,0,0,0.25)'; ctx.beginPath(); ctx.ellipse(0,0,20,5,0,0,Math.PI*2); ctx.fill();
+  ctx.strokeStyle='#7a5820'; ctx.lineWidth=4; ctx.lineCap='round';
+  ctx.beginPath(); ctx.moveTo(28,-5); ctx.bezierCurveTo(30,-40,26,-75,24,-95); ctx.stroke();
+  ctx.fillStyle='#4a4020';
+  ctx.beginPath(); ctx.moveTo(-30,-5); ctx.bezierCurveTo(-34,-40,-28,-70,-22,-88); ctx.lineTo(22,-88); ctx.bezierCurveTo(28,-70,34,-40,30,-5); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle='rgba(20,18,8,0.4)'; ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.moveTo(-10,-5); ctx.bezierCurveTo(-12,-40,-10,-70,-8,-88); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(10,-5); ctx.bezierCurveTo(12,-40,10,-70,8,-88); ctx.stroke();
+  ctx.fillStyle='#4a7830';
+  ctx.beginPath(); ctx.ellipse(-32,-68,12,7,0.5,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(18,-68,8,6,-0.3,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#5a8840'; ctx.beginPath(); ctx.ellipse(0,-92,10,7,0,0,Math.PI*2); ctx.fill();
+  const hG=ctx.createRadialGradient(-5,-112,3,0,-108,22);
+  hG.addColorStop(0,'#78b050'); hG.addColorStop(0.6,'#5a9038'); hG.addColorStop(1,'#3a6820');
+  ctx.fillStyle=hG; ctx.beginPath(); ctx.ellipse(0,-110,22,20,0,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#5a9038';
+  ctx.beginPath(); ctx.moveTo(-22,-110); ctx.bezierCurveTo(-50,-118,-56,-100,-46,-92); ctx.bezierCurveTo(-38,-86,-24,-98,-22,-110); ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(22,-110); ctx.bezierCurveTo(50,-118,56,-100,46,-92); ctx.bezierCurveTo(38,-86,24,-98,22,-110); ctx.closePath(); ctx.fill();
+  ctx.fillStyle='rgba(80,40,20,0.3)';
+  ctx.beginPath(); ctx.moveTo(-24,-108); ctx.bezierCurveTo(-44,-114,-46,-100,-38,-96); ctx.bezierCurveTo(-32,-92,-24,-104,-24,-108); ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(24,-108); ctx.bezierCurveTo(44,-114,46,-100,38,-96); ctx.bezierCurveTo(32,-92,24,-104,24,-108); ctx.closePath(); ctx.fill();
+  ctx.fillStyle='#88cc44'; ctx.shadowColor='#88cc44'; ctx.shadowBlur=6;
+  ctx.beginPath(); ctx.ellipse(-8,-113,5,4,0,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(8,-113,5,4,0,0,Math.PI*2); ctx.fill(); ctx.shadowBlur=0;
+  ctx.fillStyle='#1a2a08';
+  ctx.beginPath(); ctx.ellipse(-8,-113,2.5,2.5,0,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(8,-113,2.5,2.5,0,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#3a6020'; ctx.beginPath(); ctx.ellipse(0,-107,5,4,0,0,Math.PI*2); ctx.fill();
+  ctx.strokeStyle='rgba(30,50,10,0.4)'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(-14,-118); ctx.bezierCurveTo(-10,-122,10,-122,14,-118); ctx.stroke();
+  ctx.strokeStyle='rgba(30,60,10,0.6)'; ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.moveTo(-7,-101); ctx.quadraticCurveTo(0,-97,7,-101); ctx.stroke();
+  ctx.restore();
+}
+
+function drawStormtrooper(cx, ground) {
+  ctx.save(); ctx.translate(cx, ground);
+  ctx.fillStyle='rgba(0,0,0,0.25)'; ctx.beginPath(); ctx.ellipse(0,0,22,5,0,0,Math.PI*2); ctx.fill();
+  const wh=()=>{ const g=ctx.createLinearGradient(-20,0,20,0); g.addColorStop(0,'#b0b8c0'); g.addColorStop(0.3,'#f0f4f8'); g.addColorStop(0.7,'#d8dce8'); g.addColorStop(1,'#9098a8'); return g; };
+  for(let s of[-9,9]){
+    ctx.fillStyle=wh(); ctx.beginPath(); ctx.roundRect(s-6,-62,12,62,3); ctx.fill();
+    ctx.strokeStyle='rgba(80,90,110,0.3)'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(s-5,-46); ctx.lineTo(s+5,-46); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(s-5,-28); ctx.lineTo(s+5,-28); ctx.stroke();
+    ctx.fillStyle=wh(); ctx.beginPath(); ctx.ellipse(s,-2,10,5,0,0,Math.PI*2); ctx.fill();
+  }
+  ctx.fillStyle=wh(); ctx.beginPath(); ctx.ellipse(0,-64,20,9,0,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle=wh(); ctx.beginPath(); ctx.roundRect(-20,-136,40,74,6); ctx.fill();
+  ctx.strokeStyle='rgba(80,90,110,0.25)'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(-18,-120); ctx.lineTo(18,-120); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(-18,-104); ctx.lineTo(18,-104); ctx.stroke();
+  ctx.fillStyle=wh(); ctx.beginPath(); ctx.ellipse(-24,-128,12,10,0,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(24,-128,12,10,0,0,Math.PI*2); ctx.fill();
+  for(let s of[-1,1]){ ctx.fillStyle=wh(); ctx.beginPath(); ctx.roundRect(s*22-6,-140,12,52,4); ctx.fill(); }
+  ctx.fillStyle='#222';
+  ctx.beginPath(); ctx.ellipse(-22,-92,7,9,0,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(22,-92,7,9,0,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#333'; ctx.beginPath(); ctx.roundRect(24,-98,18,6,2); ctx.fill();
+  ctx.fillStyle='#222'; ctx.beginPath(); ctx.roundRect(-7,-144,14,12,3); ctx.fill();
+  ctx.fillStyle=wh();
+  ctx.beginPath(); ctx.moveTo(-18,-144); ctx.bezierCurveTo(-20,-160,-18,-178,0,-180); ctx.bezierCurveTo(18,-178,20,-160,18,-144); ctx.closePath(); ctx.fill();
+  ctx.fillStyle='#111';
+  ctx.beginPath(); ctx.moveTo(-16,-148); ctx.lineTo(16,-148); ctx.bezierCurveTo(18,-148,18,-158,16,-158); ctx.lineTo(-16,-158); ctx.bezierCurveTo(-18,-158,-18,-148,-16,-148); ctx.closePath(); ctx.fill();
+  ctx.fillStyle=wh(); ctx.beginPath(); ctx.moveTo(-18,-144); ctx.lineTo(18,-144); ctx.lineTo(16,-138); ctx.lineTo(-16,-138); ctx.closePath(); ctx.fill();
+  ctx.fillStyle='#333'; ctx.beginPath(); ctx.roundRect(-10,-148,20,8,2); ctx.fill();
+  for(let i=0;i<5;i++){ ctx.fillStyle='#555'; ctx.fillRect(-9+i*4,-147,2,6); }
+  ctx.restore();
+}
+
+function drawLuke(cx, ground) {
+  ctx.save(); ctx.translate(cx, ground);
+  ctx.fillStyle='rgba(0,0,0,0.25)'; ctx.beginPath(); ctx.ellipse(0,0,20,5,0,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#d4c898';
+  ctx.beginPath(); ctx.roundRect(-13,-62,11,62,3); ctx.fill();
+  ctx.beginPath(); ctx.roundRect(2,-62,11,62,3); ctx.fill();
+  ctx.fillStyle='#5a3818';
+  ctx.beginPath(); ctx.roundRect(-13,-22,11,22,3); ctx.fill();
+  ctx.beginPath(); ctx.roundRect(2,-22,11,22,3); ctx.fill();
+  ctx.fillStyle='#4a2c10';
+  ctx.beginPath(); ctx.ellipse(-8,-2,10,5,0,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(8,-2,10,5,0,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#6a4820'; ctx.fillRect(-18,-66,36,8);
+  ctx.fillStyle='#888'; ctx.fillRect(-4,-67,8,10);
+  const tunic=ctx.createLinearGradient(-18,-130,18,-130);
+  tunic.addColorStop(0,'#b8b0a0'); tunic.addColorStop(0.3,'#e8e0d0'); tunic.addColorStop(0.7,'#d0c8b8'); tunic.addColorStop(1,'#a09888');
+  ctx.fillStyle=tunic; ctx.beginPath(); ctx.roundRect(-18,-136,36,72,5); ctx.fill();
+  ctx.fillStyle=tunic;
+  ctx.beginPath(); ctx.ellipse(-22,-124,10,9,0.2,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(22,-124,10,9,-0.2,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#d4c090'; ctx.beginPath(); ctx.roundRect(-30,-134,12,52,4); ctx.fill();
+  ctx.fillStyle='#d4c090'; ctx.beginPath(); ctx.roundRect(18,-134,12,42,4); ctx.fill();
+  ctx.fillStyle='#666'; ctx.beginPath(); ctx.roundRect(22,-98,6,14,2); ctx.fill();
+  ctx.shadowColor='#00AAFF'; ctx.shadowBlur=16;
+  ctx.fillStyle='rgba(100,200,255,0.95)'; ctx.fillRect(23,-98,4,-52); ctx.shadowBlur=0;
+  ctx.fillStyle='#c8b080';
+  ctx.beginPath(); ctx.ellipse(-24,-86,6,7,0,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(24,-86,6,7,0,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#c8b080'; ctx.beginPath(); ctx.ellipse(0,-140,8,7,0,0,Math.PI*2); ctx.fill();
+  const fG=ctx.createRadialGradient(-5,-158,3,0,-154,18);
+  fG.addColorStop(0,'#e0c090'); fG.addColorStop(1,'#c09868');
+  ctx.fillStyle=fG; ctx.beginPath(); ctx.ellipse(0,-156,16,18,0,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#d4a830';
+  ctx.beginPath(); ctx.moveTo(-16,-156); ctx.bezierCurveTo(-18,-172,-10,-178,0,-178); ctx.bezierCurveTo(10,-178,18,-172,16,-156); ctx.bezierCurveTo(12,-162,6,-164,0,-162); ctx.bezierCurveTo(-6,-164,-12,-162,-16,-156); ctx.closePath(); ctx.fill();
+  ctx.fillStyle='#fff';
+  ctx.beginPath(); ctx.ellipse(-6,-158,4,3,0,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(6,-158,4,3,0,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#4070a0';
+  ctx.beginPath(); ctx.arc(-6,-158,2.2,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(6,-158,2.2,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#000';
+  ctx.beginPath(); ctx.arc(-6,-158,1.2,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(6,-158,1.2,0,Math.PI*2); ctx.fill();
+  ctx.strokeStyle='rgba(140,90,40,0.5)'; ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.moveTo(-5,-144); ctx.quadraticCurveTo(0,-140,5,-144); ctx.stroke();
+  ctx.restore();
+}
+
+function drawJabba(cx, ground) {
+  ctx.save(); ctx.translate(cx, ground);
+  ctx.fillStyle='rgba(0,0,0,0.35)'; ctx.beginPath(); ctx.ellipse(0,-5,65,14,0,0,Math.PI*2); ctx.fill();
+  const tG=ctx.createRadialGradient(20,-30,5,10,-30,70);
+  tG.addColorStop(0,'#6a8830'); tG.addColorStop(0.5,'#507020'); tG.addColorStop(1,'#304010');
+  ctx.fillStyle=tG;
+  ctx.beginPath(); ctx.moveTo(-60,-5); ctx.bezierCurveTo(-65,-10,-60,-55,-40,-60); ctx.bezierCurveTo(-20,-65,20,-60,40,-50); ctx.bezierCurveTo(65,-40,68,-20,62,-5); ctx.bezierCurveTo(55,10,30,14,-5,12); ctx.bezierCurveTo(-30,10,-50,6,-60,-5); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle='rgba(20,30,5,0.3)'; ctx.lineWidth=2;
+  for(let i=0;i<6;i++){ ctx.beginPath(); ctx.ellipse(-50+i*14,-8+i*3,10-i,4,0.2,0,Math.PI*2); ctx.stroke(); }
+  const bG=ctx.createRadialGradient(-15,-90,10,0,-80,60);
+  bG.addColorStop(0,'#7a9838'); bG.addColorStop(0.5,'#608028'); bG.addColorStop(1,'#405018');
+  ctx.fillStyle=bG; ctx.beginPath(); ctx.ellipse(0,-85,55,50,0,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='rgba(180,200,100,0.25)'; ctx.beginPath(); ctx.ellipse(5,-90,35,32,0.1,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#5a7820';
+  ctx.beginPath(); ctx.ellipse(-50,-90,16,8,0.6,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(50,-90,16,8,-0.6,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#607030'; ctx.beginPath(); ctx.ellipse(0,-132,28,16,0,0,Math.PI*2); ctx.fill();
+  const hG2=ctx.createRadialGradient(-10,-158,8,0,-152,40);
+  hG2.addColorStop(0,'#88a840'); hG2.addColorStop(0.5,'#708030'); hG2.addColorStop(1,'#485018');
+  ctx.fillStyle=hG2; ctx.beginPath(); ctx.ellipse(0,-155,42,36,0,0,Math.PI*2); ctx.fill();
+  for(let s of[-16,16]){
+    ctx.fillStyle='#d0b020'; ctx.shadowColor='#FFD700'; ctx.shadowBlur=8;
+    ctx.beginPath(); ctx.arc(s,-158,10,0,Math.PI*2); ctx.fill(); ctx.shadowBlur=0;
+    ctx.fillStyle='#080400'; ctx.beginPath(); ctx.ellipse(s,-158,3,5,0,0,Math.PI*2); ctx.fill();
+  }
+  ctx.fillStyle='#2a3008';
+  ctx.beginPath(); ctx.ellipse(-8,-148,4,3,0.3,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(8,-148,4,3,-0.3,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#1a1004';
+  ctx.beginPath(); ctx.moveTo(-28,-140); ctx.bezierCurveTo(-20,-130,20,-130,28,-140); ctx.bezierCurveTo(20,-138,8,-134,-4,-134); ctx.bezierCurveTo(-14,-134,-22,-138,-28,-140); ctx.closePath(); ctx.fill();
+  ctx.fillStyle='#a03020'; ctx.beginPath(); ctx.ellipse(0,-133,10,5,0,0,Math.PI*2); ctx.fill();
+  ctx.restore();
+}
+
+function drawLeia(cx, ground) {
+  ctx.save(); ctx.translate(cx, ground);
+  ctx.fillStyle='rgba(0,0,0,0.25)'; ctx.beginPath(); ctx.ellipse(0,0,20,5,0,0,Math.PI*2); ctx.fill();
+  const dG=ctx.createLinearGradient(-24,-62,24,-62);
+  dG.addColorStop(0,'#b0b0b8'); dG.addColorStop(0.3,'#e8e8f0'); dG.addColorStop(0.7,'#d0d0d8'); dG.addColorStop(1,'#9898a8');
+  ctx.fillStyle=dG;
+  ctx.beginPath(); ctx.moveTo(-6,-62); ctx.bezierCurveTo(-20,-50,-28,-20,-24,0); ctx.lineTo(24,0); ctx.bezierCurveTo(28,-20,20,-50,6,-62); ctx.closePath(); ctx.fill();
+  ctx.fillStyle=dG; ctx.beginPath(); ctx.roundRect(-16,-130,32,70,5); ctx.fill();
+  ctx.fillStyle='#888'; ctx.beginPath(); ctx.roundRect(-16,-66,32,8,3); ctx.fill();
+  ctx.fillStyle=dG;
+  ctx.beginPath(); ctx.ellipse(-20,-122,10,9,0.2,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(20,-122,10,9,-0.2,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#d4b888';
+  ctx.beginPath(); ctx.roundRect(-28,-130,10,50,4); ctx.fill();
+  ctx.beginPath(); ctx.roundRect(18,-130,10,50,4); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(-22,-83,6,7,0,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(22,-83,6,7,0,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#d4b888'; ctx.beginPath(); ctx.ellipse(0,-134,8,7,0,0,Math.PI*2); ctx.fill();
+  const fG2=ctx.createRadialGradient(-4,-152,3,0,-148,17);
+  fG2.addColorStop(0,'#e0c090'); fG2.addColorStop(1,'#c09870');
+  ctx.fillStyle=fG2; ctx.beginPath(); ctx.ellipse(0,-150,15,17,0,0,Math.PI*2); ctx.fill();
+  for(let s of[-1,1]){
+    ctx.fillStyle='#2a1a08'; ctx.beginPath(); ctx.arc(s*20,-152,13,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='#3a2810'; ctx.beginPath(); ctx.arc(s*20,-152,9,0,Math.PI*2); ctx.fill();
+    ctx.strokeStyle='rgba(80,50,15,0.6)'; ctx.lineWidth=1.5;
+    ctx.beginPath(); ctx.arc(s*20,-152,6,0,Math.PI*2); ctx.stroke();
+    ctx.beginPath(); ctx.arc(s*20,-152,3,0,Math.PI*2); ctx.stroke();
+    ctx.fillStyle='#2a1a08';
+    ctx.beginPath(); ctx.moveTo(s*14,-148); ctx.bezierCurveTo(s*16,-150,s*18,-152,s*20,-152); ctx.bezierCurveTo(s*18,-148,s*16,-146,s*12,-148); ctx.closePath(); ctx.fill();
+  }
+  ctx.fillStyle='#2a1a08';
+  ctx.beginPath(); ctx.moveTo(-10,-138); ctx.bezierCurveTo(-12,-144,-10,-150,-8,-155); ctx.bezierCurveTo(-4,-152,4,-152,8,-155); ctx.bezierCurveTo(10,-150,12,-144,10,-138); ctx.closePath(); ctx.fill();
+  ctx.fillStyle='#fff';
+  ctx.beginPath(); ctx.ellipse(-6,-152,4,3,0,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(6,-152,4,3,0,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#3a2808';
+  ctx.beginPath(); ctx.arc(-6,-152,2.2,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(6,-152,2.2,0,Math.PI*2); ctx.fill();
+  ctx.strokeStyle='#a05050'; ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.moveTo(-5,-137); ctx.quadraticCurveTo(0,-133,5,-137); ctx.stroke();
+  ctx.restore();
+}
+
+// Рисуем персонажей в ряд по низу
+const chars = [
+  {fn: drawChewbacca, x: 37},
+  {fn: drawR2D2,      x: 112},
+  {fn: drawC3PO,      x: 187},
+  {fn: drawYoda,      x: 262},
+  {fn: drawStormtrooper, x: 337},
+  {fn: drawLuke,      x: 412},
+  {fn: drawJabba,     x: 487},
+  {fn: drawLeia,      x: 562},
+];
+const charGround = 960;
+for(const c of chars) c.fn(c.x, charGround);
+
+// Подписи
+ctx.font='bold 11px Arial'; ctx.textAlign='center';
+const names=['Чубака','R2-D2','C-3PO','Йода','Штурмовик','Люк','Джабба','Лея'];
+const colors=['#b87840','#4488FF','#FFD700','#88CC44','#CCDDEE','#E8D8A0','#88AA40','#EEEEFF'];
+for(let i=0;i<chars.length;i++){
+  ctx.fillStyle='rgba(0,0,0,0.6)'; ctx.fillRect(chars[i].x-30,966,60,14);
+  ctx.fillStyle=colors[i]; ctx.fillText(names[i], chars[i].x, 977);
+}
+
+draw(0);
+drawZones();
+</script>
+</body>
+</html>

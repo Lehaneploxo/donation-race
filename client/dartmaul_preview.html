@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Darth Maul Preview</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #050510; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; font-family: Arial, sans-serif; color: #fff; }
+    h2 { margin-bottom: 6px; font-size: 20px; color: #FF2200; letter-spacing: 2px; }
+    p { margin-bottom: 18px; font-size: 12px; color: #666; }
+    canvas { border: 1px solid #1a0000; border-radius: 14px; background: radial-gradient(ellipse at 50% 60%, #0a0004 0%, #020002 100%); }
+  </style>
+</head>
+<body>
+  <h2>😈 ДАРТ МОЛ</h2>
+  <p>Sith Lord — Dathomiri Zabrak</p>
+  <canvas id="c" width="300" height="380"></canvas>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+function drawDarthMaul(cx, cy, now) {
+  ctx.save();
+  ctx.translate(cx, cy);
+  const bob = Math.sin(now * 0.0016) * 2.5;
+  ctx.translate(0, bob);
+
+  // Тень
+  ctx.fillStyle = 'rgba(0,0,0,0.5)';
+  ctx.beginPath(); ctx.ellipse(0, 10, 22, 5, 0, 0, Math.PI*2); ctx.fill();
+
+  // ── НОГИ — чёрные ──
+  ctx.fillStyle = '#0e0e0e';
+  ctx.beginPath(); ctx.roundRect(-13, -62, 11, 62, 3); ctx.fill();
+  ctx.beginPath(); ctx.roundRect(2, -62, 11, 62, 3); ctx.fill();
+  // Сапоги
+  ctx.fillStyle = '#080808';
+  ctx.beginPath(); ctx.roundRect(-14, -26, 12, 26, 3); ctx.fill();
+  ctx.beginPath(); ctx.roundRect(2, -26, 12, 26, 3); ctx.fill();
+  ctx.fillStyle = '#050505';
+  ctx.beginPath(); ctx.ellipse(-8, -1, 11, 5, 0, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(8, -1, 11, 5, 0, 0, Math.PI*2); ctx.fill();
+  // Блеск сапог
+  ctx.fillStyle = 'rgba(80,0,0,0.3)';
+  ctx.beginPath(); ctx.ellipse(-10, -16, 3, 7, 0.1, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(6, -16, 3, 7, -0.1, 0, Math.PI*2); ctx.fill();
+
+  // ── ПЛАЩ / МАНТИЯ — чёрная, развевается ──
+  const cloakSwing = Math.sin(now * 0.0012) * 3;
+  ctx.fillStyle = '#0a0a0a';
+  ctx.beginPath();
+  ctx.moveTo(-20, -68);
+  ctx.bezierCurveTo(-28, -40, -32 + cloakSwing, -10, -26 + cloakSwing, 8);
+  ctx.lineTo(-18 + cloakSwing, 8);
+  ctx.bezierCurveTo(-22 + cloakSwing, -8, -20, -38, -14, -68);
+  ctx.closePath(); ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(20, -68);
+  ctx.bezierCurveTo(28, -40, 32 - cloakSwing, -10, 26 - cloakSwing, 8);
+  ctx.lineTo(18 - cloakSwing, 8);
+  ctx.bezierCurveTo(22 - cloakSwing, -8, 20, -38, 14, -68);
+  ctx.closePath(); ctx.fill();
+
+  // ── ПОЯС ──
+  ctx.fillStyle = '#1a1a1a';
+  ctx.beginPath(); ctx.roundRect(-18, -70, 36, 8, 2); ctx.fill();
+  ctx.fillStyle = '#CC0000';
+  ctx.beginPath(); ctx.roundRect(-4, -71, 8, 9, 1); ctx.fill();
+  ctx.fillStyle = '#FF2200';
+  ctx.beginPath(); ctx.roundRect(-2, -70, 4, 6, 1); ctx.fill();
+
+  // ── ТУНИКА — чёрная ──
+  const tunicG = ctx.createLinearGradient(-18, -138, 18, -70);
+  tunicG.addColorStop(0, '#181818'); tunicG.addColorStop(0.5, '#222'); tunicG.addColorStop(1, '#111');
+  ctx.fillStyle = tunicG;
+  ctx.beginPath(); ctx.roundRect(-18, -138, 36, 70, 4); ctx.fill();
+  // Складки туники
+  ctx.strokeStyle = 'rgba(60,0,0,0.25)'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(-6, -138); ctx.lineTo(-8, -70); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(6, -138); ctx.lineTo(8, -70); ctx.stroke();
+
+  // ── ПЛЕЧИ ──
+  ctx.fillStyle = '#1a1a1a';
+  ctx.beginPath(); ctx.ellipse(-22, -126, 11, 8, 0.2, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(22, -126, 11, 8, -0.2, 0, Math.PI*2); ctx.fill();
+
+  // ── ЛЕВАЯ РУКА ──
+  const armSwing = Math.sin(now * 0.0016) * 3;
+  ctx.fillStyle = '#181818';
+  ctx.beginPath(); ctx.roundRect(-32, -136 - armSwing, 12, 50, 4); ctx.fill();
+  ctx.fillStyle = '#1a0808';
+  ctx.beginPath(); ctx.ellipse(-26, -88 - armSwing, 7, 7, 0, 0, Math.PI*2); ctx.fill();
+  ctx.strokeStyle = '#0e0606'; ctx.lineWidth = 2; ctx.lineCap = 'round';
+  for(let i=0;i<3;i++){ctx.beginPath();ctx.moveTo(-23+i*2.5,-83-armSwing);ctx.lineTo(-23+i*2.5,-77-armSwing);ctx.stroke();}
+
+  // ── ПРАВАЯ РУКА (держит сабер) ──
+  ctx.fillStyle = '#181818';
+  ctx.beginPath(); ctx.roundRect(20, -138, 12, 50, 4); ctx.fill();
+  ctx.fillStyle = '#1a0808';
+  ctx.beginPath(); ctx.ellipse(26, -91, 7, 7, 0, 0, Math.PI*2); ctx.fill();
+
+  // ── ДВОЙНОЙ СВЕТОВОЙ МЕЧ ──
+  ctx.save();
+  ctx.translate(26, -108);
+  ctx.rotate(-0.12);
+  // Рукоятка (двойная — длиннее обычной)
+  ctx.fillStyle = '#222';
+  ctx.beginPath(); ctx.roundRect(-3, -14, 6, 38, 2); ctx.fill();
+  ctx.fillStyle = '#111';
+  ctx.beginPath(); ctx.roundRect(-2, -12, 4, 34, 1); ctx.fill();
+  // Детали рукоятки
+  ctx.fillStyle = '#CC0000';
+  ctx.beginPath(); ctx.roundRect(-3, -2, 6, 3, 1); ctx.fill();
+  ctx.beginPath(); ctx.roundRect(-3, 7, 6, 3, 1); ctx.fill();
+  ctx.fillStyle = '#333';
+  ctx.beginPath(); ctx.ellipse(0, 0, 4, 2, 0, 0, Math.PI*2); ctx.fill();
+  // Блеск металла
+  ctx.fillStyle = 'rgba(200,0,0,0.15)';
+  ctx.beginPath(); ctx.roundRect(-3, -14, 2, 38, 1); ctx.fill();
+
+  // Верхнее лезвие (красное)
+  const sf = 0.85 + Math.sin(now * 0.018) * 0.15;
+  ctx.shadowColor = '#FF0000'; ctx.shadowBlur = 28 * sf;
+  ctx.fillStyle = `rgba(255,20,0,${sf})`;
+  ctx.beginPath(); ctx.moveTo(-2.5, -14); ctx.lineTo(2.5, -14); ctx.lineTo(1, -82); ctx.lineTo(0, -85); ctx.lineTo(-1, -82); ctx.closePath(); ctx.fill();
+  ctx.shadowColor = '#FF6600'; ctx.shadowBlur = 12;
+  ctx.fillStyle = `rgba(255,180,100,${sf * 0.9})`;
+  ctx.beginPath(); ctx.moveTo(-1.2, -14); ctx.lineTo(1.2, -14); ctx.lineTo(0.3, -82); ctx.lineTo(0, -84); ctx.lineTo(-0.3, -82); ctx.closePath(); ctx.fill();
+
+  // Нижнее лезвие (красное)
+  ctx.shadowColor = '#FF0000'; ctx.shadowBlur = 28 * sf;
+  ctx.fillStyle = `rgba(255,20,0,${sf})`;
+  ctx.beginPath(); ctx.moveTo(-2.5, 24); ctx.lineTo(2.5, 24); ctx.lineTo(1, 82); ctx.lineTo(0, 85); ctx.lineTo(-1, 82); ctx.closePath(); ctx.fill();
+  ctx.shadowColor = '#FF6600'; ctx.shadowBlur = 12;
+  ctx.fillStyle = `rgba(255,180,100,${sf * 0.9})`;
+  ctx.beginPath(); ctx.moveTo(-1.2, 24); ctx.lineTo(1.2, 24); ctx.lineTo(0.3, 82); ctx.lineTo(0, 84); ctx.lineTo(-0.3, 82); ctx.closePath(); ctx.fill();
+  ctx.shadowBlur = 0;
+
+  // Отблеск меча на теле
+  ctx.fillStyle = `rgba(255,0,0,${0.04 + Math.sin(now*0.016)*0.02})`;
+  ctx.beginPath(); ctx.ellipse(-15, -20, 22, 35, 0.2, 0, Math.PI*2); ctx.fill();
+  ctx.restore();
+
+  // ── ШЕЯ ──
+  ctx.fillStyle = '#8B0000';
+  ctx.beginPath(); ctx.roundRect(-6, -152, 12, 16, 2); ctx.fill();
+
+  // ── ГОЛОВА ──
+  // Основа головы — тёмно-красная
+  const headG = ctx.createRadialGradient(-4, -172, 3, 0, -168, 20);
+  headG.addColorStop(0, '#CC1010');
+  headG.addColorStop(0.5, '#AA0808');
+  headG.addColorStop(1, '#880000');
+  ctx.fillStyle = headG;
+  ctx.beginPath(); ctx.ellipse(0, -168, 18, 21, 0, 0, Math.PI*2); ctx.fill();
+
+  // ── ТАТУИРОВКИ — чёрные узоры ──
+  ctx.fillStyle = '#050000';
+  // Узор на лбу
+  ctx.beginPath(); ctx.ellipse(-9, -182, 5, 4, -0.3, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(9, -182, 5, 4, 0.3, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(0, -186, 4, 3, 0, 0, Math.PI*2); ctx.fill();
+  // Полосы на щеках
+  ctx.beginPath(); ctx.ellipse(-12, -168, 4, 7, 0.1, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(12, -168, 4, 7, -0.1, 0, Math.PI*2); ctx.fill();
+  // Узор на подбородке
+  ctx.beginPath(); ctx.ellipse(-5, -155, 3, 4, -0.1, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(5, -155, 3, 4, 0.1, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(0, -152, 4, 3, 0, 0, Math.PI*2); ctx.fill();
+  // Линии через всё лицо
+  ctx.fillStyle = '#0a0000';
+  ctx.beginPath(); ctx.moveTo(-3, -188); ctx.lineTo(-5, -148); ctx.lineTo(-2, -148); ctx.lineTo(0, -186); ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(3, -188); ctx.lineTo(5, -148); ctx.lineTo(2, -148); ctx.lineTo(0, -186); ctx.closePath(); ctx.fill();
+  // Горизонтальные полосы
+  ctx.fillStyle = '#060000';
+  ctx.beginPath(); ctx.roundRect(-16, -175, 10, 3, 1); ctx.fill();
+  ctx.beginPath(); ctx.roundRect(6, -175, 10, 3, 1); ctx.fill();
+  ctx.beginPath(); ctx.roundRect(-14, -163, 8, 3, 1); ctx.fill();
+  ctx.beginPath(); ctx.roundRect(6, -163, 8, 3, 1); ctx.fill();
+
+  // ── РОГА — 2 пары (Забракский вид) ──
+  ctx.fillStyle = '#1a0000';
+  // Передние рога
+  ctx.beginPath(); ctx.moveTo(-8, -188); ctx.bezierCurveTo(-10, -200, -7, -208, -5, -204); ctx.bezierCurveTo(-3, -200, -4, -192, -6, -188); ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(8, -188); ctx.bezierCurveTo(10, -200, 7, -208, 5, -204); ctx.bezierCurveTo(3, -200, 4, -192, 6, -188); ctx.closePath(); ctx.fill();
+  // Боковые рога (меньше)
+  ctx.beginPath(); ctx.moveTo(-15, -182); ctx.bezierCurveTo(-18, -192, -16, -198, -14, -195); ctx.bezierCurveTo(-12, -192, -12, -186, -13, -182); ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(15, -182); ctx.bezierCurveTo(18, -192, 16, -198, 14, -195); ctx.bezierCurveTo(12, -192, 12, -186, 13, -182); ctx.closePath(); ctx.fill();
+  // Блеск рогов
+  ctx.fillStyle = 'rgba(80,0,0,0.3)';
+  ctx.beginPath(); ctx.ellipse(-6, -196, 1.5, 4, 0.1, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(6, -196, 1.5, 4, -0.1, 0, Math.PI*2); ctx.fill();
+
+  // ── ГЛАЗА — жёлто-оранжевые, злобные ──
+  ctx.fillStyle = '#FF8800';
+  ctx.beginPath(); ctx.ellipse(-7, -169, 5, 3.5, 0, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(7, -169, 5, 3.5, 0, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#FFAA00';
+  ctx.beginPath(); ctx.ellipse(-7, -169, 3.5, 2.5, 0, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(7, -169, 3.5, 2.5, 0, 0, Math.PI*2); ctx.fill();
+  // Зрачки
+  ctx.fillStyle = '#0a0000';
+  ctx.beginPath(); ctx.ellipse(-7, -169, 1.5, 2, 0, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(7, -169, 1.5, 2, 0, 0, Math.PI*2); ctx.fill();
+  // Блик
+  ctx.fillStyle = 'rgba(255,220,100,0.8)';
+  ctx.beginPath(); ctx.arc(-8.5, -170.5, 1, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(5.5, -170.5, 1, 0, Math.PI*2); ctx.fill();
+  // Нахмуренные брови — злобные
+  ctx.fillStyle = '#050000';
+  ctx.beginPath(); ctx.moveTo(-12, -174); ctx.lineTo(-3, -172); ctx.lineTo(-3, -170); ctx.lineTo(-12, -171); ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(12, -174); ctx.lineTo(3, -172); ctx.lineTo(3, -170); ctx.lineTo(12, -171); ctx.closePath(); ctx.fill();
+
+  // Нос
+  ctx.strokeStyle = '#600000'; ctx.lineWidth = 1.2; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(-2, -164); ctx.lineTo(-4, -160); ctx.lineTo(-1, -159); ctx.stroke();
+
+  // Оскал — злобный рот
+  ctx.strokeStyle = '#300000'; ctx.lineWidth = 1.8; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(-8, -156); ctx.quadraticCurveTo(0, -158, 8, -156); ctx.stroke();
+  // Зубы
+  ctx.fillStyle = '#DDD';
+  ctx.beginPath(); ctx.moveTo(-5, -157); ctx.lineTo(-3, -157); ctx.lineTo(-3, -154); ctx.lineTo(-5, -154); ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(-1, -157); ctx.lineTo(1, -157); ctx.lineTo(1, -154); ctx.lineTo(-1, -154); ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(3, -157); ctx.lineTo(5, -157); ctx.lineTo(5, -154); ctx.lineTo(3, -154); ctx.closePath(); ctx.fill();
+
+  // Свечение от меча на лице
+  const faceGlow = 0.06 + Math.sin(now * 0.018) * 0.03;
+  ctx.fillStyle = `rgba(255,0,0,${faceGlow})`;
+  ctx.beginPath(); ctx.ellipse(8, -165, 18, 22, 0.2, 0, Math.PI*2); ctx.fill();
+
+  ctx.restore();
+}
+
+function drawLabels(now) {
+  ctx.save();
+  ctx.textAlign = 'center';
+  const hp = 0.78;
+  ctx.fillStyle = 'rgba(0,0,0,0.6)';
+  ctx.beginPath(); ctx.roundRect(150-34, 46, 68, 9, 3); ctx.fill();
+  ctx.fillStyle = '#CC2200';
+  ctx.beginPath(); ctx.roundRect(150-33, 47, 66*hp, 7, 2); ctx.fill();
+  ctx.font = 'bold 11px Arial Black';
+  ctx.strokeStyle = 'rgba(0,0,0,0.9)'; ctx.lineWidth = 3;
+  ctx.strokeText('DarthMaul', 150, 44);
+  ctx.fillStyle = '#FF2200'; ctx.fillText('DarthMaul', 150, 44);
+  ctx.font = '9px Arial';
+  const stats = ['❤️ 460', '⚔️ 52', '💀 38'];
+  stats.forEach((s,i) => {
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    ctx.beginPath(); ctx.roundRect(150-34+i*23, 58, 22, 13, 3); ctx.fill();
+    ctx.fillStyle = '#ccc'; ctx.fillText(s, 150-23+i*23, 68);
+  });
+  ctx.restore();
+}
+
+function loop(ts) {
+  ctx.clearRect(0, 0, 300, 380);
+  drawDarthMaul(150, 290, ts);
+  drawLabels(ts);
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

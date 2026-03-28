@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Scorpion Preview</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #050510; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; font-family: Arial, sans-serif; color: #fff; }
+  h2 { margin-bottom: 6px; font-size: 20px; color: #ffcc00; letter-spacing: 2px; text-shadow: 0 0 14px rgba(255,180,0,0.9); }
+  p { margin-bottom: 18px; font-size: 12px; color: #666; }
+  canvas { border: 1px solid #1a1000; border-radius: 14px; background: radial-gradient(ellipse at 50% 60%, #060401 0%, #020101 100%); }
+</style>
+</head>
+<body>
+  <h2>🦂 СКОРПИОН</h2>
+  <p>Hellfire Specter — GET OVER HERE!</p>
+  <canvas id="c" width="300" height="380"></canvas>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+function drawScorpion(cx, cy, now) {
+  ctx.save();
+  ctx.translate(cx, cy);
+  const bob = Math.sin(now * 0.0016) * 2.5;
+  ctx.translate(0, bob);
+  const swing = Math.sin(now * 0.0016) * 5;
+  const sk = Math.sin(now * 0.001) * 2;
+
+  // Shadow
+  ctx.fillStyle = 'rgba(0,0,0,0.45)';
+  ctx.beginPath(); ctx.ellipse(0, 7, 22, 5, 0, 0, Math.PI*2); ctx.fill();
+
+  // ── BOOTS (black) ──
+  ctx.fillStyle = '#141008';
+  ctx.beginPath(); ctx.roundRect(-14, -34, 12, 34, [3,3,6,6]); ctx.fill();
+  ctx.beginPath(); ctx.roundRect(2, -34, 12, 34, [3,3,6,6]); ctx.fill();
+  // boot highlight
+  ctx.fillStyle = 'rgba(200,160,0,0.15)';
+  ctx.beginPath(); ctx.roundRect(-12, -30, 4, 18, 2); ctx.fill();
+  ctx.beginPath(); ctx.roundRect(4, -30, 4, 18, 2); ctx.fill();
+
+  // ── SHIN GUARDS (yellow) ──
+  ctx.fillStyle = '#c8a010';
+  ctx.beginPath(); ctx.roundRect(-14, -56, 12, 24, 2); ctx.fill();
+  ctx.beginPath(); ctx.roundRect(2, -56, 12, 24, 2); ctx.fill();
+  ctx.fillStyle = '#e0b818';
+  ctx.beginPath(); ctx.roundRect(-12, -54, 8, 4, 1); ctx.fill();
+  ctx.beginPath(); ctx.roundRect(4, -54, 8, 4, 1); ctx.fill();
+
+  // ── LEGS (black ninja pants) ──
+  ctx.fillStyle = '#181408';
+  ctx.beginPath(); ctx.roundRect(-13, -88, 11, 34, 3); ctx.fill();
+  ctx.beginPath(); ctx.roundRect(2, -88, 11, 34, 3); ctx.fill();
+  // pants fold lines
+  ctx.strokeStyle = 'rgba(200,160,0,0.12)'; ctx.lineWidth = 0.7;
+  ctx.beginPath(); ctx.moveTo(-10, -84); ctx.lineTo(-8, -60); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(6, -84); ctx.lineTo(4, -60); ctx.stroke();
+
+  // ── SASH FRONT (yellow cloth, iconic) ──
+  const sG = ctx.createLinearGradient(0, -90, 0, -38);
+  sG.addColorStop(0, '#c8a010'); sG.addColorStop(0.4, '#dab018'); sG.addColorStop(1, '#9a7808');
+  ctx.fillStyle = sG;
+  ctx.beginPath();
+  ctx.moveTo(-12, -90);
+  ctx.bezierCurveTo(-14, -72, -13 + sk, -56, -11 + sk, -40);
+  ctx.lineTo(11 + sk, -40);
+  ctx.bezierCurveTo(13 + sk, -56, 14, -72, 12, -90);
+  ctx.closePath(); ctx.fill();
+  // sash edge lines
+  ctx.strokeStyle = 'rgba(255,200,0,0.3)'; ctx.lineWidth = 0.7;
+  ctx.beginPath(); ctx.moveTo(-12, -90); ctx.bezierCurveTo(-14, -72, -13 + sk, -56, -11 + sk, -40); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(12, -90); ctx.bezierCurveTo(14, -72, 13 + sk, -56, 11 + sk, -40); ctx.stroke();
+  // sash fold lines
+  ctx.strokeStyle = 'rgba(80,60,0,0.3)'; ctx.lineWidth = 0.6;
+  ctx.beginPath(); ctx.moveTo(-6, -88); ctx.lineTo(-5 + sk * 0.3, -45); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(6, -88); ctx.lineTo(5 + sk * 0.3, -45); ctx.stroke();
+
+  // ── BELT ──
+  ctx.fillStyle = '#0e0c06';
+  ctx.beginPath(); ctx.roundRect(-18, -93, 36, 7, 2); ctx.fill();
+  // belt buckle
+  ctx.fillStyle = '#c8a010';
+  ctx.beginPath(); ctx.roundRect(-6, -94, 12, 9, 2); ctx.fill();
+  ctx.fillStyle = '#f0c820';
+  ctx.beginPath(); ctx.arc(0, -90, 3.5, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#0e0c06';
+  ctx.beginPath(); ctx.arc(0, -90, 1.5, 0, Math.PI*2); ctx.fill();
+
+  // ── TORSO (yellow gi top) ──
+  const tG = ctx.createLinearGradient(-18, -158, 18, -90);
+  tG.addColorStop(0, '#c8a014'); tG.addColorStop(0.35, '#b89010'); tG.addColorStop(1, '#907008');
+  ctx.fillStyle = tG;
+  ctx.beginPath(); ctx.roundRect(-18, -158, 36, 66, 4); ctx.fill();
+
+  // gi collar V-neck
+  ctx.fillStyle = '#0e0c06';
+  ctx.beginPath();
+  ctx.moveTo(0, -158);
+  ctx.lineTo(-8, -140);
+  ctx.lineTo(0, -145);
+  ctx.lineTo(8, -140);
+  ctx.closePath(); ctx.fill();
+
+  // gi chest lines (fabric texture)
+  ctx.strokeStyle = 'rgba(80,60,0,0.2)'; ctx.lineWidth = 0.8;
+  ctx.beginPath(); ctx.moveTo(-18, -140); ctx.lineTo(18, -140); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(-18, -120); ctx.lineTo(18, -120); ctx.stroke();
+
+  // ── BLACK SHOULDER PIECES ──
+  ctx.fillStyle = '#141008';
+  ctx.beginPath(); ctx.roundRect(-28, -162, 14, 10, [3,3,0,0]); ctx.fill();
+  ctx.beginPath(); ctx.roundRect(14, -162, 14, 10, [3,3,0,0]); ctx.fill();
+  // yellow shoulder trim
+  ctx.fillStyle = '#c8a010';
+  ctx.beginPath(); ctx.roundRect(-29, -163, 15, 3, 1); ctx.fill();
+  ctx.beginPath(); ctx.roundRect(14, -163, 15, 3, 1); ctx.fill();
+
+  // ── LEFT ARM ──
+  ctx.fillStyle = '#c8a014';
+  ctx.beginPath(); ctx.roundRect(-32, -158 - swing, 12, 40, 4); ctx.fill();
+  // forearm black wrap
+  ctx.fillStyle = '#141008';
+  ctx.beginPath(); ctx.roundRect(-32, -122 - swing, 12, 22, 3); ctx.fill();
+  // yellow wrap lines
+  ctx.strokeStyle = '#c8a010'; ctx.lineWidth = 1.2;
+  ctx.beginPath(); ctx.moveTo(-32, -118 - swing); ctx.lineTo(-20, -118 - swing); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(-32, -113 - swing); ctx.lineTo(-20, -113 - swing); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(-32, -108 - swing); ctx.lineTo(-20, -108 - swing); ctx.stroke();
+  // left fist
+  ctx.fillStyle = '#141008';
+  ctx.beginPath(); ctx.ellipse(-26, -100 - swing, 7, 6, 0, 0, Math.PI*2); ctx.fill();
+  // knuckles
+  ctx.strokeStyle = 'rgba(200,160,0,0.35)'; ctx.lineWidth = 0.8;
+  for(let k = 0; k < 3; k++) {
+    ctx.beginPath(); ctx.arc(-23 + k * 3, -97 - swing, 1.5, 0, Math.PI*2); ctx.stroke();
+  }
+
+  // ── RIGHT ARM ──
+  ctx.fillStyle = '#c8a014';
+  ctx.beginPath(); ctx.roundRect(20, -158, 12, 40, 4); ctx.fill();
+  ctx.fillStyle = '#141008';
+  ctx.beginPath(); ctx.roundRect(20, -122, 12, 22, 3); ctx.fill();
+  ctx.strokeStyle = '#c8a010'; ctx.lineWidth = 1.2;
+  ctx.beginPath(); ctx.moveTo(20, -118); ctx.lineTo(32, -118); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(20, -113); ctx.lineTo(32, -113); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(20, -108); ctx.lineTo(32, -108); ctx.stroke();
+  ctx.fillStyle = '#141008';
+  ctx.beginPath(); ctx.ellipse(26, -100, 7, 6, 0, 0, Math.PI*2); ctx.fill();
+  ctx.strokeStyle = 'rgba(200,160,0,0.35)'; ctx.lineWidth = 0.8;
+  for(let k = 0; k < 3; k++) {
+    ctx.beginPath(); ctx.arc(23 + k * 3, -97, 1.5, 0, Math.PI*2); ctx.stroke();
+  }
+
+  // ── ROPE + KUNAI from left hand ──
+  ctx.save();
+  const ropeWave = Math.sin(now * 0.002);
+  ctx.strokeStyle = '#b89010'; ctx.lineWidth = 1.5; ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(-26, -98 - swing);
+  ctx.bezierCurveTo(-30, -115 - swing + ropeWave * 4, -36, -130 + ropeWave * 3, -42, -148 + ropeWave * 2);
+  ctx.stroke();
+  // kunai
+  ctx.save();
+  ctx.translate(-42, -148 + ropeWave * 2);
+  ctx.rotate(-0.6 + ropeWave * 0.1);
+  ctx.fillStyle = '#d0d0b0';
+  ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(-4, -16); ctx.lineTo(4, -16); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#a0a090';
+  ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(4, -16); ctx.lineTo(6, -8); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#8a6a08';
+  ctx.beginPath(); ctx.roundRect(-4, 0, 8, 6, 1); ctx.fill();
+  ctx.fillStyle = '#c8a010';
+  ctx.beginPath(); ctx.roundRect(-5, -2, 10, 3, 1); ctx.fill();
+  // kunai glow
+  ctx.globalAlpha = 0.35 + Math.sin(now * 0.004) * 0.15;
+  const kg = ctx.createRadialGradient(0, -8, 2, 0, -8, 14);
+  kg.addColorStop(0, 'rgba(255,220,50,0.9)'); kg.addColorStop(1, 'rgba(255,80,0,0)');
+  ctx.fillStyle = kg; ctx.beginPath(); ctx.arc(0, -8, 14, 0, Math.PI*2); ctx.fill();
+  ctx.globalAlpha = 1;
+  ctx.restore();
+  ctx.restore();
+
+  // ── NECK ──
+  ctx.fillStyle = '#141008';
+  ctx.beginPath(); ctx.roundRect(-5, -166, 10, 10, 3); ctx.fill();
+
+  // ── HOOD BACK CLOTH (behind head) ──
+  ctx.fillStyle = '#141008';
+  ctx.beginPath();
+  ctx.moveTo(-14, -164);
+  ctx.bezierCurveTo(-20, -170, -24, -188 + sk * 0.3, -20 + sk * 0.3, -205);
+  ctx.lineTo(-16 + sk * 0.3, -205);
+  ctx.bezierCurveTo(-20 + sk * 0.3, -190, -16, -172, -10, -165);
+  ctx.closePath(); ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(14, -164);
+  ctx.bezierCurveTo(20, -170, 24, -188 - sk * 0.3, 20 - sk * 0.3, -205);
+  ctx.lineTo(16 - sk * 0.3, -205);
+  ctx.bezierCurveTo(20 - sk * 0.3, -190, 16, -172, 10, -165);
+  ctx.closePath(); ctx.fill();
+
+  // ── HEAD BASE ──
+  ctx.fillStyle = '#141008';
+  ctx.beginPath(); ctx.ellipse(0, -180, 15, 19, 0, 0, Math.PI*2); ctx.fill();
+
+  // ── YELLOW HOOD WRAP (over head) ──
+  // hood covers top + sides, leaves just eye strip open
+  // sides
+  ctx.fillStyle = '#c8a010';
+  ctx.beginPath(); ctx.ellipse(0, -180, 15, 19, 0, 0, Math.PI*2); ctx.fill();
+  // black eye opening strip
+  ctx.fillStyle = '#0e0a04';
+  ctx.beginPath(); ctx.roundRect(-13, -187, 26, 10, 2); ctx.fill();
+  // hood top shape
+  const hdG = ctx.createLinearGradient(-14, -200, 14, -190);
+  hdG.addColorStop(0, '#b89010'); hdG.addColorStop(0.4, '#dcc020'); hdG.addColorStop(1, '#b89010');
+  ctx.fillStyle = hdG;
+  ctx.beginPath();
+  ctx.moveTo(-14, -194);
+  ctx.bezierCurveTo(-13, -207, -7, -212, 0, -212);
+  ctx.bezierCurveTo(7, -212, 13, -207, 14, -194);
+  ctx.bezierCurveTo(7, -198, 0, -197, -14, -194);
+  ctx.closePath(); ctx.fill();
+  // hood fold lines
+  ctx.strokeStyle = 'rgba(80,60,0,0.3)'; ctx.lineWidth = 0.8;
+  ctx.beginPath(); ctx.moveTo(-7, -212); ctx.lineTo(-8, -194); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(0, -212); ctx.lineTo(0, -197); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(7, -212); ctx.lineTo(8, -194); ctx.stroke();
+
+  // ── MASK (lower face — yellow, below eye strip) ──
+  ctx.fillStyle = '#c8a010';
+  ctx.beginPath();
+  ctx.moveTo(-13, -177);
+  ctx.lineTo(13, -177);
+  ctx.lineTo(12, -163);
+  ctx.bezierCurveTo(8, -156, -8, -156, -12, -163);
+  ctx.closePath(); ctx.fill();
+  // mask fold lines
+  ctx.strokeStyle = 'rgba(80,60,0,0.25)'; ctx.lineWidth = 0.6;
+  for(let i = -2; i <= 2; i++) {
+    ctx.beginPath(); ctx.moveTo(i * 4, -176); ctx.lineTo(i * 3.5, -161); ctx.stroke();
+  }
+
+  // ── EYES (white glowing in black opening) ──
+  ctx.fillStyle = 'rgba(255,255,255,0.95)';
+  ctx.beginPath(); ctx.ellipse(-5, -182, 4, 2.5, 0, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(5, -182, 4, 2.5, 0, 0, Math.PI*2); ctx.fill();
+  // white eye glow
+  const eA = 0.4 + Math.sin(now * 0.003) * 0.15;
+  ctx.globalAlpha = eA;
+  [-5, 5].forEach(ex => {
+    const eg = ctx.createRadialGradient(ex, -182, 1, ex, -182, 9);
+    eg.addColorStop(0, 'rgba(255,255,200,1)'); eg.addColorStop(1, 'rgba(255,200,50,0)');
+    ctx.fillStyle = eg; ctx.beginPath(); ctx.arc(ex, -182, 9, 0, Math.PI*2); ctx.fill();
+  });
+  ctx.globalAlpha = 1;
+
+  // ── HELLFIRE AURA ──
+  ctx.globalAlpha = 0.06 + Math.sin(now * 0.002) * 0.03;
+  const aura = ctx.createRadialGradient(0, -125, 15, 0, -125, 100);
+  aura.addColorStop(0, 'rgba(255,200,0,0.7)');
+  aura.addColorStop(0.5, 'rgba(255,80,0,0.3)');
+  aura.addColorStop(1, 'rgba(200,20,0,0)');
+  ctx.fillStyle = aura; ctx.beginPath(); ctx.arc(0, -125, 100, 0, Math.PI*2); ctx.fill();
+  ctx.globalAlpha = 1;
+
+  // ── HELLFIRE PARTICLES (yellow flames) ──
+  const ft = now * 0.0025;
+  for(let fi = 0; fi < 5; fi++) {
+    const ang = ft + fi * 1.26;
+    const d = 30 + Math.sin(ft * 1.3 + fi) * 7;
+    const px = Math.cos(ang) * d;
+    const py = -125 + Math.sin(ang) * d * 0.55;
+    ctx.globalAlpha = (0.55 - fi * 0.09) * (0.6 + Math.sin(ft * 2.5 + fi) * 0.3);
+    ctx.fillStyle = fi < 2 ? '#ffe000' : (fi < 4 ? '#ffaa00' : '#ff6600');
+    ctx.beginPath(); ctx.arc(px, py, 3.5 - fi * 0.4, 0, Math.PI*2); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+
+  ctx.restore();
+}
+
+function drawLabels(now) {
+  ctx.save(); ctx.textAlign = 'center';
+  ctx.fillStyle = 'rgba(0,0,0,0.6)';
+  ctx.beginPath(); ctx.roundRect(150-34, 46, 68, 9, 3); ctx.fill();
+  ctx.fillStyle = '#cc8800';
+  ctx.beginPath(); ctx.roundRect(150-33, 47, 66 * 0.87, 7, 2); ctx.fill();
+  ctx.font = 'bold 11px Arial Black';
+  ctx.strokeStyle = 'rgba(0,0,0,0.9)'; ctx.lineWidth = 3;
+  ctx.strokeText('Scorpion', 150, 44);
+  ctx.fillStyle = '#ffcc00'; ctx.fillText('Scorpion', 150, 44);
+  ctx.font = '9px Arial';
+  ['❤️ 470', '⚔️ 57', '💀 46'].forEach((s, i) => {
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    ctx.beginPath(); ctx.roundRect(150-34+i*23, 58, 22, 13, 3); ctx.fill();
+    ctx.fillStyle = '#ffdd88'; ctx.fillText(s, 150-23+i*23, 68);
+  });
+  ctx.restore();
+}
+
+function loop(ts) {
+  ctx.clearRect(0, 0, 300, 380);
+  drawScorpion(150, 295, ts);
+  drawLabels(ts);
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

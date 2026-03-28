@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Cyrax Preview</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #050510; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; font-family: Arial, sans-serif; color: #fff; }
+  h2 { margin-bottom: 6px; font-size: 20px; color: #cccc00; letter-spacing: 2px; text-shadow: 0 0 14px rgba(200,200,0,0.9); }
+  p { margin-bottom: 18px; font-size: 12px; color: #666; }
+  canvas { border: 1px solid #1a1a00; border-radius: 14px; background: radial-gradient(ellipse at 50% 60%, #050505 0%, #010101 100%); }
+</style>
+</head>
+<body>
+  <h2>🤖 САЙРАКС</h2>
+  <p>Lin Kuei Cyborg — Unit LK-4D4</p>
+  <canvas id="c" width="300" height="380"></canvas>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+// helper: draw armor plate with bevel
+function armorPlate(x, y, w, h, r, col, bright) {
+  ctx.fillStyle = col;
+  ctx.beginPath(); ctx.roundRect(x, y, w, h, r); ctx.fill();
+  // top-left bevel highlight
+  ctx.fillStyle = bright;
+  ctx.beginPath(); ctx.roundRect(x+1, y+1, w-2, 3, [r,r,0,0]); ctx.fill();
+  // bottom shadow
+  ctx.fillStyle = 'rgba(0,0,0,0.4)';
+  ctx.beginPath(); ctx.roundRect(x+1, y+h-3, w-2, 3, [0,0,r,r]); ctx.fill();
+}
+
+function drawCyrax(cx, cy, now) {
+  ctx.save();
+  ctx.translate(cx, cy);
+  const bob = Math.sin(now * 0.0013) * 2;
+  ctx.translate(0, bob);
+  const swing = Math.sin(now * 0.0013) * 4;
+  const pulse = 0.7 + Math.sin(now * 0.003) * 0.3;
+
+  // Shadow
+  ctx.fillStyle = 'rgba(0,0,0,0.5)';
+  ctx.beginPath(); ctx.ellipse(0, 7, 24, 5, 0, 0, Math.PI*2); ctx.fill();
+
+  // ── FEET (metal boots) ──
+  armorPlate(-16, -10, 14, 10, [2,2,4,4], '#b8a000', 'rgba(255,240,80,0.3)');
+  armorPlate(2, -10, 14, 10, [2,2,4,4], '#b8a000', 'rgba(255,240,80,0.3)');
+  // toe cap
+  ctx.fillStyle = '#d0b800';
+  ctx.beginPath(); ctx.roundRect(-17, -6, 16, 6, [0,0,4,4]); ctx.fill();
+  ctx.beginPath(); ctx.roundRect(1, -6, 16, 6, [0,0,4,4]); ctx.fill();
+
+  // ── LOWER LEGS (armor) ──
+  armorPlate(-15, -48, 12, 38, 3, '#c8aa08', 'rgba(255,240,60,0.25)');
+  armorPlate(3, -48, 12, 38, 3, '#c8aa08', 'rgba(255,240,60,0.25)');
+  // knee joints (black)
+  ctx.fillStyle = '#1a1a00';
+  ctx.beginPath(); ctx.ellipse(-9, -50, 8, 6, 0, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(9, -50, 8, 6, 0, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#333300';
+  ctx.beginPath(); ctx.ellipse(-9, -50, 5, 3, 0, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(9, -50, 5, 3, 0, 0, Math.PI*2); ctx.fill();
+
+  // ── UPPER LEGS ──
+  armorPlate(-15, -90, 12, 42, 3, '#d0b010', 'rgba(255,240,60,0.2)');
+  armorPlate(3, -90, 12, 42, 3, '#d0b010', 'rgba(255,240,60,0.2)');
+
+  // ── GROIN/HIP PLATE ──
+  armorPlate(-18, -96, 36, 10, 3, '#a89008', 'rgba(220,200,0,0.2)');
+  // center segment
+  armorPlate(-6, -98, 12, 14, 2, '#c0a010', 'rgba(255,230,0,0.25)');
+
+  // ── HIP JOINTS ──
+  ctx.fillStyle = '#111100';
+  ctx.beginPath(); ctx.ellipse(-12, -92, 7, 5, 0, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(12, -92, 7, 5, 0, 0, Math.PI*2); ctx.fill();
+
+  // ── TORSO (chest armor) ──
+  armorPlate(-20, -164, 40, 68, 5, '#c0a010', 'rgba(255,230,0,0.2)');
+  // chest center ridge
+  ctx.fillStyle = '#d8b818';
+  ctx.beginPath(); ctx.roundRect(-4, -162, 8, 64, 2); ctx.fill();
+  // chest panel lines
+  ctx.strokeStyle = '#1a1a00'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(-20, -134); ctx.lineTo(20, -134); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(-4, -164); ctx.lineTo(-4, -97); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(4, -164); ctx.lineTo(4, -97); ctx.stroke();
+  // chest glowing vents
+  const vA = 0.6 + pulse * 0.3;
+  ctx.globalAlpha = vA;
+  ctx.fillStyle = '#00ff88';
+  ctx.beginPath(); ctx.roundRect(-14, -148, 8, 4, 1); ctx.fill();
+  ctx.beginPath(); ctx.roundRect(6, -148, 8, 4, 1); ctx.fill();
+  ctx.beginPath(); ctx.roundRect(-14, -141, 8, 4, 1); ctx.fill();
+  ctx.beginPath(); ctx.roundRect(6, -141, 8, 4, 1); ctx.fill();
+  // vent glow
+  const vg1 = ctx.createRadialGradient(-10, -144, 2, -10, -144, 14);
+  vg1.addColorStop(0, 'rgba(0,255,100,0.5)'); vg1.addColorStop(1, 'rgba(0,255,100,0)');
+  ctx.fillStyle = vg1; ctx.beginPath(); ctx.arc(-10, -144, 14, 0, Math.PI*2); ctx.fill();
+  const vg2 = ctx.createRadialGradient(10, -144, 2, 10, -144, 14);
+  vg2.addColorStop(0, 'rgba(0,255,100,0.5)'); vg2.addColorStop(1, 'rgba(0,255,100,0)');
+  ctx.fillStyle = vg2; ctx.beginPath(); ctx.arc(10, -144, 14, 0, Math.PI*2); ctx.fill();
+  ctx.globalAlpha = 1;
+
+  // ── SHOULDER ARMOR ──
+  armorPlate(-34, -170, 18, 14, 4, '#b89808', 'rgba(255,220,0,0.3)');
+  armorPlate(16, -170, 18, 14, 4, '#b89808', 'rgba(255,220,0,0.3)');
+  // shoulder bolts
+  ctx.fillStyle = '#1a1a00';
+  ctx.beginPath(); ctx.arc(-30, -165, 2, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(-22, -165, 2, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(22, -165, 2, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(30, -165, 2, 0, Math.PI*2); ctx.fill();
+
+  // ── LEFT UPPER ARM ──
+  armorPlate(-34, -162 - swing, 12, 34, 3, '#c0a010', 'rgba(255,230,0,0.2)');
+  // elbow joint
+  ctx.fillStyle = '#1a1a00';
+  ctx.beginPath(); ctx.ellipse(-28, -130 - swing, 7, 6, 0, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#333300';
+  ctx.beginPath(); ctx.ellipse(-28, -130 - swing, 4, 3, 0, 0, Math.PI*2); ctx.fill();
+  // left forearm
+  armorPlate(-34, -128 - swing, 12, 30, 3, '#b89808', 'rgba(255,210,0,0.2)');
+  // left hand (claw-like)
+  ctx.fillStyle = '#1a1a00';
+  ctx.beginPath(); ctx.roundRect(-34, -100 - swing, 12, 10, [0,0,3,3]); ctx.fill();
+  ctx.fillStyle = '#888800';
+  for(let f = 0; f < 4; f++) {
+    ctx.beginPath(); ctx.roundRect(-33 + f * 3.2, -104 - swing, 2.5, 6, 1); ctx.fill();
+  }
+
+  // ── RIGHT UPPER ARM ──
+  armorPlate(22, -162, 12, 34, 3, '#c0a010', 'rgba(255,230,0,0.2)');
+  ctx.fillStyle = '#1a1a00';
+  ctx.beginPath(); ctx.ellipse(28, -130, 7, 6, 0, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#333300';
+  ctx.beginPath(); ctx.ellipse(28, -130, 4, 3, 0, 0, Math.PI*2); ctx.fill();
+  // right forearm — NET LAUNCHER
+  armorPlate(22, -128, 12, 30, 3, '#b89808', 'rgba(255,210,0,0.2)');
+  // launcher barrel
+  ctx.fillStyle = '#2a2800';
+  ctx.beginPath(); ctx.roundRect(30, -122, 10, 8, 2); ctx.fill();
+  ctx.fillStyle = '#444400';
+  ctx.beginPath(); ctx.roundRect(31, -121, 8, 6, 1); ctx.fill();
+  // barrel opening glow
+  ctx.globalAlpha = 0.5 + Math.sin(now * 0.004) * 0.2;
+  ctx.fillStyle = '#00ff88';
+  ctx.beginPath(); ctx.arc(39, -118, 3, 0, Math.PI*2); ctx.fill();
+  ctx.globalAlpha = 1;
+  // right hand
+  ctx.fillStyle = '#1a1a00';
+  ctx.beginPath(); ctx.roundRect(22, -100, 12, 10, [0,0,3,3]); ctx.fill();
+  ctx.fillStyle = '#888800';
+  for(let f = 0; f < 4; f++) {
+    ctx.beginPath(); ctx.roundRect(23 + f * 3.2, -104, 2.5, 6, 1); ctx.fill();
+  }
+
+  // ── NECK (mechanical) ──
+  ctx.fillStyle = '#1a1a00';
+  ctx.beginPath(); ctx.roundRect(-5, -172, 10, 10, 2); ctx.fill();
+  ctx.fillStyle = '#333300';
+  ctx.beginPath(); ctx.roundRect(-3, -171, 6, 8, 1); ctx.fill();
+  // neck cables
+  ctx.strokeStyle = '#555500'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(-7, -170); ctx.lineTo(-7, -164); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(7, -170); ctx.lineTo(7, -164); ctx.stroke();
+
+  // ── HEAD (robot skull) ──
+  // head base
+  ctx.fillStyle = '#b89808';
+  ctx.beginPath(); ctx.roundRect(-16, -210, 32, 40, [8,8,4,4]); ctx.fill();
+  // head panel lines
+  ctx.strokeStyle = '#1a1a00'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(-16, -193); ctx.lineTo(16, -193); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(0, -210); ctx.lineTo(0, -172); ctx.stroke();
+  // side panels darker
+  ctx.fillStyle = '#a08808';
+  ctx.beginPath(); ctx.roundRect(-16, -210, 6, 40, [8,0,0,4]); ctx.fill();
+  ctx.beginPath(); ctx.roundRect(10, -210, 6, 40, [0,8,4,0]); ctx.fill();
+  // head bevel
+  ctx.fillStyle = 'rgba(255,240,0,0.15)';
+  ctx.beginPath(); ctx.roundRect(-16, -210, 32, 4, [8,8,0,0]); ctx.fill();
+
+  // ── VISOR (wide red/orange sensor strip) ──
+  ctx.fillStyle = '#1a0000';
+  ctx.beginPath(); ctx.roundRect(-14, -200, 28, 11, 3); ctx.fill();
+  // visor glow
+  const visA = 0.7 + pulse * 0.25;
+  ctx.globalAlpha = visA;
+  const visG = ctx.createLinearGradient(-14, -200, 14, -189);
+  visG.addColorStop(0, '#ff2200');
+  visG.addColorStop(0.3, '#ff6600');
+  visG.addColorStop(0.5, '#ffaa00');
+  visG.addColorStop(0.7, '#ff6600');
+  visG.addColorStop(1, '#ff2200');
+  ctx.fillStyle = visG;
+  ctx.beginPath(); ctx.roundRect(-13, -199, 26, 9, 2); ctx.fill();
+  // visor scanline
+  const scanX = -13 + ((now * 0.04) % 26);
+  ctx.fillStyle = 'rgba(255,255,200,0.6)';
+  ctx.beginPath(); ctx.roundRect(scanX, -199, 3, 9, 1); ctx.fill();
+  ctx.globalAlpha = 1;
+  // visor outer glow
+  ctx.globalAlpha = 0.2 + pulse * 0.1;
+  const vog = ctx.createRadialGradient(0, -194, 4, 0, -194, 20);
+  vog.addColorStop(0, 'rgba(255,80,0,0.8)'); vog.addColorStop(1, 'rgba(255,20,0,0)');
+  ctx.fillStyle = vog; ctx.beginPath(); ctx.arc(0, -194, 20, 0, Math.PI*2); ctx.fill();
+  ctx.globalAlpha = 1;
+
+  // ── MOUTH GRILLE ──
+  ctx.fillStyle = '#1a1a00';
+  ctx.beginPath(); ctx.roundRect(-10, -185, 20, 8, 2); ctx.fill();
+  ctx.fillStyle = '#333300';
+  for(let g = 0; g < 5; g++) {
+    ctx.beginPath(); ctx.roundRect(-9 + g * 4, -184, 2.5, 6, 1); ctx.fill();
+  }
+  // mouth indicator light
+  ctx.globalAlpha = 0.5 + Math.sin(now * 0.005) * 0.3;
+  ctx.fillStyle = '#00ff44';
+  ctx.beginPath(); ctx.arc(0, -181, 2, 0, Math.PI*2); ctx.fill();
+  ctx.globalAlpha = 1;
+
+  // ── HEAD BOLTS ──
+  ctx.fillStyle = '#1a1a00';
+  [-12, 12].forEach(bx => {
+    ctx.beginPath(); ctx.arc(bx, -207, 2.5, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#555500';
+    ctx.beginPath(); ctx.arc(bx, -207, 1.2, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#1a1a00';
+  });
+
+  // ── POWER AURA ──
+  ctx.globalAlpha = 0.05 + Math.sin(now * 0.002) * 0.025;
+  const aura = ctx.createRadialGradient(0, -130, 10, 0, -130, 100);
+  aura.addColorStop(0, 'rgba(200,200,0,0.6)');
+  aura.addColorStop(0.4, 'rgba(100,200,0,0.3)');
+  aura.addColorStop(1, 'rgba(0,100,0,0)');
+  ctx.fillStyle = aura; ctx.beginPath(); ctx.arc(0, -130, 100, 0, Math.PI*2); ctx.fill();
+  ctx.globalAlpha = 1;
+
+  ctx.restore();
+}
+
+function drawLabels(now) {
+  ctx.save(); ctx.textAlign = 'center';
+  ctx.fillStyle = 'rgba(0,0,0,0.6)';
+  ctx.beginPath(); ctx.roundRect(150-34, 46, 68, 9, 3); ctx.fill();
+  ctx.fillStyle = '#888800';
+  ctx.beginPath(); ctx.roundRect(150-33, 47, 66 * 0.82, 7, 2); ctx.fill();
+  ctx.font = 'bold 11px Arial Black';
+  ctx.strokeStyle = 'rgba(0,0,0,0.9)'; ctx.lineWidth = 3;
+  ctx.strokeText('Cyrax', 150, 44);
+  ctx.fillStyle = '#dddd00'; ctx.fillText('Cyrax', 150, 44);
+  ctx.font = '9px Arial';
+  ['❤️ 450', '⚔️ 54', '💀 43'].forEach((s, i) => {
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    ctx.beginPath(); ctx.roundRect(150-34+i*23, 58, 22, 13, 3); ctx.fill();
+    ctx.fillStyle = '#dddd88'; ctx.fillText(s, 150-23+i*23, 68);
+  });
+  ctx.restore();
+}
+
+function loop(ts) {
+  ctx.clearRect(0, 0, 300, 380);
+  drawCyrax(150, 298, ts);
+  drawLabels(ts);
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

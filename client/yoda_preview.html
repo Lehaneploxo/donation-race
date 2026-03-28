@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Yoda Preview</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #050e05; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; font-family: Arial, sans-serif; color: #fff; }
+    h2 { margin-bottom: 6px; font-size: 20px; color: #88CC44; letter-spacing: 2px; }
+    p { margin-bottom: 18px; font-size: 12px; color: #666; }
+    canvas { border: 1px solid #1a2a10; border-radius: 14px; background: radial-gradient(ellipse at 50% 60%, #051505 0%, #050e05 100%); }
+  </style>
+</head>
+<body>
+  <h2>🌿 МАСТЕР ЙОДА</h2>
+  <p>Jedi Master — Star Wars</p>
+  <canvas id="c" width="300" height="380"></canvas>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+function drawYoda(cx, cy, now) {
+  ctx.save();
+  ctx.translate(cx, cy);
+
+  // Лёгкое покачивание
+  const bob = Math.sin(now * 0.0018) * 2;
+  ctx.translate(0, bob);
+
+  // Аура силы (Force glow)
+  const aura = 0.04 + Math.sin(now * 0.001) * 0.02;
+  ctx.fillStyle = `rgba(100,200,60,${aura})`;
+  ctx.beginPath(); ctx.ellipse(0, -60, 50, 80, 0, 0, Math.PI*2); ctx.fill();
+
+  // Тень
+  ctx.fillStyle = 'rgba(0,0,0,0.4)';
+  ctx.beginPath(); ctx.ellipse(0, 10, 22, 5, 0, 0, Math.PI*2); ctx.fill();
+
+  // ── МАНТИЯ — нижняя часть ──────────────
+  ctx.fillStyle = '#3a3418';
+  ctx.beginPath();
+  ctx.moveTo(-28, 8);
+  ctx.bezierCurveTo(-32, -20, -26, -55, -20, -75);
+  ctx.lineTo(20, -75);
+  ctx.bezierCurveTo(26, -55, 32, -20, 28, 8);
+  ctx.closePath(); ctx.fill();
+
+  // Внутренняя часть мантии (светлее)
+  ctx.fillStyle = '#504c28';
+  ctx.beginPath();
+  ctx.moveTo(-12, 8);
+  ctx.bezierCurveTo(-14, -20, -12, -55, -10, -74);
+  ctx.lineTo(10, -74);
+  ctx.bezierCurveTo(12, -55, 14, -20, 12, 8);
+  ctx.closePath(); ctx.fill();
+
+  // Складки мантии
+  ctx.strokeStyle = 'rgba(20,18,8,0.4)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(-8, 8); ctx.bezierCurveTo(-10, -25, -8, -55, -7, -74); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(8, 8); ctx.bezierCurveTo(10, -25, 8, -55, 7, -74); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(0, 8); ctx.bezierCurveTo(0, -25, 0, -55, 0, -74); ctx.stroke();
+
+  // Пояс
+  ctx.fillStyle = '#6a5818';
+  ctx.beginPath(); ctx.roundRect(-16, -44, 32, 8, 3); ctx.fill();
+  ctx.fillStyle = '#8a7828';
+  ctx.beginPath(); ctx.roundRect(-4, -46, 8, 12, 2); ctx.fill();
+
+  // ── РУКИ ───────────────────────────────
+  // Левая рука (держит посох)
+  ctx.fillStyle = '#4a7030';
+  ctx.beginPath(); ctx.ellipse(28, -60, 10, 7, 0.5, 0, Math.PI*2); ctx.fill();
+  // Пальцы на посохе
+  ctx.strokeStyle = '#3a5820';
+  ctx.lineWidth = 2.5; ctx.lineCap = 'round';
+  for(let i = 0; i < 3; i++) {
+    ctx.beginPath();
+    ctx.moveTo(23 + i*2, -56);
+    ctx.lineTo(22 + i*2, -50);
+    ctx.stroke();
+  }
+
+  // Правая рука — чуть поднята (сила Джедая)
+  const handLift = Math.sin(now * 0.0022) * 4;
+  ctx.fillStyle = '#4a7030';
+  ctx.beginPath(); ctx.ellipse(-28, -62 - handLift, 10, 7, -0.5, 0, Math.PI*2); ctx.fill();
+  // Пальцы
+  for(let i = 0; i < 3; i++) {
+    ctx.beginPath();
+    ctx.moveTo(-24 - i*2, -58 - handLift);
+    ctx.lineTo(-22 - i*2, -52 - handLift);
+    ctx.stroke();
+  }
+
+  // ── ВЕРХНЯЯ НАКИДКА (капюшон сзади) ────
+  ctx.fillStyle = '#2e2c14';
+  ctx.beginPath();
+  ctx.moveTo(-20, -74);
+  ctx.bezierCurveTo(-24, -80, -22, -88, -18, -86);
+  ctx.bezierCurveTo(-14, -84, -8, -80, 0, -79);
+  ctx.bezierCurveTo(8, -80, 14, -84, 18, -86);
+  ctx.bezierCurveTo(22, -88, 24, -80, 20, -74);
+  ctx.closePath(); ctx.fill();
+
+  // ── ШЕЯ ────────────────────────────────
+  ctx.fillStyle = '#4a7830';
+  ctx.beginPath(); ctx.ellipse(0, -78, 9, 7, 0, 0, Math.PI*2); ctx.fill();
+
+  // ── ГОЛОВА ─────────────────────────────
+  const headG = ctx.createRadialGradient(-6, -100, 4, 0, -97, 24);
+  headG.addColorStop(0, '#78b050');
+  headG.addColorStop(0.5, '#5a9038');
+  headG.addColorStop(1, '#3a6820');
+  ctx.fillStyle = headG;
+  ctx.beginPath(); ctx.ellipse(0, -98, 22, 20, 0, 0, Math.PI*2); ctx.fill();
+
+  // ── УШИ Йоды — узкий длинный лист горизонтально, кончик слегка вниз ──
+  for(let s of [-1, 1]) {
+    // Основа: тонкий длинный лист от головы наружу
+    ctx.fillStyle = '#527a32';
+    ctx.beginPath();
+    ctx.moveTo(s * 19, -107);                                      // верх крепления
+    ctx.bezierCurveTo(s * 28, -110, s * 42, -108, s * 52, -101);  // верхний край наружу
+    ctx.lineTo(s * 54, -98);                                       // острый кончик
+    ctx.bezierCurveTo(s * 42, -93,  s * 28, -93,  s * 19, -96);   // нижний край обратно
+    ctx.closePath(); ctx.fill();
+
+    // Нижняя тень
+    ctx.fillStyle = '#3a5820';
+    ctx.beginPath();
+    ctx.moveTo(s * 20, -96);
+    ctx.bezierCurveTo(s * 30, -93, s * 42, -93, s * 52, -99);
+    ctx.lineTo(s * 50, -98);
+    ctx.bezierCurveTo(s * 40, -95, s * 28, -96, s * 20, -98);
+    ctx.closePath(); ctx.fill();
+
+    // Центральная жилка
+    ctx.strokeStyle = 'rgba(28,52,10,0.6)';
+    ctx.lineWidth = 1.5; ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(s * 20, -102);
+    ctx.bezierCurveTo(s * 32, -103, s * 44, -101, s * 53, -99);
+    ctx.stroke();
+
+    // Тонкие прожилки
+    ctx.strokeStyle = 'rgba(28,52,10,0.28)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(s*21,-107); ctx.bezierCurveTo(s*32,-108,s*42,-106,s*50,-102); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(s*21,-97);  ctx.bezierCurveTo(s*32,-96, s*42,-95, s*50,-97);  ctx.stroke();
+
+    // Блик сверху
+    ctx.fillStyle = 'rgba(160,220,90,0.13)';
+    ctx.beginPath();
+    ctx.moveTo(s * 20, -106);
+    ctx.bezierCurveTo(s * 30, -109, s * 42, -107, s * 50, -102);
+    ctx.bezierCurveTo(s * 40, -103, s * 28, -105, s * 20, -103);
+    ctx.closePath(); ctx.fill();
+  }
+
+  // ── СВЕТОВОЙ МЕЧ — поверх ушей, в правой руке ──
+  const saberF = 0.88 + Math.sin(now * 0.014) * 0.12;
+  // Рукоятка
+  ctx.fillStyle = '#777'; ctx.beginPath(); ctx.roundRect(24, -72, 6, 16, 2); ctx.fill();
+  ctx.fillStyle = '#aaa'; ctx.fillRect(24, -71, 6, 3);
+  ctx.fillStyle = '#555'; ctx.fillRect(24, -62, 6, 2);
+  ctx.fillStyle = '#333'; ctx.beginPath(); ctx.roundRect(23, -75, 8, 5, 1); ctx.fill();
+  // Свечение лезвия
+  ctx.shadowColor = '#00FF44'; ctx.shadowBlur = 28;
+  ctx.fillStyle = `rgba(40,255,80,${saberF})`; ctx.fillRect(25.5, -72, 4, -60);
+  ctx.shadowColor = '#88FF88'; ctx.shadowBlur = 10;
+  ctx.fillStyle = `rgba(210,255,210,${saberF * 0.9})`; ctx.fillRect(26.5, -72, 2, -60);
+  ctx.shadowBlur = 0;
+
+  // ── ГЛАЗА — мудрые, светящиеся ─────────
+  const eyeGlow = 0.8 + Math.sin(now * 0.002) * 0.2;
+  for(let s of [-1, 1]) {
+    // Белок
+    ctx.fillStyle = `rgba(200,230,160,${eyeGlow * 0.9})`;
+    ctx.beginPath(); ctx.ellipse(s * 8, -102, 5, 4, s * 0.1, 0, Math.PI*2); ctx.fill();
+    // Радужка
+    ctx.fillStyle = `rgba(100,160,40,${eyeGlow})`;
+    ctx.shadowColor = '#88CC44'; ctx.shadowBlur = 6;
+    ctx.beginPath(); ctx.ellipse(s * 8, -102, 3.5, 3, s * 0.1, 0, Math.PI*2); ctx.fill();
+    ctx.shadowBlur = 0;
+    // Зрачок
+    ctx.fillStyle = '#0a1a04';
+    ctx.beginPath(); ctx.ellipse(s * 8, -102, 2, 2.2, 0, 0, Math.PI*2); ctx.fill();
+    // Блик
+    ctx.fillStyle = 'rgba(255,255,255,0.6)';
+    ctx.beginPath(); ctx.arc(s * 7, -103.5, 0.9, 0, Math.PI*2); ctx.fill();
+  }
+
+  // Брови морщинистые
+  ctx.strokeStyle = 'rgba(200,200,120,0.7)';
+  ctx.lineWidth = 2.5; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(-13, -108); ctx.bezierCurveTo(-8, -113, -4, -112, -3, -108); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(13, -108); ctx.bezierCurveTo(8, -113, 4, -112, 3, -108); ctx.stroke();
+
+  // ── НОС ────────────────────────────────
+  ctx.fillStyle = '#3a6020';
+  ctx.beginPath(); ctx.ellipse(0, -95, 5, 4, 0, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#1a3010';
+  ctx.beginPath(); ctx.ellipse(-2, -95, 2, 1.5, 0, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(2, -95, 2, 1.5, 0, 0, Math.PI*2); ctx.fill();
+
+  // Морщины
+  ctx.strokeStyle = 'rgba(30,55,10,0.5)';
+  ctx.lineWidth = 1.2;
+  ctx.beginPath(); ctx.moveTo(-10, -106); ctx.bezierCurveTo(-6, -110, 6, -110, 10, -106); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(-14, -102); ctx.lineTo(-16, -106); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(14, -102); ctx.lineTo(16, -106); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(-5, -90); ctx.bezierCurveTo(-8, -87, 8, -87, 5, -90); ctx.stroke();
+
+  // ── РОТ ────────────────────────────────
+  ctx.strokeStyle = 'rgba(30,60,10,0.65)';
+  ctx.lineWidth = 1.8;
+  ctx.beginPath(); ctx.moveTo(-7, -88); ctx.quadraticCurveTo(0, -84, 7, -88); ctx.stroke();
+
+  // ── ЛЫСИНА — макушка ───────────────────
+  ctx.fillStyle = '#4a8030';
+  ctx.beginPath();
+  ctx.moveTo(-18, -112);
+  ctx.bezierCurveTo(-16, -122, -8, -124, 0, -122);
+  ctx.bezierCurveTo(8, -124, 16, -122, 18, -112);
+  ctx.closePath(); ctx.fill();
+  // Блик на лысине
+  ctx.fillStyle = 'rgba(150,220,80,0.15)';
+  ctx.beginPath(); ctx.ellipse(-4, -116, 7, 4, -0.2, 0, Math.PI*2); ctx.fill();
+
+  ctx.restore();
+}
+
+function drawLabels(cx, cy, now) {
+  ctx.save();
+  ctx.translate(cx, cy - 120);
+  ctx.textAlign = 'center';
+
+  ctx.font = 'bold 14px Arial';
+  ctx.fillStyle = '#88CC44'; ctx.shadowColor = '#88CC44'; ctx.shadowBlur = 10;
+  ctx.fillText('🌿 МАСТЕР ДЖЕДАЙ', 0, -10); ctx.shadowBlur = 0;
+
+  ctx.font = 'bold 15px Arial';
+  ctx.strokeStyle = 'rgba(0,0,0,0.95)'; ctx.lineWidth = 3.5;
+  ctx.strokeText('Йода', 0, 10);
+  ctx.fillStyle = '#AAFFAA'; ctx.shadowColor = '#88FF44'; ctx.shadowBlur = 6;
+  ctx.fillText('Йода', 0, 10); ctx.shadowBlur = 0;
+
+  ctx.font = 'bold 12px Arial';
+  ctx.strokeText('❤️ 280', 0, 27);
+  ctx.fillStyle = '#FF6688'; ctx.fillText('❤️ 280', 0, 27);
+  ctx.strokeText('⚔️ 38', 0, 42);
+  ctx.fillStyle = '#88CCFF'; ctx.fillText('⚔️ 38', 0, 42);
+  ctx.strokeText('☠️ 22', 0, 57);
+  ctx.fillStyle = '#FF4444'; ctx.fillText('☠️ 22', 0, 57);
+
+  ctx.restore();
+}
+
+function render(now) {
+  ctx.clearRect(0, 0, 300, 380);
+
+  // Force particles
+  for(let i = 0; i < 5; i++) {
+    const angle = now * 0.0008 + i * (Math.PI*2/5);
+    const r = 55 + Math.sin(now * 0.002 + i) * 8;
+    const px = 150 + Math.cos(angle) * r;
+    const py = 250 + Math.sin(angle) * r * 0.35;
+    const a = 0.3 + Math.sin(now * 0.003 + i) * 0.2;
+    ctx.fillStyle = `rgba(100,220,50,${a})`;
+    ctx.beginPath(); ctx.arc(px, py, 2, 0, Math.PI*2); ctx.fill();
+  }
+
+  // Тень на полу
+  ctx.fillStyle = 'rgba(60,120,0,0.12)';
+  ctx.beginPath(); ctx.ellipse(150, 312, 55, 12, 0, 0, Math.PI*2); ctx.fill();
+
+  drawLabels(150, 290, now);
+  drawYoda(150, 290, now);
+
+  requestAnimationFrame(render);
+}
+requestAnimationFrame(render);
+</script>
+</body>
+</html>

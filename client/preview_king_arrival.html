@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>👑 King Arrival</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body {
+      width: 100vw; height: 100vh;
+      background: #0a0a10;
+      display: flex; align-items: center; justify-content: center;
+      font-family: 'Arial Black', Arial, sans-serif;
+      overflow: hidden;
+    }
+
+    #overlay {
+      text-align: center;
+      display: none;
+    }
+    #overlay.show { display: block; }
+    #overlay.hiding { display: block; animation: ovOut 0.5s forwards; }
+    @keyframes ovOut { to { opacity:0; transform:translateY(-10px); } }
+
+    .k-eyebrow {
+      font-size: 14px; letter-spacing: 6px; color: rgba(220,150,0,0.9);
+      text-transform: uppercase; margin-bottom: 8px;
+      text-shadow: 0 0 12px rgba(255,180,0,0.7);
+      opacity: 0; animation: fsd 0.4s 0.1s forwards;
+    }
+    .k-title {
+      font-size: 44px; font-weight: 900; letter-spacing: 4px; line-height: 1.15;
+      color: #FFD700;
+      text-shadow: 0 0 12px rgba(255,215,0,1), 0 0 30px rgba(255,180,0,0.9), 0 0 60px rgba(255,120,0,0.6);
+      opacity: 0; animation: fsd 0.4s 0.3s forwards, goldFlicker 1.8s 0.7s infinite;
+    }
+    .k-sub {
+      font-size: 15px; letter-spacing: 9px; color: #FF3300; text-transform: uppercase; margin-top: 4px;
+      text-shadow: 0 0 14px rgba(255,50,0,0.9), 0 0 30px rgba(200,0,0,0.6);
+      opacity: 0; animation: fsd 0.4s 0.55s forwards, redPulse 1.4s 0.9s infinite;
+    }
+    .k-dots {
+      font-size: 16px; letter-spacing: 10px; color: rgba(255,215,0,0.4);
+      margin: 10px 0 6px; opacity: 0; animation: fsd 0.4s 0.7s forwards;
+    }
+    .k-name {
+      font-size: 38px; font-weight: 900; letter-spacing: 3px; color: #fff;
+      text-shadow: 0 0 10px #fff, 0 0 25px rgba(255,100,0,1), 0 0 50px rgba(255,50,0,0.7), 0 0 80px rgba(200,0,0,0.4);
+      opacity: 0; animation: namePop 0.65s 0.85s cubic-bezier(0.175,0.885,0.32,1.275) forwards, whiteFlicker 2s 1.5s infinite;
+    }
+    .k-badge {
+      font-size: 12px; letter-spacing: 4px; color: rgba(255,215,0,0.6);
+      text-transform: uppercase; margin-top: 10px;
+      text-shadow: 0 0 10px rgba(255,215,0,0.5);
+      opacity: 0; animation: fsd 0.4s 1.15s forwards;
+    }
+
+    @keyframes fsd { from{opacity:0;transform:translateY(-12px)} to{opacity:1;transform:translateY(0)} }
+    @keyframes namePop { from{opacity:0;transform:scale(0.35)} to{opacity:1;transform:scale(1)} }
+    @keyframes goldFlicker {
+      0%,100%{ text-shadow: 0 0 12px rgba(255,215,0,1), 0 0 30px rgba(255,180,0,0.9), 0 0 60px rgba(255,120,0,0.6); }
+      25%    { text-shadow: 0 0 20px rgba(255,215,0,1), 0 0 50px rgba(255,210,0,1),   0 0 90px rgba(255,160,0,0.8); }
+      55%    { text-shadow: 0 0  7px rgba(255,215,0,0.8), 0 0 20px rgba(255,160,0,0.7), 0 0 40px rgba(255,100,0,0.5); }
+      80%    { text-shadow: 0 0 22px rgba(255,230,0,1),   0 0 55px rgba(255,210,0,1),   0 0 100px rgba(255,160,0,0.9); }
+    }
+    @keyframes redPulse {
+      0%,100%{ text-shadow: 0 0 14px rgba(255,50,0,0.9), 0 0 30px rgba(200,0,0,0.6); color:#FF3300; }
+      50%    { text-shadow: 0 0 25px rgba(255,80,0,1),   0 0 55px rgba(255,20,0,0.9); color:#FF6600; }
+    }
+    @keyframes whiteFlicker {
+      0%,100%{ text-shadow: 0 0 10px #fff, 0 0 25px rgba(255,100,0,1), 0 0 50px rgba(255,50,0,0.7), 0 0 80px rgba(200,0,0,0.4); }
+      35%    { text-shadow: 0 0 18px #fff, 0 0 40px rgba(255,150,0,1), 0 0 75px rgba(255,80,0,0.8), 0 0 110px rgba(220,0,0,0.5); }
+      65%    { text-shadow: 0 0  5px #fff, 0 0 15px rgba(255,80,0,0.8), 0 0 30px rgba(255,30,0,0.5); }
+    }
+
+    canvas#pc {
+      position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+      pointer-events: none; z-index: -1;
+      display: none;
+    }
+    canvas#pc.show { display: block; }
+
+    #controls {
+      position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+      display: flex; gap: 12px; z-index: 999;
+    }
+    .btn {
+      background: rgba(10,0,0,0.85); color: #FFD700;
+      border: 2px solid rgba(255,215,0,0.5); border-radius: 8px;
+      padding: 10px 22px; font-size: 13px; letter-spacing: 1px; cursor: pointer;
+      font-family: 'Arial Black', Arial, sans-serif;
+    }
+    .btn:hover { background: rgba(50,0,0,0.9); border-color: #FFD700; }
+  </style>
+</head>
+<body>
+
+<canvas id="pc"></canvas>
+
+<div id="overlay">
+  <div class="k-eyebrow">⚔️ &nbsp; ARENA BATTLE &nbsp; ⚔️</div>
+  <div class="k-title">👑 &nbsp; KING OF THE ARENA &nbsp; 👑</div>
+  <div class="k-sub">— &nbsp; HAS ARRIVED &nbsp; —</div>
+  <div class="k-dots">· · · · · · · · · · · · · ·</div>
+  <div class="k-name" id="kingName">★ &nbsp; ARENA_PLAYER &nbsp; ★</div>
+  <div class="k-badge">💀 &nbsp; TOP KILLER &nbsp; · &nbsp; #1 RANKING &nbsp; 💀</div>
+</div>
+
+<div id="controls">
+  <button class="btn" onclick="go('NightKing666')">👑 Показать</button>
+  <button class="btn" onclick="go('Metsuki Sutemi')">⚔️ Metsuki Sutemi</button>
+</div>
+
+<script>
+// Audio
+let _actx=null;
+function getACtx(){if(!_actx)_actx=new(window.AudioContext||window.webkitAudioContext)();if(_actx.state==='suspended')_actx.resume();return _actx;}
+function _noise(ctx,d){const n=Math.floor(ctx.sampleRate*d),b=ctx.createBuffer(1,n,ctx.sampleRate),a=b.getChannelData(0);for(let i=0;i<n;i++)a[i]=Math.random()*2-1;return b;}
+function playKingSound(){
+  try{
+    const ctx=getACtx(),t=ctx.currentTime;
+    const ns=ctx.createBufferSource(),nf=ctx.createBiquadFilter(),ng=ctx.createGain();
+    nf.type='lowpass';nf.frequency.value=180;ng.gain.setValueAtTime(1,t);ng.gain.exponentialRampToValueAtTime(0.001,t+0.55);
+    ns.buffer=_noise(ctx,0.6);ns.connect(nf);nf.connect(ng);ng.connect(ctx.destination);ns.start(t);ns.stop(t+0.6);
+    const bo=ctx.createOscillator(),bg=ctx.createGain();
+    bo.type='sine';bo.frequency.setValueAtTime(65,t);bo.frequency.exponentialRampToValueAtTime(28,t+0.7);
+    bg.gain.setValueAtTime(0.65,t);bg.gain.exponentialRampToValueAtTime(0.001,t+0.8);
+    bo.connect(bg);bg.connect(ctx.destination);bo.start(t);bo.stop(t+0.85);
+    const sw=ctx.createOscillator(),swf=ctx.createBiquadFilter(),swg=ctx.createGain();
+    sw.type='sawtooth';sw.frequency.setValueAtTime(80,t+0.05);sw.frequency.exponentialRampToValueAtTime(1400,t+0.7);
+    swf.type='bandpass';swf.Q.value=4;swf.frequency.setValueAtTime(200,t+0.05);swf.frequency.exponentialRampToValueAtTime(2000,t+0.7);
+    swg.gain.setValueAtTime(0,t+0.05);swg.gain.linearRampToValueAtTime(0.2,t+0.3);swg.gain.exponentialRampToValueAtTime(0.001,t+0.78);
+    sw.connect(swf);swf.connect(swg);swg.connect(ctx.destination);sw.start(t+0.05);sw.stop(t+0.82);
+    [523,659,784,1047].forEach((freq,i)=>{
+      const o=ctx.createOscillator(),g=ctx.createGain();o.type='triangle';o.frequency.value=freq;
+      const d=t+0.5+i*0.06;g.gain.setValueAtTime(0,d);g.gain.linearRampToValueAtTime(0.28-i*0.045,d+0.09);
+      g.gain.setValueAtTime(0.28-i*0.045,d+0.3);g.gain.exponentialRampToValueAtTime(0.001,d+2.8);
+      o.connect(g);g.connect(ctx.destination);o.start(d);o.stop(d+3);
+    });
+    const bl=ctx.createOscillator(),blg=ctx.createGain();
+    bl.type='sine';bl.frequency.value=1318;blg.gain.setValueAtTime(0.42,t+0.56);blg.gain.exponentialRampToValueAtTime(0.001,t+3.5);
+    bl.connect(blg);blg.connect(ctx.destination);bl.start(t+0.56);bl.stop(t+3.6);
+    const bl2=ctx.createOscillator(),bl2g=ctx.createGain();
+    bl2.type='sine';bl2.frequency.value=2637;bl2g.gain.setValueAtTime(0.18,t+0.58);bl2g.gain.exponentialRampToValueAtTime(0.001,t+1.8);
+    bl2.connect(bl2g);bl2g.connect(ctx.destination);bl2.start(t+0.58);bl2.stop(t+2);
+    const rm=ctx.createOscillator(),rmg=ctx.createGain();
+    rm.type='sawtooth';rm.frequency.value=40;rmg.gain.setValueAtTime(0,t);rmg.gain.linearRampToValueAtTime(0.12,t+0.4);rmg.gain.linearRampToValueAtTime(0,t+2.5);
+    rm.connect(rmg);rmg.connect(ctx.destination);rm.start(t);rm.stop(t+2.6);
+  }catch(e){}
+}
+
+// Particles
+const pc=document.getElementById('pc'),pctx=pc.getContext('2d');
+let sparks=[],doSparks=false;
+function rspark(s){
+  s.x=Math.random()*window.innerWidth; s.y=window.innerHeight+5;
+  s.vx=(Math.random()-0.5)*3; s.vy=-(Math.random()*5+1.5);
+  s.life=s.max=0.6+Math.random()*0.4; s.r=Math.random()*3.5+0.8; s.gold=Math.random()>0.28;
+  return s;
+}
+function initSparks(){
+  pc.width=window.innerWidth; pc.height=window.innerHeight;
+  sparks=Array.from({length:80},()=>rspark({})); doSparks=true;
+}
+(function ploop(){
+  pctx.clearRect(0,0,pc.width,pc.height);
+  if(doSparks) sparks.forEach(s=>{
+    s.x+=s.vx+Math.sin(s.y*0.03)*0.5; s.y+=s.vy; s.life-=0.009;
+    if(s.life<=0)rspark(s);
+    pctx.globalAlpha=(s.life/s.max)*0.95;
+    pctx.fillStyle=s.gold?'#FFD700':'#FF6600';
+    pctx.shadowColor=s.gold?'#FFD700':'#FF4400'; pctx.shadowBlur=10;
+    pctx.beginPath(); pctx.arc(s.x,s.y,s.r,0,Math.PI*2); pctx.fill();
+    pctx.shadowBlur=0;
+  });
+  pctx.globalAlpha=1;
+  requestAnimationFrame(ploop);
+})();
+
+// Trigger
+let _t=null;
+function go(name){
+  try{getACtx();}catch(e){}
+  document.getElementById('kingName').textContent='★  '+name+'  ★';
+  const ov=document.getElementById('overlay');
+  ov.className=''; ov.style.display='none';
+  ov.querySelectorAll('[class^="k-"]').forEach(el=>{el.style.animation='none';void el.offsetHeight;el.style.animation='';});
+  void ov.offsetHeight;
+  ov.style.display=''; ov.classList.add('show');
+  pc.classList.add('show'); initSparks(); playKingSound();
+  if(_t)clearTimeout(_t);
+  _t=setTimeout(()=>{
+    ov.classList.remove('show'); ov.classList.add('hiding');
+    pc.classList.remove('show'); doSparks=false;
+    setTimeout(()=>{ov.classList.remove('hiding');ov.style.display='none';},500);
+  },5500);
+}
+
+setTimeout(()=>go('NightKing666'),700);
+</script>
+</body>
+</html>

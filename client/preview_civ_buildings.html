@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Preview: Здания и Человечек</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:#1a1a2e; color:#fff; font-family:'Segoe UI',sans-serif; padding:20px; }
+h1 { text-align:center; font-size:22px; color:#FFD700; margin-bottom:6px; letter-spacing:2px; }
+.subtitle { text-align:center; color:rgba(255,255,255,0.5); font-size:13px; margin-bottom:24px; }
+.era-block { margin-bottom:30px; }
+.era-title {
+  font-size:15px; font-weight:700; color:#FFD700;
+  padding:6px 14px; background:rgba(255,255,255,0.07);
+  border-left:4px solid #FFD700; border-radius:4px;
+  margin-bottom:12px; display:flex; align-items:center; gap:10px;
+}
+.era-count { font-size:11px; color:rgba(255,255,255,0.45); font-weight:400; }
+.buildings-row { display:flex; flex-wrap:wrap; gap:10px; }
+.building-card {
+  background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1);
+  border-radius:8px; padding:10px 14px 6px;
+  display:flex; flex-direction:column; align-items:center;
+}
+.building-card canvas { display:block; }
+.building-card .label { font-size:10px; color:rgba(255,255,255,0.45); margin-top:4px; }
+
+.people-section { margin-top:30px; border-top:1px solid rgba(255,255,255,0.1); padding-top:24px; }
+.people-row { display:flex; flex-wrap:wrap; gap:10px; margin-top:12px; }
+.person-card {
+  background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1);
+  border-radius:8px; padding:10px 14px 6px;
+  display:flex; flex-direction:column; align-items:center;
+}
+.person-card canvas { display:block; }
+.person-card .label { font-size:10px; color:rgba(255,255,255,0.45); margin-top:4px; }
+
+.donor-section { margin-top:24px; }
+.donor-row { display:flex; flex-wrap:wrap; gap:10px; margin-top:10px; }
+</style>
+</head>
+<body>
+
+<h1>🏛️ Здания и Человечки — Цивилизация</h1>
+<div class="subtitle">Все здания по эпохам · Все виды человечков</div>
+
+<div id="root"></div>
+
+<script>
+const ERAS=[
+  {name:'🦕 Первобытная',   color:'#FF8800', slots:4},
+  {name:'🏛️ Древняя Греция', color:'#EEEEAA', slots:8},
+  {name:'⚔️ Средневековье', color:'#8899AA', slots:12},
+  {name:'🎩 Англия 1700-х', color:'#AA8866', slots:16},
+  {name:'🏙️ Наше Время',    color:'#66AACC', slots:19},
+  {name:'🚀 Будущее',       color:'#00DDFF', slots:22},
+];
+
+// ── Building draw functions (copied from main game) ──
+function bPrim(c,v){
+  if(v===0){ c.fillStyle='#8B5500'; c.fillRect(-8,0,4,14); c.fillRect(4,0,4,14); c.fillStyle='#FF6600'; c.beginPath(); c.moveTo(-10,0); c.lineTo(0,-22); c.lineTo(10,0); c.closePath(); c.fill(); c.fillStyle='#FFD700'; c.beginPath(); c.moveTo(-6,0); c.lineTo(0,-14); c.lineTo(6,0); c.closePath(); c.fill(); }
+  else if(v===1){ c.fillStyle='#8B5500'; c.beginPath(); c.moveTo(-18,0); c.lineTo(0,-28); c.lineTo(18,0); c.closePath(); c.fill(); c.fillStyle='#4a2500'; c.fillRect(-5,-12,10,12); }
+  else if(v===2){ c.fillStyle='#7B4500'; c.beginPath(); c.moveTo(-26,0); c.lineTo(0,-40); c.lineTo(26,0); c.closePath(); c.fill(); c.strokeStyle='#5a3000'; c.lineWidth=2; c.beginPath(); c.moveTo(-26,0); c.lineTo(0,-40); c.lineTo(26,0); c.stroke(); c.fillStyle='#4a2000'; c.fillRect(-6,-18,12,18); }
+  else if(v===3){ c.fillStyle='#8B6B3A'; c.beginPath(); c.ellipse(0,-16,20,16,0,0,Math.PI*2); c.fill(); c.fillStyle='#6B4B2A'; c.fillRect(-18,0,36,-16); c.fillStyle='#3a1800'; c.fillRect(-7,-14,14,14); }
+  else{ c.strokeStyle='#808070'; c.lineWidth=5; c.beginPath(); c.arc(0,-12,22,0,Math.PI*2); c.stroke(); for(let a=0;a<8;a++){ const ag=a/8*Math.PI*2; c.fillStyle='#606050'; c.fillRect(Math.cos(ag)*20-3,Math.sin(ag)*12-22,6,11); } }
+}
+function bGreek(c,v){
+  const m='#F0EDE0',ms='#D8D5C8';
+  if(v===0){ c.fillStyle=m; c.fillRect(-22,0,44,-30); c.fillStyle=ms; for(let i=0;i<5;i++) c.fillRect(-20+i*9,-28,6,-28); c.fillStyle=m; c.beginPath(); c.moveTo(-26,-56); c.lineTo(0,-72); c.lineTo(26,-56); c.closePath(); c.fill(); c.fillStyle=ms; c.fillRect(-26,-56,52,6); c.fillRect(-26,-30,52,5); }
+  else if(v===1){ c.fillStyle=m; c.fillRect(-34,0,68,-36); c.fillStyle=ms; for(let i=0;i<7;i++) c.fillRect(-32+i*10,-34,6,-36); c.fillStyle=m; c.beginPath(); c.moveTo(-38,-70); c.lineTo(0,-92); c.lineTo(38,-70); c.closePath(); c.fill(); c.fillStyle=ms; c.fillRect(-38,-70,76,7); c.fillRect(-38,-36,76,6); }
+  else if(v===2){ c.fillStyle=m; c.fillRect(-30,0,60,-22); c.fillStyle=ms; c.fillRect(-30,-22,60,5); for(let i=0;i<4;i++){ c.fillStyle='#E8E4D4'; c.fillRect(-28+i*19,-20,8,-18); } }
+  else if(v===3){ c.fillStyle='#E8E4D4'; c.beginPath(); c.moveTo(-5,-72); c.lineTo(-8,0); c.lineTo(8,0); c.lineTo(5,-72); c.closePath(); c.fill(); c.fillStyle=m; c.fillRect(-10,-2,20,4); c.fillStyle='#E0D8C0'; c.beginPath(); c.arc(0,-80,7,0,Math.PI*2); c.fill(); c.fillRect(-3,-76,6,-20); }
+  else{ c.fillStyle=m; c.beginPath(); c.moveTo(-10,0); c.lineTo(-8,-50); c.lineTo(8,-50); c.lineTo(10,0); c.closePath(); c.fill(); c.fillStyle='#FFD700'; c.beginPath(); c.arc(0,-54,6,0,Math.PI*2); c.fill(); c.fillStyle='rgba(255,240,0,0.3)'; c.beginPath(); c.arc(0,-54,14,0,Math.PI*2); c.fill(); c.fillStyle=ms; c.fillRect(-14,-5,28,5); }
+}
+function bMed(c,v){
+  const st='#6a6050',dk='#4a4040';
+  if(v===0){ c.fillStyle=st; c.fillRect(-10,0,20,-50); c.fillStyle=dk; c.fillRect(-13,-50,26,-10); for(let i=0;i<3;i++) c.fillRect(-11+i*10,-60,8,-8); c.fillStyle='rgba(255,200,80,0.5)'; c.fillRect(-4,-38,8,10); }
+  else if(v===1){ c.fillStyle=st; c.fillRect(-28,0,56,-55); c.fillStyle=dk; c.fillRect(-32,-55,64,-10); for(let i=0;i<4;i++) c.fillRect(-30+i*16,-65,12,-10); c.fillStyle='rgba(255,200,80,0.5)'; c.fillRect(-20,-45,12,14); c.fillRect(8,-45,12,14); c.fillStyle=dk; c.fillRect(-8,-20,16,20); c.beginPath(); c.arc(-8,-20,8,Math.PI,0); c.fill(); c.fillStyle=st; c.fillRect(-40,0,12,-44); c.fillRect(28,0,12,-44); c.fillStyle=dk; c.fillRect(-44,-44,20,-8); c.fillRect(24,-44,20,-8); }
+  else if(v===2){ c.fillStyle=st; c.fillRect(-18,0,36,-45); c.fillStyle='#7a3030'; c.beginPath(); c.moveTo(-18,-45); c.lineTo(0,-72); c.lineTo(18,-45); c.closePath(); c.fill(); c.fillStyle='rgba(255,200,80,0.5)'; c.fillRect(-6,-30,12,14); c.beginPath(); c.arc(-6,-30,6,Math.PI,0); c.fill(); c.fillStyle=dk; c.fillRect(-5,-8,10,8); c.strokeStyle='#C0C0C0'; c.lineWidth=2; c.beginPath(); c.moveTo(0,-72); c.lineTo(0,-84); c.stroke(); c.beginPath(); c.moveTo(-5,-77); c.lineTo(5,-77); c.stroke(); }
+  else if(v===3){ c.fillStyle='#8B7050'; c.fillRect(-16,0,32,-28); c.fillStyle='#8B3030'; c.beginPath(); c.moveTo(-20,-28); c.lineTo(0,-50); c.lineTo(20,-28); c.closePath(); c.fill(); c.fillStyle='rgba(255,200,80,0.5)'; c.fillRect(-10,-20,8,8); c.fillRect(2,-20,8,8); }
+  else{ c.fillStyle='#7a5530'; c.fillRect(-20,0,40,-6); c.fillStyle='#5a3510'; c.beginPath(); c.arc(-14,-4,8,Math.PI,0); c.fill(); c.beginPath(); c.arc(14,-4,8,Math.PI,0); c.fill(); c.fillStyle='#7a5530'; c.fillRect(-4,-6,8,-22); }
+}
+function bEng(c,v){
+  const br='#8B3a28',brl='#A04838',wn='rgba(200,220,255,0.55)',rf='#2a2020',ch='#707060';
+  if(v===0){ c.fillStyle=br; c.fillRect(-14,0,28,-48); c.fillStyle=brl; for(let r=0;r<5;r++) for(let bc=0;bc<3;bc++) { if((r+bc)%2===0) c.fillRect(-14+bc*10,r*9-44,9,8); } c.fillStyle=rf; c.beginPath(); c.moveTo(-16,-48); c.lineTo(-4,-62); c.lineTo(16,-62); c.lineTo(16,-48); c.closePath(); c.fill(); c.fillStyle=wn; c.fillRect(-9,-38,7,9); c.fillRect(2,-38,7,9); c.fillRect(-9,-22,7,9); c.fillRect(2,-22,7,9); c.fillStyle=ch; c.fillRect(-2,-70,5,-12); c.fillRect(8,-68,5,-10); }
+  else if(v===1){ c.fillStyle=br; c.fillRect(-30,0,60,-55); c.fillStyle=brl; for(let r=0;r<6;r++) for(let bc=0;bc<4;bc++){ if((r+bc)%2===0) c.fillRect(-28+bc*14,r*9-52,13,8); } c.fillStyle=rf; c.fillRect(-32,-55,64,-14); c.beginPath(); c.moveTo(-32,-69); c.lineTo(0,-85); c.lineTo(32,-69); c.closePath(); c.fill(); c.fillStyle=wn; for(let i=0;i<4;i++) c.fillRect(-26+i*17,-44,10,12); for(let i=0;i<3;i++) c.fillRect(-20+i*17,-26,10,12); c.fillStyle=ch; for(let i=0;i<3;i++) c.fillRect(-20+i*18,-85,5,-14); }
+  else if(v===2){ c.fillStyle='#5a5850'; c.fillRect(-20,0,40,-60); c.fillStyle='#6a6860'; c.beginPath(); c.moveTo(-20,-60); c.lineTo(0,-120); c.lineTo(20,-60); c.closePath(); c.fill(); c.fillStyle=wn; c.fillRect(-7,-50,14,18); c.beginPath(); c.arc(-7,-50,7,Math.PI,0); c.fillStyle=wn; c.fill(); }
+  else if(v===3){ c.fillStyle='#4a4040'; c.fillRect(-24,0,48,-38); c.fillStyle='#383030'; c.fillRect(-28,-38,56,-8); c.fillStyle=ch; c.beginPath(); c.moveTo(-18,-46); c.lineTo(-14,-86); c.lineTo(-8,-86); c.lineTo(-4,-46); c.closePath(); c.fill(); c.beginPath(); c.moveTo(4,-46); c.lineTo(8,-78); c.lineTo(14,-78); c.lineTo(18,-46); c.closePath(); c.fill(); c.fillStyle='rgba(100,100,100,0.5)'; c.beginPath(); c.arc(-11,-90,5,0,Math.PI*2); c.fill(); c.beginPath(); c.arc(-8,-98,7,0,Math.PI*2); c.fill(); c.fillStyle=wn; c.fillRect(-20,-28,10,10); c.fillRect(-4,-28,10,10); c.fillRect(12,-28,10,10); }
+  else{ c.fillStyle=br; c.fillRect(-18,0,36,-40); c.fillStyle='#4a3a18'; c.beginPath(); c.moveTo(-20,-40); c.lineTo(0,-58); c.lineTo(20,-40); c.closePath(); c.fill(); c.fillStyle=wn; c.fillRect(-12,-30,9,10); c.fillRect(3,-30,9,10); c.fillStyle='#8B6030'; c.fillRect(-7,-2,14,-15); c.fillStyle=brl; c.fillRect(16,-28,18,-10); c.strokeStyle=brl; c.lineWidth=1; c.strokeRect(16,-28,18,-10); }
+}
+function bMod(c,v){
+  const st='#3a4a5a',gl='rgba(100,160,220,0.38)',lt='rgba(255,240,150,0.65)',cn='#5a6060';
+  if(v===0){ c.fillStyle=st; c.fillRect(-16,0,32,-90); for(let r=1;r<11;r++) for(let bc=0;bc<3;bc++){ c.fillStyle=(r+bc)%3===0?lt:gl; c.fillRect(-14+bc*10,-r*8,8,6); } c.fillStyle='#2a3a4a'; c.fillRect(-18,-90,36,-6); c.fillStyle='rgba(255,50,50,0.85)'; c.beginPath(); c.arc(0,-102,3,0,Math.PI*2); c.fill(); }
+  else if(v===1){ c.fillStyle='rgba(60,100,160,0.5)'; c.fillRect(-20,0,40,-70); c.strokeStyle='rgba(100,180,240,0.4)'; c.lineWidth=1; for(let r=0;r<9;r++) c.strokeRect(-20,-r*8,40,8); c.fillStyle='rgba(200,230,255,0.15)'; c.beginPath(); c.moveTo(-20,-70); c.lineTo(-20,0); c.lineTo(-5,0); c.lineTo(-5,-70); c.closePath(); c.fill(); }
+  else if(v===2){ c.fillStyle=cn; c.fillRect(-22,0,44,-56); c.fillStyle='#484e4e'; c.fillRect(-24,-56,48,-6); for(let r=0;r<6;r++) for(let bc=0;bc<3;bc++){ c.fillStyle=(r*3+bc)%4===0?lt:gl; c.fillRect(-18+bc*14,-8-r*9,9,7); } }
+  else if(v===3){ c.fillStyle='#5a5050'; c.fillRect(-20,0,40,-28); c.fillStyle='rgba(180,220,255,0.4)'; c.fillRect(-18,-24,36,-16); c.fillStyle='#4a3030'; c.fillRect(-20,-28,40,-6); c.fillStyle='#FF4444'; c.fillRect(-18,-26,36,-4); }
+  else{ c.fillStyle='#505850'; c.beginPath(); c.ellipse(0,-18,28,18,0,0,Math.PI*2); c.fill(); c.fillStyle='rgba(100,200,100,0.4)'; c.beginPath(); c.ellipse(0,-20,20,12,0,0,Math.PI*2); c.fill(); c.fillStyle='rgba(255,255,200,0.9)'; c.beginPath(); c.arc(-26,-10,3,0,Math.PI*2); c.fill(); c.beginPath(); c.arc(26,-10,3,0,Math.PI*2); c.fill(); }
+}
+function bFut(c,v){
+  const n1='rgba(0,220,255,0.75)',n2='rgba(180,0,255,0.75)',mt='rgba(30,30,60,0.92)';
+  if(v===0){ const g=c.createRadialGradient(0,-60,0,0,-60,32); g.addColorStop(0,'rgba(0,200,255,0.22)'); g.addColorStop(1,'rgba(0,0,0,0)'); c.fillStyle=g; c.fillRect(-30,-92,60,62); c.fillStyle=mt; c.fillRect(-10,0,20,-70); c.strokeStyle=n1; c.lineWidth=1; c.strokeRect(-10,0,20,-70); for(let r=1;r<8;r++){ c.strokeStyle='rgba(0,200,255,0.25)'; c.beginPath(); c.moveTo(-10,-r*9); c.lineTo(10,-r*9); c.stroke(); } c.fillStyle=mt; c.beginPath(); c.moveTo(-6,-70); c.lineTo(0,-100); c.lineTo(6,-70); c.closePath(); c.fill(); c.strokeStyle=n1; c.lineWidth=1.5; c.beginPath(); c.moveTo(-6,-70); c.lineTo(0,-100); c.lineTo(6,-70); c.stroke(); c.fillStyle='rgba(0,220,255,0.9)'; c.beginPath(); c.arc(0,-102,3,0,Math.PI*2); c.fill(); }
+  else if(v===1){ c.fillStyle=mt; c.fillRect(-26,0,52,-18); c.fillStyle='rgba(60,0,80,0.6)'; c.beginPath(); c.arc(0,-18,26,Math.PI,0); c.fill(); c.strokeStyle=n2; c.lineWidth=1.5; c.beginPath(); c.arc(0,-18,26,Math.PI,0); c.stroke(); c.fillStyle='rgba(180,0,255,0.1)'; c.beginPath(); c.arc(0,-18,22,Math.PI,0); c.fill(); }
+  else if(v===2){ c.strokeStyle=n1; c.lineWidth=2; c.beginPath(); c.moveTo(0,0); c.lineTo(0,-30); c.stroke(); c.fillStyle=mt; c.fillRect(-18,-36,36,-10); c.strokeStyle=n1; c.lineWidth=1; c.strokeRect(-18,-36,36,-10); c.fillStyle=mt; c.fillRect(-10,-46,20,-24); c.strokeStyle=n2; c.lineWidth=1; c.strokeRect(-10,-46,20,-24); }
+  else if(v===3){ c.fillStyle='rgba(10,0,30,0.85)'; c.beginPath(); c.moveTo(-28,0); c.lineTo(0,-62); c.lineTo(28,0); c.closePath(); c.fill(); c.strokeStyle=n1; c.lineWidth=1.5; c.beginPath(); c.moveTo(-28,0); c.lineTo(0,-62); c.lineTo(28,0); c.closePath(); c.stroke(); for(let i=1;i<5;i++){ const f=i/5; c.strokeStyle='rgba(0,200,255,0.14)'; c.beginPath(); c.moveTo(-28*f,-62*(1-f)); c.lineTo(28*f,-62*(1-f)); c.stroke(); } c.fillStyle='rgba(0,220,255,0.85)'; c.beginPath(); c.arc(0,-64,4,0,Math.PI*2); c.fill(); const bm=c.createLinearGradient(0,-64,0,-100); bm.addColorStop(0,'rgba(0,220,255,0.5)'); bm.addColorStop(1,'rgba(0,220,255,0)'); c.fillStyle=bm; c.fillRect(-2,-100,4,36); }
+  else{ c.fillStyle='rgba(20,20,40,0.85)'; c.fillRect(-14,0,28,-8); c.strokeStyle=n1; c.lineWidth=2; c.beginPath(); c.ellipse(0,-8,14,5,0,0,Math.PI*2); c.stroke(); c.fillStyle='rgba(0,200,255,0.15)'; c.fillRect(-8,-8,16,-40); c.strokeStyle=n1; c.lineWidth=1; c.strokeRect(-8,-8,16,-40); c.beginPath(); c.ellipse(0,-48,8,3,0,0,Math.PI*2); c.stroke(); c.fillStyle='rgba(0,200,255,0.7)'; c.beginPath(); c.arc(0,-51,3,0,Math.PI*2); c.fill(); }
+}
+
+const ERA_FNS=[bPrim,bGreek,bMed,bEng,bMod,bFut];
+const BLD_NAMES=[
+  ['Костёр','Шалаш','Большой шалаш','Стоянка','Кромлех'],
+  ['Малый храм','Парфенон','Алтарь','Колонна','Статуя'],
+  ['Башня','Замок','Церковь','Часовня','Ворота'],
+  ['Домик','Особняк','Башня Big Ben','Вокзал','Таверна'],
+  ['Небоскрёб','Стекл. башня','Офис','Бункер','Завод'],
+  ['Нео-башня','Купол','Станция','Пирамида','Капсула'],
+];
+
+const ERA_BGS=['#3d2200','#1a4a8a','#1a2040','#2d3d5a','#0a1a30','#050018'];
+
+const root=document.getElementById('root');
+
+// ── Render buildings ──
+ERAS.forEach((era,ei)=>{
+  const block=document.createElement('div');
+  block.className='era-block';
+
+  const newBuildings = ei===0 ? 4 : ERAS[ei].slots - ERAS[ei-1<0?0:ei-1].slots;
+  const prevSlots = ei===0 ? 0 : ERAS[ei-1<0?0:ei-1].slots;
+
+  block.innerHTML=`<div class="era-title" style="border-color:${era.color};color:${era.color}">
+    ${era.name}
+    <span class="era-count">Всего зданий: ${era.slots} | +${ei===0?4:era.slots-[4,8,12,16,19,22][ei-1]} новых в этой эпохе</span>
+  </div>`;
+
+  const row=document.createElement('div');
+  row.className='buildings-row';
+
+  for(let v=0;v<5;v++){
+    const card=document.createElement('div');
+    card.className='building-card';
+    const cvs=document.createElement('canvas');
+    cvs.width=110; cvs.height=160;
+    const ctx=cvs.getContext('2d');
+
+    // bg
+    ctx.fillStyle=ERA_BGS[ei];
+    ctx.fillRect(0,0,110,160);
+    // ground line
+    ctx.fillStyle='rgba(255,255,255,0.06)';
+    ctx.fillRect(0,130,110,30);
+
+    // draw building at center bottom
+    ctx.save();
+    ctx.translate(55,130);
+    ctx.scale(2,2);
+    ERA_FNS[ei](ctx,v);
+    ctx.restore();
+
+    // new badge
+    const isNew = v < (ei===0?4:era.slots-[4,8,12,16,19,22][ei-1<0?0:ei-1]);
+    if(isNew){
+      ctx.fillStyle='rgba(255,215,0,0.18)';
+      ctx.fillRect(0,0,110,160);
+      ctx.strokeStyle='rgba(255,215,0,0.5)';
+      ctx.lineWidth=2;
+      ctx.strokeRect(1,1,108,158);
+    }
+
+    card.appendChild(cvs);
+    const lbl=document.createElement('div');
+    lbl.className='label';
+    lbl.textContent=BLD_NAMES[ei][v];
+    card.appendChild(lbl);
+    row.appendChild(card);
+  }
+
+  block.appendChild(row);
+  root.appendChild(block);
+});
+
+// ── Render stick figures ──
+const HEAD_COLORS=['#D4A870','#D4B090','#C89070','#C8907A','#D09880','#80C0FF'];
+const BODY_COLORS=['#8B5530','#FFFFFF','#4a5030','#2a2850','#404848','rgba(0,200,255,0.85)'];
+const LEG_COLORS =['#8B5530','#D4B090','#3a3828','#1a1838','#303838','rgba(0,180,220,0.85)'];
+
+function drawStick(cx,x,y,phase,ei,s,donorColor){
+  cx.save(); cx.translate(x,y); cx.scale(s,s);
+  const ls=Math.sin(phase)*0.35, as=Math.sin(phase+Math.PI)*0.3;
+  const hc=donorColor||HEAD_COLORS[ei];
+  const bc=donorColor||BODY_COLORS[ei];
+  const lc=donorColor||LEG_COLORS[ei];
+  cx.fillStyle=hc; cx.beginPath(); cx.arc(0,-14,4,0,Math.PI*2); cx.fill();
+  cx.strokeStyle=bc; cx.lineWidth=1.8; cx.lineCap='round';
+  cx.beginPath(); cx.moveTo(0,-10); cx.lineTo(0,-2); cx.stroke();
+  cx.lineWidth=1.5;
+  cx.beginPath(); cx.moveTo(0,-9); cx.lineTo(-5+as*6,5); cx.stroke();
+  cx.beginPath(); cx.moveTo(0,-9); cx.lineTo(5-as*6,5); cx.stroke();
+  cx.strokeStyle=lc; cx.lineWidth=1.8;
+  cx.beginPath(); cx.moveTo(0,-2); cx.lineTo(-4+ls*5,9); cx.stroke();
+  cx.beginPath(); cx.moveTo(0,-2); cx.lineTo(4-ls*5,9); cx.stroke();
+  if(ei===5){ cx.strokeStyle='rgba(0,200,255,0.28)'; cx.lineWidth=4; cx.beginPath(); cx.arc(0,-14,6,0,Math.PI*2); cx.stroke(); }
+  if(donorColor){ cx.strokeStyle=donorColor+'55'; cx.lineWidth=3; cx.beginPath(); cx.arc(0,-14,7,0,Math.PI*2); cx.stroke(); }
+  cx.restore();
+}
+
+// Section: People by era
+const peopleSection=document.createElement('div');
+peopleSection.className='people-section';
+peopleSection.innerHTML='<div class="era-title" style="border-color:#88FF88;color:#88FF88;font-size:16px">🧍 Человечки по эпохам</div>';
+
+const peopleRow=document.createElement('div');
+peopleRow.className='people-row';
+
+for(let ei=0;ei<6;ei++){
+  const card=document.createElement('div');
+  card.className='person-card';
+  const cvs=document.createElement('canvas');
+  cvs.width=80; cvs.height=80;
+  const ctx2=cvs.getContext('2d');
+  ctx2.fillStyle=ERA_BGS[ei];
+  ctx2.fillRect(0,0,80,80);
+  drawStick(ctx2,40,62,0.4,ei,2.8,null);
+  card.appendChild(cvs);
+  const lbl=document.createElement('div');
+  lbl.className='label';
+  lbl.textContent=ERAS[ei].name.replace(/^[^\s]+\s/,'');
+  card.appendChild(lbl);
+  peopleRow.appendChild(card);
+}
+peopleSection.appendChild(peopleRow);
+
+// Section: Donor colored people
+const donorHeader=document.createElement('div');
+donorHeader.style.cssText='margin-top:18px;font-size:13px;color:#FFD700;padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.1);margin-bottom:10px;font-weight:700;';
+donorHeader.textContent='🎨 Цвета донаторов (современная эпоха)';
+peopleSection.appendChild(donorHeader);
+
+const donorRow=document.createElement('div');
+donorRow.className='donor-row';
+const DONOR_COLORS=['#FFD700','#FF3333','#33FF55','#3399FF','#FF33FF','#FF8800','#00FFCC','#FF0088'];
+const DONOR_NAMES=['👑 Король','#2 Vasya','#3 Petya','#4 Kolya','#5 Masha','#6 Dasha','#7 Igor','#8 Olya'];
+
+DONOR_COLORS.forEach((col,i)=>{
+  const card=document.createElement('div');
+  card.className='person-card';
+  card.style.borderColor=col+'66';
+  const cvs=document.createElement('canvas');
+  cvs.width=80; cvs.height=80;
+  const ctx3=cvs.getContext('2d');
+  ctx3.fillStyle='#0a1a30';
+  ctx3.fillRect(0,0,80,80);
+  drawStick(ctx3,40,62,0.4,4,2.8,col);
+  card.appendChild(cvs);
+  const lbl=document.createElement('div');
+  lbl.className='label';
+  lbl.style.color=col;
+  lbl.textContent=DONOR_NAMES[i];
+  card.appendChild(lbl);
+  donorRow.appendChild(card);
+});
+peopleSection.appendChild(donorRow);
+root.appendChild(peopleSection);
+
+// animate figures
+let phase=0;
+function animate(){
+  phase+=0.06;
+  // redraw all person canvases
+  document.querySelectorAll('.person-card canvas, .donor-row canvas').forEach((cvs,idx)=>{
+    const ctx=cvs.getContext('2d');
+    const isd=cvs.closest('.donor-row')!==null;
+    const ei=isd?4:idx;
+    const col=isd?DONOR_COLORS[idx]:null;
+    ctx.fillStyle=ERA_BGS[Math.min(ei,5)];
+    ctx.fillRect(0,0,80,80);
+    drawStick(ctx,40,62,phase*(0.8+idx*0.1),Math.min(ei,5),2.8,col);
+  });
+  requestAnimationFrame(animate);
+}
+requestAnimationFrame(animate);
+</script>
+</body>
+</html>

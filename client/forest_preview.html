@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>🍄 Magic Forest Map Preview</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #050510; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; font-family: Arial, sans-serif; color: #fff; }
+    h2 { margin-bottom: 6px; font-size: 20px; color: #44FF88; letter-spacing: 2px; }
+    p  { margin-bottom: 14px; font-size: 12px; color: #666; }
+    canvas { border: 1px solid #333; border-radius: 10px; }
+  </style>
+</head>
+<body>
+  <h2>🍄 MAGIC FOREST MAP — ПРЕВЬЮ</h2>
+  <p>Светящиеся грибы, туман, магические деревья, светлячки</p>
+  <canvas id="c" width="600" height="520"></canvas>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const CW = 600, CH = 520, SKY_H = 160;
+
+// Fireflies
+const fireflies = Array.from({length: 35}, (_, i) => ({
+  x: 50 + Math.random() * 500,
+  y: SKY_H + 30 + Math.random() * (CH - SKY_H - 100),
+  vx: (Math.random() - 0.5) * 0.5,
+  vy: (Math.random() - 0.5) * 0.4,
+  phase: Math.random() * Math.PI * 2,
+  col: ['#88FF44', '#44FFAA', '#CCFF44', '#FFFF44', '#44FF88'][Math.floor(Math.random() * 5)]
+}));
+
+// Fog particles
+const fogParts = Array.from({length: 20}, () => ({
+  x: Math.random() * CW,
+  y: SKY_H + 60 + Math.random() * 200,
+  r: 40 + Math.random() * 80,
+  spd: 0.15 + Math.random() * 0.2,
+  alpha: 0.04 + Math.random() * 0.06
+}));
+
+function drawMagicTree(x, y, h, col1, col2, glowCol, now) {
+  // Trunk
+  ctx.strokeStyle = '#1a0a2a'; ctx.lineWidth = 14; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y - h * 0.45); ctx.stroke();
+  ctx.strokeStyle = '#2a1040'; ctx.lineWidth = 10;
+  ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y - h * 0.45); ctx.stroke();
+  // Roots
+  ctx.strokeStyle = '#1a0a2a'; ctx.lineWidth = 5;
+  [[-18, 15], [18, 12], [-10, 20], [12, 18]].forEach(([dx, dy]) => {
+    ctx.beginPath(); ctx.moveTo(x, y); ctx.quadraticCurveTo(x + dx * 0.5, y + 5, x + dx, y + dy); ctx.stroke();
+  });
+  // Canopy glow
+  ctx.save();
+  const glow = ctx.createRadialGradient(x, y - h * 0.65, 5, x, y - h * 0.65, h * 0.55);
+  const pulse = 0.12 + Math.sin(now * 0.002 + x) * 0.05;
+  glow.addColorStop(0, glowCol.replace(')', `,${pulse})`).replace('rgb', 'rgba'));
+  glow.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = glow; ctx.beginPath(); ctx.arc(x, y - h * 0.65, h * 0.55, 0, Math.PI*2); ctx.fill();
+  ctx.restore();
+  // Canopy layers
+  [[0, -h*0.45, h*0.38, col1],[0, -h*0.60, h*0.32, col2],[-h*0.18, -h*0.55, h*0.22, col1],[h*0.18, -h*0.52, h*0.24, col2]].forEach(([dx, dy, r, col]) => {
+    ctx.fillStyle = col;
+    ctx.beginPath(); ctx.arc(x + dx, y + dy, r, 0, Math.PI*2); ctx.fill();
+  });
+  // Glowing leaves dots
+  const ldots = 8;
+  for (let i = 0; i < ldots; i++) {
+    const la = (i / ldots) * Math.PI * 2 + now * 0.0005;
+    const lr = h * 0.28 + Math.sin(now * 0.002 + i) * 8;
+    const lx = x + Math.cos(la) * lr;
+    const ly = y - h * 0.62 + Math.sin(la) * lr * 0.5;
+    const la2 = 0.5 + Math.sin(now * 0.003 + i) * 0.3;
+    ctx.fillStyle = glowCol;
+    ctx.globalAlpha = la2;
+    ctx.beginPath(); ctx.arc(lx, ly, 2.5, 0, Math.PI*2); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+}
+
+function drawMushroom(x, y, scale, col, spotCol, glowCol, now) {
+  ctx.save();
+  ctx.translate(x, y); ctx.scale(scale, scale);
+  const pulse = 0.8 + Math.sin(now * 0.003 + x) * 0.2;
+  // Stem
+  ctx.fillStyle = '#d4c8a0';
+  ctx.beginPath(); ctx.ellipse(0, 0, 8, 14, 0, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#b8ac88';
+  ctx.beginPath(); ctx.ellipse(0, 2, 9, 5, 0, 0, Math.PI*2); ctx.fill();
+  // Cap glow
+  ctx.shadowColor = glowCol; ctx.shadowBlur = 20 * pulse;
+  // Cap
+  ctx.fillStyle = col;
+  ctx.beginPath();
+  ctx.moveTo(-18, -8);
+  ctx.quadraticCurveTo(-20, -24, 0, -30);
+  ctx.quadraticCurveTo(20, -24, 18, -8);
+  ctx.closePath(); ctx.fill();
+  ctx.shadowBlur = 0;
+  // Spots
+  ctx.fillStyle = spotCol;
+  [[0, -22, 4.5], [-9, -14, 3], [9, -14, 3], [-4, -10, 2], [5, -10, 2]].forEach(([sx, sy, sr]) => {
+    ctx.beginPath(); ctx.arc(sx, sy, sr, 0, Math.PI*2); ctx.fill();
+  });
+  // Underside
+  ctx.fillStyle = 'rgba(255,220,200,0.5)';
+  ctx.beginPath(); ctx.ellipse(0, -8, 18, 5, 0, 0, Math.PI*2); ctx.fill();
+  ctx.restore();
+}
+
+function drawScene(now) {
+  ctx.clearRect(0, 0, CW, CH);
+
+  // Sky — deep magical night
+  const sky = ctx.createLinearGradient(0, 0, 0, SKY_H);
+  sky.addColorStop(0, '#020408');
+  sky.addColorStop(0.5, '#040c10');
+  sky.addColorStop(1, '#061410');
+  ctx.fillStyle = sky; ctx.fillRect(0, 0, CW, SKY_H);
+
+  // Stars
+  for (let i = 0; i < 50; i++) {
+    const sx = ((i * 137 + 50) % 570) + 15;
+    const sy = ((i * 89 + 10) % 130) + 5;
+    const sa = 0.4 + Math.sin(now * 0.001 + i) * 0.3;
+    const sc = i % 5 === 0 ? '#88FFCC' : i % 7 === 0 ? '#CCFF88' : '#ffffff';
+    ctx.globalAlpha = sa;
+    ctx.fillStyle = sc;
+    ctx.beginPath(); ctx.arc(sx, sy, 0.7 + (i % 4 === 0 ? 0.8 : 0), 0, Math.PI*2); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+
+  // Magical aurora
+  for (let i = 0; i < 3; i++) {
+    const ag = ctx.createLinearGradient(0, 10 + i * 30, CW, 40 + i * 30);
+    ag.addColorStop(0, 'rgba(0,0,0,0)');
+    ag.addColorStop(0.3, `rgba(${i===0?'0,200,80':i===1?'0,100,200':'100,0,200'},0.06)`);
+    ag.addColorStop(0.7, `rgba(${i===0?'0,200,80':i===1?'0,100,200':'100,0,200'},0.04)`);
+    ag.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = ag;
+    ctx.fillRect(0, 5 + i * 28, CW, 25);
+  }
+
+  // Ground — mossy dark
+  const gnd = ctx.createLinearGradient(0, SKY_H, 0, CH);
+  gnd.addColorStop(0, '#0a1a08');
+  gnd.addColorStop(0.3, '#081408');
+  gnd.addColorStop(1, '#050e04');
+  ctx.fillStyle = gnd; ctx.fillRect(0, SKY_H, CW, CH - SKY_H);
+
+  // Ground moss patches
+  const mossPts = [[80,280],[160,350],[240,420],[350,390],[430,300],[520,370],[100,450],[500,440]];
+  mossPts.forEach(([mx, my]) => {
+    ctx.fillStyle = `rgba(20,60,15,0.6)`;
+    ctx.beginPath(); ctx.ellipse(mx, my, 35 + mx % 20, 12, 0, 0, Math.PI*2); ctx.fill();
+  });
+
+  // Background trees
+  [
+    [60, SKY_H + 180, 100, '#0d2a08', '#0a2005', '#44FF88', now],
+    [130, SKY_H + 150, 120, '#0a2a12', '#082010', '#44FFAA', now],
+    [480, SKY_H + 170, 110, '#0d2a08', '#0a2005', '#88FF44', now],
+    [540, SKY_H + 160, 100, '#0a2a12', '#082010', '#AAFF44', now],
+  ].forEach(args => drawMagicTree(...args));
+
+  // Main trees (sides)
+  drawMagicTree(30, CH - 60, 200, '#0e3008', '#0c2806', '#44FF88', now);
+  drawMagicTree(570, CH - 60, 190, '#102808', '#0e2406', '#88FF44', now);
+  drawMagicTree(80, CH - 40, 160, '#0c2a10', '#0a2008', '#44FFCC', now);
+  drawMagicTree(520, CH - 40, 155, '#102a08', '#0e2006', '#CCFF44', now);
+
+  // Fog
+  fogParts.forEach(f => {
+    f.x += f.spd;
+    if (f.x - f.r > CW) f.x = -f.r;
+    ctx.globalAlpha = f.alpha + Math.sin(now * 0.001 + f.x) * 0.02;
+    ctx.fillStyle = '#88FFCC';
+    ctx.beginPath(); ctx.arc(f.x, f.y, f.r, 0, Math.PI*2); ctx.fill();
+  });
+  ctx.globalAlpha = 1;
+
+  // Mushrooms
+  drawMushroom(120, CH - 60, 1.4, '#CC2200', '#FFE0D0', '#FF4400', now);
+  drawMushroom(160, CH - 55, 1.1, '#AA1800', '#FFD8C8', '#FF3300', now);
+  drawMushroom(420, CH - 62, 1.3, '#BB2000', '#FFE0D0', '#FF4400', now);
+  drawMushroom(465, CH - 58, 1.0, '#CC2200', '#FFE0D0', '#FF3300', now);
+  drawMushroom(240, CH - 52, 0.8, '#8800CC', '#FFCCFF', '#CC44FF', now);
+  drawMushroom(370, CH - 50, 0.9, '#0055CC', '#CCE0FF', '#4488FF', now);
+  // Small ones
+  [[55,CH-42,0.55,'#CC2200','#FFD0D0','#FF3300'],[545,CH-40,0.6,'#AA1800','#FFD0D0','#FF2200'],[300,CH-45,0.65,'#007722','#CCFFCC','#44FF88']].forEach(([mx,my,ms,mc,sc,gc]) => drawMushroom(mx,my,ms,mc,sc,gc,now));
+
+  // Glowing flowers
+  [[180, CH-70],[280,CH-65],[340,CH-68],[450,CH-72]].forEach(([fx, fy]) => {
+    const fp = 0.6 + Math.sin(now * 0.003 + fx) * 0.4;
+    ctx.save();
+    ctx.shadowColor = '#AAFFCC'; ctx.shadowBlur = 12 * fp;
+    ctx.fillStyle = `rgba(150,255,180,${fp * 0.8})`;
+    for (let p = 0; p < 5; p++) {
+      const pa = (p / 5) * Math.PI * 2;
+      ctx.beginPath(); ctx.arc(fx + Math.cos(pa) * 4, fy + Math.sin(pa) * 4, 2.5, 0, Math.PI*2); ctx.fill();
+    }
+    ctx.fillStyle = `rgba(255,255,150,${fp})`;
+    ctx.beginPath(); ctx.arc(fx, fy, 2, 0, Math.PI*2); ctx.fill();
+    ctx.restore();
+  });
+
+  // Fireflies
+  fireflies.forEach(f => {
+    f.phase += 0.02;
+    f.x += f.vx + Math.sin(f.phase * 0.7) * 0.3;
+    f.y += f.vy + Math.cos(f.phase * 0.5) * 0.2;
+    if (f.x < 20) f.vx = Math.abs(f.vx);
+    if (f.x > CW - 20) f.vx = -Math.abs(f.vx);
+    if (f.y < SKY_H + 20) f.vy = Math.abs(f.vy);
+    if (f.y > CH - 40) f.vy = -Math.abs(f.vy);
+    const fa = 0.4 + Math.sin(f.phase * 2.5) * 0.6;
+    if (fa < 0) return;
+    ctx.save();
+    ctx.shadowColor = f.col; ctx.shadowBlur = 12;
+    ctx.globalAlpha = Math.max(0, fa);
+    ctx.fillStyle = f.col;
+    ctx.beginPath(); ctx.arc(f.x, f.y, 2, 0, Math.PI*2); ctx.fill();
+    ctx.restore();
+  });
+  ctx.globalAlpha = 1;
+
+  // Magical circle on ground
+  const mcPulse = 0.08 + Math.sin(now * 0.002) * 0.04;
+  ctx.save();
+  ctx.strokeStyle = `rgba(80,255,150,${mcPulse * 3})`;
+  ctx.lineWidth = 2;
+  ctx.setLineDash([8, 12]);
+  ctx.beginPath(); ctx.arc(300, 360, 130, 0, Math.PI*2); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.strokeStyle = `rgba(80,255,150,${mcPulse * 2})`;
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.arc(300, 360, 110, 0, Math.PI*2); ctx.stroke();
+  ctx.restore();
+
+  // Arena zone label
+  ctx.save();
+  ctx.font = 'bold 13px Arial'; ctx.fillStyle = 'rgba(80,255,150,0.6)';
+  ctx.textAlign = 'center'; ctx.fillText('🏟️  ARENA ZONE', 300, 358);
+  ctx.restore();
+
+  requestAnimationFrame(drawScene);
+}
+requestAnimationFrame(drawScene);
+</script>
+</body>
+</html>

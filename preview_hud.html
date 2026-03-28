@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>HUD Preview</title>
+<style>
+* { margin:0; padding:0; }
+body { background:#1a1a2e; display:flex; justify-content:center; padding:30px; }
+canvas { display:block; }
+</style>
+</head>
+<body>
+<canvas id="c" width="600" height="400"></canvas>
+<script>
+window.onload = function() {
+  var cvs = document.getElementById('c');
+  var ctx = cvs.getContext('2d');
+
+  ctx.fillStyle = '#0d0520';
+  ctx.fillRect(0, 0, 600, 400);
+
+  var T = 10;
+  var TH = 220;
+
+  // Фон блока с лёгким градиентом
+  var bg = ctx.createLinearGradient(0, T, 0, T+TH);
+  bg.addColorStop(0, 'rgba(10,5,30,0.97)');
+  bg.addColorStop(1, 'rgba(5,2,15,0.97)');
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, T, 600, TH);
+
+  // Золотая рамка
+  ctx.strokeStyle = 'rgba(255,215,0,0.35)';
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(2, T+2, 596, TH-4);
+
+  // ── Заголовок ──
+  ctx.shadowColor = '#FFD700';
+  ctx.shadowBlur = 18;
+  ctx.font = 'bold 38px Arial Black';
+  ctx.textAlign = 'center';
+  ctx.strokeStyle = 'rgba(0,0,0,0.9)';
+  ctx.lineWidth = 4;
+  ctx.strokeText('⚔️  ARENA  BATTLE  ⚔️', 300, T+42);
+  ctx.fillStyle = '#FFD700';
+  ctx.fillText('⚔️  ARENA  BATTLE  ⚔️', 300, T+42);
+  ctx.shadowBlur = 0;
+
+  // ── Линия-разделитель под заголовком ──
+  var grad = ctx.createLinearGradient(0,0,600,0);
+  grad.addColorStop(0,   'rgba(255,215,0,0)');
+  grad.addColorStop(0.2, 'rgba(255,215,0,0.4)');
+  grad.addColorStop(0.8, 'rgba(255,215,0,0.4)');
+  grad.addColorStop(1,   'rgba(255,215,0,0)');
+  ctx.strokeStyle = grad;
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(0, T+52); ctx.lineTo(600, T+52); ctx.stroke();
+
+  // ── Вертикальный разделитель ──
+  var vgrad = ctx.createLinearGradient(0, T+56, 0, T+TH-6);
+  vgrad.addColorStop(0,   'rgba(255,255,255,0)');
+  vgrad.addColorStop(0.3, 'rgba(255,255,255,0.1)');
+  vgrad.addColorStop(0.7, 'rgba(255,255,255,0.1)');
+  vgrad.addColorStop(1,   'rgba(255,255,255,0)');
+  ctx.strokeStyle = vgrad;
+  ctx.beginPath(); ctx.moveTo(300, T+56); ctx.lineTo(300, T+TH-6); ctx.stroke();
+
+  // ══════════════════════════════════
+  // ЛЕВАЯ КОЛОНКА — правила
+  // ══════════════════════════════════
+  var LX = 150;
+  var rY  = T + 72;
+  var step = 34;
+
+  var rules = [
+    { text:'🎁 GIFTS = +++ HP',   color:'#FFD700', triRight:null  },
+    { text:'❤️ TAP = + HP',       color:'#44DDFF', triRight:null  },
+    { text:'💬 "team" = 🚩',      color:'#FF4455', triRight:null  },
+    { text:'💬 "team2" =',        color:'#5599FF', triRight:'blue'},
+    { text:'⏳ AFK 5 min = - HP', color:'#FF7700', triRight:null  },
+  ];
+
+  rules.forEach(function(r, i) {
+    var y = rY + i * step;
+    ctx.shadowColor = 'rgba(0,0,0,1)';
+    ctx.shadowBlur = 6;
+    ctx.font = 'bold 20px Arial';
+    ctx.textAlign = 'left';
+    ctx.fillStyle = r.color;
+    ctx.fillText(r.text, 12, y);
+    if (r.triRight) {
+      var tw = ctx.measureText(r.text).width;
+      var tx = 12 + tw + 10;
+      ctx.fillStyle = r.triRight === 'red' ? '#FF3344' : '#4488FF';
+      ctx.beginPath(); ctx.moveTo(tx, y-11); ctx.lineTo(tx, y+3); ctx.lineTo(tx+14, y-4); ctx.closePath(); ctx.fill();
+    }
+    ctx.shadowBlur = 0;
+  });
+
+  // ══════════════════════════════════
+  // ПРАВАЯ КОЛОНКА — TOP KILLERS
+  // ══════════════════════════════════
+
+  // Заголовок колонки
+  ctx.shadowColor = '#FF3333';
+  ctx.shadowBlur = 10;
+  ctx.font = 'bold 15px Arial Black';
+  ctx.textAlign = 'center';
+  ctx.strokeStyle = 'rgba(0,0,0,0.9)';
+  ctx.lineWidth = 3;
+  ctx.strokeText('☠️  TOP KILLERS  ☠️', 450, T+66);
+  ctx.fillStyle = '#FF4444';
+  ctx.fillText('☠️  TOP KILLERS  ☠️', 450, T+66);
+  ctx.shadowBlur = 0;
+
+  // Тонкая линия под заголовком топа
+  ctx.strokeStyle = 'rgba(255,60,60,0.2)';
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(308, T+71); ctx.lineTo(592, T+71); ctx.stroke();
+
+  var top = [
+    { rank:'👑', name:'LehaStreamer', kills:247, rankColor:'#FFD700', bg:'rgba(255,215,0,0.07)' },
+    { rank:'2.',  name:'dark_wolf99',  kills:134, rankColor:'#C0C0C0', bg:'rgba(0,0,0,0)' },
+    { rank:'3.',  name:'fire_blade',   kills:98,  rankColor:'#CD7F32', bg:'rgba(0,0,0,0)' },
+    { rank:'4.',  name:'shadow_x',     kills:61,  rankColor:'#888888', bg:'rgba(0,0,0,0)' },
+    { rank:'5.',  name:'night_storm',  kills:44,  rankColor:'#666666', bg:'rgba(0,0,0,0)' },
+  ];
+
+  var tY = T + 90;
+  var tStep = 27;
+
+  top.forEach(function(p, i) {
+    var y = tY + i * tStep;
+
+    // фон строки 1 места
+    if (p.bg !== 'rgba(0,0,0,0)') {
+      ctx.fillStyle = p.bg;
+      ctx.fillRect(306, y - 16, 288, tStep);
+    }
+
+    ctx.shadowColor = 'rgba(0,0,0,0.9)';
+    ctx.shadowBlur = 4;
+
+    // ранг
+    ctx.font = i === 0 ? 'bold 15px Arial Black' : 'bold 13px Arial';
+    ctx.textAlign = 'left';
+    ctx.fillStyle = p.rankColor;
+    ctx.fillText(p.rank, 312, y);
+
+    // имя
+    ctx.fillStyle = i === 0 ? '#FFE566' : '#CCCCCC';
+    ctx.fillText(p.name, i === 0 ? 342 : 338, y);
+
+    // убийства — справа
+    ctx.textAlign = 'right';
+    ctx.fillStyle = '#FF6666';
+    ctx.fillText('☠️ ' + p.kills, 590, y);
+
+    ctx.shadowBlur = 0;
+  });
+
+  // подпись all-time
+  ctx.font = '10px Arial';
+  ctx.fillStyle = 'rgba(255,255,255,0.12)';
+  ctx.textAlign = 'center';
+  ctx.fillText('all-time kills', 450, T + TH - 7);
+};
+</script>
+</body>
+</html>

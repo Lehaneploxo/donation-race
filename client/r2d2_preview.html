@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>R2-D2 Preview</title>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { background:#04060e; display:flex; flex-direction:column; align-items:center; justify-content:center; height:100vh; font-family:Arial; color:#fff; }
+    h2 { margin-bottom:6px; font-size:20px; color:#88aaff; letter-spacing:2px; }
+    p  { margin-bottom:18px; font-size:12px; color:#555; }
+    canvas { border:1px solid #101828; border-radius:14px; }
+  </style>
+</head>
+<body>
+<h2>🤖 R2-D2</h2>
+<p>Astromech Droid — Star Wars</p>
+<canvas id="c" width="300" height="420"></canvas>
+<script>
+const cv=document.getElementById('c'), ctx=cv.getContext('2d');
+
+function wg(x1,x2){ // белый металл
+  const g=ctx.createLinearGradient(x1,0,x2,0);
+  g.addColorStop(0,'#707e9a'); g.addColorStop(0.18,'#c8d8f0');
+  g.addColorStop(0.45,'#eef4ff'); g.addColorStop(0.78,'#c0cce4'); g.addColorStop(1,'#606c88');
+  return g;
+}
+function bg(x1,x2){ // синий
+  const g=ctx.createLinearGradient(x1,0,x2,0);
+  g.addColorStop(0,'#0b2890'); g.addColorStop(0.45,'#1e4ed8'); g.addColorStop(1,'#0920a0');
+  return g;
+}
+
+function draw(now){
+  ctx.clearRect(0,0,300,420);
+  const cx=150, bob=Math.sin(now*.0016)*1.5;
+  const G=385+bob;
+
+  // всё тело — лёгкое покачивание
+  ctx.save(); ctx.translate(cx, G);
+
+  // координаты корпуса — объявляем первыми
+  const BT=-220, BH=130;
+
+  // ── ТЕНЬ ────────────────────────────────
+  ctx.fillStyle='rgba(0,10,40,.5)';
+  ctx.beginPath();ctx.ellipse(0,2,52,8,0,0,Math.PI*2);ctx.fill();
+
+  // ════════════════════════════════════════
+  // НОГИ БОКОВЫЕ — от верха корпуса до земли
+  // ════════════════════════════════════════
+  const lw=18, shoulderY=BT+10;
+
+  for(let s of[-1,1]){
+    const lx=s*52;
+
+    // Плечевой сустав вверху — где нога крепится к телу
+    const shG=ctx.createRadialGradient(lx,shoulderY,2,lx,shoulderY,15);
+    shG.addColorStop(0,'#d0e0f4');shG.addColorStop(0.6,'#90a8c8');shG.addColorStop(1,'#506080');
+    ctx.fillStyle=shG;
+    ctx.beginPath();ctx.arc(lx,shoulderY,15,0,Math.PI*2);ctx.fill();
+    ctx.strokeStyle='rgba(60,90,160,.4)';ctx.lineWidth=1.2;
+    ctx.beginPath();ctx.arc(lx,shoulderY,15,0,Math.PI*2);ctx.stroke();
+    ctx.fillStyle=bg(lx-8,lx+8);
+    ctx.beginPath();ctx.arc(lx,shoulderY,9,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='rgba(150,210,255,.35)';
+    ctx.beginPath();ctx.arc(lx-s*3,shoulderY-3,3.5,0,Math.PI*2);ctx.fill();
+
+    // Тело ноги — от плеча, заканчивается выше земли
+    const legEnd=-80; // нога заканчивается здесь
+    const legLen=-legEnd+(shoulderY+12);
+    ctx.fillStyle=wg(lx-lw/2, lx+lw/2);
+    ctx.beginPath();ctx.roundRect(lx-lw/2, shoulderY+12, lw, -shoulderY+legEnd-12, 4);ctx.fill();
+
+    // Синяя полоска вверху
+    ctx.fillStyle=bg(lx-lw/2+1, lx+lw/2-1);
+    ctx.beginPath();ctx.roundRect(lx-lw/2+1, shoulderY+14, lw-2, 14, 3);ctx.fill();
+
+    // Синяя полоска посередине
+    const midY=shoulderY+(-shoulderY+legEnd)/2;
+    ctx.fillStyle=bg(lx-lw/2+1, lx+lw/2-1);
+    ctx.beginPath();ctx.roundRect(lx-lw/2+1, midY-5, lw-2, 10, 2);ctx.fill();
+
+    // Горизонтальные рёбра
+    ctx.strokeStyle='rgba(50,75,140,.4)';ctx.lineWidth=1;
+    const step=(-shoulderY+legEnd-12)/4;
+    for(let i=1;i<4;i++){
+      const ry=shoulderY+12+step*i;
+      ctx.beginPath();ctx.moveTo(lx-lw/2+1,ry);ctx.lineTo(lx+lw/2-1,ry);ctx.stroke();
+    }
+
+    // Блик
+    ctx.fillStyle='rgba(255,255,255,.11)';
+    ctx.beginPath();ctx.roundRect(lx-lw/2+1, shoulderY+13, 6, -shoulderY+legEnd-14, 4);ctx.fill();
+
+    // Ступня широкая
+    ctx.fillStyle=wg(lx-26, lx+26);
+    ctx.beginPath();ctx.roundRect(lx-26,legEnd-1,52,14,5);ctx.fill();
+    ctx.fillStyle=bg(lx-24, lx+24);
+    ctx.beginPath();ctx.roundRect(lx-24,legEnd+1,48,6,3);ctx.fill();
+    ctx.fillStyle='rgba(140,200,255,.2)';ctx.fillRect(lx-24,legEnd+1,48,2);
+    ctx.strokeStyle='rgba(50,75,140,.3)';ctx.lineWidth=1;
+    ctx.beginPath();ctx.roundRect(lx-26,legEnd-1,52,14,5);ctx.stroke();
+  }
+
+
+  // ════════════════════════════════════════
+  // ОСНОВНОЙ КОРПУС
+  // ════════════════════════════════════════
+
+  // Основа белого цилиндра
+  ctx.fillStyle=wg(-40,40);
+  ctx.beginPath();ctx.roundRect(-40,BT,80,BH,10);ctx.fill();
+
+  // Верхняя синяя полоса
+  ctx.fillStyle=bg(-40,40);
+  ctx.beginPath();ctx.roundRect(-40,BT,80,16,[10,10,0,0]);ctx.fill();
+  ctx.fillStyle='rgba(140,190,255,.22)';ctx.fillRect(-40,BT,80,3);
+
+  // Нижняя синяя полоса
+  ctx.fillStyle=bg(-40,40);
+  ctx.beginPath();ctx.roundRect(-40,BT+BH-14,80,14,[0,0,10,10]);ctx.fill();
+
+  // ── Большие синие боковые панели (главная черта R2D2) ──
+  // Левая синяя панель
+  ctx.fillStyle=bg(-36,-10);
+  ctx.beginPath();ctx.roundRect(-36,BT+20,26,36,4);ctx.fill();
+  ctx.fillStyle='rgba(140,200,255,.22)';
+  ctx.beginPath();ctx.roundRect(-36,BT+20,26,9,4);ctx.fill();
+  ctx.strokeStyle='rgba(80,140,240,.4)';ctx.lineWidth=1;
+  ctx.beginPath();ctx.roundRect(-36,BT+20,26,36,4);ctx.stroke();
+  // внутренние линии
+  ctx.strokeStyle='rgba(20,60,180,.5)';ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(-35,BT+32);ctx.lineTo(-11,BT+32);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(-35,BT+44);ctx.lineTo(-11,BT+44);ctx.stroke();
+
+  // Правая синяя панель
+  ctx.fillStyle=bg(10,36);
+  ctx.beginPath();ctx.roundRect(10,BT+20,26,36,4);ctx.fill();
+  ctx.fillStyle='rgba(140,200,255,.22)';
+  ctx.beginPath();ctx.roundRect(10,BT+20,26,9,4);ctx.fill();
+  ctx.strokeStyle='rgba(80,140,240,.4)';ctx.lineWidth=1;
+  ctx.beginPath();ctx.roundRect(10,BT+20,26,36,4);ctx.stroke();
+  ctx.strokeStyle='rgba(20,60,180,.5)';ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(11,BT+32);ctx.lineTo(35,BT+32);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(11,BT+44);ctx.lineTo(35,BT+44);ctx.stroke();
+
+  // Нижние синие панели
+  ctx.fillStyle=bg(-36,-10);
+  ctx.beginPath();ctx.roundRect(-36,BT+62,26,18,4);ctx.fill();
+  ctx.strokeStyle='rgba(80,140,240,.35)';ctx.lineWidth=1;
+  ctx.beginPath();ctx.roundRect(-36,BT+62,26,18,4);ctx.stroke();
+
+  ctx.fillStyle=bg(10,36);
+  ctx.beginPath();ctx.roundRect(10,BT+62,26,18,4);ctx.fill();
+  ctx.strokeStyle='rgba(80,140,240,.35)';ctx.lineWidth=1;
+  ctx.beginPath();ctx.roundRect(10,BT+62,26,18,4);ctx.stroke();
+
+  // ── Центральная панель с утилитами ──
+  // Frame/magic panel (прямоугольная панель по центру)
+  ctx.fillStyle='rgba(10,20,60,.7)';
+  ctx.beginPath();ctx.roundRect(-8,BT+20,16,36,3);ctx.fill();
+  ctx.strokeStyle='rgba(60,100,200,.4)';ctx.lineWidth=1;
+  ctx.beginPath();ctx.roundRect(-8,BT+20,16,36,3);ctx.stroke();
+  // Logic display огни (мигают)
+  const logicColors=['#ff4444','#44ff88','#4488ff','#ffcc00','#ff4444','#44ffcc'];
+  for(let i=0;i<6;i++){
+    const lx=-6+i%2*8, ly=BT+24+Math.floor(i/2)*10;
+    const a=0.6+Math.sin(now*.01+i*1.3)*.4;
+    ctx.fillStyle=logicColors[i].replace(')',`,${a})`).replace('rgb','rgba').replace('#','rgba(').replace(/[0-9a-f]{2}/gi, h=>parseInt(h,16)+',').slice(0,-1)+`${a})`;
+  }
+  // Упрощённые огни
+  for(let i=0;i<6;i++){
+    const a=0.5+Math.sin(now*.012+i*1.1)*.45;
+    const colors=['#ff3333','#33ff77','#3377ff','#ffcc00','#ff7733','#33ffee'];
+    ctx.fillStyle=colors[i];ctx.globalAlpha=a;
+    ctx.beginPath();ctx.arc(-4+i%3*4,BT+27+Math.floor(i/3)*10,2.5,0,Math.PI*2);ctx.fill();
+  }
+  ctx.globalAlpha=1;
+
+  // ── PSI индикатор — красный глаз центра ──
+  const eyeY=BT+82;
+  const eyeP=0.85+Math.sin(now*.005)*.15;
+  ctx.fillStyle='#040610';
+  ctx.beginPath();ctx.arc(0,eyeY,12,0,Math.PI*2);ctx.fill();
+  ctx.strokeStyle='rgba(50,70,120,.6)';ctx.lineWidth=1.5;
+  ctx.beginPath();ctx.arc(0,eyeY,12,0,Math.PI*2);ctx.stroke();
+  ctx.fillStyle=`rgba(215,22,0,${eyeP})`;
+  ctx.shadowColor='#FF1100';ctx.shadowBlur=26;
+  ctx.beginPath();ctx.arc(0,eyeY,9,0,Math.PI*2);ctx.fill();
+  ctx.shadowBlur=0;
+  ctx.fillStyle='#500000';
+  ctx.beginPath();ctx.arc(0,eyeY,5,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='rgba(255,120,100,.6)';
+  ctx.beginPath();ctx.arc(-3,eyeY-3,3,0,Math.PI*2);ctx.fill();
+
+  // Горизонтальные рёбра корпуса
+  ctx.strokeStyle='rgba(80,110,170,.35)';ctx.lineWidth=1.2;
+  ctx.beginPath();ctx.moveTo(-39,BT+18);ctx.lineTo(39,BT+18);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(-39,BT+60);ctx.lineTo(39,BT+60);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(-39,BT+84);ctx.lineTo(39,BT+84);ctx.stroke();
+
+  // Блик на корпусе
+  ctx.fillStyle='rgba(255,255,255,.09)';
+  ctx.beginPath();ctx.roundRect(-38,BT+3,12,BH-17,8);ctx.fill();
+
+  // ════════════════════════════════════════
+  // КУПОЛ
+  // ════════════════════════════════════════
+  const headSway=Math.sin(now*.0011)*.055;
+  ctx.save();
+  ctx.translate(0, BT);
+  ctx.rotate(headSway);
+
+  // Основа купола — белый полукруг
+  const dG=ctx.createRadialGradient(-16,-22,4,0,-16,46);
+  dG.addColorStop(0,'#f2f8ff'); dG.addColorStop(0.3,'#dce8fa');
+  dG.addColorStop(0.65,'#aabcd8'); dG.addColorStop(1,'#6070a0');
+  ctx.fillStyle=dG;
+  ctx.beginPath();
+  ctx.moveTo(-40,0);
+  ctx.bezierCurveTo(-44,-14,-42,-58,0,-64);
+  ctx.bezierCurveTo(42,-58,44,-14,40,0);
+  ctx.closePath();ctx.fill();
+
+  // Ободок купола (синяя полоса у основания)
+  ctx.fillStyle='rgba(16,58,180,.75)';
+  ctx.beginPath();ctx.roundRect(-40,-8,80,10,2);ctx.fill();
+  ctx.fillStyle='rgba(120,180,255,.2)';ctx.fillRect(-40,-8,80,2);
+
+  // Горизонтальная полоса посередине купола
+  ctx.fillStyle='rgba(16,58,180,.5)';
+  ctx.beginPath();ctx.roundRect(-38,-30,76,7,2);ctx.fill();
+
+  // ── РАДАРНЫЙ ГЛАЗ (главная деталь купола) ──
+  // большой круг — левее центра
+  const rEyeX=-16, rEyeY=-44, rEyeR=11;
+  ctx.fillStyle='#040610';
+  ctx.beginPath();ctx.arc(rEyeX,rEyeY,rEyeR+3,0,Math.PI*2);ctx.fill();
+  const reG=ctx.createRadialGradient(rEyeX-3,rEyeY-3,2,rEyeX,rEyeY,rEyeR);
+  reG.addColorStop(0,'#3c7ae8'); reG.addColorStop(0.5,'#1848d0'); reG.addColorStop(1,'#0820a0');
+  ctx.fillStyle=reG;
+  ctx.beginPath();ctx.arc(rEyeX,rEyeY,rEyeR,0,Math.PI*2);ctx.fill();
+  ctx.strokeStyle='rgba(80,140,255,.5)';ctx.lineWidth=1.5;
+  ctx.beginPath();ctx.arc(rEyeX,rEyeY,rEyeR,0,Math.PI*2);ctx.stroke();
+  // блик линзы
+  ctx.fillStyle='rgba(150,200,255,.45)';
+  ctx.beginPath();ctx.arc(rEyeX-4,rEyeY-4,4,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='rgba(255,255,255,.3)';
+  ctx.beginPath();ctx.arc(rEyeX-5,rEyeY-5,2,0,Math.PI*2);ctx.fill();
+
+  // ── Синий прямоугольник — logic display на куполе ──
+  ctx.fillStyle='rgba(14,50,170,.75)';
+  ctx.beginPath();ctx.roundRect(8,-52,22,14,3);ctx.fill();
+  ctx.strokeStyle='rgba(60,120,220,.4)';ctx.lineWidth=1;
+  ctx.beginPath();ctx.roundRect(8,-52,22,14,3);ctx.stroke();
+  // огни в нём
+  const lc=['#ff3333','#33ff88','#3388ff','#ffcc00'];
+  for(let i=0;i<4;i++){
+    const la=0.6+Math.sin(now*.014+i*1.5)*.4;
+    ctx.fillStyle=lc[i];ctx.globalAlpha=la;
+    ctx.beginPath();ctx.arc(10+i*5,-46,2,0,Math.PI*2);ctx.fill();
+  }
+  ctx.globalAlpha=1;
+
+  // Синий круг справа на куполе
+  const sc=ctx.createRadialGradient(22,-32,1,22,-32,7);
+  sc.addColorStop(0,'#2c68d8');sc.addColorStop(1,'#0c2490');
+  ctx.fillStyle=sc;
+  ctx.beginPath();ctx.arc(22,-32,7,0,Math.PI*2);ctx.fill();
+  ctx.strokeStyle='rgba(70,130,220,.4)';ctx.lineWidth=1;
+  ctx.beginPath();ctx.arc(22,-32,7,0,Math.PI*2);ctx.stroke();
+  ctx.fillStyle='rgba(130,190,255,.35)';
+  ctx.beginPath();ctx.arc(20,-34,2.5,0,Math.PI*2);ctx.fill();
+
+  // ── Голографический проектор на верхушке ──
+  ctx.fillStyle='#060812';
+  ctx.beginPath();ctx.ellipse(0,-58,5,4,0,0,Math.PI*2);ctx.fill();
+  const pP=0.4+Math.sin(now*.003)*.3;
+  ctx.fillStyle=`rgba(0,200,255,${pP})`;
+  ctx.shadowColor='#00ccff';ctx.shadowBlur=16;
+  ctx.beginPath();ctx.arc(0,-58,3,0,Math.PI*2);ctx.fill();
+  ctx.shadowBlur=0;
+  ctx.strokeStyle='rgba(50,80,130,.5)';ctx.lineWidth=1.2;
+  ctx.beginPath();ctx.ellipse(0,-58,5,4,0,0,Math.PI*2);ctx.stroke();
+
+  // Вертикальная линия симметрии
+  ctx.strokeStyle='rgba(80,110,170,.25)';ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(0,-63);ctx.lineTo(0,-8);ctx.stroke();
+
+  // Блик купола
+  const blik=ctx.createLinearGradient(-30,-60,-10,-2);
+  blik.addColorStop(0,'rgba(255,255,255,.18)');
+  blik.addColorStop(1,'rgba(255,255,255,0)');
+  ctx.fillStyle=blik;
+  ctx.beginPath();
+  ctx.moveTo(-26,-52);ctx.bezierCurveTo(-32,-34,-28,-14,-22,-3);
+  ctx.bezierCurveTo(-12,-12,-10,-34,-12,-48);ctx.closePath();ctx.fill();
+
+  ctx.restore(); // купол
+  ctx.restore(); // всё тело
+
+  // ── ПОДПИСИ ─────────────────────────────
+  ctx.textAlign='center';
+  ctx.font='bold 13px Arial';
+  ctx.fillStyle='#88aaff';ctx.shadowColor='#4466cc';ctx.shadowBlur=8;
+  ctx.fillText('🤖 АСТРОМЕХ-ДРОИД',150,370);ctx.shadowBlur=0;
+  ctx.font='bold 16px Arial';
+  ctx.strokeStyle='rgba(0,0,0,.9)';ctx.lineWidth=3;
+  ctx.strokeText('R2-D2',150,386);
+  ctx.fillStyle='#c8d8ff';ctx.shadowColor='#4488ff';ctx.shadowBlur=6;
+  ctx.fillText('R2-D2',150,386);ctx.shadowBlur=0;
+  ctx.font='bold 12px Arial';
+  ctx.strokeText('❤️ 220',150,401);ctx.fillStyle='#ff6688';ctx.fillText('❤️ 220',150,401);
+  ctx.strokeText('⚔️ 35',150,415);ctx.fillStyle='#88ccff';ctx.fillText('⚔️ 35',150,415);
+}
+
+function loop(now){ draw(now); requestAnimationFrame(loop); }
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

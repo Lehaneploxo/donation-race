@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>🌋 Volcano Map Preview</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #050510; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; font-family: Arial, sans-serif; color: #fff; }
+    h2 { margin-bottom: 6px; font-size: 20px; color: #FF6600; letter-spacing: 2px; }
+    p  { margin-bottom: 14px; font-size: 12px; color: #666; }
+    canvas { border: 1px solid #333; border-radius: 10px; }
+  </style>
+</head>
+<body>
+  <h2>🌋 VOLCANO MAP — ПРЕВЬЮ</h2>
+  <p>Тёмные скалы, лава, огненное небо, пепел</p>
+  <canvas id="c" width="600" height="520"></canvas>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const CW = 600, CH = 520, SKY_H = 200;
+
+// Embers flying up
+const embers = Array.from({length: 50}, () => ({
+  x: 260 + (Math.random()-0.5)*60,
+  y: SKY_H * 0.12 + Math.random()*60,
+  vx: (Math.random()-0.5)*1.8,
+  vy: -(0.5+Math.random()*1.5),
+  life: Math.random(),
+  max: 0.5+Math.random()*0.8,
+  r: 1+Math.random()*2.5
+}));
+
+// Ash falling
+const ash = Array.from({length: 70}, () => ({
+  x: Math.random()*CW,
+  y: Math.random()*CH,
+  r: 0.6+Math.random()*1.8,
+  spd: 0.3+Math.random()*0.7,
+  drift: (Math.random()-0.5)*0.5,
+  alpha: 0.15+Math.random()*0.4
+}));
+
+// Lava bubbles on pools
+const bubbles = Array.from({length: 12}, (_, i) => ({
+  x: 60 + i*42,
+  y: CH - 18,
+  r: 0, maxR: 4+Math.random()*6,
+  spd: 0.04+Math.random()*0.06,
+  phase: Math.random()*Math.PI*2
+}));
+
+function drawVolcano(cx, now) {
+  // Far volcano body
+  ctx.fillStyle = '#0e0400';
+  ctx.beginPath();
+  ctx.moveTo(cx - 220, SKY_H + 5);
+  ctx.lineTo(cx - 100, SKY_H * 0.45);
+  ctx.lineTo(cx - 30, SKY_H * 0.12);
+  ctx.lineTo(cx, SKY_H * 0.06);
+  ctx.lineTo(cx + 30, SKY_H * 0.12);
+  ctx.lineTo(cx + 100, SKY_H * 0.45);
+  ctx.lineTo(cx + 220, SKY_H + 5);
+  ctx.closePath(); ctx.fill();
+
+  // Lava glow inside crater
+  const cg = ctx.createRadialGradient(cx, SKY_H*0.06, 0, cx, SKY_H*0.06, 55);
+  const pulse = 0.8 + Math.sin(now*0.002)*0.2;
+  cg.addColorStop(0, `rgba(255,220,0,${0.95*pulse})`);
+  cg.addColorStop(0.25, `rgba(255,100,0,${0.8*pulse})`);
+  cg.addColorStop(0.6, `rgba(200,30,0,${0.4*pulse})`);
+  cg.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = cg;
+  ctx.beginPath(); ctx.arc(cx, SKY_H*0.06, 55, 0, Math.PI*2); ctx.fill();
+
+  // Crater rim dark
+  ctx.fillStyle = '#1a0600';
+  ctx.beginPath();
+  ctx.moveTo(cx - 38, SKY_H*0.10);
+  ctx.lineTo(cx - 30, SKY_H*0.12);
+  ctx.lineTo(cx + 30, SKY_H*0.12);
+  ctx.lineTo(cx + 38, SKY_H*0.10);
+  ctx.closePath(); ctx.fill();
+
+  // Lava stream down center
+  const lg = ctx.createLinearGradient(cx, SKY_H*0.12, cx, SKY_H+5);
+  lg.addColorStop(0, `rgba(255,180,0,0.95)`);
+  lg.addColorStop(0.3, `rgba(255,80,0,0.85)`);
+  lg.addColorStop(0.7, `rgba(200,30,0,0.7)`);
+  lg.addColorStop(1, `rgba(150,20,0,0.5)`);
+  ctx.strokeStyle = lg; ctx.lineWidth = 14; ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(cx, SKY_H*0.12);
+  ctx.bezierCurveTo(cx-10, SKY_H*0.4, cx+18, SKY_H*0.65, cx+5, SKY_H+5);
+  ctx.stroke();
+  // Inner bright core
+  ctx.strokeStyle = `rgba(255,255,150,${0.5*pulse})`;
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.moveTo(cx, SKY_H*0.12);
+  ctx.bezierCurveTo(cx-10, SKY_H*0.4, cx+18, SKY_H*0.65, cx+5, SKY_H+5);
+  ctx.stroke();
+
+  // Side lava streams
+  ctx.strokeStyle = `rgba(255,80,0,0.7)`; ctx.lineWidth = 8;
+  ctx.beginPath();
+  ctx.moveTo(cx-18, SKY_H*0.14);
+  ctx.bezierCurveTo(cx-60, SKY_H*0.5, cx-120, SKY_H*0.7, cx-160, SKY_H+5);
+  ctx.stroke();
+  ctx.strokeStyle = `rgba(255,80,0,0.65)`; ctx.lineWidth = 7;
+  ctx.beginPath();
+  ctx.moveTo(cx+18, SKY_H*0.14);
+  ctx.bezierCurveTo(cx+55, SKY_H*0.5, cx+100, SKY_H*0.72, cx+140, SKY_H+5);
+  ctx.stroke();
+}
+
+function drawRockFormation(x, y, w, h, dark) {
+  const c1 = dark ? '#120500' : '#1e0800';
+  const c2 = dark ? '#0a0300' : '#140500';
+  ctx.fillStyle = c1;
+  ctx.beginPath();
+  ctx.moveTo(x - w*0.5, y);
+  ctx.lineTo(x - w*0.45, y - h*0.3);
+  ctx.lineTo(x - w*0.3, y - h*0.55);
+  ctx.lineTo(x - w*0.1, y - h*0.85);
+  ctx.lineTo(x + w*0.05, y - h);
+  ctx.lineTo(x + w*0.2, y - h*0.78);
+  ctx.lineTo(x + w*0.4, y - h*0.5);
+  ctx.lineTo(x + w*0.5, y - h*0.2);
+  ctx.closePath(); ctx.fill();
+  // Dark face
+  ctx.fillStyle = c2;
+  ctx.beginPath();
+  ctx.moveTo(x + w*0.05, y - h);
+  ctx.lineTo(x + w*0.2, y - h*0.78);
+  ctx.lineTo(x + w*0.4, y - h*0.5);
+  ctx.lineTo(x + w*0.5, y - h*0.2);
+  ctx.lineTo(x + w*0.15, y);
+  ctx.closePath(); ctx.fill();
+  // Lava crack on rock
+  ctx.strokeStyle = `rgba(255,80,0,0.4)`; ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(x - w*0.1, y - h*0.3);
+  ctx.lineTo(x + w*0.05, y - h*0.6);
+  ctx.lineTo(x + w*0.12, y - h*0.5);
+  ctx.stroke();
+}
+
+function drawScene(now) {
+  ctx.clearRect(0, 0, CW, CH);
+
+  // SKY — infernal gradient
+  const sky = ctx.createLinearGradient(0, 0, 0, SKY_H);
+  sky.addColorStop(0, '#050000');
+  sky.addColorStop(0.25, '#1a0500');
+  sky.addColorStop(0.6, '#6a1500');
+  sky.addColorStop(0.85, '#cc3a00');
+  sky.addColorStop(1, '#ff6600');
+  ctx.fillStyle = sky; ctx.fillRect(0, 0, CW, SKY_H);
+
+  // Distant glow behind volcano
+  const bgGlow = ctx.createRadialGradient(300, SKY_H, 5, 300, SKY_H*0.5, 250);
+  bgGlow.addColorStop(0, 'rgba(255,120,0,0.35)');
+  bgGlow.addColorStop(0.5, 'rgba(255,40,0,0.15)');
+  bgGlow.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = bgGlow; ctx.fillRect(0, 0, CW, SKY_H);
+
+  // Smoke clouds rising
+  for (let i = 0; i < 7; i++) {
+    const sr = 28 + i*16;
+    const sx = 300 + Math.sin(now*0.0006+i*0.9)*18;
+    const sy = SKY_H*0.06 - 30 - i*28 + Math.sin(now*0.0005+i)*5;
+    const sa = (0.12 - i*0.012) * (0.8+Math.sin(now*0.001+i)*0.2);
+    ctx.fillStyle = `rgba(30,8,0,${Math.max(0,sa)})`;
+    ctx.beginPath(); ctx.arc(sx, sy, sr, 0, Math.PI*2); ctx.fill();
+    // Orange tinge at base
+    if (i < 3) {
+      ctx.fillStyle = `rgba(255,60,0,${0.05-i*0.012})`;
+      ctx.beginPath(); ctx.arc(sx, sy+sr*0.4, sr*0.7, 0, Math.PI*2); ctx.fill();
+    }
+  }
+
+  // Volcano
+  drawVolcano(300, now);
+
+  // GROUND — dark volcanic rock
+  const gnd = ctx.createLinearGradient(0, SKY_H, 0, CH);
+  gnd.addColorStop(0, '#1a0600');
+  gnd.addColorStop(0.25, '#110400');
+  gnd.addColorStop(0.7, '#0c0200');
+  gnd.addColorStop(1, '#080100');
+  ctx.fillStyle = gnd; ctx.fillRect(0, SKY_H, CW, CH - SKY_H);
+
+  // Rock ground texture — cracked lines
+  ctx.strokeStyle = 'rgba(80,20,0,0.35)'; ctx.lineWidth = 1;
+  [[50,280,180,320],[200,350,90,420],[310,290,450,360],[400,430,550,390],
+   [120,440,260,470],[350,460,500,480],[80,370,40,450],[540,300,580,400]].forEach(([x1,y1,x2,y2]) => {
+    ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+  });
+
+  // Lava glow on ground
+  const groundGlow = ctx.createRadialGradient(300, SKY_H+10, 10, 300, SKY_H+50, 250);
+  groundGlow.addColorStop(0, 'rgba(255,80,0,0.25)');
+  groundGlow.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = groundGlow; ctx.fillRect(0, SKY_H, CW, CH - SKY_H);
+
+  // Rock formations
+  drawRockFormation(48,  CH-15, 90, 140, false);
+  drawRockFormation(120, CH-15, 65, 95,  true);
+  drawRockFormation(185, CH-15, 50, 70,  false);
+  drawRockFormation(548, CH-15, 95, 145, false);
+  drawRockFormation(475, CH-15, 70, 100, true);
+  drawRockFormation(410, CH-15, 55, 75,  false);
+  drawRockFormation(290, CH-15, 45, 55,  true);
+
+  // LAVA POOLS
+  ctx.save();
+  ctx.shadowColor = '#FF5500'; ctx.shadowBlur = 25;
+
+  // Main lava lake at bottom
+  const lakeGrad = ctx.createLinearGradient(0, CH-55, 0, CH);
+  const lp = 0.8 + Math.sin(now*0.002)*0.2;
+  lakeGrad.addColorStop(0, `rgba(255,${Math.floor(100*lp)},0,1)`);
+  lakeGrad.addColorStop(0.5, `rgba(220,${Math.floor(60*lp)},0,0.95)`);
+  lakeGrad.addColorStop(1, `rgba(160,20,0,0.9)`);
+  ctx.fillStyle = lakeGrad;
+  ctx.beginPath();
+  for (let x = 0; x <= CW; x += 8) {
+    const wy = CH - 35 + Math.sin(x*0.05 + now*0.002)*6 + Math.sin(x*0.09+now*0.0015)*3;
+    x===0 ? ctx.moveTo(x, wy) : ctx.lineTo(x, wy);
+  }
+  ctx.lineTo(CW, CH); ctx.lineTo(0, CH); ctx.closePath(); ctx.fill();
+
+  // Lava shimmer/highlights
+  ctx.shadowBlur = 0;
+  ctx.globalAlpha = 0.3 + Math.sin(now*0.003)*0.1;
+  ctx.fillStyle = '#FFEE00';
+  for (let i = 0; i < 6; i++) {
+    const hx = 50 + i*90 + Math.sin(now*0.001+i)*20;
+    const hy = CH - 28 + Math.sin(now*0.002+i*0.7)*5;
+    ctx.beginPath(); ctx.ellipse(hx, hy, 22+i%3*8, 4, 0, 0, Math.PI*2); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+  ctx.restore();
+
+  // Lava bubbles
+  bubbles.forEach(b => {
+    b.phase += b.spd;
+    b.r = Math.abs(Math.sin(b.phase)) * b.maxR;
+    if (b.r < 0.3 && Math.sin(b.phase) < 0) {
+      b.x = 20 + Math.random() * 560;
+      b.maxR = 3 + Math.random() * 7;
+      b.spd = 0.03 + Math.random() * 0.07;
+    }
+    if (b.r < 0.3) return;
+    const ba = 0.4 + Math.sin(b.phase)*0.3;
+    ctx.fillStyle = `rgba(255,200,0,${ba})`;
+    ctx.beginPath(); ctx.arc(b.x, CH - 20 + Math.sin(b.phase)*4, b.r, 0, Math.PI*2); ctx.fill();
+  });
+
+  // Embers
+  embers.forEach(e => {
+    e.life += 0.018;
+    if (e.life > e.max) {
+      e.life = 0;
+      e.x = 270 + (Math.random()-0.5)*50;
+      e.y = SKY_H*0.10 + Math.random()*30;
+      e.vx = (Math.random()-0.5)*2;
+      e.vy = -(0.8+Math.random()*2);
+    }
+    e.x += e.vx + Math.sin(e.life*3)*0.3;
+    e.y += e.vy; e.vy += 0.03;
+    const ea = Math.max(0, 1 - e.life/e.max);
+    const heat = Math.floor(255*ea);
+    const col = ea > 0.6 ? `rgba(255,255,${Math.floor(heat*0.3)},${ea})` : `rgba(255,${Math.floor(heat*0.5)},0,${ea})`;
+    ctx.fillStyle = col;
+    ctx.beginPath(); ctx.arc(e.x, e.y, e.r*ea + 0.5, 0, Math.PI*2); ctx.fill();
+  });
+
+  // Ash
+  ash.forEach(a => {
+    a.y += a.spd; a.x += a.drift;
+    if (a.y > CH) { a.y = -4; a.x = Math.random()*CW; }
+    if (a.x < 0 || a.x > CW) a.x = Math.random()*CW;
+    ctx.globalAlpha = a.alpha;
+    ctx.fillStyle = '#996644';
+    ctx.beginPath(); ctx.arc(a.x, a.y, a.r, 0, Math.PI*2); ctx.fill();
+  });
+  ctx.globalAlpha = 1;
+
+  // Heat haze shimmer on horizon
+  ctx.save();
+  ctx.globalAlpha = 0.06 + Math.sin(now*0.003)*0.03;
+  ctx.fillStyle = '#FF6600';
+  ctx.fillRect(0, SKY_H - 8, CW, 30);
+  ctx.restore();
+
+  // Arena zone
+  ctx.save();
+  ctx.strokeStyle = 'rgba(255,100,0,0.3)';
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.ellipse(300, 360, 155, 50, 0, 0, Math.PI*2); ctx.stroke();
+  ctx.font = 'bold 13px Arial'; ctx.fillStyle = 'rgba(255,140,0,0.7)';
+  ctx.textAlign = 'center'; ctx.fillText('🏟️  ARENA ZONE', 300, 365);
+  ctx.restore();
+
+  requestAnimationFrame(drawScene);
+}
+requestAnimationFrame(drawScene);
+</script>
+</body>
+</html>

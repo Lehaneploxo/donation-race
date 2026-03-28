@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Shao Kahn Preview</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #050510; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; font-family: Arial, sans-serif; color: #fff; }
+  h2 { margin-bottom: 6px; font-size: 20px; color: #cc6600; letter-spacing: 2px; text-shadow: 0 0 14px rgba(200,80,0,0.9); }
+  p { margin-bottom: 18px; font-size: 12px; color: #666; }
+  canvas { border: 1px solid #1a0800; border-radius: 14px; background: radial-gradient(ellipse at 50% 60%, #0a0402 0%, #020101 100%); }
+</style>
+</head>
+<body>
+  <h2>💀 ШАО КАН</h2>
+  <p>Emperor of Outworld</p>
+  <canvas id="c" width="300" height="380"></canvas>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+function drawShaoKahn(cx, cy, now) {
+  ctx.save();
+  ctx.translate(cx, cy);
+  const bob = Math.sin(now * 0.0014) * 1.5;
+  ctx.translate(0, bob);
+  const swing = Math.sin(now * 0.0014) * 2;
+
+  // Shadow
+  ctx.fillStyle = 'rgba(0,0,0,0.55)';
+  ctx.beginPath(); ctx.ellipse(0, 8, 32, 7, 0, 0, Math.PI*2); ctx.fill();
+
+  // ── WARHAMMER (right side, behind arm) ──
+  ctx.save();
+  ctx.translate(26, -95);
+  ctx.rotate(0.15 + swing * 0.006);
+  // handle
+  ctx.fillStyle = '#241408';
+  ctx.beginPath(); ctx.roundRect(-4, 0, 8, 90, 3); ctx.fill();
+  ctx.fillStyle = '#7a5010';
+  for(let i = 0; i < 4; i++) {
+    ctx.beginPath(); ctx.roundRect(-5, 15+i*18, 10, 5, 1); ctx.fill();
+  }
+  // hammer head
+  const hg = ctx.createLinearGradient(-22, -30, 22, 8);
+  hg.addColorStop(0, '#4a2c0c'); hg.addColorStop(0.4, '#8a5520'); hg.addColorStop(0.7, '#7a4818'); hg.addColorStop(1, '#3a2008');
+  ctx.fillStyle = hg;
+  ctx.beginPath(); ctx.roundRect(-22, -30, 44, 34, 4); ctx.fill();
+  ctx.strokeStyle = 'rgba(160,100,30,0.6)'; ctx.lineWidth = 1; ctx.stroke();
+  // top spikes
+  ctx.fillStyle = '#c08030';
+  ctx.beginPath(); ctx.moveTo(-10,-30); ctx.lineTo(-6,-44); ctx.lineTo(-2,-30); ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(2,-30); ctx.lineTo(6,-44); ctx.lineTo(10,-30); ctx.closePath(); ctx.fill();
+  // glow pulse
+  const gp = 0.15 + Math.sin(now*0.003)*0.07;
+  ctx.globalAlpha = gp;
+  ctx.fillStyle = '#ff8800';
+  ctx.beginPath(); ctx.roundRect(-22, -30, 44, 34, 4); ctx.fill();
+  ctx.globalAlpha = 1;
+  ctx.restore();
+
+  // ── BOOTS ──
+  ctx.fillStyle = '#180e04';
+  ctx.beginPath(); ctx.roundRect(-16, -34, 14, 34, 3); ctx.fill();
+  ctx.beginPath(); ctx.roundRect(2, -34, 14, 34, 3); ctx.fill();
+  ctx.fillStyle = '#0e0802';
+  ctx.beginPath(); ctx.ellipse(-9, 0, 13, 5, 0, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(9, 0, 13, 5, 0, 0, Math.PI*2); ctx.fill();
+  // boot trim
+  ctx.fillStyle = '#7a4c10';
+  ctx.beginPath(); ctx.roundRect(-17,-36,15,7,2); ctx.fill();
+  ctx.beginPath(); ctx.roundRect(2,-36,15,7,2); ctx.fill();
+
+  // ── LEGS ──
+  ctx.fillStyle = '#281404';
+  ctx.beginPath(); ctx.roundRect(-15,-88,13,54,3); ctx.fill();
+  ctx.beginPath(); ctx.roundRect(2,-88,13,54,3); ctx.fill();
+  // knee pads
+  ctx.fillStyle = '#9a5c18';
+  ctx.beginPath(); ctx.ellipse(-8,-62,10,8,0,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(8,-62,10,8,0,0,Math.PI*2); ctx.fill();
+  ctx.strokeStyle = 'rgba(200,130,40,0.5)'; ctx.lineWidth=1; ctx.stroke();
+
+  // ── BELT + LOINCLOTH ──
+  const bG = ctx.createLinearGradient(-22,-96,22,-88);
+  bG.addColorStop(0,'#5a3408'); bG.addColorStop(0.5,'#c08828'); bG.addColorStop(1,'#5a3408');
+  ctx.fillStyle = bG;
+  ctx.beginPath(); ctx.roundRect(-22,-96,44,10,2); ctx.fill();
+  ctx.strokeStyle='rgba(220,160,40,0.5)'; ctx.lineWidth=0.8; ctx.stroke();
+  // front cloth
+  ctx.fillStyle = '#200e02';
+  ctx.beginPath();
+  ctx.moveTo(-11,-90); ctx.bezierCurveTo(-13,-74,-12,-60,-9,-48);
+  ctx.lineTo(9,-48); ctx.bezierCurveTo(12,-60,13,-74,11,-90);
+  ctx.closePath(); ctx.fill();
+  ctx.strokeStyle='rgba(140,80,20,0.3)'; ctx.lineWidth=0.8; ctx.stroke();
+
+  // ── TORSO — bare muscular, wide ──
+  const torG = ctx.createLinearGradient(-24,-180,24,-88);
+  torG.addColorStop(0,'#8a5028'); torG.addColorStop(0.4,'#7a4420'); torG.addColorStop(1,'#5a3015');
+  ctx.fillStyle = torG;
+  ctx.beginPath(); ctx.roundRect(-24,-178,48,90,4); ctx.fill();
+
+  // muscle lines
+  ctx.strokeStyle='rgba(50,20,5,0.3)'; ctx.lineWidth=1.2;
+  ctx.beginPath(); ctx.moveTo(0,-178); ctx.lineTo(0,-130); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(-20,-155); ctx.quadraticCurveTo(0,-148,20,-155); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(-18,-140); ctx.lineTo(18,-140); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(-16,-128); ctx.lineTo(16,-128); ctx.stroke();
+  // pec shadows
+  ctx.fillStyle='rgba(40,15,3,0.22)';
+  ctx.beginPath(); ctx.ellipse(-10,-158,10,10,0.1,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(10,-158,10,10,-0.1,0,Math.PI*2); ctx.fill();
+  // torso outline
+  ctx.strokeStyle='rgba(60,28,8,0.4)'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.roundRect(-24,-178,48,90,4); ctx.stroke();
+
+  // ── SHOULDER ARMOR — wide spiked ──
+  const shG = ctx.createLinearGradient(-52,-175,52,-150);
+  shG.addColorStop(0,'#2a1408'); shG.addColorStop(0.5,'#7a4818'); shG.addColorStop(1,'#2a1408');
+  ctx.fillStyle = shG;
+  // left shoulder pad
+  ctx.beginPath(); ctx.ellipse(-34,-158,18,12,0.2,0,Math.PI*2); ctx.fill();
+  ctx.strokeStyle='rgba(180,100,25,0.5)'; ctx.lineWidth=1; ctx.stroke();
+  // left spikes
+  ctx.fillStyle='#b06820';
+  ctx.beginPath(); ctx.moveTo(-34,-170); ctx.lineTo(-30,-186); ctx.lineTo(-26,-170); ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(-44,-165); ctx.lineTo(-40,-178); ctx.lineTo(-36,-165); ctx.closePath(); ctx.fill();
+  // left side spike outward
+  ctx.beginPath(); ctx.moveTo(-48,-158); ctx.bezierCurveTo(-60,-150,-62,-140,-56,-136); ctx.bezierCurveTo(-50,-138,-46,-148,-42,-158); ctx.closePath(); ctx.fill();
+
+  // right shoulder pad
+  ctx.fillStyle = shG;
+  ctx.beginPath(); ctx.ellipse(34,-158,18,12,-0.2,0,Math.PI*2); ctx.fill();
+  ctx.strokeStyle='rgba(180,100,25,0.5)'; ctx.lineWidth=1; ctx.stroke();
+  ctx.fillStyle='#b06820';
+  ctx.beginPath(); ctx.moveTo(34,-170); ctx.lineTo(30,-186); ctx.lineTo(26,-170); ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(44,-165); ctx.lineTo(40,-178); ctx.lineTo(36,-165); ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(48,-158); ctx.bezierCurveTo(60,-150,62,-140,56,-136); ctx.bezierCurveTo(50,-138,46,-148,42,-158); ctx.closePath(); ctx.fill();
+
+  // ── LEFT ARM ──
+  ctx.fillStyle='#7a4020';
+  ctx.beginPath(); ctx.roundRect(-42,-170-swing,16,58,4); ctx.fill();
+  ctx.fillStyle='#6a3418';
+  ctx.beginPath(); ctx.roundRect(-42,-125-swing,16,14,3); ctx.fill();
+  ctx.strokeStyle='rgba(160,90,25,0.4)'; ctx.lineWidth=0.8; ctx.stroke();
+  ctx.fillStyle='#5a2c10';
+  ctx.beginPath(); ctx.ellipse(-34,-110-swing,9,8,0,0,Math.PI*2); ctx.fill();
+
+  // ── RIGHT ARM ──
+  ctx.fillStyle='#7a4020';
+  ctx.beginPath(); ctx.roundRect(26,-170,16,58,4); ctx.fill();
+  ctx.fillStyle='#6a3418';
+  ctx.beginPath(); ctx.roundRect(26,-125,16,14,3); ctx.fill();
+  ctx.fillStyle='#5a2c10';
+  ctx.beginPath(); ctx.ellipse(34,-110,9,8,0,0,Math.PI*2); ctx.fill();
+
+  // ── NECK ──
+  ctx.fillStyle='#6a3818';
+  ctx.beginPath(); ctx.roundRect(-8,-186,16,12,3); ctx.fill();
+
+  // ════════════════════════════════
+  // ── HELMET — iconic Shao Kahn ──
+  // ════════════════════════════════
+
+  // Helmet back/base (dark)
+  ctx.fillStyle = '#0e0804';
+  ctx.beginPath(); ctx.ellipse(0,-215,26,32,0,0,Math.PI*2); ctx.fill();
+
+  // Helmet main shape — wide, flat top
+  const helmG = ctx.createLinearGradient(-28,-248,28,-188);
+  helmG.addColorStop(0,'#3a2210'); helmG.addColorStop(0.3,'#6a4020'); helmG.addColorStop(0.6,'#5a3418'); helmG.addColorStop(1,'#2a1408');
+  ctx.fillStyle = helmG;
+  ctx.beginPath();
+  // flat top
+  ctx.moveTo(-26,-248);
+  ctx.lineTo(26,-248);
+  // right side slope down
+  ctx.bezierCurveTo(30,-244,32,-236,30,-228);
+  ctx.bezierCurveTo(28,-220,24,-212,22,-202);
+  ctx.bezierCurveTo(18,-196,10,-192,0,-192);
+  ctx.bezierCurveTo(-10,-192,-18,-196,-22,-202);
+  ctx.bezierCurveTo(-24,-212,-28,-220,-30,-228);
+  ctx.bezierCurveTo(-32,-236,-30,-244,-26,-248);
+  ctx.closePath(); ctx.fill();
+  ctx.strokeStyle='rgba(160,100,30,0.5)'; ctx.lineWidth=1.5; ctx.stroke();
+
+  // Gold trim on helmet
+  const trimG = ctx.createLinearGradient(-28,-250,28,-248);
+  trimG.addColorStop(0,'#8a5c18'); trimG.addColorStop(0.5,'#e0b030'); trimG.addColorStop(1,'#8a5c18');
+  ctx.fillStyle = trimG;
+  ctx.beginPath(); ctx.roundRect(-27,-252,54,8,2); ctx.fill();
+  ctx.strokeStyle='rgba(220,170,40,0.5)'; ctx.lineWidth=0.8; ctx.stroke();
+
+  // Gold side trim lines
+  ctx.strokeStyle='rgba(200,140,30,0.4)'; ctx.lineWidth=1.2;
+  ctx.beginPath(); ctx.moveTo(-26,-246); ctx.bezierCurveTo(-28,-230,-28,-215,-22,-200); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(26,-246); ctx.bezierCurveTo(28,-230,28,-215,22,-200); ctx.stroke();
+
+  // ── EYE HOLES — large, oval, glowing ──
+  // dark socket
+  ctx.fillStyle = '#050302';
+  ctx.beginPath(); ctx.ellipse(-10,-222,9,10,0.08,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(10,-222,9,10,-0.08,0,Math.PI*2); ctx.fill();
+  // inner glow green (classic MK Shao Kahn)
+  const eyeP = 0.8+Math.sin(now*0.004)*0.2;
+  ctx.fillStyle = `rgba(0,${Math.floor(180*eyeP)},0,0.85)`;
+  ctx.beginPath(); ctx.ellipse(-10,-222,6,7,0.08,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(10,-222,6,7,-0.08,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle = `rgba(100,255,100,${eyeP*0.9})`;
+  ctx.beginPath(); ctx.ellipse(-10,-222,3,4,0,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(10,-222,3,4,0,0,Math.PI*2); ctx.fill();
+  // eye glow spill
+  ctx.globalAlpha = eyeP*0.2;
+  const eg1 = ctx.createRadialGradient(-10,-222,2,-10,-222,14);
+  eg1.addColorStop(0,'rgba(0,255,0,0.5)'); eg1.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.fillStyle=eg1; ctx.beginPath(); ctx.arc(-10,-222,14,0,Math.PI*2); ctx.fill();
+  const eg2 = ctx.createRadialGradient(10,-222,2,10,-222,14);
+  eg2.addColorStop(0,'rgba(0,255,0,0.5)'); eg2.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.fillStyle=eg2; ctx.beginPath(); ctx.arc(10,-222,14,0,Math.PI*2); ctx.fill();
+  ctx.globalAlpha=1;
+
+  // ── NOSE PIECE ──
+  ctx.fillStyle='#4a2c10';
+  ctx.beginPath(); ctx.moveTo(-4,-212); ctx.lineTo(-2,-204); ctx.lineTo(2,-204); ctx.lineTo(4,-212); ctx.closePath(); ctx.fill();
+
+  // ── MOUTH / LOWER FACE ──
+  // jaw area
+  ctx.fillStyle='#5a3418';
+  ctx.beginPath();
+  ctx.moveTo(-20,-204);
+  ctx.bezierCurveTo(-18,-196,-10,-192,0,-192);
+  ctx.bezierCurveTo(10,-192,18,-196,20,-204);
+  ctx.lineTo(18,-204);
+  ctx.bezierCurveTo(16,-198,10,-194,0,-194);
+  ctx.bezierCurveTo(-10,-194,-16,-198,-18,-204);
+  ctx.closePath(); ctx.fill();
+  // teeth — showing menace
+  ctx.fillStyle='#d4b060';
+  for(let i=-3;i<=3;i++){
+    ctx.beginPath(); ctx.roundRect(i*5-2,-204,4,7,1); ctx.fill();
+  }
+  ctx.strokeStyle='rgba(80,50,10,0.5)'; ctx.lineWidth=0.6;
+  for(let i=-3;i<=3;i++){
+    ctx.beginPath(); ctx.moveTo(i*5,-204); ctx.lineTo(i*5,-196); ctx.stroke();
+  }
+
+  // ── HELMET CENTER CREST ──
+  ctx.fillStyle='#c08828';
+  ctx.beginPath();
+  ctx.moveTo(-5,-248); ctx.lineTo(-2,-264); ctx.lineTo(0,-268); ctx.lineTo(2,-264); ctx.lineTo(5,-248);
+  ctx.bezierCurveTo(3,-252,0,-252,-5,-248);
+  ctx.closePath(); ctx.fill();
+  ctx.strokeStyle='rgba(220,160,40,0.5)'; ctx.lineWidth=0.8; ctx.stroke();
+  // crest gem
+  ctx.fillStyle='#ff4400';
+  ctx.beginPath(); ctx.arc(0,-258,3,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='rgba(255,150,50,0.8)';
+  ctx.beginPath(); ctx.arc(-0.5,-258.5,1.5,0,Math.PI*2); ctx.fill();
+
+  // ── AURA ──
+  ctx.globalAlpha = 0.07+Math.sin(now*0.002)*0.03;
+  const aura = ctx.createRadialGradient(0,-140,20,0,-140,115);
+  aura.addColorStop(0,'rgba(180,80,0,0.7)'); aura.addColorStop(1,'rgba(80,20,0,0)');
+  ctx.fillStyle=aura; ctx.beginPath(); ctx.arc(0,-140,115,0,Math.PI*2); ctx.fill();
+  ctx.globalAlpha=1;
+
+  ctx.restore();
+}
+
+function drawLabels(now) {
+  ctx.save(); ctx.textAlign='center';
+  ctx.fillStyle='rgba(0,0,0,0.6)';
+  ctx.beginPath(); ctx.roundRect(150-38,46,76,9,3); ctx.fill();
+  ctx.fillStyle='#881500';
+  ctx.beginPath(); ctx.roundRect(150-37,47,74,7,2); ctx.fill();
+  ctx.font='bold 11px Arial Black';
+  ctx.strokeStyle='rgba(0,0,0,0.9)'; ctx.lineWidth=3;
+  ctx.strokeText('Shao Kahn',150,44);
+  ctx.fillStyle='#ff8800'; ctx.fillText('Shao Kahn',150,44);
+  ctx.font='9px Arial';
+  ['❤️ 800','⚔️ 75','💀 68'].forEach((s,i)=>{
+    ctx.fillStyle='rgba(0,0,0,0.5)';
+    ctx.beginPath(); ctx.roundRect(150-34+i*23,58,22,13,3); ctx.fill();
+    ctx.fillStyle='#ffbb66'; ctx.fillText(s,150-23+i*23,68);
+  });
+  ctx.restore();
+}
+
+function loop(ts) {
+  ctx.clearRect(0,0,300,380);
+  drawShaoKahn(150,310,ts);
+  drawLabels(ts);
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Princess Leia Preview</title>
+<style>
+  body { background: #1a1a2e; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+  canvas { border: 1px solid #333; }
+</style>
+</head>
+<body>
+<canvas id="c" width="300" height="450"></canvas>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+function drawLeia(cx, cy, now) {
+  ctx.save();
+  ctx.translate(cx, cy);
+
+  const t = now * 0.001;
+  const dressSwing = Math.sin(t * 1.4) * 2;
+  const armSwing = Math.sin(t * 1.8) * 0.12;
+
+  // Shadow
+  ctx.fillStyle = 'rgba(0,0,0,0.35)';
+  ctx.beginPath(); ctx.ellipse(0, 72, 20, 5, 0, 0, Math.PI*2); ctx.fill();
+
+  // DRESS (long white)
+  const dressG = ctx.createLinearGradient(-22, -20, 22, 70);
+  dressG.addColorStop(0, '#f5f5f0');
+  dressG.addColorStop(0.5, '#ededea');
+  dressG.addColorStop(1, '#e0e0dd');
+  ctx.fillStyle = dressG;
+  ctx.beginPath();
+  ctx.moveTo(-18, -20);
+  ctx.bezierCurveTo(-22+dressSwing, 10, -26+dressSwing, 40, -22+dressSwing, 72);
+  ctx.lineTo(22-dressSwing, 72);
+  ctx.bezierCurveTo(26-dressSwing, 40, 22-dressSwing, 10, 18, -20);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = '#ccccc8'; ctx.lineWidth = 0.8; ctx.stroke();
+
+  // Dress folds
+  ctx.strokeStyle = 'rgba(180,180,176,0.5)'; ctx.lineWidth = 0.7;
+  for (let i = -1; i <= 1; i++) {
+    ctx.beginPath();
+    ctx.moveTo(i * 8, -10);
+    ctx.bezierCurveTo(i*9+dressSwing*0.3, 20, i*10+dressSwing*0.5, 50, i*8+dressSwing*0.6, 72);
+    ctx.stroke();
+  }
+
+  // Belt
+  ctx.fillStyle = '#e8e8e4';
+  ctx.beginPath(); ctx.roundRect(-16, -24, 32, 8, 2); ctx.fill();
+  ctx.strokeStyle = '#ccc'; ctx.lineWidth = 0.8; ctx.stroke();
+
+  // TORSO
+  const torsoG = ctx.createLinearGradient(-14, -60, 14, -20);
+  torsoG.addColorStop(0, '#f8f8f4');
+  torsoG.addColorStop(1, '#f0f0ec');
+  ctx.fillStyle = torsoG;
+  ctx.beginPath(); ctx.roundRect(-14, -62, 28, 42, 4); ctx.fill();
+  ctx.strokeStyle = '#ddddd8'; ctx.lineWidth = 0.8; ctx.stroke();
+
+  // LEFT ARM
+  ctx.save();
+  ctx.translate(-14, -52);
+  ctx.rotate(-armSwing - 0.15);
+  ctx.fillStyle = '#f5f5f0';
+  ctx.beginPath(); ctx.roundRect(-8, 0, 8, 20, 4); ctx.fill();
+  ctx.strokeStyle = '#ddd'; ctx.lineWidth = 0.8; ctx.stroke();
+  ctx.save(); ctx.translate(-4, 22); ctx.rotate(-0.3);
+  ctx.fillStyle = '#f0f0eb';
+  ctx.beginPath(); ctx.roundRect(-4, 0, 8, 18, 3); ctx.fill();
+  ctx.strokeStyle = '#ddd'; ctx.stroke();
+  ctx.fillStyle = '#f5d5b0';
+  ctx.beginPath(); ctx.ellipse(0, 20, 4, 5, 0, 0, Math.PI*2); ctx.fill();
+  ctx.restore();
+  ctx.restore();
+
+  // RIGHT ARM with blaster
+  ctx.save();
+  ctx.translate(14, -52);
+  ctx.rotate(armSwing + 0.15);
+  ctx.fillStyle = '#f5f5f0';
+  ctx.beginPath(); ctx.roundRect(0, 0, 8, 20, 4); ctx.fill();
+  ctx.strokeStyle = '#ddd'; ctx.lineWidth = 0.8; ctx.stroke();
+  ctx.save(); ctx.translate(4, 22); ctx.rotate(0.3);
+  ctx.fillStyle = '#f0f0eb';
+  ctx.beginPath(); ctx.roundRect(-4, 0, 8, 18, 3); ctx.fill();
+  ctx.strokeStyle = '#ddd'; ctx.stroke();
+  ctx.fillStyle = '#f5d5b0';
+  ctx.beginPath(); ctx.ellipse(0, 20, 4, 5, 0, 0, Math.PI*2); ctx.fill();
+  // Blaster
+  ctx.fillStyle = '#555';
+  ctx.beginPath(); ctx.roundRect(-3, 18, 14, 5, 2); ctx.fill();
+  ctx.fillStyle = '#444';
+  ctx.beginPath(); ctx.roundRect(8, 19, 8, 3, 1); ctx.fill();
+  ctx.fillStyle = '#333';
+  ctx.beginPath(); ctx.roundRect(-2, 16, 5, 3, 1); ctx.fill();
+  ctx.fillStyle = 'rgba(255,120,0,0.5)';
+  ctx.beginPath(); ctx.arc(16, 20, 2, 0, Math.PI*2); ctx.fill();
+  ctx.restore();
+  ctx.restore();
+
+  // NECK
+  ctx.fillStyle = '#f5d5b0';
+  ctx.beginPath(); ctx.roundRect(-5, -72, 10, 12, 3); ctx.fill();
+
+  // HAIR BUNS
+  const bunG1 = ctx.createRadialGradient(-21, -88, 2, -21, -88, 12);
+  bunG1.addColorStop(0, '#8B7355');
+  bunG1.addColorStop(0.6, '#6B5535');
+  bunG1.addColorStop(1, '#4a3820');
+  ctx.fillStyle = bunG1;
+  ctx.beginPath(); ctx.ellipse(-21, -88, 12, 10, -0.2, 0, Math.PI*2); ctx.fill();
+  ctx.strokeStyle = '#3a2810'; ctx.lineWidth = 0.8; ctx.stroke();
+  ctx.strokeStyle = 'rgba(30,20,10,0.4)'; ctx.lineWidth = 0.8;
+  ctx.beginPath(); ctx.arc(-21, -88, 8, 0.2, Math.PI*1.8); ctx.stroke();
+  ctx.beginPath(); ctx.arc(-21, -88, 5, 0.4, Math.PI*1.6); ctx.stroke();
+  ctx.beginPath(); ctx.arc(-21, -88, 2.5, 0.3, Math.PI*1.7); ctx.stroke();
+
+  const bunG2 = ctx.createRadialGradient(21, -88, 2, 21, -88, 12);
+  bunG2.addColorStop(0, '#8B7355');
+  bunG2.addColorStop(0.6, '#6B5535');
+  bunG2.addColorStop(1, '#4a3820');
+  ctx.fillStyle = bunG2;
+  ctx.beginPath(); ctx.ellipse(21, -88, 12, 10, 0.2, 0, Math.PI*2); ctx.fill();
+  ctx.strokeStyle = '#3a2810'; ctx.lineWidth = 0.8; ctx.stroke();
+  ctx.strokeStyle = 'rgba(30,20,10,0.4)'; ctx.lineWidth = 0.8;
+  ctx.beginPath(); ctx.arc(21, -88, 8, Math.PI*0.2, Math.PI*1.8); ctx.stroke();
+  ctx.beginPath(); ctx.arc(21, -88, 5, Math.PI*0.4, Math.PI*1.6); ctx.stroke();
+  ctx.beginPath(); ctx.arc(21, -88, 2.5, Math.PI*0.3, Math.PI*1.7); ctx.stroke();
+
+  // HEAD
+  const headG = ctx.createRadialGradient(-3, -100, 4, 0, -98, 18);
+  headG.addColorStop(0, '#fce8cc');
+  headG.addColorStop(0.7, '#f5d5b0');
+  headG.addColorStop(1, '#e8c090');
+  ctx.fillStyle = headG;
+  ctx.beginPath(); ctx.ellipse(0, -98, 15, 18, 0, 0, Math.PI*2); ctx.fill();
+  ctx.strokeStyle = '#e0b888'; ctx.lineWidth = 0.8; ctx.stroke();
+
+  // Top hair connecting buns
+  ctx.fillStyle = '#6B5535';
+  ctx.beginPath();
+  ctx.moveTo(-14, -108);
+  ctx.bezierCurveTo(-10, -118, 10, -118, 14, -108);
+  ctx.bezierCurveTo(10, -104, -10, -104, -14, -108);
+  ctx.closePath(); ctx.fill();
+
+  // Eyebrows
+  ctx.strokeStyle = '#5a3a20'; ctx.lineWidth = 1.2; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(-9, -106); ctx.quadraticCurveTo(-6, -109, -3, -107); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(3, -107); ctx.quadraticCurveTo(6, -109, 9, -106); ctx.stroke();
+
+  // Eyes
+  ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.ellipse(-6, -102, 4.5, 3, 0, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(6, -102, 4.5, 3, 0, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#4a2a10';
+  ctx.beginPath(); ctx.arc(-6, -102, 2.5, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(6, -102, 2.5, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#111';
+  ctx.beginPath(); ctx.arc(-6, -102, 1.5, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(6, -102, 1.5, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,0.7)';
+  ctx.beginPath(); ctx.arc(-5, -103, 0.8, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(7, -103, 0.8, 0, Math.PI*2); ctx.fill();
+
+  // Nose
+  ctx.strokeStyle = '#c8906a'; ctx.lineWidth = 0.8;
+  ctx.beginPath(); ctx.moveTo(-1.5, -98); ctx.lineTo(-2.5, -95); ctx.lineTo(2.5, -95); ctx.stroke();
+
+  // Lips
+  ctx.fillStyle = '#d4806a';
+  ctx.beginPath(); ctx.ellipse(0, -91, 4.5, 2, 0, 0, Math.PI*2); ctx.fill();
+
+  ctx.restore();
+}
+
+function loop() {
+  ctx.clearRect(0, 0, 300, 450);
+  ctx.fillStyle = '#1a1a2e';
+  ctx.fillRect(0, 0, 300, 450);
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold 18px Arial';
+  ctx.textAlign = 'center';
+  ctx.fillText('Princess Leia', 150, 30);
+  drawLeia(150, 210, Date.now());
+  requestAnimationFrame(loop);
+}
+loop();
+</script>
+</body>
+</html>

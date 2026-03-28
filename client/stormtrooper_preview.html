@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Stormtrooper Preview</title>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { background:#080810; display:flex; flex-direction:column; align-items:center; justify-content:center; height:100vh; font-family:Arial; color:#fff; }
+    h2 { margin-bottom:6px; font-size:20px; color:#ccd; letter-spacing:2px; }
+    p  { margin-bottom:18px; font-size:12px; color:#555; }
+    canvas { border:1px solid #1a1a2a; border-radius:14px; }
+  </style>
+</head>
+<body>
+<h2>⬜ СОЛДАТ ИМПЕРИИ</h2>
+<p>Imperial Stormtrooper — Star Wars</p>
+<canvas id="c" width="300" height="420"></canvas>
+<script>
+const cv=document.getElementById('c'), ctx=cv.getContext('2d');
+
+// Белый глянцевый градиент для брони
+function wg(x,w,y,h){
+  const gr=ctx.createLinearGradient(x,y,x+w,y+h);
+  gr.addColorStop(0,'#b0b8c8');
+  gr.addColorStop(0.3,'#f2f5fa');
+  gr.addColorStop(0.65,'#d8dde8');
+  gr.addColorStop(1,'#8890a0');
+  return gr;
+}
+
+function draw(now){
+  ctx.clearRect(0,0,300,420);
+  const cx=150, G=390+Math.sin(now*.0018)*2; // G = уровень ног
+
+  // тень
+  ctx.fillStyle='rgba(0,0,0,.3)';
+  ctx.beginPath();ctx.ellipse(cx,G,22,5,0,0,Math.PI*2);ctx.fill();
+
+  // ═══ НОГИ ════════════════════════════
+  // чёрный комбез подложка
+  ctx.fillStyle='#0d0d14';
+  ctx.fillRect(cx-19,G-80,38,80);
+
+  for(let s of[-1,1]){
+    const lx=cx+s*10; // центр ноги
+
+    // бедренная пластина
+    ctx.fillStyle=wg(lx-9,18,G-80,40);
+    ctx.beginPath();ctx.roundRect(lx-9,G-80,18,38,4);ctx.fill();
+    // рельефный выступ на бедре
+    ctx.fillStyle=wg(lx-6,12,G-68,14);
+    ctx.beginPath();ctx.roundRect(lx-6,G-68,12,14,3);ctx.fill();
+
+    // коленная чашечка — ромбовидная (левая нога)
+    ctx.fillStyle=wg(lx-8,16,G-44,16);
+    ctx.beginPath();ctx.ellipse(lx,G-42,9,8,0,0,Math.PI*2);ctx.fill();
+
+    // голень
+    ctx.fillStyle=wg(lx-8,16,G-34,30);
+    ctx.beginPath();ctx.roundRect(lx-8,G-34,16,30,4);ctx.fill();
+    // рельеф голени
+    ctx.fillStyle=wg(lx-5,10,G-28,16);
+    ctx.beginPath();ctx.roundRect(lx-5,G-28,10,16,2);ctx.fill();
+
+    // ботинок чёрный
+    ctx.fillStyle='#0d0d14';
+    ctx.beginPath();ctx.roundRect(lx-10,G-6,20,10,3);ctx.fill();
+
+    // линии панелей
+    ctx.strokeStyle='rgba(40,55,80,.4)';ctx.lineWidth=1;
+    ctx.beginPath();ctx.moveTo(lx-7,G-60);ctx.lineTo(lx+7,G-60);ctx.stroke();
+  }
+
+  // ═══ ПОЯС ════════════════════════════
+  // чёрный пояс
+  ctx.fillStyle='#0d0d14';ctx.fillRect(cx-21,G-86,42,10);
+  // белые коробки амуниции
+  for(let i=0;i<3;i++){
+    ctx.fillStyle=wg(cx-14+i*10,9,G-86,10);
+    ctx.beginPath();ctx.roundRect(cx-14+i*10,G-85,9,8,1);ctx.fill();
+  }
+  // таз
+  ctx.fillStyle=wg(cx-18,36,G-95,12);
+  ctx.beginPath();ctx.roundRect(cx-18,G-95,36,12,4);ctx.fill();
+
+  // ═══ ТОРС ════════════════════════════
+  // чёрная подложка
+  ctx.fillStyle='#0d0d14';ctx.beginPath();ctx.roundRect(cx-22,G-168,44,76,5);ctx.fill();
+
+  // грудные пластины — два трапециевидных куска
+  // левая
+  ctx.fillStyle=wg(cx-21,20,G-168,80);
+  ctx.beginPath();
+  ctx.moveTo(cx-1,G-168);ctx.lineTo(cx-21,G-158);
+  ctx.lineTo(cx-21,G-108);ctx.lineTo(cx-1,G-92);
+  ctx.closePath();ctx.fill();
+  // правая
+  ctx.fillStyle=wg(cx+1,20,G-168,80);
+  ctx.beginPath();
+  ctx.moveTo(cx+1,G-168);ctx.lineTo(cx+21,G-158);
+  ctx.lineTo(cx+21,G-108);ctx.lineTo(cx+1,G-92);
+  ctx.closePath();ctx.fill();
+
+  // рельефные бугры грудных пластин
+  ctx.fillStyle='rgba(255,255,255,.12)';
+  ctx.beginPath();ctx.ellipse(cx-10,G-140,7,10,0,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.ellipse(cx+10,G-140,7,10,0,0,Math.PI*2);ctx.fill();
+
+  // линии торса
+  ctx.strokeStyle='rgba(40,55,80,.35)';ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(cx-20,G-128);ctx.lineTo(cx+20,G-128);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(cx-20,G-112);ctx.lineTo(cx+20,G-112);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(cx,G-168);ctx.lineTo(cx,G-92);ctx.stroke();
+
+  // живот — горизонтальные сегменты (3 ряда)
+  for(let i=0;i<3;i++){
+    ctx.fillStyle=wg(cx-16,32,G-96+i*10,8);
+    ctx.beginPath();ctx.roundRect(cx-16,G-96+i*10,32,8,2);ctx.fill();
+  }
+
+  // ═══ ПЛЕЧИ ════════════════════════════
+  for(let s of[-1,1]){
+    ctx.fillStyle=wg(cx+s*28-14,28,G-162,24);
+    ctx.beginPath();ctx.ellipse(cx+s*28,G-154,16,12,s*.1,0,Math.PI*2);ctx.fill();
+    ctx.strokeStyle='rgba(40,55,80,.3)';ctx.lineWidth=1;
+    ctx.beginPath();ctx.ellipse(cx+s*28,G-154,16,12,s*.1,0,Math.PI*2);ctx.stroke();
+  }
+
+  // ═══ РУКИ ════════════════════════════
+  for(let s of[-1,1]){
+    // верхняя рука
+    ctx.fillStyle=wg(cx+s*38-7,14,G-168,54);
+    ctx.beginPath();ctx.roundRect(cx+s*38-7,G-168,14,52,5);ctx.fill();
+    // чёрный локоть
+    ctx.fillStyle='#0d0d14';ctx.beginPath();ctx.ellipse(cx+s*38,G-118,7,6,0,0,Math.PI*2);ctx.fill();
+    // предплечье с 12 выемками
+    ctx.fillStyle=wg(cx+s*38-6,12,G-116,38);
+    ctx.beginPath();ctx.roundRect(cx+s*38-6,G-116,12,38,4);ctx.fill();
+    // выемки на предплечье
+    ctx.strokeStyle='rgba(40,55,80,.35)';ctx.lineWidth=1;
+    for(let d=0;d<4;d++){
+      ctx.beginPath();ctx.moveTo(cx+s*38-4,G-110+d*8);ctx.lineTo(cx+s*38+4,G-110+d*8);ctx.stroke();
+    }
+    // перчатка
+    ctx.fillStyle='#0d0d14';ctx.beginPath();ctx.ellipse(cx+s*38,G-80,7,8,0,0,Math.PI*2);ctx.fill();
+  }
+
+  // ═══ БЛАСТЕР E-11 ════════════════════
+  const bx=cx+46, by=G-104;
+  // ствол
+  ctx.fillStyle='#1a1a24';ctx.beginPath();ctx.roundRect(bx-2,by,26,7,3);ctx.fill();
+  // кожух ствола
+  ctx.fillStyle='#222230';ctx.beginPath();ctx.roundRect(bx+8,by-1,14,5,1);ctx.fill();
+  // рукоять
+  ctx.fillStyle='#141420';ctx.beginPath();ctx.roundRect(bx,by+6,8,16,2);ctx.fill();
+  // магазин
+  ctx.fillStyle='#1e1e2c';ctx.beginPath();ctx.roundRect(bx+2,by+9,5,10,1);ctx.fill();
+  // прицел
+  ctx.fillStyle='#333';ctx.fillRect(bx+4,by-3,4,3);
+  // дуло
+  ctx.fillStyle='#080810';ctx.beginPath();ctx.arc(bx+24,by+3,3,0,Math.PI*2);ctx.fill();
+  ctx.strokeStyle='#333';ctx.lineWidth=1;ctx.beginPath();ctx.arc(bx+24,by+3,4,0,Math.PI*2);ctx.stroke();
+
+  // ═══ ШЕЯ ════════════════════════════
+  ctx.fillStyle='#0d0d14';ctx.beginPath();ctx.roundRect(cx-8,G-174,16,12,3);ctx.fill();
+
+  // ══════════════════════════════════════
+  // ═══ ШЛЕМ ════════════════════════════
+  // ══════════════════════════════════════
+  const hy=G-174; // нижний край шлема
+
+  // — Купол (высокий, белый, глянцевый)
+  ctx.fillStyle=wg(cx-24,48,hy-62,62);
+  ctx.beginPath();
+  ctx.moveTo(cx-24,hy);
+  ctx.bezierCurveTo(cx-28,hy-20, cx-26,hy-58, cx,hy-62);
+  ctx.bezierCurveTo(cx+26,hy-58, cx+28,hy-20, cx+24,hy);
+  ctx.closePath();ctx.fill();
+
+  // — Центральная линия купола
+  ctx.strokeStyle='rgba(40,55,80,.25)';ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(cx,hy-62);ctx.lineTo(cx,hy);ctx.stroke();
+
+  // — Надбровный выступ (brow ridge)
+  ctx.fillStyle=wg(cx-22,44,hy-32,10);
+  ctx.beginPath();
+  ctx.moveTo(cx-22,hy-32);ctx.lineTo(cx+22,hy-32);
+  ctx.bezierCurveTo(cx+22,hy-28,cx-22,hy-28,cx-22,hy-32);
+  ctx.closePath();ctx.fill();
+  ctx.strokeStyle='rgba(40,55,80,.35)';ctx.lineWidth=1.5;
+  ctx.beginPath();ctx.moveTo(cx-22,hy-32);ctx.lineTo(cx+22,hy-32);ctx.stroke();
+
+  // — Лицевая плита (ниже надбровья)
+  ctx.fillStyle=wg(cx-20,40,hy-32,32);
+  ctx.beginPath();ctx.roundRect(cx-20,hy-32,40,32,3);ctx.fill();
+
+  // ══ ГЛАЗА — главная черта штурмовика ══
+  // Треугольные/угловатые чёрные линзы, широкие снизу
+  ctx.fillStyle='#050510';
+  // левый глаз
+  ctx.beginPath();
+  ctx.moveTo(cx-20,hy-31);   // лев-верх
+  ctx.lineTo(cx-7, hy-32);   // прав-верх (уже)
+  ctx.lineTo(cx-5, hy-22);   // прав-низ (шире)
+  ctx.lineTo(cx-19,hy-21);   // лев-низ
+  ctx.closePath();ctx.fill();
+  // правый глаз
+  ctx.beginPath();
+  ctx.moveTo(cx+7,  hy-32);
+  ctx.lineTo(cx+20, hy-31);
+  ctx.lineTo(cx+19, hy-21);
+  ctx.lineTo(cx+5,  hy-22);
+  ctx.closePath();ctx.fill();
+  // синий блик в глазах (как тонированное стекло)
+  ctx.fillStyle='rgba(20,40,140,.4)';
+  ctx.beginPath();ctx.moveTo(cx-19,hy-30);ctx.lineTo(cx-8,hy-31);ctx.lineTo(cx-6,hy-25);ctx.lineTo(cx-18,hy-24);ctx.closePath();ctx.fill();
+  ctx.beginPath();ctx.moveTo(cx+8,hy-31);ctx.lineTo(cx+19,hy-30);ctx.lineTo(cx+18,hy-24);ctx.lineTo(cx+6,hy-25);ctx.closePath();ctx.fill();
+
+  // ══ "СЛЁЗЫ" под глазами ══
+  ctx.fillStyle='#050510';
+  ctx.beginPath();ctx.roundRect(cx-20,hy-21,3,8,1);ctx.fill(); // внеш-лев
+  ctx.beginPath();ctx.roundRect(cx-9, hy-21,2,6,1);ctx.fill(); // внутр-лев
+  ctx.beginPath();ctx.roundRect(cx+7, hy-21,2,6,1);ctx.fill(); // внутр-прав
+  ctx.beginPath();ctx.roundRect(cx+17,hy-21,3,8,1);ctx.fill(); // внеш-прав
+
+  // ══ НОС — Т-образный центральный выступ ══
+  // горизонтальная часть между глаз
+  ctx.fillStyle=wg(cx-6,12,hy-32,12);
+  ctx.beginPath();ctx.roundRect(cx-6,hy-32,12,8,2);ctx.fill();
+  // вертикальная полоска вниз
+  ctx.fillStyle=wg(cx-4,8,hy-24,16);
+  ctx.beginPath();ctx.roundRect(cx-4,hy-24,8,14,2);ctx.fill();
+
+  // ══ РОТ — перевёрнутая трапеция с 8 прорезями ══
+  ctx.fillStyle='#050510';
+  ctx.beginPath();
+  ctx.moveTo(cx-15,hy-12);
+  ctx.bezierCurveTo(cx-16,hy-16, cx+16,hy-16, cx+15,hy-12);
+  ctx.lineTo(cx+12,hy-2);
+  ctx.bezierCurveTo(cx+11,hy, cx-11,hy, cx-12,hy-2);
+  ctx.closePath();ctx.fill();
+  // 8 вентиляционных прорезей
+  ctx.fillStyle='rgba(20,24,40,.9)';
+  for(let i=0;i<4;i++){
+    ctx.beginPath();ctx.roundRect(cx-13+i*7,hy-14,5,5,1);ctx.fill();
+    ctx.beginPath();ctx.roundRect(cx-12+i*7,hy-9, 4,5,1);ctx.fill();
+  }
+
+  // ══ ФИЛЬТРЫ — круглые диски по бокам ══
+  for(let s of[-1,1]){
+    ctx.fillStyle='#0a0a16';
+    ctx.beginPath();ctx.arc(cx+s*21,hy-4,6,0,Math.PI*2);ctx.fill();
+    ctx.strokeStyle='rgba(100,110,140,.5)';ctx.lineWidth=1.2;
+    ctx.beginPath();ctx.arc(cx+s*21,hy-4,6,0,Math.PI*2);ctx.stroke();
+    // внутренний круг
+    ctx.fillStyle='#141424';
+    ctx.beginPath();ctx.arc(cx+s*21,hy-4,3,0,Math.PI*2);ctx.fill();
+  }
+
+  // — Боковые трубки шланга
+  ctx.strokeStyle='rgba(40,55,80,.5)';ctx.lineWidth=2;ctx.lineCap='round';
+  ctx.beginPath();ctx.moveTo(cx-23,hy-10);ctx.bezierCurveTo(cx-26,hy-4,cx-24,hy,cx-22,hy+2);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(cx+23,hy-10);ctx.bezierCurveTo(cx+26,hy-4,cx+24,hy,cx+22,hy+2);ctx.stroke();
+
+  // — Блик на шлеме
+  ctx.fillStyle='rgba(255,255,255,.06)';
+  ctx.beginPath();
+  ctx.moveTo(cx-8,hy-60);
+  ctx.bezierCurveTo(cx-16,hy-48,cx-18,hy-34,cx-15,hy-22);
+  ctx.bezierCurveTo(cx-11,hy-30,cx-9,hy-46,cx-5,hy-58);
+  ctx.closePath();ctx.fill();
+
+  // ═══ ПОДПИСИ ══════════════════════════
+  ctx.textAlign='center';
+  ctx.font='bold 13px Arial';
+  ctx.fillStyle='#ccd';ctx.shadowColor='#aabbdd';ctx.shadowBlur=8;
+  ctx.fillText('⬜ ИМПЕРИЯ',cx,30);ctx.shadowBlur=0;
+  ctx.font='bold 14px Arial';
+  ctx.strokeStyle='rgba(0,0,0,.9)';ctx.lineWidth=3;
+  ctx.strokeText('Stormtrooper',cx,48);
+  ctx.fillStyle='#eef2ff';ctx.fillText('Stormtrooper',cx,48);
+  ctx.font='bold 12px Arial';
+  ctx.strokeText('❤️ 220',cx,65);ctx.fillStyle='#ff6688';ctx.fillText('❤️ 220',cx,65);
+  ctx.strokeText('⚔️ 32', cx,80);ctx.fillStyle='#88ccff';ctx.fillText('⚔️ 32', cx,80);
+  ctx.strokeText('☠️ 18', cx,95);ctx.fillStyle='#ff4444';ctx.fillText('☠️ 18', cx,95);
+}
+
+function loop(now){ draw(now); requestAnimationFrame(loop); }
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

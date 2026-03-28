@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Goro Preview</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #050510; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; font-family: Arial, sans-serif; color: #fff; }
+  h2 { margin-bottom: 6px; font-size: 20px; color: #cc6600; letter-spacing: 2px; text-shadow: 0 0 14px rgba(200,80,0,0.9); }
+  p { margin-bottom: 18px; font-size: 12px; color: #666; }
+  canvas { border: 1px solid #1a0a00; border-radius: 14px; background: radial-gradient(ellipse at 50% 60%, #080402 0%, #020101 100%); }
+</style>
+</head>
+<body>
+  <h2>👹 ГОРО</h2>
+  <p>Shokan Prince — Four-Armed Destroyer</p>
+  <canvas id="c" width="300" height="380"></canvas>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+function drawGoro(cx, cy, now) {
+  ctx.save();
+  ctx.translate(cx, cy);
+  const bob = Math.sin(now * 0.0012) * 2;
+  ctx.translate(0, bob);
+  const breathe = Math.sin(now * 0.0014) * 1.5;
+  const swing = Math.sin(now * 0.0012) * 5;
+
+  // Shadow
+  ctx.fillStyle = 'rgba(0,0,0,0.55)';
+  ctx.beginPath(); ctx.ellipse(0, 6, 36, 7, 0, 0, Math.PI*2); ctx.fill();
+
+  // ── FEET (bare, huge) ──
+  ctx.fillStyle = '#b06028';
+  ctx.beginPath(); ctx.ellipse(-16, 0, 14, 6, -0.1, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(16, 0, 14, 6, 0.1, 0, Math.PI*2); ctx.fill();
+  // toes
+  ctx.fillStyle = '#9a5020';
+  for(let t = -2; t <= 2; t++) {
+    ctx.beginPath(); ctx.arc(-16 + t*5, -3, 3, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(16 + t*5, -3, 3, 0, Math.PI*2); ctx.fill();
+  }
+
+  // ── LEGS (massive) ──
+  const legG = ctx.createLinearGradient(-22, -80, 22, -8);
+  legG.addColorStop(0, '#c47030'); legG.addColorStop(0.5, '#b86028'); legG.addColorStop(1, '#a05020');
+  ctx.fillStyle = legG;
+  ctx.beginPath(); ctx.roundRect(-26, -80, 22, 80, 5); ctx.fill();
+  ctx.beginPath(); ctx.roundRect(4, -80, 22, 80, 5); ctx.fill();
+  // leg muscle lines
+  ctx.strokeStyle = 'rgba(70,25,5,0.3)'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(-22, -68); ctx.quadraticCurveTo(-15, -50, -18, -28); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(22, -68); ctx.quadraticCurveTo(15, -50, 18, -28); ctx.stroke();
+
+  // ── LOINCLOTH (gold) ──
+  const loG = ctx.createLinearGradient(0, -85, 0, -30);
+  loG.addColorStop(0, '#b88018'); loG.addColorStop(0.5, '#d49820'); loG.addColorStop(1, '#8a6010');
+  ctx.fillStyle = loG;
+  const ls = Math.sin(now * 0.001) * 2;
+  ctx.beginPath();
+  ctx.moveTo(-22, -85);
+  ctx.bezierCurveTo(-24, -65, -22 + ls, -48, -18 + ls, -32);
+  ctx.lineTo(18 + ls, -32);
+  ctx.bezierCurveTo(22 + ls, -48, 24, -65, 22, -85);
+  ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = 'rgba(200,150,20,0.5)'; ctx.lineWidth = 0.8; ctx.stroke();
+  // loincloth decorative lines
+  ctx.strokeStyle = 'rgba(100,70,5,0.4)'; ctx.lineWidth = 0.7;
+  ctx.beginPath(); ctx.moveTo(-10, -82); ctx.lineTo(-8, -38); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(0, -83); ctx.lineTo(0, -35); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(10, -82); ctx.lineTo(8, -38); ctx.stroke();
+
+  // ── BELT ──
+  ctx.fillStyle = '#8a6010';
+  ctx.beginPath(); ctx.roundRect(-24, -90, 48, 9, 3); ctx.fill();
+  ctx.fillStyle = '#d4a020';
+  ctx.beginPath(); ctx.roundRect(-6, -92, 12, 11, 3); ctx.fill();
+  ctx.fillStyle = '#f0c030';
+  ctx.beginPath(); ctx.arc(0, -87, 3.5, 0, Math.PI*2); ctx.fill();
+
+  // ── TORSO (massive, wide) ──
+  const torsoG = ctx.createLinearGradient(-40, -195, 40, -85);
+  torsoG.addColorStop(0, '#c87838'); torsoG.addColorStop(0.4, '#b86830'); torsoG.addColorStop(1, '#a05828');
+  ctx.fillStyle = torsoG;
+  ctx.beginPath();
+  ctx.moveTo(-38, -90);
+  ctx.bezierCurveTo(-45, -100, -48, -130, -44, -160);
+  ctx.bezierCurveTo(-42, -185, -30, -195, 0, -195 + breathe);
+  ctx.bezierCurveTo(30, -195, 42, -185, 44, -160);
+  ctx.bezierCurveTo(48, -130, 45, -100, 38, -90);
+  ctx.closePath(); ctx.fill();
+  // chest pecs
+  ctx.fillStyle = 'rgba(60,20,5,0.25)';
+  ctx.beginPath(); ctx.ellipse(-16, -150, 14, 12, 0.15, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(16, -150, 14, 12, -0.15, 0, Math.PI*2); ctx.fill();
+  // abs
+  ctx.strokeStyle = 'rgba(70,25,5,0.3)'; ctx.lineWidth = 1.2;
+  ctx.beginPath(); ctx.moveTo(0, -195); ctx.lineTo(0, -92); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(-28, -130); ctx.lineTo(28, -130); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(-26, -115); ctx.lineTo(26, -115); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(-24, -102); ctx.lineTo(24, -102); ctx.stroke();
+
+  // ── GOLD CHEST PLATE DECORATION ──
+  ctx.fillStyle = '#c09018';
+  ctx.beginPath(); ctx.roundRect(-8, -172, 16, 6, 2); ctx.fill();
+  ctx.fillStyle = '#e0aa20';
+  ctx.beginPath(); ctx.arc(0, -169, 4, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#ff3300';
+  ctx.beginPath(); ctx.arc(0, -169, 2, 0, Math.PI*2); ctx.fill();
+
+  // ── LOWER LEFT ARM (hangs down, swings opposite) ──
+  ctx.fillStyle = '#b86830';
+  ctx.beginPath(); ctx.roundRect(-52, -120 + swing * 0.6, 14, 58, 5); ctx.fill();
+  ctx.fillStyle = '#a05828';
+  ctx.beginPath(); ctx.ellipse(-45, -62 + swing * 0.6, 10, 8, 0, 0, Math.PI*2); ctx.fill();
+  // lower left fist knuckles
+  ctx.fillStyle = '#904818';
+  ctx.beginPath(); ctx.roundRect(-52, -72 + swing * 0.6, 14, 12, 3); ctx.fill();
+  ctx.strokeStyle = 'rgba(50,15,3,0.5)'; ctx.lineWidth = 0.8;
+  for(let k = 0; k < 4; k++) {
+    ctx.beginPath(); ctx.arc(-49 + k * 4, -66 + swing * 0.6, 1.8, 0, Math.PI*2); ctx.stroke();
+  }
+
+  // ── LOWER RIGHT ARM (swings up) ──
+  ctx.fillStyle = '#b86830';
+  ctx.beginPath(); ctx.roundRect(38, -120 - swing * 0.6, 14, 58, 5); ctx.fill();
+  ctx.fillStyle = '#a05828';
+  ctx.beginPath(); ctx.ellipse(45, -62 - swing * 0.6, 10, 8, 0, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#904818';
+  ctx.beginPath(); ctx.roundRect(38, -72 - swing * 0.6, 14, 12, 3); ctx.fill();
+  ctx.strokeStyle = 'rgba(50,15,3,0.5)'; ctx.lineWidth = 0.8;
+  for(let k = 0; k < 4; k++) {
+    ctx.beginPath(); ctx.arc(40 + k * 4, -66 - swing * 0.6, 1.8, 0, Math.PI*2); ctx.stroke();
+  }
+
+  // ── UPPER LEFT ARM (raised, swings) ──
+  ctx.save();
+  ctx.translate(-44, -170);
+  ctx.rotate(-0.25 - swing * 0.015);
+  ctx.fillStyle = '#b86830';
+  ctx.beginPath(); ctx.roundRect(-7, 0, 14, 52, 5); ctx.fill();
+  ctx.fillStyle = '#a05828';
+  ctx.beginPath(); ctx.ellipse(0, 52, 9, 7, 0, 0, Math.PI*2); ctx.fill();
+  // upper left fist
+  ctx.fillStyle = '#904818';
+  ctx.beginPath(); ctx.roundRect(-7, 46, 14, 12, 3); ctx.fill();
+  ctx.strokeStyle = 'rgba(50,15,3,0.5)'; ctx.lineWidth = 0.8;
+  for(let k = 0; k < 4; k++) {
+    ctx.beginPath(); ctx.arc(-4 + k * 3.5, 52, 1.8, 0, Math.PI*2); ctx.stroke();
+  }
+  ctx.restore();
+
+  // ── UPPER RIGHT ARM ──
+  ctx.save();
+  ctx.translate(44, -170);
+  ctx.rotate(0.25 + swing * 0.015);
+  ctx.fillStyle = '#b86830';
+  ctx.beginPath(); ctx.roundRect(-7, 0, 14, 52, 5); ctx.fill();
+  ctx.fillStyle = '#a05828';
+  ctx.beginPath(); ctx.ellipse(0, 52, 9, 7, 0, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#904818';
+  ctx.beginPath(); ctx.roundRect(-7, 46, 14, 12, 3); ctx.fill();
+  ctx.strokeStyle = 'rgba(50,15,3,0.5)'; ctx.lineWidth = 0.8;
+  for(let k = 0; k < 4; k++) {
+    ctx.beginPath(); ctx.arc(-4 + k * 3.5, 52, 1.8, 0, Math.PI*2); ctx.stroke();
+  }
+  ctx.restore();
+
+  // ── SHOULDER ARMOR PLATES ──
+  ctx.fillStyle = '#a07818';
+  ctx.beginPath(); ctx.ellipse(-42, -175, 14, 9, -0.3, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(42, -175, 14, 9, 0.3, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#c09420';
+  ctx.beginPath(); ctx.ellipse(-42, -175, 10, 6, -0.3, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(42, -175, 10, 6, 0.3, 0, Math.PI*2); ctx.fill();
+  // shoulder spikes
+  ctx.fillStyle = '#c09420';
+  ctx.beginPath(); ctx.moveTo(-50, -180); ctx.lineTo(-58, -192); ctx.lineTo(-44, -182); ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(50, -180); ctx.lineTo(58, -192); ctx.lineTo(44, -182); ctx.closePath(); ctx.fill();
+
+  // ── NECK ──
+  ctx.fillStyle = '#b06830';
+  ctx.beginPath(); ctx.roundRect(-8, -208, 16, 16, 4); ctx.fill();
+
+  // ── HEAD (wide, imposing) ──
+  const headG = ctx.createRadialGradient(-3, -222, 4, 0, -220, 22);
+  headG.addColorStop(0, '#d08040'); headG.addColorStop(0.6, '#b86830'); headG.addColorStop(1, '#9a5020');
+  ctx.fillStyle = headG;
+  ctx.beginPath(); ctx.ellipse(0, -220, 22, 24, 0, 0, Math.PI*2); ctx.fill();
+
+  // jaw / chin
+  ctx.fillStyle = '#a05820';
+  ctx.beginPath();
+  ctx.moveTo(-18, -210);
+  ctx.bezierCurveTo(-20, -204, -14, -198, 0, -196);
+  ctx.bezierCurveTo(14, -198, 20, -204, 18, -210);
+  ctx.closePath(); ctx.fill();
+
+  // ── EYES (glowing orange-red) ──
+  ctx.fillStyle = '#ff4400';
+  ctx.beginPath(); ctx.ellipse(-8, -224, 6, 4, 0, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(8, -224, 6, 4, 0, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#ff8800';
+  ctx.beginPath(); ctx.ellipse(-8, -224, 4, 2.5, 0, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(8, -224, 4, 2.5, 0, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#ffcc44';
+  ctx.beginPath(); ctx.arc(-8, -224, 1.5, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(8, -224, 1.5, 0, Math.PI*2); ctx.fill();
+  // eye glow
+  const eyeA = 0.3 + Math.sin(now * 0.002) * 0.1;
+  ctx.globalAlpha = eyeA;
+  const eg1 = ctx.createRadialGradient(-8, -224, 2, -8, -224, 12);
+  eg1.addColorStop(0, 'rgba(255,100,0,0.8)'); eg1.addColorStop(1, 'rgba(255,40,0,0)');
+  ctx.fillStyle = eg1; ctx.beginPath(); ctx.arc(-8, -224, 12, 0, Math.PI*2); ctx.fill();
+  const eg2 = ctx.createRadialGradient(8, -224, 2, 8, -224, 12);
+  eg2.addColorStop(0, 'rgba(255,100,0,0.8)'); eg2.addColorStop(1, 'rgba(255,40,0,0)');
+  ctx.fillStyle = eg2; ctx.beginPath(); ctx.arc(8, -224, 12, 0, Math.PI*2); ctx.fill();
+  ctx.globalAlpha = 1;
+
+  // brow ridges
+  ctx.fillStyle = '#8a4015';
+  ctx.beginPath(); ctx.roundRect(-16, -232, 12, 5, 2); ctx.fill();
+  ctx.beginPath(); ctx.roundRect(4, -232, 12, 5, 2); ctx.fill();
+
+  // ── NOSE (broad, flat) ──
+  ctx.fillStyle = '#9a5020';
+  ctx.beginPath(); ctx.ellipse(0, -214, 5, 4, 0, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#7a3810';
+  ctx.beginPath(); ctx.ellipse(-3, -213, 2.5, 2, 0, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(3, -213, 2.5, 2, 0, 0, Math.PI*2); ctx.fill();
+
+  // ── MOUTH (snarl with fangs) ──
+  ctx.fillStyle = '#2a0a04';
+  ctx.beginPath();
+  ctx.moveTo(-12, -207);
+  ctx.quadraticCurveTo(0, -204, 12, -207);
+  ctx.quadraticCurveTo(14, -200, 0, -198);
+  ctx.quadraticCurveTo(-14, -200, -12, -207);
+  ctx.closePath(); ctx.fill();
+  // fangs
+  ctx.fillStyle = '#e8d8b0';
+  ctx.beginPath(); ctx.moveTo(-8, -207); ctx.lineTo(-6, -202); ctx.lineTo(-4, -207); ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(-2, -207); ctx.lineTo(0, -201); ctx.lineTo(2, -207); ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(4, -207); ctx.lineTo(6, -202); ctx.lineTo(8, -207); ctx.closePath(); ctx.fill();
+
+  // ── TOPKNOT HAIR ──
+  ctx.fillStyle = '#0a0808';
+  // base tie
+  ctx.beginPath(); ctx.roundRect(-5, -244, 10, 8, 2); ctx.fill();
+  ctx.fillStyle = '#c09020';
+  ctx.beginPath(); ctx.roundRect(-6, -244, 12, 4, 2); ctx.fill();
+  // hair bunch upward
+  ctx.fillStyle = '#0a0808';
+  ctx.beginPath();
+  ctx.moveTo(-5, -244);
+  ctx.bezierCurveTo(-8, -252, -6, -264, 0, -268);
+  ctx.bezierCurveTo(6, -264, 8, -252, 5, -244);
+  ctx.closePath(); ctx.fill();
+  // hair strands
+  ctx.strokeStyle = '#1a1212'; ctx.lineWidth = 1.5; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(-2, -244); ctx.quadraticCurveTo(-4, -254, -1, -266); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(0, -244); ctx.quadraticCurveTo(0, -256, 0, -268); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(2, -244); ctx.quadraticCurveTo(4, -254, 1, -266); ctx.stroke();
+
+  // ── POWER AURA ──
+  ctx.globalAlpha = 0.06 + Math.sin(now * 0.002) * 0.03;
+  const aura = ctx.createRadialGradient(0, -140, 20, 0, -140, 110);
+  aura.addColorStop(0, 'rgba(255,100,0,0.6)');
+  aura.addColorStop(0.5, 'rgba(200,50,0,0.3)');
+  aura.addColorStop(1, 'rgba(150,20,0,0)');
+  ctx.fillStyle = aura; ctx.beginPath(); ctx.arc(0, -140, 110, 0, Math.PI*2); ctx.fill();
+  ctx.globalAlpha = 1;
+
+  // ground stomp dust
+  const dustA = 0.04 + Math.abs(Math.sin(now * 0.001)) * 0.06;
+  ctx.globalAlpha = dustA;
+  ctx.fillStyle = '#c06020';
+  ctx.beginPath(); ctx.ellipse(0, 4, 40, 8, 0, 0, Math.PI*2); ctx.fill();
+  ctx.globalAlpha = 1;
+
+  ctx.restore();
+}
+
+function drawLabels(now) {
+  ctx.save(); ctx.textAlign = 'center';
+  ctx.fillStyle = 'rgba(0,0,0,0.6)';
+  ctx.beginPath(); ctx.roundRect(150-34, 46, 68, 9, 3); ctx.fill();
+  ctx.fillStyle = '#cc4400';
+  ctx.beginPath(); ctx.roundRect(150-33, 47, 66 * 0.85, 7, 2); ctx.fill();
+  ctx.font = 'bold 11px Arial Black';
+  ctx.strokeStyle = 'rgba(0,0,0,0.9)'; ctx.lineWidth = 3;
+  ctx.strokeText('Goro', 150, 44);
+  ctx.fillStyle = '#ff8844'; ctx.fillText('Goro', 150, 44);
+  ctx.font = '9px Arial';
+  ['❤️ 600', '⚔️ 68', '💀 55'].forEach((s, i) => {
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    ctx.beginPath(); ctx.roundRect(150-34+i*23, 58, 22, 13, 3); ctx.fill();
+    ctx.fillStyle = '#ffbb88'; ctx.fillText(s, 150-23+i*23, 68);
+  });
+  ctx.restore();
+}
+
+function loop(ts) {
+  ctx.clearRect(0, 0, 300, 380);
+  drawGoro(150, 320, ts);
+  drawLabels(ts);
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

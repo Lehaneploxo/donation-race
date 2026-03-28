@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Star Wars Maps Preview</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:#050510; display:flex; flex-direction:column; align-items:center; padding:30px 20px; gap:40px; font-family:Arial; }
+  .variant { display:flex; flex-direction:column; align-items:center; gap:10px; }
+  .label { color:#FFD700; font-size:18px; font-weight:bold; letter-spacing:2px; }
+  .desc { color:#888; font-size:12px; }
+  canvas { border:2px solid #333; border-radius:8px; }
+</style>
+</head>
+<body>
+
+<div class="variant">
+  <div class="label">⭐ ВАРИАНТ 1 — Открытый Космос</div>
+  <div class="desc">Тёмный космос · Туманности · Планеты · Звёздное поле</div>
+  <canvas id="c1" width="400" height="300"></canvas>
+</div>
+
+<div class="variant">
+  <div class="label">🏜️ ВАРИАНТ 2 — Татуин</div>
+  <div class="desc">Пустынная планета · Два солнца · Песчаные дюны · Руины</div>
+  <canvas id="c2" width="400" height="300"></canvas>
+</div>
+
+<div class="variant">
+  <div class="label">🌑 ВАРИАНТ 3 — Звезда Смерти</div>
+  <div class="desc">Металлический пол · Красное освещение · Космос в окнах</div>
+  <canvas id="c3" width="400" height="300"></canvas>
+</div>
+
+<script>
+
+// ═══════════════════════════════
+// ВАРИАНТ 1 — Открытый Космос
+// ═══════════════════════════════
+function drawSpace(canvas, now) {
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  ctx.clearRect(0,0,W,H);
+
+  // Deep space bg
+  const bg = ctx.createLinearGradient(0,0,0,H);
+  bg.addColorStop(0,'#000005');
+  bg.addColorStop(0.5,'#05000f');
+  bg.addColorStop(1,'#000510');
+  ctx.fillStyle = bg; ctx.fillRect(0,0,W,H);
+
+  // Stars
+  const stars = spaceStars;
+  for(const s of stars) {
+    const twinkle = 0.4 + Math.sin(now*0.001*s.speed + s.phase)*0.6;
+    ctx.fillStyle = `rgba(255,255,255,${twinkle * s.a})`;
+    ctx.beginPath(); ctx.arc(s.x*W, s.y*H, s.r, 0, Math.PI*2); ctx.fill();
+  }
+
+  // Nebula purple
+  const neb1 = ctx.createRadialGradient(W*0.2, H*0.3, 0, W*0.2, H*0.3, 120);
+  neb1.addColorStop(0,'rgba(80,0,120,0.25)');
+  neb1.addColorStop(1,'rgba(80,0,120,0)');
+  ctx.fillStyle = neb1; ctx.fillRect(0,0,W,H);
+
+  // Nebula blue
+  const neb2 = ctx.createRadialGradient(W*0.75, H*0.2, 0, W*0.75, H*0.2, 90);
+  neb2.addColorStop(0,'rgba(0,40,120,0.3)');
+  neb2.addColorStop(1,'rgba(0,40,120,0)');
+  ctx.fillStyle = neb2; ctx.fillRect(0,0,W,H);
+
+  // Planet 1 — big blue gas giant
+  ctx.save();
+  ctx.shadowColor='#4488FF'; ctx.shadowBlur=30;
+  const pg = ctx.createRadialGradient(W*0.82, H*0.18, 5, W*0.82, H*0.18, 55);
+  pg.addColorStop(0,'#6699FF');
+  pg.addColorStop(0.4,'#2244AA');
+  pg.addColorStop(0.7,'#112266');
+  pg.addColorStop(1,'#080820');
+  ctx.fillStyle = pg;
+  ctx.beginPath(); ctx.arc(W*0.82, H*0.18, 55, 0, Math.PI*2); ctx.fill();
+  // Planet rings
+  ctx.strokeStyle='rgba(100,150,255,0.35)'; ctx.lineWidth=6;
+  ctx.save(); ctx.translate(W*0.82, H*0.18); ctx.scale(1, 0.3);
+  ctx.beginPath(); ctx.arc(0,0,72,0,Math.PI*2); ctx.stroke();
+  ctx.strokeStyle='rgba(100,150,255,0.15)'; ctx.lineWidth=12;
+  ctx.beginPath(); ctx.arc(0,0,82,0,Math.PI*2); ctx.stroke();
+  ctx.restore(); ctx.restore();
+
+  // Planet 2 — small red planet
+  ctx.save(); ctx.shadowColor='#FF4400'; ctx.shadowBlur=15;
+  const pr = ctx.createRadialGradient(W*0.12, H*0.15, 2, W*0.12, H*0.15, 22);
+  pr.addColorStop(0,'#FF6633'); pr.addColorStop(0.6,'#AA2200'); pr.addColorStop(1,'#330800');
+  ctx.fillStyle = pr;
+  ctx.beginPath(); ctx.arc(W*0.12, H*0.15, 22, 0, Math.PI*2); ctx.fill();
+  ctx.restore();
+
+  // Death Star — distant
+  ctx.save(); ctx.shadowColor='#888888'; ctx.shadowBlur=10;
+  ctx.fillStyle='#444'; ctx.beginPath(); ctx.arc(W*0.5, H*0.1, 18, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle='#333'; ctx.beginPath(); ctx.arc(W*0.5, H*0.1, 18, Math.PI, Math.PI*2); ctx.fill();
+  ctx.strokeStyle='#555'; ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.moveTo(W*0.5-18, H*0.1); ctx.lineTo(W*0.5+18, H*0.1); ctx.stroke();
+  // Death Star laser eye
+  ctx.fillStyle='#666'; ctx.beginPath(); ctx.arc(W*0.5+6, H*0.1-4, 4, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle='rgba(100,200,100,0.8)'; ctx.beginPath(); ctx.arc(W*0.5+6, H*0.1-4, 2, 0, Math.PI*2); ctx.fill();
+  ctx.restore();
+
+  // Ground / arena floor
+  const floor = ctx.createLinearGradient(0, H*0.75, 0, H);
+  floor.addColorStop(0,'#0a0a1a');
+  floor.addColorStop(1,'#050510');
+  ctx.fillStyle = floor;
+  ctx.beginPath(); ctx.moveTo(0,H*0.78); ctx.lineTo(W,H*0.78); ctx.lineTo(W,H); ctx.lineTo(0,H); ctx.closePath(); ctx.fill();
+  // Grid lines on floor
+  ctx.strokeStyle='rgba(50,80,180,0.25)'; ctx.lineWidth=1;
+  for(let x=0;x<W;x+=30){ ctx.beginPath(); ctx.moveTo(x,H*0.78); ctx.lineTo(x,H); ctx.stroke(); }
+  for(let y=H*0.78;y<H;y+=20){ ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
+  // Floor glow line
+  ctx.strokeStyle='rgba(80,120,255,0.6)'; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.moveTo(0,H*0.78); ctx.lineTo(W,H*0.78); ctx.stroke();
+}
+
+// ═══════════════════════════════
+// ВАРИАНТ 2 — Татуин
+// ═══════════════════════════════
+function drawTatooine(canvas, now) {
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  ctx.clearRect(0,0,W,H);
+
+  // Sky gradient — warm orange/red
+  const sky = ctx.createLinearGradient(0,0,0,H*0.6);
+  sky.addColorStop(0,'#1a0505');
+  sky.addColorStop(0.3,'#4a1500');
+  sky.addColorStop(0.6,'#c44400');
+  sky.addColorStop(1,'#e86600');
+  ctx.fillStyle = sky; ctx.fillRect(0,0,W,H*0.65);
+
+  // Stars (faint, daytime)
+  for(const s of spaceStars.slice(0,40)){
+    ctx.fillStyle = `rgba(255,220,180,${s.a*0.3})`;
+    ctx.beginPath(); ctx.arc(s.x*W, s.y*H*0.5, s.r*0.6, 0, Math.PI*2); ctx.fill();
+  }
+
+  // Twin suns
+  // Sun 1 — large, setting
+  ctx.save(); ctx.shadowColor='#FFAA00'; ctx.shadowBlur=40;
+  const sun1 = ctx.createRadialGradient(W*0.25, H*0.35, 0, W*0.25, H*0.35, 35);
+  sun1.addColorStop(0,'#FFFFFF'); sun1.addColorStop(0.3,'#FFEE44'); sun1.addColorStop(0.7,'#FF8800'); sun1.addColorStop(1,'rgba(255,80,0,0)');
+  ctx.fillStyle = sun1; ctx.fillRect(W*0.25-60, H*0.35-60, 120, 120);
+  ctx.restore();
+  // Sun 2 — smaller
+  ctx.save(); ctx.shadowColor='#FF6600'; ctx.shadowBlur=20;
+  const sun2 = ctx.createRadialGradient(W*0.42, H*0.28, 0, W*0.42, H*0.28, 22);
+  sun2.addColorStop(0,'#FFFFFF'); sun2.addColorStop(0.4,'#FFCC44'); sun2.addColorStop(0.8,'#FF6600'); sun2.addColorStop(1,'rgba(255,60,0,0)');
+  ctx.fillStyle = sun2; ctx.fillRect(W*0.42-40, H*0.28-40, 80, 80);
+  ctx.restore();
+
+  // Distant mountains / mesa
+  ctx.fillStyle='#3a1200';
+  ctx.beginPath();
+  ctx.moveTo(0,H*0.6);
+  ctx.lineTo(W*0.05,H*0.45); ctx.lineTo(W*0.15,H*0.55);
+  ctx.lineTo(W*0.25,H*0.38); ctx.lineTo(W*0.38,H*0.52);
+  ctx.lineTo(W*0.5,H*0.42); ctx.lineTo(W*0.62,H*0.5);
+  ctx.lineTo(W*0.75,H*0.36); ctx.lineTo(W*0.88,H*0.48);
+  ctx.lineTo(W,H*0.43); ctx.lineTo(W,H*0.6);
+  ctx.closePath(); ctx.fill();
+  ctx.fillStyle='#2a0d00';
+  ctx.beginPath();
+  ctx.moveTo(0,H*0.6); ctx.lineTo(W*0.1,H*0.52); ctx.lineTo(W*0.2,H*0.58);
+  ctx.lineTo(W*0.35,H*0.48); ctx.lineTo(W*0.55,H*0.56); ctx.lineTo(W*0.7,H*0.5);
+  ctx.lineTo(W*0.85,H*0.55); ctx.lineTo(W,H*0.52); ctx.lineTo(W,H*0.6);
+  ctx.closePath(); ctx.fill();
+
+  // Sand ground
+  const sand = ctx.createLinearGradient(0,H*0.62,0,H);
+  sand.addColorStop(0,'#c87820');
+  sand.addColorStop(0.3,'#aa6010');
+  sand.addColorStop(1,'#7a3e00');
+  ctx.fillStyle = sand; ctx.fillRect(0,H*0.62,W,H*0.38);
+
+  // Sand dunes
+  ctx.fillStyle='#d48828';
+  ctx.beginPath(); ctx.ellipse(W*0.15,H*0.68,80,18,0,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(W*0.6,H*0.72,100,22,0,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(W*0.88,H*0.69,60,14,0,0,Math.PI*2); ctx.fill();
+
+  // Sandcrawler silhouette
+  ctx.fillStyle='#1a0800';
+  ctx.fillRect(W*0.65,H*0.6,60,28);
+  ctx.fillRect(W*0.63,H*0.62,6,20);
+  // Tracks
+  ctx.strokeStyle='#2a1000'; ctx.lineWidth=3;
+  for(let i=0;i<8;i++){ ctx.beginPath(); ctx.moveTo(W*0.65+i*8,H*0.88); ctx.lineTo(W*0.65+i*8-4,H*0.91); ctx.stroke(); }
+
+  // Ruins
+  ctx.fillStyle='#3a1800';
+  ctx.fillRect(W*0.08,H*0.58,8,18);
+  ctx.fillRect(W*0.12,H*0.6,12,16);
+  ctx.fillStyle='#2a1000';
+  ctx.fillRect(W*0.08,H*0.57,22,4);
+}
+
+// ═══════════════════════════════
+// ВАРИАНТ 3 — Звезда Смерти
+// ═══════════════════════════════
+function drawDeathStar(canvas, now) {
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  ctx.clearRect(0,0,W,H);
+
+  // Metal floor bg
+  const bg = ctx.createLinearGradient(0,0,0,H);
+  bg.addColorStop(0,'#0a0a0a');
+  bg.addColorStop(0.5,'#111116');
+  bg.addColorStop(1,'#0d0d10');
+  ctx.fillStyle = bg; ctx.fillRect(0,0,W,H);
+
+  // Metal panels on walls
+  ctx.fillStyle='#141418';
+  for(let x=0;x<W;x+=50){
+    for(let y=0;y<H*0.7;y+=35){
+      ctx.fillRect(x+2,y+2,46,31);
+    }
+  }
+  ctx.strokeStyle='#1e1e28'; ctx.lineWidth=1;
+  for(let x=0;x<W;x+=50){ ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H*0.7); ctx.stroke(); }
+  for(let y=0;y<H*0.7;y+=35){ ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
+
+  // Red warning light strips
+  const redA = 0.4 + Math.sin(now*0.002)*0.3;
+  ctx.fillStyle=`rgba(180,0,0,${redA*0.15})`;
+  ctx.fillRect(0,0,W,H*0.7);
+  // Side red light bars
+  ctx.fillStyle=`rgba(255,0,0,${redA*0.8})`;
+  ctx.fillRect(0,H*0.3,4,H*0.1);
+  ctx.fillRect(W-4,H*0.3,4,H*0.1);
+  ctx.shadowColor='#FF0000'; ctx.shadowBlur=20;
+  ctx.fillStyle=`rgba(255,0,0,${redA*0.6})`;
+  ctx.fillRect(0,H*0.32,3,H*0.06);
+  ctx.fillRect(W-3,H*0.32,3,H*0.06);
+  ctx.shadowBlur=0;
+
+  // Window to space — left
+  ctx.fillStyle='#000005';
+  ctx.fillRect(W*0.05, H*0.08, W*0.18, H*0.28);
+  ctx.strokeStyle='#333'; ctx.lineWidth=3;
+  ctx.strokeRect(W*0.05, H*0.08, W*0.18, H*0.28);
+  // Stars in window
+  for(const s of spaceStars.slice(0,25)){
+    ctx.fillStyle=`rgba(255,255,255,${s.a*0.9})`;
+    const wx=W*0.05+s.x*W*0.18, wy=H*0.08+s.y*H*0.28;
+    if(wx>W*0.05&&wx<W*0.23&&wy>H*0.08&&wy<H*0.36)
+      { ctx.beginPath(); ctx.arc(wx,wy,s.r,0,Math.PI*2); ctx.fill(); }
+  }
+  // Planet in window
+  ctx.save(); ctx.shadowColor='#4488FF'; ctx.shadowBlur=10;
+  ctx.fillStyle='#1133AA'; ctx.beginPath(); ctx.arc(W*0.19, H*0.28, 20, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle='rgba(100,150,255,0.4)'; ctx.beginPath(); ctx.arc(W*0.19, H*0.28, 20, 0, Math.PI*2); ctx.fill();
+  ctx.restore();
+
+  // Window to space — right
+  ctx.fillStyle='#000005';
+  ctx.fillRect(W*0.77, H*0.08, W*0.18, H*0.28);
+  ctx.strokeStyle='#333'; ctx.lineWidth=3;
+  ctx.strokeRect(W*0.77, H*0.08, W*0.18, H*0.28);
+  for(const s of spaceStars.slice(25,50)){
+    const wx=W*0.77+s.x*W*0.18, wy=H*0.08+s.y*H*0.28;
+    if(wx>W*0.77&&wx<W*0.95&&wy>H*0.08&&wy<H*0.36){
+      ctx.fillStyle=`rgba(255,255,255,${s.a*0.9})`;
+      ctx.beginPath(); ctx.arc(wx,wy,s.r,0,Math.PI*2); ctx.fill();
+    }
+  }
+
+  // Central corridor light
+  const cg = ctx.createLinearGradient(W/2-60,0,W/2+60,0);
+  cg.addColorStop(0,'rgba(0,0,0,0)');
+  cg.addColorStop(0.5,`rgba(200,220,255,${0.06+Math.sin(now*0.001)*0.02})`);
+  cg.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.fillStyle=cg; ctx.fillRect(W/2-60,0,120,H*0.7);
+
+  // Floor
+  const floor = ctx.createLinearGradient(0,H*0.7,0,H);
+  floor.addColorStop(0,'#1a1a1a');
+  floor.addColorStop(1,'#0d0d0d');
+  ctx.fillStyle=floor; ctx.fillRect(0,H*0.7,W,H*0.3);
+  // Floor metal lines
+  ctx.strokeStyle='#252525'; ctx.lineWidth=1;
+  for(let x=0;x<W;x+=40){ ctx.beginPath(); ctx.moveTo(x,H*0.7); ctx.lineTo(x,H); ctx.stroke(); }
+  ctx.strokeStyle='#202020';
+  ctx.beginPath(); ctx.moveTo(0,H*0.75); ctx.lineTo(W,H*0.75); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(0,H*0.85); ctx.lineTo(W,H*0.85); ctx.stroke();
+  // Floor glow
+  const fg = ctx.createLinearGradient(0,H*0.7,0,H*0.76);
+  fg.addColorStop(0,`rgba(180,0,0,${redA*0.4})`);
+  fg.addColorStop(1,'rgba(180,0,0,0)');
+  ctx.fillStyle=fg; ctx.fillRect(0,H*0.7,W,H*0.06);
+}
+
+// Shared stars data
+const spaceStars = Array.from({length:120},()=>({
+  x:Math.random(), y:Math.random(),
+  r:Math.random()*1.5+0.3,
+  a:Math.random()*0.7+0.3,
+  speed:Math.random()*2+0.5,
+  phase:Math.random()*Math.PI*2
+}));
+
+// Animation loop
+function animate(now) {
+  drawSpace(document.getElementById('c1'), now);
+  drawTatooine(document.getElementById('c2'), now);
+  drawDeathStar(document.getElementById('c3'), now);
+  requestAnimationFrame(animate);
+}
+requestAnimationFrame(animate);
+</script>
+</body>
+</html>

@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>🏔️ Snow Map Preview</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #050510; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; font-family: Arial, sans-serif; color: #fff; }
+    h2 { margin-bottom: 6px; font-size: 20px; color: #88DDFF; letter-spacing: 2px; }
+    p  { margin-bottom: 14px; font-size: 12px; color: #666; }
+    canvas { border: 1px solid #333; border-radius: 10px; }
+  </style>
+</head>
+<body>
+  <h2>🏔️ SNOW MAP — ПРЕВЬЮ</h2>
+  <p>Снежные горы, метель, замёрзшее озеро</p>
+  <canvas id="c" width="600" height="520"></canvas>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const CW = 600, CH = 520, SKY_H = 180;
+
+const snowflakes = Array.from({length: 120}, () => ({
+  x: Math.random() * CW,
+  y: Math.random() * CH,
+  r: 0.5 + Math.random() * 2.5,
+  spd: 0.6 + Math.random() * 1.4,
+  drift: (Math.random() - 0.5) * 1.2,
+  alpha: 0.3 + Math.random() * 0.7,
+  wobble: Math.random() * Math.PI * 2
+}));
+
+function drawScene(now) {
+  ctx.clearRect(0, 0, CW, CH);
+
+  // Sky — cold blue-grey
+  const sky = ctx.createLinearGradient(0, 0, 0, SKY_H);
+  sky.addColorStop(0, '#0a1520');
+  sky.addColorStop(0.5, '#1a2a40');
+  sky.addColorStop(1, '#2a3a50');
+  ctx.fillStyle = sky; ctx.fillRect(0, 0, CW, SKY_H);
+
+  // Moon
+  ctx.fillStyle = '#D8EAF8';
+  ctx.beginPath(); ctx.arc(480, 45, 22, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#1a2a40';
+  ctx.beginPath(); ctx.arc(490, 40, 19, 0, Math.PI * 2); ctx.fill();
+  // Moon glow
+  const moonGlow = ctx.createRadialGradient(480, 45, 5, 480, 45, 50);
+  moonGlow.addColorStop(0, 'rgba(180,220,255,0.2)');
+  moonGlow.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = moonGlow;
+  ctx.beginPath(); ctx.arc(480, 45, 50, 0, Math.PI * 2); ctx.fill();
+
+  // Stars
+  ctx.fillStyle = '#ffffff';
+  for (let i = 0; i < 60; i++) {
+    const sx = ((i * 137 + 50) % 560) + 20;
+    const sy = ((i * 89 + 15) % 140) + 5;
+    const sa = 0.3 + Math.sin(now * 0.001 + i) * 0.3;
+    ctx.globalAlpha = sa;
+    ctx.beginPath(); ctx.arc(sx, sy, 0.8 + (i % 3) * 0.4, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+
+  // Far mountains — dark blue
+  ctx.fillStyle = '#0d1a2a';
+  ctx.beginPath();
+  [[0,SKY_H],[50,SKY_H*0.55],[120,SKY_H*0.75],[200,SKY_H*0.35],[280,SKY_H*0.62],[350,SKY_H*0.22],[420,SKY_H*0.55],[490,SKY_H*0.40],[560,SKY_H*0.68],[600,SKY_H]].forEach(([x,y]) => ctx.lineTo(x,y));
+  ctx.closePath(); ctx.fill();
+
+  // Near mountains — snowy peaks
+  ctx.fillStyle = '#1e3050';
+  ctx.beginPath();
+  [[0,SKY_H],[30,SKY_H],[80,SKY_H*0.72],[150,SKY_H*0.48],[220,SKY_H*0.78],[300,SKY_H*0.3],[380,SKY_H*0.7],[460,SKY_H*0.5],[520,SKY_H*0.75],[580,SKY_H*0.6],[600,SKY_H]].forEach(([x,y]) => ctx.lineTo(x,y));
+  ctx.closePath(); ctx.fill();
+
+  // Snow caps on peaks
+  const peaks = [[150, SKY_H*0.48],[300, SKY_H*0.3],[460, SKY_H*0.5]];
+  peaks.forEach(([px, py]) => {
+    ctx.fillStyle = '#E8F4FF';
+    ctx.beginPath();
+    ctx.moveTo(px, py);
+    ctx.lineTo(px - 22, py + 22);
+    ctx.lineTo(px + 22, py + 22);
+    ctx.closePath(); ctx.fill();
+    ctx.fillStyle = 'rgba(200,230,255,0.5)';
+    ctx.beginPath();
+    ctx.moveTo(px, py);
+    ctx.lineTo(px - 12, py + 14);
+    ctx.lineTo(px + 8, py + 18);
+    ctx.closePath(); ctx.fill();
+  });
+
+  // Ground — snow
+  const gnd = ctx.createLinearGradient(0, SKY_H, 0, CH);
+  gnd.addColorStop(0, '#c8dae8');
+  gnd.addColorStop(0.2, '#a8c0d8');
+  gnd.addColorStop(0.6, '#8aaabb');
+  gnd.addColorStop(1, '#5a7a8a');
+  ctx.fillStyle = gnd; ctx.fillRect(0, SKY_H, CW, CH - SKY_H);
+
+  // Snow drifts
+  ctx.fillStyle = '#d8eaf8';
+  ctx.beginPath(); ctx.ellipse(0, SKY_H + 40, 80, 30, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(CW, SKY_H + 35, 90, 28, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(150, SKY_H + 20, 60, 22, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(450, SKY_H + 25, 70, 20, 0, 0, Math.PI * 2); ctx.fill();
+
+  // Frozen lake
+  const lakeX = 300, lakeY = 380, lakeRX = 170, lakeRY = 45;
+  const iceGrad = ctx.createRadialGradient(lakeX - 30, lakeY - 10, 10, lakeX, lakeY, lakeRX);
+  iceGrad.addColorStop(0, 'rgba(200,235,255,0.95)');
+  iceGrad.addColorStop(0.5, 'rgba(150,200,240,0.85)');
+  iceGrad.addColorStop(1, 'rgba(100,160,210,0.7)');
+  ctx.fillStyle = iceGrad;
+  ctx.beginPath(); ctx.ellipse(lakeX, lakeY, lakeRX, lakeRY, 0, 0, Math.PI * 2); ctx.fill();
+  // Ice cracks
+  ctx.strokeStyle = 'rgba(150,200,240,0.6)'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(240, 375); ctx.lineTo(280, 390); ctx.lineTo(310, 372); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(320, 388); ctx.lineTo(360, 375); ctx.lineTo(380, 395); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(200, 385); ctx.lineTo(230, 370); ctx.stroke();
+  // Ice shine
+  ctx.fillStyle = 'rgba(255,255,255,0.4)';
+  ctx.beginPath(); ctx.ellipse(255, 368, 45, 10, -0.3, 0, Math.PI * 2); ctx.fill();
+  // Lake border (frost)
+  ctx.strokeStyle = 'rgba(200,230,255,0.5)'; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.ellipse(lakeX, lakeY, lakeRX, lakeRY, 0, 0, Math.PI * 2); ctx.stroke();
+
+  // Snow on ground surface (top layer)
+  ctx.fillStyle = '#ddeef8';
+  ctx.beginPath();
+  ctx.moveTo(0, SKY_H + 5);
+  for (let x = 0; x <= CW; x += 10) {
+    ctx.lineTo(x, SKY_H + 5 + Math.sin(x * 0.04) * 4);
+  }
+  ctx.lineTo(CW, SKY_H + 30); ctx.lineTo(0, SKY_H + 30);
+  ctx.closePath(); ctx.fill();
+
+  // Trees (snow-covered pine)
+  const treePts = [[38, SKY_H+80], [75, SKY_H+110], [25, SKY_H+145], [565, SKY_H+85], [535, SKY_H+115], [578, SKY_H+148]];
+  treePts.forEach(([tx, ty]) => {
+    const ts = 0.7 + Math.random() * 0;
+    // Trunk
+    ctx.strokeStyle = '#3a2a1a'; ctx.lineWidth = 5;
+    ctx.beginPath(); ctx.moveTo(tx, ty); ctx.lineTo(tx, ty - 50); ctx.stroke();
+    // Layers
+    [[0, -50, 24], [0, -38, 30], [0, -24, 36]].forEach(([dx, dy, w]) => {
+      ctx.fillStyle = '#1a3a1a';
+      ctx.beginPath();
+      ctx.moveTo(tx + dx, ty + dy);
+      ctx.lineTo(tx + dx - w, ty + dy + 18);
+      ctx.lineTo(tx + dx + w, ty + dy + 18);
+      ctx.closePath(); ctx.fill();
+      // Snow on branches
+      ctx.fillStyle = 'rgba(220,240,255,0.8)';
+      ctx.beginPath();
+      ctx.moveTo(tx + dx - w * 0.5, ty + dy + 10);
+      ctx.lineTo(tx + dx - w, ty + dy + 18);
+      ctx.lineTo(tx + dx + w, ty + dy + 18);
+      ctx.lineTo(tx + dx + w * 0.5, ty + dy + 10);
+      ctx.closePath(); ctx.fill();
+    });
+  });
+
+  // Snowflakes
+  snowflakes.forEach(s => {
+    s.wobble += 0.02;
+    s.x += s.drift + Math.sin(s.wobble) * 0.5;
+    s.y += s.spd;
+    if (s.y > CH) { s.y = -5; s.x = Math.random() * CW; }
+    if (s.x < 0) s.x = CW; if (s.x > CW) s.x = 0;
+    ctx.globalAlpha = s.alpha;
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2); ctx.fill();
+  });
+  ctx.globalAlpha = 1;
+
+  // Arena zone
+  ctx.save();
+  ctx.strokeStyle = 'rgba(150,200,255,0.25)';
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.ellipse(300, 330, 160, 55, 0, 0, Math.PI * 2); ctx.stroke();
+  ctx.font = 'bold 13px Arial'; ctx.fillStyle = 'rgba(180,220,255,0.6)';
+  ctx.textAlign = 'center'; ctx.fillText('🏟️  ARENA ZONE', 300, 335);
+  ctx.restore();
+
+  requestAnimationFrame(drawScene);
+}
+requestAnimationFrame(drawScene);
+</script>
+</body>
+</html>

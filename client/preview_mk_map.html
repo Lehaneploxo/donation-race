@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>⚔️ MK Arena — Top Down</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #000; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; min-height: 100vh; font-family: Arial, sans-serif; padding: 8px 0; }
+    h2 { margin-bottom: 3px; font-size: 17px; color: #FF2200; letter-spacing: 4px; text-shadow: 0 0 20px rgba(255,40,0,1); font-family: 'Arial Black', Arial; }
+    p  { margin-bottom: 8px; font-size: 11px; color: #444; }
+    canvas { border: 2px solid #1a0000; border-radius: 6px; max-height: calc(100vh - 60px); width: auto; }
+  </style>
+</head>
+<body>
+  <h2>⚔ MORTAL KOMBAT ⚔</h2>
+  <p>KAHN'S KOLISEUM — Top Down View</p>
+  <canvas id="c" width="600" height="1000"></canvas>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const CW = 600, CH = 1000;
+
+// Arena bounds
+const AX = 60,  AY = 130;   // arena top-left
+const AW = 480, AH = 740;   // arena size
+const ACX = AX+AW/2, ACY = AY+AH/2; // center
+
+// ─── PARTICLES ───
+const embers = [], bloodDrops = [];
+function spawnEmber(x,y){
+  const ang = Math.random()*Math.PI*2;
+  const spd = 0.3+Math.random()*0.6;
+  embers.push({x,y, vx:Math.cos(ang)*spd, vy:Math.sin(ang)*spd,
+    life:1, decay:0.018+Math.random()*0.012, r:1.5+Math.random()*2,
+    col:['#FF8800','#FF4400','#FFCC00','#FF6600'][Math.floor(Math.random()*4)]});
+}
+function spawnBlood(x,y){
+  for(let i=0;i<4;i++){
+    const ang=Math.random()*Math.PI*2, spd=0.5+Math.random()*1.5;
+    bloodDrops.push({x,y, vx:Math.cos(ang)*spd, vy:Math.sin(ang)*spd,
+      life:1, decay:0.04+Math.random()*0.03, r:1+Math.random()*2.5});
+  }
+}
+
+// ─── FLOOR TILES (top-down stone) ───
+function drawFloor(){
+  // Outer area (crowd zone)
+  const og = ctx.createLinearGradient(0,0,CW,CH);
+  og.addColorStop(0,'#0e0608'); og.addColorStop(0.5,'#120808'); og.addColorStop(1,'#0e0506');
+  ctx.fillStyle=og; ctx.fillRect(0,0,CW,CH);
+
+  // Arena floor base
+  const fg = ctx.createRadialGradient(ACX,ACY,50,ACX,ACY,320);
+  fg.addColorStop(0,'#2a1410'); fg.addColorStop(0.5,'#201008'); fg.addColorStop(1,'#160a06');
+  ctx.fillStyle=fg; ctx.fillRect(AX,AY,AW,AH);
+
+  // Tile grid (top-down stone slabs)
+  const TW=55, TH=55;
+  for(let ty=AY; ty<AY+AH; ty+=TH){
+    for(let tx=AX; tx<AX+AW; tx+=TW){
+      // tile shade variation
+      const shade = 0.92+Math.sin(tx*0.07+ty*0.05)*0.08;
+      ctx.fillStyle=`rgba(${Math.floor(38*shade)},${Math.floor(18*shade)},${Math.floor(12*shade)},1)`;
+      ctx.fillRect(tx+1,ty+1,TW-2,TH-2);
+      // top-light on tile edge
+      ctx.fillStyle='rgba(80,35,20,0.18)';
+      ctx.fillRect(tx+1,ty+1,TW-2,3);
+      ctx.fillRect(tx+1,ty+1,3,TH-2);
+      // shadow on tile edge
+      ctx.fillStyle='rgba(0,0,0,0.35)';
+      ctx.fillRect(tx+TW-3,ty+1,3,TH-2);
+      ctx.fillRect(tx+1,ty+TH-3,TW-2,3);
+    }
+  }
+
+  // Tile mortar lines
+  ctx.strokeStyle='rgba(10,4,2,0.7)'; ctx.lineWidth=1;
+  for(let ty=AY; ty<=AY+AH; ty+=TH){
+    ctx.beginPath(); ctx.moveTo(AX,ty); ctx.lineTo(AX+AW,ty); ctx.stroke();
+  }
+  for(let tx=AX; tx<=AX+AW; tx+=TW){
+    ctx.beginPath(); ctx.moveTo(tx,AY); ctx.lineTo(tx,AY+AH); ctx.stroke();
+  }
+
+  // Cracks in floor
+  ctx.strokeStyle='rgba(8,3,2,0.8)'; ctx.lineWidth=1;
+  [
+    [[120,200],[145,220],[160,212]],
+    [[380,250],[400,268],[415,260],[408,285]],
+    [[200,420],[220,440],[235,432]],
+    [[440,500],[460,520],[475,512]],
+    [[160,650],[185,665],[198,658]],
+    [[380,700],[400,718],[415,710]],
+    [[290,320],[310,338],[325,330]],
+    [[250,800],[270,818],[285,810]],
+  ].forEach(pts=>{
+    ctx.beginPath(); pts.forEach((p,i)=>i===0?ctx.moveTo(p[0],p[1]):ctx.lineTo(p[0],p[1])); ctx.stroke();
+  });
+}
+
+// ─── ARENA WALLS (thick border, top-down) ───
+function drawWalls(){
+  const WTH=22; // wall thickness
+
+  // Outer stone border
+  const wallG = ctx.createLinearGradient(AX,AY,AX+WTH,AY+WTH);
+  wallG.addColorStop(0,'#3a1810'); wallG.addColorStop(0.5,'#2a1208'); wallG.addColorStop(1,'#1a0a04');
+  ctx.fillStyle=wallG;
+  // Top wall
+  ctx.fillRect(AX-WTH, AY-WTH, AW+WTH*2, WTH);
+  // Bottom wall
+  ctx.fillRect(AX-WTH, AY+AH, AW+WTH*2, WTH);
+  // Left wall
+  ctx.fillRect(AX-WTH, AY, WTH, AH);
+  // Right wall
+  ctx.fillRect(AX+AW, AY, WTH, AH);
+
+  // Wall outline
+  ctx.strokeStyle='rgba(15,6,3,0.9)'; ctx.lineWidth=2;
+  ctx.strokeRect(AX-WTH, AY-WTH, AW+WTH*2, AH+WTH*2);
+  ctx.strokeRect(AX, AY, AW, AH);
+
+  // Top-down shadow from walls onto floor (inner edge)
+  const shadowW = 30;
+  // top shadow
+  const ts=ctx.createLinearGradient(0,AY,0,AY+shadowW);
+  ts.addColorStop(0,'rgba(0,0,0,0.55)'); ts.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.fillStyle=ts; ctx.fillRect(AX,AY,AW,shadowW);
+  // bottom shadow
+  const bs=ctx.createLinearGradient(0,AY+AH-shadowW,0,AY+AH);
+  bs.addColorStop(0,'rgba(0,0,0,0)'); bs.addColorStop(1,'rgba(0,0,0,0.55)');
+  ctx.fillStyle=bs; ctx.fillRect(AX,AY+AH-shadowW,AW,shadowW);
+  // left shadow
+  const ls=ctx.createLinearGradient(AX,0,AX+shadowW,0);
+  ls.addColorStop(0,'rgba(0,0,0,0.55)'); ls.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.fillStyle=ls; ctx.fillRect(AX,AY,shadowW,AH);
+  // right shadow
+  const rs=ctx.createLinearGradient(AX+AW-shadowW,0,AX+AW,0);
+  rs.addColorStop(0,'rgba(0,0,0,0)'); rs.addColorStop(1,'rgba(0,0,0,0.55)');
+  ctx.fillStyle=rs; ctx.fillRect(AX+AW-shadowW,AY,shadowW,AH);
+
+  // Corner pillars (top-down circles)
+  const corners=[[AX,AY],[AX+AW,AY],[AX,AY+AH],[AX+AW,AY+AH]];
+  corners.forEach(([cx,cy])=>{
+    const cg=ctx.createRadialGradient(cx,cy,3,cx,cy,20);
+    cg.addColorStop(0,'#4a2010'); cg.addColorStop(0.5,'#321408'); cg.addColorStop(1,'#180a04');
+    ctx.fillStyle=cg;
+    ctx.beginPath(); ctx.arc(cx,cy,20,0,Math.PI*2); ctx.fill();
+    ctx.strokeStyle='rgba(80,30,12,0.6)'; ctx.lineWidth=1.5;
+    ctx.beginPath(); ctx.arc(cx,cy,20,0,Math.PI*2); ctx.stroke();
+    // shadow from pillar
+    ctx.fillStyle='rgba(0,0,0,0.3)';
+    ctx.beginPath(); ctx.ellipse(cx+6,cy+6,22,22,0,0,Math.PI*2); ctx.fill();
+  });
+
+  // Mid-wall pillars
+  const midPillars=[[AX,ACY],[AX+AW,ACY]];
+  midPillars.forEach(([cx,cy])=>{
+    const mpg=ctx.createRadialGradient(cx,cy,2,cx,cy,15);
+    mpg.addColorStop(0,'#4a2010'); mpg.addColorStop(1,'#180a04');
+    ctx.fillStyle=mpg; ctx.beginPath(); ctx.arc(cx,cy,15,0,Math.PI*2); ctx.fill();
+    ctx.strokeStyle='rgba(80,30,12,0.5)'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.arc(cx,cy,15,0,Math.PI*2); ctx.stroke();
+  });
+}
+
+// ─── TORCHES (top-down glow circles on walls) ───
+function drawTorches(now){
+  const torchPositions=[
+    // top wall
+    [AX+AW*0.25, AY-10], [AX+AW*0.5, AY-10], [AX+AW*0.75, AY-10],
+    // bottom wall
+    [AX+AW*0.25, AY+AH+10], [AX+AW*0.5, AY+AH+10], [AX+AW*0.75, AY+AH+10],
+    // left wall
+    [AX-10, AY+AH*0.25], [AX-10, AY+AH*0.5], [AX-10, AY+AH*0.75],
+    // right wall
+    [AX+AW+10, AY+AH*0.25], [AX+AW+10, AY+AH*0.5], [AX+AW+10, AY+AH*0.75],
+  ];
+
+  torchPositions.forEach(([tx,ty],i)=>{
+    const flk=0.7+Math.sin(now*0.006+i*1.3)*0.25+Math.sin(now*0.013+i)*0.1;
+    // glow on floor
+    const gg=ctx.createRadialGradient(tx,ty,2,tx,ty,55*flk);
+    gg.addColorStop(0,`rgba(255,140,0,${0.55*flk})`);
+    gg.addColorStop(0.4,`rgba(255,60,0,${0.25*flk})`);
+    gg.addColorStop(1,'rgba(150,20,0,0)');
+    ctx.fillStyle=gg; ctx.beginPath(); ctx.arc(tx,ty,55*flk,0,Math.PI*2); ctx.fill();
+    // torch head
+    ctx.fillStyle=`rgba(255,${Math.floor(120+flk*80)},0,${0.9})`;
+    ctx.beginPath(); ctx.arc(tx,ty,4,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='rgba(255,240,100,0.9)';
+    ctx.beginPath(); ctx.arc(tx,ty,2,0,Math.PI*2); ctx.fill();
+
+    // spawn embers
+    if(Math.random()<0.25) spawnEmber(tx,ty);
+  });
+}
+
+// ─── DRAGON EMBLEM (center floor decoration) ───
+function drawEmblem(now){
+  const pulse = 0.7+Math.sin(now*0.002)*0.15;
+
+  // Outer ring
+  ctx.strokeStyle=`rgba(120,0,0,${0.25*pulse})`; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.arc(ACX,ACY,160,0,Math.PI*2); ctx.stroke();
+  ctx.strokeStyle=`rgba(80,0,0,${0.18*pulse})`; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.arc(ACX,ACY,140,0,Math.PI*2); ctx.stroke();
+
+  // Cross lines
+  ctx.strokeStyle=`rgba(100,0,0,${0.2*pulse})`; ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.moveTo(ACX-160,ACY); ctx.lineTo(ACX+160,ACY); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(ACX,ACY-160); ctx.lineTo(ACX,ACY+160); ctx.stroke();
+
+  // Diagonal decorative lines
+  ctx.strokeStyle=`rgba(80,0,0,${0.14*pulse})`; ctx.lineWidth=1;
+  for(let a=0;a<8;a++){
+    const ang=a*Math.PI/4;
+    ctx.beginPath();
+    ctx.moveTo(ACX+Math.cos(ang)*50, ACY+Math.sin(ang)*50);
+    ctx.lineTo(ACX+Math.cos(ang)*155, ACY+Math.sin(ang)*155);
+    ctx.stroke();
+  }
+
+  // Inner circle glow
+  const ig=ctx.createRadialGradient(ACX,ACY,10,ACX,ACY,80);
+  ig.addColorStop(0,`rgba(140,0,0,${0.12*pulse})`);
+  ig.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.fillStyle=ig; ctx.beginPath(); ctx.arc(ACX,ACY,80,0,Math.PI*2); ctx.fill();
+
+  // MK Dragon symbol (stylized top-down)
+  ctx.save();
+  ctx.translate(ACX,ACY);
+  const rot = now*0.0003;
+  ctx.rotate(rot);
+
+  // 4-point star / emblem
+  ctx.strokeStyle=`rgba(160,0,0,${0.35*pulse})`; ctx.lineWidth=2.5;
+  ctx.lineCap='round';
+  for(let i=0;i<4;i++){
+    const a=i*Math.PI/2;
+    ctx.beginPath();
+    ctx.moveTo(Math.cos(a)*18, Math.sin(a)*18);
+    ctx.bezierCurveTo(Math.cos(a+0.4)*45, Math.sin(a+0.4)*45,
+                      Math.cos(a+0.7)*55, Math.sin(a+0.7)*55,
+                      Math.cos(a+Math.PI/2)*18, Math.sin(a+Math.PI/2)*18);
+    ctx.stroke();
+  }
+
+  ctx.restore();
+
+  // ── YIN-YANG (center) ──
+  ctx.save();
+  ctx.translate(ACX, ACY);
+  const R = 58;
+
+  // Glow behind
+  const yg = ctx.createRadialGradient(0,0,R-8,0,0,R+24);
+  yg.addColorStop(0,`rgba(160,0,0,${0.22*pulse})`);
+  yg.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.fillStyle=yg; ctx.beginPath(); ctx.arc(0,0,R+24,0,Math.PI*2); ctx.fill();
+
+  // Full white circle first
+  ctx.fillStyle=`rgba(235,220,200,${0.88*pulse})`;
+  ctx.beginPath(); ctx.arc(0,0,R,0,Math.PI*2); ctx.fill();
+
+  // Dark S-shape: big arc left + small arc top (ccw) + small arc bottom (cw)
+  ctx.fillStyle=`rgba(12,4,2,${0.94*pulse})`;
+  ctx.beginPath();
+  ctx.arc(0,0,   R,   -Math.PI/2, Math.PI/2, true);   // outer left half (ccw)
+  ctx.arc(0,R/2, R/2, Math.PI/2, -Math.PI/2, true);   // lower small (ccw) — bulges into dark
+  ctx.arc(0,-R/2,R/2, Math.PI/2, -Math.PI/2, false);  // upper small (cw) — cuts into dark
+  ctx.closePath();
+  ctx.fill();
+
+  // Dark dot inside white upper area
+  ctx.fillStyle=`rgba(12,4,2,${0.94*pulse})`;
+  ctx.beginPath(); ctx.arc(0,-R/2, R/6, 0, Math.PI*2); ctx.fill();
+
+  // White dot inside dark lower area
+  ctx.fillStyle=`rgba(235,220,200,${0.88*pulse})`;
+  ctx.beginPath(); ctx.arc(0,R/2, R/6, 0, Math.PI*2); ctx.fill();
+
+  // Outer ring
+  ctx.strokeStyle=`rgba(160,0,0,${0.65*pulse})`; ctx.lineWidth=3;
+  ctx.beginPath(); ctx.arc(0,0,R,0,Math.PI*2); ctx.stroke();
+
+  ctx.restore();
+}
+
+// ─── BLOOD STAINS (top-down pools) ───
+function drawBlood(){
+  const pools=[
+    {x:145,y:220,rx:28,ry:16,a:0.28},{x:430,y:310,rx:22,ry:12,a:0.22},
+    {x:200,y:580,rx:35,ry:18,a:0.3},{x:480,y:650,rx:18,ry:10,a:0.2},
+    {x:160,y:780,rx:25,ry:14,a:0.25},{x:400,y:820,rx:30,ry:16,a:0.27},
+    {x:300,y:450,rx:20,ry:12,a:0.18},{x:360,y:750,rx:15,ry:8,a:0.2},
+  ];
+  pools.forEach(p=>{
+    ctx.globalAlpha=p.a;
+    const bg=ctx.createRadialGradient(p.x,p.y,2,p.x,p.y,Math.max(p.rx,p.ry));
+    bg.addColorStop(0,'#aa0000'); bg.addColorStop(0.5,'#660000'); bg.addColorStop(1,'rgba(30,0,0,0)');
+    ctx.fillStyle=bg;
+    ctx.beginPath(); ctx.ellipse(p.x,p.y,p.rx,p.ry,p.a*2,0,Math.PI*2); ctx.fill();
+  });
+  ctx.globalAlpha=1;
+}
+
+// ─── CROWD (top-down heads around arena outside) ───
+function drawCrowd(now){
+  // rows of spectators around all 4 sides
+  const CROWD_D = 18; // spacing
+
+  // top crowd rows (2 rows)
+  for(let row=0;row<2;row++){
+    const ry = AY - 38 - row*20;
+    for(let hx=AX-10; hx<AX+AW+10; hx+=CROWD_D){
+      const i = Math.floor(hx/10+row*7);
+      const bob=Math.sin(now*0.002+i*0.6)*1.5;
+      ctx.fillStyle=`hsl(${i*17%360},15%,${8+i%6}%)`;
+      ctx.beginPath(); ctx.ellipse(hx, ry+bob, 7, 6, 0, 0, Math.PI*2); ctx.fill();
+      if(i%5===0){
+        ctx.fillStyle=`rgba(255,60,0,${0.4+Math.sin(now*0.003+i)*0.2})`;
+        ctx.beginPath(); ctx.arc(hx-2,ry+bob-1,1.2,0,Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(hx+2,ry+bob-1,1.2,0,Math.PI*2); ctx.fill();
+      }
+    }
+  }
+  // bottom crowd rows
+  for(let row=0;row<2;row++){
+    const ry = AY+AH+38+row*20;
+    for(let hx=AX-10; hx<AX+AW+10; hx+=CROWD_D){
+      const i=Math.floor(hx/10+row*11+50);
+      const bob=Math.sin(now*0.002+i*0.7)*1.5;
+      ctx.fillStyle=`hsl(${i*13%360},15%,${7+i%7}%)`;
+      ctx.beginPath(); ctx.ellipse(hx,ry+bob,7,6,0,0,Math.PI*2); ctx.fill();
+    }
+  }
+  // left crowd
+  for(let row=0;row<2;row++){
+    const rx = AX - 38 - row*20;
+    for(let hy=AY-10; hy<AY+AH+10; hy+=CROWD_D){
+      const i=Math.floor(hy/10+row*9+100);
+      const bob=Math.sin(now*0.002+i*0.55)*1.5;
+      ctx.fillStyle=`hsl(${i*19%360},14%,${8+i%5}%)`;
+      ctx.beginPath(); ctx.ellipse(rx+bob,hy,6,7,0,0,Math.PI*2); ctx.fill();
+    }
+  }
+  // right crowd
+  for(let row=0;row<2;row++){
+    const rx = AX+AW+38+row*20;
+    for(let hy=AY-10; hy<AY+AH+10; hy+=CROWD_D){
+      const i=Math.floor(hy/10+row*13+200);
+      const bob=Math.sin(now*0.002+i*0.65)*1.5;
+      ctx.fillStyle=`hsl(${i*11%360},14%,${7+i%6}%)`;
+      ctx.beginPath(); ctx.ellipse(rx+bob,hy,6,7,0,0,Math.PI*2); ctx.fill();
+    }
+  }
+}
+
+// ─── EMBER DRAW ───
+function drawEmbers(){
+  for(let i=embers.length-1;i>=0;i--){
+    const e=embers[i];
+    e.x+=e.vx; e.y+=e.vy; e.life-=e.decay; e.r*=0.97;
+    if(e.life<=0){embers.splice(i,1);continue;}
+    ctx.globalAlpha=e.life*0.8; ctx.fillStyle=e.col;
+    ctx.beginPath(); ctx.arc(e.x,e.y,e.r,0,Math.PI*2); ctx.fill();
+  }
+  ctx.globalAlpha=1;
+}
+
+// ─── TITLE / HUD ───
+function drawTitle(now){
+  // Top banner
+  const bG=ctx.createLinearGradient(0,0,0,50);
+  bG.addColorStop(0,'rgba(20,0,0,0.95)'); bG.addColorStop(1,'rgba(10,0,0,0.8)');
+  ctx.fillStyle=bG; ctx.fillRect(0,0,CW,55);
+  ctx.strokeStyle='rgba(120,0,0,0.5)'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(0,55); ctx.lineTo(CW,55); ctx.stroke();
+
+  const pulse=0.8+Math.sin(now*0.003)*0.2;
+  ctx.save(); ctx.textAlign='center';
+  ctx.font='bold 26px Arial Black, Arial';
+  ctx.shadowColor='rgba(255,0,0,1)'; ctx.shadowBlur=18*pulse;
+  ctx.fillStyle=`rgba(255,${Math.floor(15+pulse*15)},0,1)`;
+  ctx.fillText('MORTAL KOMBAT', CW/2, 30);
+  ctx.font='bold 11px Arial'; ctx.shadowBlur=6;
+  ctx.fillStyle='rgba(180,30,0,0.8)';
+  ctx.fillText("KAHN'S KOLISEUM  ·  TOP VIEW", CW/2, 47);
+  ctx.restore();
+
+  // Bottom label
+  ctx.save(); ctx.textAlign='center';
+  ctx.font='bold 11px Arial';
+  ctx.fillStyle='rgba(120,30,0,0.4)';
+  ctx.fillText('⚔  FIGHT  ⚔', CW/2, CH-8);
+  ctx.restore();
+}
+
+// ─── MAIN ───
+function drawScene(now){
+  ctx.clearRect(0,0,CW,CH);
+
+  drawFloor();
+  drawBlood();
+  drawEmblem(now);
+  drawWalls();
+  drawTorches(now);
+  drawCrowd(now);
+  drawEmbers();
+  drawTitle(now);
+
+  requestAnimationFrame(drawScene);
+}
+requestAnimationFrame(drawScene);
+</script>
+</body>
+</html>
