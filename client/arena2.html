@@ -121,8 +121,12 @@ let usedBotNames=[];
 
 // ── Warrior Management ───────────────────────────────
 function rndFrom(arr){return arr[Math.floor(Math.random()*arr.length)];}
-function rndArenaPos(){return{ax:(Math.random()*2-1)*0.92,ay:(Math.random()*2-1)*0.88};}
-function arenaToScreen(ax,ay){return{x:AX+ax*ARX,y:AY+ay*ARY};}
+// Зона движения: весь экран от низа HUD до дна канваса
+// ax: -1..1 → x: 300 ± 285  (20..580)
+// ay: -1..1 → y: 640 ± 330  (310..970)
+const PLAY_CX=300, PLAY_CY=640, PLAY_RX=285, PLAY_RY=330;
+function rndArenaPos(){return{ax:(Math.random()*2-1)*0.96,ay:(Math.random()*2-1)*0.96};}
+function arenaToScreen(ax,ay){return{x:PLAY_CX+ax*PLAY_RX, y:PLAY_CY+ay*PLAY_RY};}
 function getWarriorScale(coins){return 1.3+Math.min(1.1,Math.log10(Math.max(1,coins))*0.38);}
 function makeWarrior(username,coins){
   const pos=rndArenaPos(),tgt=rndArenaPos();
@@ -209,7 +213,7 @@ function updateWarriors(dt){
     if(dist>0.025){w.ax+=dax/dist*spd;w.ay+=day/dist*spd;playFootstep();}
     if(dist<0.04||w.walkTimer>w.walkDelay){w.walkTimer=0;w.walkDelay=2000+Math.random()*2500;const p=rndArenaPos();w.tax=p.ax;w.tay=p.ay;}
     if(w.bumpCooldown>0)w.bumpCooldown=Math.max(0,w.bumpCooldown-dt);
-    w.ax=Math.max(-0.93,Math.min(0.93,w.ax));w.ay=Math.max(-0.88,Math.min(0.88,w.ay));
+    w.ax=Math.max(-0.97,Math.min(0.97,w.ax));w.ay=Math.max(-0.97,Math.min(0.97,w.ay));
   }
   if(!victoryState){
     const alive=warriors.filter(w=>!w.dead);
@@ -988,9 +992,7 @@ function drawHUD(t) {
 function drawWarrior(w, now){
   if(w.dead&&w.deathTimer<=0)return;
   const s=arenaToScreen(w.ax,w.ay);
-  const depthSc=0.72+(w.ay+1)*0.16;
-  const coinSc=getWarriorScale(w.coins);
-  const totalSc=depthSc*coinSc;
+  const totalSc=1.5; // фиксированный размер у всех
   const alpha=w.dead?Math.max(0,w.deathTimer/700):1;
   const sx=s.x,sy=s.y+w.floatY;
   const idleBob=w.dead?0:Math.sin(w.idlePhase)*3.2;
