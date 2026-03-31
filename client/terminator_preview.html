@@ -128,7 +128,7 @@ function drawTerminator(cx, cy, sc, facing, state, now) {
 
   // LEFT leg (back)
   const lhx = -hipSep, lhy = hipY;
-  const lThighAng = PI/2 + legSwing;
+  const lThighAng = legSwing;
   const lKnee = limbEnd(lhx, lhy, lThighAng, thighLen);
   const lShinAng = lThighAng - kneeBendL;
   const lAnkle = limbEnd(lKnee.x, lKnee.y, lShinAng, shinLen);
@@ -144,7 +144,7 @@ function drawTerminator(cx, cy, sc, facing, state, now) {
 
   // RIGHT leg (front)
   const rhx = hipSep, rhy = hipY;
-  const rThighAng = PI/2 - legSwing;
+  const rThighAng = -legSwing;
   const rKnee = limbEnd(rhx, rhy, rThighAng, thighLen);
   const rShinAng = rThighAng + kneeBendR;
   const rAnkle = limbEnd(rKnee.x, rKnee.y, rShinAng, shinLen);
