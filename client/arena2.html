@@ -56,19 +56,6 @@ const ctx = cvs.getContext('2d');
 
 // ── Constants ────────────────────────────────────────
 const SKY_H = 190;
-const AX = 300, AY = 610;
-const ARX = 272, ARY = 305;
-const WALL_T = 26;
-
-// Torch positions on the wall rim
-const TORCHES = Array.from({length: 12}, (_, i) => {
-  const a = (i / 12) * Math.PI * 2 - Math.PI / 2;
-  return {
-    x: AX + Math.cos(a) * (ARX + WALL_T * 0.4),
-    y: AY + Math.sin(a) * (ARY + WALL_T * 0.4),
-    phase: i * 0.524
-  };
-});
 
 // ── Character helpers ─────────────────────────────────
 function d2r(d) { return d * Math.PI / 180; }
@@ -480,54 +467,6 @@ function drawConan(cx,cy,s,facing,state,t){
   ctx.restore();ctx.restore();
 }
 
-// ── Pre-render sand texture ───────────────────────────
-const sandOC = document.createElement('canvas');
-sandOC.width = CW; sandOC.height = CH;
-const sc = sandOC.getContext('2d');
-(function buildSand() {
-  sc.save();
-  sc.beginPath(); sc.ellipse(AX, AY, ARX - 2, ARY - 2, 0, 0, Math.PI * 2); sc.clip();
-  // Base radial gradient
-  const g = sc.createRadialGradient(AX - 30, AY - 80, 10, AX, AY + 40, ARX * 1.05);
-  g.addColorStop(0,   '#f0dc98');
-  g.addColorStop(0.3, '#dcc068');
-  g.addColorStop(0.6, '#c0a048');
-  g.addColorStop(0.85,'#9a7030');
-  g.addColorStop(1,   '#5a3810');
-  sc.fillStyle = g; sc.fillRect(0, 0, CW, CH);
-  // Fine grain — light flecks
-  for (let i = 0; i < 7000; i++) {
-    const a = Math.random() * Math.PI * 2;
-    const r = Math.sqrt(Math.random());
-    const px = AX + Math.cos(a) * r * (ARX - 6);
-    const py = AY + Math.sin(a) * r * (ARY - 6);
-    sc.globalAlpha = 0.08 + Math.random() * 0.16;
-    sc.fillStyle = Math.random() > 0.55 ? '#fffacc' : '#6a3810';
-    sc.fillRect(px, py, 1 + Math.random() * 1.2, 1 + Math.random() * 0.8);
-  }
-  sc.globalAlpha = 1;
-  // Battle scars — arcs
-  sc.strokeStyle = 'rgba(70,40,10,0.13)'; sc.lineWidth = 2;
-  for (let i = 0; i < 22; i++) {
-    const bx = AX + (Math.random()-0.5)*ARX*1.1, by = AY + (Math.random()-0.5)*ARY*0.9;
-    const r = 15 + Math.random()*90, a1 = Math.random()*Math.PI*2, a2 = a1 + 0.4 + Math.random()*1.8;
-    sc.beginPath(); sc.arc(bx, by, r, a1, a2); sc.stroke();
-  }
-  // Concentric rings (faint battle zones)
-  sc.strokeStyle = 'rgba(90,55,15,0.11)'; sc.lineWidth = 1.5;
-  [65, 140, 215].forEach(r => { sc.beginPath(); sc.ellipse(AX, AY, r, r * 0.72, 0, 0, Math.PI*2); sc.stroke(); });
-  // Center emblem
-  sc.strokeStyle = 'rgba(110,70,18,0.22)'; sc.lineWidth = 2;
-  sc.beginPath(); sc.arc(AX, AY, 32, 0, Math.PI*2); sc.stroke();
-  sc.lineWidth = 1.5;
-  sc.beginPath(); sc.moveTo(AX-50, AY); sc.lineTo(AX+50, AY); sc.stroke();
-  sc.beginPath(); sc.moveTo(AX, AY-60); sc.lineTo(AX, AY+60); sc.stroke();
-  // Diagonal accent lines
-  sc.strokeStyle = 'rgba(110,70,18,0.12)'; sc.lineWidth = 1;
-  sc.beginPath(); sc.moveTo(AX-35, AY-45); sc.lineTo(AX+35, AY+45); sc.stroke();
-  sc.beginPath(); sc.moveTo(AX+35, AY-45); sc.lineTo(AX-35, AY+45); sc.stroke();
-  sc.restore();
-})();
 
 // ── SKY helpers ────────────────────────────────────────
 function skyAt(gt) {
@@ -547,6 +486,12 @@ function skyAt(gt) {
 }
 function isNight(){return gameTime<0.18||gameTime>0.82;}
 function isDuskDawn(){return(gameTime>=0.18&&gameTime<0.28)||(gameTime>=0.72&&gameTime<=0.82);}
+function isDawn(){return gameTime>=0.18&&gameTime<=0.30;}
+function isDusk(){return gameTime>=0.68&&gameTime<=0.82;}
+function dayFactor(){if(isNight())return 0.28;if(isDawn())return lerp(0.28,1,(gameTime-0.18)/0.12);if(isDusk())return lerp(0.28,1,1-(gameTime-0.68)/0.14);return 1;}
+function _rgb(r,g,b){return`rgb(${Math.round(r)},${Math.round(g)},${Math.round(b)})`;}
+function _rgba(r,g,b,a){return`rgba(${Math.round(r)},${Math.round(g)},${Math.round(b)},${a})`;}
+function lerp3c(a,b,f){return[a[0]+(b[0]-a[0])*f,a[1]+(b[1]-a[1])*f,a[2]+(b[2]-a[2])*f];}
 
 // ── SKY ──────────────────────────────────────────────
 function drawSky(t) {
@@ -632,335 +577,127 @@ function drawSky(t) {
   ctx.globalAlpha = 1;
 }
 
-// ── FAR COLOSSEUM WALL ───────────────────────────────
-function drawFarWall(t) {
-  // Stone fill
-  ctx.fillStyle = '#1c1008'; ctx.fillRect(0, SKY_H - 5, CW, 150);
-  // Stone blocks
-  const bh = 17, bw = 54;
-  for (let row = 0; row < 6; row++) {
-    const oy = row % 2;
-    for (let col = 0; col < Math.ceil(CW / bw) + 1; col++) {
-      const bx = col * bw - oy * (bw / 2);
-      const by = SKY_H + row * bh;
-      const shade = (col + row) % 3;
-      ctx.fillStyle = shade===0 ? '#362210' : shade===1 ? '#442c14' : '#3c2412';
-      ctx.fillRect(bx+0.5, by+0.5, bw-1, bh-1);
-      ctx.fillStyle = 'rgba(190,150,80,0.055)';
-      ctx.fillRect(bx+0.5, by+0.5, bw-1, 3);
-      ctx.fillStyle = 'rgba(0,0,0,0.4)';
-      ctx.fillRect(bx+0.5, by+bh-1.5, bw-1, 1.5);
-    }
-  }
-  // 5 archways on far wall
-  [60, 158, 300, 442, 540].forEach((ax2, ai) => {
-    const ay2 = SKY_H + 12, aw = 46, ah = 75;
-    // Dark arch interior
-    ctx.fillStyle = '#04020e';
-    ctx.beginPath();
-    ctx.moveTo(ax2 - aw/2, ay2 + ah);
-    ctx.lineTo(ax2 - aw/2, ay2 + 14);
-    ctx.arc(ax2, ay2 + 14, aw/2, Math.PI, 0);
-    ctx.lineTo(ax2 + aw/2, ay2 + ah);
-    ctx.closePath(); ctx.fill();
-    // Stone arch surround
-    ctx.strokeStyle = '#5a4020'; ctx.lineWidth = 4;
-    ctx.beginPath();
-    ctx.moveTo(ax2 - aw/2 - 2, ay2 + ah);
-    ctx.lineTo(ax2 - aw/2 - 2, ay2 + 14);
-    ctx.arc(ax2, ay2 + 14, aw/2 + 2, Math.PI, 0);
-    ctx.lineTo(ax2 + aw/2 + 2, ay2 + ah);
-    ctx.stroke();
-    ctx.strokeStyle = '#8a6838'; ctx.lineWidth = 1.5;
-    ctx.beginPath(); ctx.arc(ax2, ay2 + 14, aw/2, Math.PI, 0); ctx.stroke();
-    // Crowd silhouettes in arch
-    for (let p = 0; p < 3; p++) {
-      const px = ax2 - 10 + p * 10;
-      const py = ay2 + ah - 25;
-      const bob = Math.sin(t * 0.0015 * (1 + p) + ai * 1.7 + p * 2.3) * 1.2;
-      ctx.fillStyle = 'rgba(0,0,0,0.82)';
-      ctx.beginPath(); ctx.arc(px, py + bob, 4.5, 0, Math.PI*2); ctx.fill();
-      ctx.fillRect(px - 4, py + bob + 4, 8, 14);
-    }
-  });
-  // Battlements (merlons) on top
-  ctx.fillStyle = '#2c1c0a';
-  for (let i = 0; i < 18; i++) {
-    if (i % 2 === 0) ctx.fillRect(i * 33 + 5, SKY_H - 18, 18, 22);
-  }
-  // Flags on battlements
-  drawFlags(t);
+// ── FOREST MAP FUNCTIONS ──────────────────────────────
+function drawBgForest(){
+  const df=dayFactor();
+  const l3=df>0?_rgba(lerp(40,80,df),lerp(55,110,df),lerp(40,70,df),0.55):_rgba(10,12,20,0.7);
+  _drawSilLayer(l3,SKY_H-10,0.45,42);
+  const l2=df>0?_rgba(lerp(25,50,df),lerp(75,115,df),lerp(20,45,df),0.75):_rgba(8,15,12,0.8);
+  _drawSilLayer(l2,SKY_H+10,0.62,28);
+  const l1=df>0?_rgba(lerp(18,38,df),lerp(68,98,df),lerp(14,32,df),0.9):_rgba(5,18,8,0.92);
+  _drawSilLayer(l1,SKY_H+30,0.82,18);
 }
-
-// ── FLAGS ─────────────────────────────────────────────
-function drawFlags(t) {
-  [55, 165, 300, 435, 545].forEach((px, i) => {
-    const py = SKY_H - 60;
-    ctx.strokeStyle = '#7a5838'; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.moveTo(px, py + 55); ctx.lineTo(px, py); ctx.stroke();
-    // Wave
-    const w1 = Math.sin(t * 0.0028 + i * 1.2) * 5;
-    const w2 = Math.sin(t * 0.0028 + i * 1.2 + 0.6) * 3;
-    const cols = ['#8B0000','#0a2a8a','#5a1800','#1a5a1a','#5a0060'];
-    ctx.fillStyle = cols[i];
-    ctx.beginPath();
-    ctx.moveTo(px, py + 2);
-    ctx.bezierCurveTo(px + 10 + w1, py + 8,  px + 20 + w2, py + 5, px + 28 + w1, py + 7 + w2);
-    ctx.bezierCurveTo(px + 22 + w1, py + 16, px + 12 + w2, py + 20, px, py + 24);
-    ctx.closePath(); ctx.fill();
-    ctx.fillStyle = 'rgba(255,255,255,0.1)';
-    ctx.beginPath();
-    ctx.moveTo(px, py + 2);
-    ctx.bezierCurveTo(px + 10 + w1, py + 7, px + 18 + w2, py + 5, px + 26 + w1, py + 7 + w2);
-    ctx.lineTo(px + 24 + w1, py + 13);
-    ctx.bezierCurveTo(px + 15 + w2, py + 11, px + 8 + w1, py + 12, px, py + 13);
-    ctx.closePath(); ctx.fill();
+function _drawSilLayer(col,yBase,scl,seed){
+  ctx.fillStyle=col;ctx.beginPath();ctx.moveTo(0,CH);ctx.lineTo(0,yBase);
+  for(let i=0;i<=32;i++){const x=i*(CW/32);const h=55*scl+Math.sin(i*seed*0.7+seed)*28*scl+Math.sin(i*2.3+seed*0.4)*18*scl;ctx.lineTo(x,yBase-h);}
+  ctx.lineTo(CW,CH);ctx.closePath();ctx.fill();
+}
+function drawGrassField(t){
+  const df=dayFactor();const GY=SKY_H+55;
+  const gg=ctx.createLinearGradient(0,GY,0,CH);
+  if(isNight()){gg.addColorStop(0,_rgb(lerp(0,13,0.28),lerp(0,26,0.28),lerp(0,10,0.28)));gg.addColorStop(1,_rgb(lerp(0,7,0.28),lerp(0,14,0.28),lerp(0,5,0.28)));}
+  else if(isDuskDawn()){gg.addColorStop(0,_rgba(lerp(30,80,df),lerp(60,100,df),lerp(20,45,df),1));gg.addColorStop(1,_rgba(lerp(15,40,df),lerp(35,65,df),lerp(10,28,df),1));}
+  else{gg.addColorStop(0,'#3d7a22');gg.addColorStop(0.4,'#2d6018');gg.addColorStop(1,'#244e12');}
+  ctx.fillStyle=gg;ctx.fillRect(0,GY,CW,CH-GY);
+  // horizon blend
+  const bl=ctx.createLinearGradient(0,GY-30,0,GY+60);
+  const [br,bg2,bb]=isNight()?[18,22,55]:isDuskDawn()?[200,100,40]:[140,210,255];
+  bl.addColorStop(0,_rgba(br,bg2,bb,0.45));bl.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.fillStyle=bl;ctx.fillRect(0,GY-30,CW,90);
+  // edge vignette
+  const vL=ctx.createLinearGradient(0,0,140,0);vL.addColorStop(0,'rgba(0,0,0,0.5)');vL.addColorStop(1,'rgba(0,0,0,0)');ctx.fillStyle=vL;ctx.fillRect(0,GY,140,CH-GY);
+  const vR=ctx.createLinearGradient(CW,0,CW-140,0);vR.addColorStop(0,'rgba(0,0,0,0.5)');vR.addColorStop(1,'rgba(0,0,0,0)');ctx.fillStyle=vR;ctx.fillRect(CW-140,GY,140,CH-GY);
+  _drawGrassBlades(t,GY,df);
+  _drawFlowers(df);
+}
+function _drawGrassBlades(t,GY,df){
+  const gc=isNight()?'rgba(20,40,14,0.7)':isDuskDawn()?'rgba(60,90,30,0.6)':'rgba(55,110,25,0.55)';
+  const gc2=isNight()?'rgba(30,55,18,0.5)':isDuskDawn()?'rgba(80,115,40,0.5)':'rgba(80,150,35,0.5)';
+  const sd=[17,31,53,79,97,113,131,149,167,191,211,233];
+  for(let i=0;i<320;i++){
+    const bx=((i*sd[i%12]+i*23)%596)+2;
+    const by2=GY+30+((i*sd[(i+3)%12]+i*17)%(CH-GY-40));
+    const h=4+((i*7)%9);const sw=Math.sin(t*0.0014*(0.8+i%3*0.2)+i*0.5)*2.5;
+    ctx.strokeStyle=(i%3===0)?gc2:gc;ctx.lineWidth=0.9;
+    ctx.beginPath();ctx.moveTo(bx,by2);ctx.quadraticCurveTo(bx+sw,by2-h*0.5,bx+sw*1.4,by2-h);ctx.stroke();
+  }
+}
+function _drawFlowers(df){
+  const flowers=[
+    {x:130,y:500,col:'#ff6688',r:3},{x:160,y:560,col:'#ffdd44',r:2.5},{x:100,y:620,col:'#ffffff',r:2.5},{x:185,y:680,col:'#ff8844',r:3},
+    {x:145,y:740,col:'#cc44ff',r:2.5},{x:90,y:700,col:'#ffdd44',r:2},{x:170,y:820,col:'#ff6688',r:2.5},{x:120,y:870,col:'#ffffff',r:2},
+    {x:470,y:500,col:'#cc44ff',r:3},{x:440,y:560,col:'#ffdd44',r:2.5},{x:500,y:620,col:'#ff6688',r:2.5},{x:415,y:680,col:'#ffffff',r:3},
+    {x:455,y:740,col:'#ff8844',r:2.5},{x:510,y:700,col:'#ffdd44',r:2},{x:430,y:820,col:'#cc44ff',r:2.5},{x:480,y:870,col:'#ff6688',r:2},
+    {x:240,y:520,col:'#ffffff',r:2.5},{x:280,y:490,col:'#ffdd44',r:2},{x:320,y:510,col:'#ff6688',r:2.5},{x:360,y:490,col:'#cc44ff',r:2},
+    {x:220,y:600,col:'#ff8844',r:2},{x:310,y:580,col:'#ffffff',r:2.5},{x:390,y:600,col:'#ffdd44',r:2},{x:260,y:680,col:'#ff6688',r:2.5},
+    {x:340,y:700,col:'#cc44ff',r:2},{x:300,y:760,col:'#ffffff',r:2.5},{x:250,y:800,col:'#ffdd44',r:2},{x:350,y:810,col:'#ff8844',r:2.5},
+    {x:200,y:760,col:'#cc44ff',r:2},{x:400,y:760,col:'#ffffff',r:2},{x:270,y:870,col:'#ff6688',r:2.5},{x:330,y:860,col:'#ffdd44',r:2},
+  ];
+  const alpha=isNight()?0.2:isDuskDawn()?0.5:0.85;
+  flowers.forEach(({x,y,col,r})=>{
+    ctx.globalAlpha=alpha;
+    for(let p=0;p<5;p++){const a=(p/5)*Math.PI*2;ctx.fillStyle=col;ctx.beginPath();ctx.ellipse(x+Math.cos(a)*r*1.8,y+Math.sin(a)*r*1.8,r,r*0.7,a,0,Math.PI*2);ctx.fill();}
+    ctx.fillStyle='#ffee88';ctx.beginPath();ctx.arc(x,y,r*0.7,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1;
   });
 }
-
-// ── BLEACHERS / STANDS ───────────────────────────────
-function drawStands(t) {
-  // 3 tiers visible above the arena floor (the far stands)
-  for (let tier = 2; tier >= 0; tier--) {
-    const scale = 1 + (2 - tier) * 0.15;
-    const rx2 = ARX * scale + 18;
-    const ry2 = ARY * 0.40 + (2 - tier) * 22;
-    const cy2 = AY - ARY * 0.96 + (2 - tier) * 28;
-
-    const tg = ctx.createLinearGradient(0, cy2 - ry2, 0, cy2 + 5);
-    if (tier === 2) { tg.addColorStop(0,'#7a6848'); tg.addColorStop(1,'#3c2810'); }
-    else if (tier === 1) { tg.addColorStop(0,'#625438'); tg.addColorStop(1,'#2e1e0a'); }
-    else { tg.addColorStop(0,'#503e28'); tg.addColorStop(1,'#221408'); }
-
-    ctx.fillStyle = tg;
-    ctx.beginPath(); ctx.ellipse(AX, cy2, rx2, ry2, 0, Math.PI, Math.PI*2); ctx.fill();
-
-    // Step lines
-    ctx.strokeStyle = 'rgba(0,0,0,0.28)'; ctx.lineWidth = 1;
-    for (let s = 1; s < 4; s++) {
-      const sf = s / 4;
-      const hy = cy2 - ry2 * sf;
-      const hw = Math.sqrt(Math.max(0, 1 - ((hy - cy2) / ry2)**2)) * rx2;
-      ctx.beginPath(); ctx.moveTo(AX - hw, hy); ctx.lineTo(AX + hw, hy); ctx.stroke();
-    }
-    // Vertical column dividers
-    ctx.strokeStyle = 'rgba(0,0,0,0.2)'; ctx.lineWidth = 1;
-    for (let s = -4; s <= 4; s++) {
-      const vx = AX + s * (rx2 / 4.5);
-      const frac = Math.abs(vx - AX) / rx2;
-      if (frac >= 1) continue;
-      const halfH = ry2 * Math.sqrt(1 - frac * frac);
-      ctx.beginPath(); ctx.moveTo(vx, cy2 - halfH); ctx.lineTo(vx, cy2); ctx.stroke();
-    }
-    // Crowd on upper two tiers
-    if (tier >= 1) {
-      const n = tier === 2 ? 40 : 28;
-      for (let ci = 0; ci < n; ci++) {
-        const ca = Math.PI + (ci / n) * Math.PI;
-        const crx = rx2 * (0.58 + (ci % 4) * 0.1);
-        const cry = ry2 * (0.45 + (ci % 4) * 0.14);
-        const cpx = AX + Math.cos(ca) * crx;
-        const cpy = cy2 + Math.sin(ca) * cry;
-        if (cpy < cy2 + 5 && cpy > SKY_H + 88) {
-          const bob = Math.sin(t * 0.0014 * (1 + ci % 3) + ci * 1.9) * 1.3;
-          ctx.fillStyle = 'rgba(0,0,0,0.78)';
-          ctx.beginPath(); ctx.arc(cpx, cpy + bob, 3.5, 0, Math.PI*2); ctx.fill();
-          ctx.fillRect(cpx - 3, cpy + bob + 3, 6, 9);
-        }
-      }
-    }
-  }
-
-  // Left/right stone walls visible beside arena
-  [[0, 28], [572, 600]].forEach(([x1, x2]) => {
-    ctx.fillStyle = '#241608'; ctx.fillRect(x1, SKY_H + 90, x2 - x1, 230);
-    for (let r = 0; r < 12; r++) {
-      ctx.fillStyle = r % 2 === 0 ? '#382412' : '#2e1c0c';
-      ctx.fillRect(x1 + 1, SKY_H + 90 + r * 19, x2 - x1 - 2, 18);
-      ctx.fillStyle = 'rgba(200,160,80,0.04)';
-      ctx.fillRect(x1 + 1, SKY_H + 90 + r * 19, x2 - x1 - 2, 3);
-    }
+function drawFieldTorches(t){
+  const df=dayFactor();
+  const nightAlpha=Math.max(0,Math.min(1,(0.7-df)*2.5));
+  if(nightAlpha<=0)return;
+  const positions=[{x:24,y:340},{x:24,y:480},{x:24,y:900},{x:576,y:340},{x:576,y:480},{x:576,y:900}];
+  positions.forEach(({x,y},i)=>{
+    const fl=0.72+0.28*Math.sin(t*0.007+i*2.1+Math.sin(t*0.013+i)*0.5);
+    const fl2=0.68+0.32*Math.sin(t*0.009+i*1.3);
+    const gl=ctx.createRadialGradient(x,y,0,x,y,130*fl);
+    gl.addColorStop(0,`rgba(255,200,80,${0.18*nightAlpha*fl})`);gl.addColorStop(0.4,`rgba(255,140,30,${0.1*nightAlpha*fl})`);gl.addColorStop(1,'rgba(255,80,0,0)');
+    ctx.fillStyle=gl;ctx.beginPath();ctx.arc(x,y,130*fl,0,Math.PI*2);ctx.fill();
+    ctx.strokeStyle=`rgba(90,55,20,${nightAlpha})`;ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(x,y+30);ctx.lineTo(x,y-18);ctx.stroke();
+    ctx.fillStyle=`rgba(70,45,15,${nightAlpha})`;ctx.beginPath();ctx.moveTo(x-7,y-16);ctx.lineTo(x+7,y-16);ctx.lineTo(x+5,y-8);ctx.lineTo(x-5,y-8);ctx.closePath();ctx.fill();
+    ctx.fillStyle=`rgba(255,100,20,${nightAlpha*0.9})`;ctx.beginPath();ctx.ellipse(x,y-9,4,2,0,0,Math.PI*2);ctx.fill();
+    ctx.save();ctx.globalAlpha=nightAlpha;
+    const f1=ctx.createRadialGradient(x,y-22,0,x,y-20,18*fl);
+    f1.addColorStop(0,'rgba(255,240,120,0.95)');f1.addColorStop(0.3,'rgba(255,160,30,0.7)');f1.addColorStop(1,'rgba(255,40,0,0)');
+    ctx.fillStyle=f1;ctx.beginPath();ctx.moveTo(x-7,y-14);ctx.bezierCurveTo(x-10,y-22,x+Math.sin(t*0.011+i)*3,y-36*fl,x,y-38*fl);ctx.bezierCurveTo(x+Math.sin(t*0.009+i)*3,y-36*fl,x+10,y-22,x+7,y-14);ctx.closePath();ctx.fill();
+    const f2=ctx.createRadialGradient(x,y-24,0,x,y-22,10*fl2);
+    f2.addColorStop(0,'rgba(255,255,200,1)');f2.addColorStop(0.5,'rgba(255,200,60,0.8)');f2.addColorStop(1,'rgba(255,120,10,0)');
+    ctx.fillStyle=f2;ctx.beginPath();ctx.moveTo(x-4,y-16);ctx.bezierCurveTo(x-5,y-26,x+Math.sin(t*0.013+i+1)*2,y-32*fl2,x,y-34*fl2);ctx.bezierCurveTo(x+Math.sin(t*0.011+i)*2,y-32*fl2,x+5,y-26,x+4,y-16);ctx.closePath();ctx.fill();
+    ctx.fillStyle=`rgba(255,255,240,${0.95*fl})`;ctx.beginPath();ctx.ellipse(x,y-19,2.5,3.5,0,0,Math.PI*2);ctx.fill();
+    ctx.restore();
   });
 }
-
-// ── GROUND (outside arena) ───────────────────────────
-function drawGround() {
-  ctx.fillStyle = '#140e06'; ctx.fillRect(0, SKY_H + 90, CW, CH - SKY_H - 90);
-  ctx.strokeStyle = 'rgba(60,40,15,0.25)'; ctx.lineWidth = 1;
-  for (let row = 0; row < 26; row++) {
-    for (let col = 0; col < 12; col++) {
-      const bx = col * 52 + (row % 2 ? 26 : 0);
-      const by = SKY_H + 90 + row * 30;
-      const cx2 = bx + 26, cy2 = by + 15;
-      const dx = (cx2 - AX) / (ARX + 40), dy = (cy2 - AY) / (ARY + 32);
-      if (dx * dx + dy * dy > 1) ctx.strokeRect(bx, by, 51, 29);
-    }
-  }
+function drawTrees(){
+  const df=dayFactor();
+  _drawTree(0,620,155,11,65,3,0,df);_drawTree(38,580,140,10,58,7,1,df);_drawTree(18,760,115,9,50,9,2,df);_drawTree(65,800,100,7,44,4,0,df);
+  _drawTree(600,620,155,11,65,8,1,df);_drawTree(562,580,140,10,58,3,2,df);_drawTree(582,760,115,9,50,6,0,df);_drawTree(535,800,100,7,44,1,1,df);
+  _drawBush(95,780,20,3);_drawBush(115,800,15,7);_drawBush(505,785,20,5);_drawBush(488,805,16,2);
 }
-
-// ── ARENA FLOOR ──────────────────────────────────────
-function drawArenaFloor(t) {
-  ctx.save();
-  ctx.beginPath(); ctx.ellipse(AX, AY, ARX, ARY, 0, 0, Math.PI*2); ctx.clip();
-  // Sand texture
-  ctx.drawImage(sandOC, 0, 0);
-  // Torch warm light patches on floor
-  TORCHES.forEach(({x, y, phase}) => {
-    const f = 0.5 + 0.5 * Math.sin(t * 0.004 + phase * 5.8);
-    const lr = 120 + f * 35;
-    const la = 0.16 + f * 0.1;
-    const lg = ctx.createRadialGradient(x, y, 0, x, y, lr);
-    lg.addColorStop(0, `rgba(255,165,40,${la})`);
-    lg.addColorStop(0.45, `rgba(200,90,15,${la * 0.45})`);
-    lg.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.fillStyle = lg; ctx.fillRect(x - lr, y - lr, lr * 2, lr * 2);
+function _drawTree(x,y,trunkH,trunkW,foliageR,seed,variant,df){
+  const nf=df;
+  ctx.fillStyle=_rgba(0,0,0,0.15*nf);ctx.beginPath();ctx.ellipse(x+trunkH*0.3,y+4,trunkW*2.5,trunkW*0.8,0.2,0,Math.PI*2);ctx.fill();
+  const tg=ctx.createLinearGradient(x-trunkW,0,x+trunkW,0);
+  const tb1=Math.round(lerp(30,70,nf)),tb2=Math.round(lerp(18,42,nf)),tb3=Math.round(lerp(12,28,nf));
+  tg.addColorStop(0,_rgb(tb3-4,tb2-8,tb3-10));tg.addColorStop(0.3,_rgb(tb1,tb1-8,tb1-16));tg.addColorStop(0.7,_rgb(tb1-6,tb1-14,tb1-22));tg.addColorStop(1,_rgb(tb3,tb2-4,tb3-6));
+  ctx.fillStyle=tg;ctx.beginPath();ctx.moveTo(x-trunkW*0.7,y);ctx.bezierCurveTo(x-trunkW*0.8,y-trunkH*0.3,x-trunkW*0.6,y-trunkH*0.6,x+(seed%5-2)*3,y-trunkH);ctx.bezierCurveTo(x+trunkW*0.5+seed%3,y-trunkH*0.7,x+trunkW*0.8,y-trunkH*0.3,x+trunkW*0.7,y);ctx.closePath();ctx.fill();
+  const tx=x+(seed%5-2)*4,ty=y-trunkH;
+  const foliageBlobs=[{ox:0,oy:0,r:foliageR,l:0},{ox:-foliageR*0.55,oy:foliageR*0.25,r:foliageR*0.72,l:1},{ox:foliageR*0.55,oy:foliageR*0.25,r:foliageR*0.68,l:1},{ox:foliageR*0.25,oy:-foliageR*0.45,r:foliageR*0.62,l:2},{ox:-foliageR*0.3,oy:-foliageR*0.4,r:foliageR*0.58,l:2},{ox:foliageR*0.55,oy:-foliageR*0.3,r:foliageR*0.5,l:2},{ox:-foliageR*0.6,oy:-foliageR*0.1,r:foliageR*0.48,l:2},{ox:0,oy:-foliageR*0.6,r:foliageR*0.55,l:3}];
+  const gsets=[[[28,75,14],[38,92,18],[22,60,10],[48,108,22]],[[20,68,16],[30,85,20],[18,55,12],[42,100,24]],[[32,60,10],[40,78,14],[26,50,8],[52,90,18]]][variant%3];
+  foliageBlobs.forEach(({ox,oy,r,l})=>{
+    const gc=gsets[l%gsets.length];
+    const fg=ctx.createRadialGradient(tx+ox-r*0.25,ty+oy-r*0.25,0,tx+ox,ty+oy,r);
+    fg.addColorStop(0,_rgb(Math.round(gc[0]*nf+gc[0]*0.3*nf),Math.round(gc[1]*nf+gc[1]*0.25*nf),Math.round(gc[2]*nf)));
+    fg.addColorStop(0.5,_rgb(Math.round(gc[0]*nf),Math.round(gc[1]*nf),Math.round(gc[2]*nf)));
+    fg.addColorStop(1,_rgb(Math.round(gc[0]*nf*0.7),Math.round(gc[1]*nf*0.75),Math.round(gc[2]*nf*0.6)));
+    ctx.fillStyle=fg;ctx.beginPath();ctx.arc(tx+ox,ty+oy,r,0,Math.PI*2);ctx.fill();
   });
-  // Vignette on edges
-  const vg = ctx.createRadialGradient(AX, AY, ARX * 0.5, AX, AY, ARX * 1.02);
-  vg.addColorStop(0, 'rgba(0,0,0,0)');
-  vg.addColorStop(0.72, 'rgba(0,0,0,0)');
-  vg.addColorStop(1, 'rgba(0,0,0,0.5)');
-  ctx.fillStyle = vg; ctx.fillRect(0, 0, CW, CH);
-  ctx.restore();
+  ctx.fillStyle=_rgba(Math.round(180*nf),Math.round(230*nf),Math.round(100*nf),0.13*nf);ctx.beginPath();ctx.ellipse(tx-foliageR*0.18,ty-foliageR*0.38,foliageR*0.55,foliageR*0.3,-0.3,0,Math.PI*2);ctx.fill();
 }
-
-// ── ARENA WALL RIM ────────────────────────────────────
-function drawArenaWall(t) {
-  const segs = 90;
-  const oRX = ARX + WALL_T, oRY = ARY + WALL_T;
-  for (let i = 0; i < segs; i++) {
-    const a1 = (i / segs) * Math.PI * 2;
-    const a2 = ((i + 1) / segs) * Math.PI * 2;
-    const am = (a1 + a2) * 0.5;
-    const ix1 = AX + Math.cos(a1) * ARX,   iy1 = AY + Math.sin(a1) * ARY;
-    const ix2 = AX + Math.cos(a2) * ARX,   iy2 = AY + Math.sin(a2) * ARY;
-    const ox1 = AX + Math.cos(a1) * oRX,   oy1 = AY + Math.sin(a1) * oRY;
-    const ox2 = AX + Math.cos(a2) * oRX,   oy2 = AY + Math.sin(a2) * oRY;
-
-    // Directional shading
-    const nX = Math.cos(am), nY = Math.sin(am);
-    const dot = Math.max(0, -nX * 0.5 + (-nY) * 0.85); // light from top-left
-    const base = 38 + dot * 55;
-    const alt = i % 3;
-    if (alt === 0) ctx.fillStyle = `rgb(${base+52},${base+38},${base+16})`;
-    else if (alt === 1) ctx.fillStyle = `rgb(${base+44},${base+30},${base+10})`;
-    else ctx.fillStyle = `rgb(${base+60},${base+46},${base+22})`;
-
-    ctx.beginPath();
-    ctx.moveTo(ox1, oy1); ctx.lineTo(ox2, oy2);
-    ctx.lineTo(ix2, iy2); ctx.lineTo(ix1, iy1);
-    ctx.closePath(); ctx.fill();
-    // Mortar gap
-    ctx.strokeStyle = 'rgba(0,0,0,0.5)'; ctx.lineWidth = 0.7; ctx.stroke();
-
-    // Top cap — lighter stone face
-    const capH = 9 * Math.max(0.2, Math.cos(am + 0.1) * (-0.5) + 0.65);
-    ctx.fillStyle = `rgba(185,158,88,0.65)`;
-    ctx.beginPath();
-    ctx.moveTo(ox1, oy1); ctx.lineTo(ox2, oy2);
-    ctx.lineTo(ox2, oy2 - capH); ctx.lineTo(ox1, oy1 - capH);
-    ctx.closePath(); ctx.fill();
-  }
-  // Inner shadow (against arena floor)
-  ctx.save();
-  ctx.beginPath(); ctx.ellipse(AX, AY, ARX, ARY, 0, 0, Math.PI*2); ctx.clip();
-  const sg = ctx.createRadialGradient(AX, AY, ARX * 0.78, AX, AY, ARX);
-  sg.addColorStop(0, 'rgba(0,0,0,0)'); sg.addColorStop(1, 'rgba(0,0,0,0.4)');
-  ctx.fillStyle = sg; ctx.fillRect(0, 0, CW, CH);
-  ctx.restore();
-}
-
-// ── TORCHES ───────────────────────────────────────────
-function drawTorches(t) {
-  TORCHES.forEach(({x, y, phase}) => {
-    const f1 = Math.sin(t * 0.0048 + phase * 6.3) * 0.5 + 0.5;
-    const f2 = Math.sin(t * 0.0072 + phase * 4.1) * 0.5 + 0.5;
-    const fw = Math.sin(t * 0.006 + phase * 5) * 2.5;
-    // Pole
-    ctx.strokeStyle = '#5a3e18'; ctx.lineWidth = 3;
-    ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y - 24); ctx.stroke();
-    // Cup
-    ctx.fillStyle = '#6a4820';
-    ctx.beginPath(); ctx.moveTo(x-5, y-24); ctx.lineTo(x+5, y-24); ctx.lineTo(x+3.5, y-14); ctx.lineTo(x-3.5, y-14); ctx.closePath(); ctx.fill();
-    // Outer glow
-    const fsz = 16 + f1 * 7;
-    const fg = ctx.createRadialGradient(x, y-30, 0, x, y-28, fsz * 2);
-    fg.addColorStop(0, `rgba(255,220,80,${0.65+f1*0.25})`);
-    fg.addColorStop(0.35, `rgba(255,100,15,${0.35+f1*0.15})`);
-    fg.addColorStop(0.7, `rgba(180,40,0,0.12)`);
-    fg.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.fillStyle = fg; ctx.beginPath(); ctx.arc(x, y-30, fsz*2, 0, Math.PI*2); ctx.fill();
-    // Flame
-    const fh = 20 + f2 * 9;
-    ctx.fillStyle = `rgba(255,215,55,${0.88+f1*0.1})`;
-    ctx.beginPath();
-    ctx.moveTo(x - 6, y - 24);
-    ctx.quadraticCurveTo(x - 4 + fw, y - 24 - fh*0.45, x + fw*0.5, y - 24 - fh);
-    ctx.quadraticCurveTo(x + 4 + fw, y - 24 - fh*0.45, x + 6, y - 24);
-    ctx.closePath(); ctx.fill();
-    // Hot core
-    ctx.fillStyle = `rgba(255,255,200,${0.7+f1*0.2})`;
-    ctx.beginPath();
-    ctx.moveTo(x - 3.5, y - 24);
-    ctx.quadraticCurveTo(x + fw*0.35, y - 24 - fh*0.6, x + 3.5, y - 24);
-    ctx.closePath(); ctx.fill();
+function _drawBush(x,y,r,seed){
+  const nf=dayFactor();
+  [[-r*0.55,r*0.2,r*0.7],[r*0.55,r*0.15,r*0.72],[r*0.2,-r*0.35,r*0.6],[0,r*0.3,r*0.65],[0,0,r]].forEach(([ox,oy,br])=>{
+    const bg=ctx.createRadialGradient(x+ox-br*0.2,y+oy-br*0.2,0,x+ox,y+oy,br);
+    bg.addColorStop(0,_rgb(Math.round(50*nf),Math.round(100*nf),Math.round(28*nf)));bg.addColorStop(1,_rgb(Math.round(22*nf),Math.round(55*nf),Math.round(12*nf)));
+    ctx.fillStyle=bg;ctx.beginPath();ctx.arc(x+ox,y+oy,br,0,Math.PI*2);ctx.fill();
   });
-}
-
-// ── ENTRY GATE (bottom) ───────────────────────────────
-function drawGate(t) {
-  const gx = AX, gy = AY + ARY + WALL_T - 8;
-  const gw = 52, gh = 72;
-  // Stone surround
-  ctx.fillStyle = '#4a3018';
-  ctx.fillRect(gx - gw/2 - 10, gy, gw + 20, gh + 6);
-  ctx.beginPath(); ctx.arc(gx, gy, gw/2 + 10, Math.PI, 0); ctx.fill();
-  // Interior dark
-  ctx.fillStyle = '#03020d';
-  ctx.beginPath();
-  ctx.rect(gx - gw/2, gy, gw, gh);
-  ctx.fill();
-  ctx.beginPath(); ctx.arc(gx, gy, gw/2, Math.PI, 0); ctx.fill();
-  // Portcullis bars
-  ctx.strokeStyle = '#1e180a'; ctx.lineWidth = 4;
-  for (let b = -2; b <= 2; b++) {
-    ctx.beginPath(); ctx.moveTo(gx + b*(gw/4.5), gy); ctx.lineTo(gx + b*(gw/4.5), gy + gh); ctx.stroke();
-  }
-  ctx.lineWidth = 3;
-  for (let r = 0; r < 5; r++) {
-    const ry = gy + r * (gh/4.5) + 8;
-    ctx.beginPath(); ctx.moveTo(gx-gw/2, ry); ctx.lineTo(gx+gw/2, ry); ctx.stroke();
-  }
-  // Arch highlight
-  ctx.strokeStyle = 'rgba(140,100,40,0.5)'; ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.arc(gx, gy, gw/2+2, Math.PI, 0); ctx.stroke();
-}
-
-// ── DUST/ATMOSPHERE ────────────────────────────────────
-function drawAtmosphere(t) {
-  // Dust motes drifting in arena
-  ctx.save();
-  ctx.beginPath(); ctx.ellipse(AX, AY, ARX - 5, ARY - 5, 0, 0, Math.PI*2); ctx.clip();
-  for (let i = 0; i < 30; i++) {
-    const pt = ((t * 0.00008 * (0.5 + i * 0.05) + i * 0.2) % 1);
-    const bx = AX + Math.cos(i * 2.399) * ARX * (0.2 + (i%5)*0.13);
-    const by = AY + ARY * 0.95 - pt * ARY * 1.9;
-    if (by > AY - ARY && by < AY + ARY) {
-      ctx.globalAlpha = 0.06 + 0.09 * Math.sin(pt * Math.PI);
-      ctx.fillStyle = '#f0d060';
-      ctx.beginPath(); ctx.arc(bx, by, 1.2 + (i%3)*0.4, 0, Math.PI*2); ctx.fill();
-    }
-  }
-  ctx.globalAlpha = 1;
-  ctx.restore();
-
-  // Haze band at horizon of arena (top edge)
-  const hz = ctx.createLinearGradient(0, AY - ARY - 10, 0, AY - ARY + 40);
-  hz.addColorStop(0, 'rgba(0,0,0,0)');
-  hz.addColorStop(0.4, 'rgba(80,30,120,0.12)');
-  hz.addColorStop(1, 'rgba(0,0,0,0)');
-  ctx.fillStyle = hz;
-  ctx.fillRect(0, AY - ARY - 10, CW, 50);
 }
 
 // ── HUD PANEL (как в первой части) ───────────────────────
@@ -1102,15 +839,11 @@ function frame(now) {
   ctx.clearRect(0, 0, CW, CH);
   ctx.shadowBlur = 0; ctx.globalAlpha = 1;
 
-  drawGround();
   drawSky(now);
-  drawFarWall(now);
-  drawStands(now);
-  drawArenaFloor(now);
-  drawArenaWall(now);
-  drawTorches(now);
-  drawGate(now);
-  drawAtmosphere(now);
+  drawBgForest();
+  drawGrassField(now);
+  drawFieldTorches(now);
+  drawTrees();
 
   if(armageddon?.type==='flood')drawFlood();
   drawMeteors();
