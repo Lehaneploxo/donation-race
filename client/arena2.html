@@ -115,7 +115,7 @@ let uidSeq=0, totalLikes=0, armageddon=null;
 let eventLabel='', eventLabelTimer=0;
 let victoryState=null, botSpawnTimer=20000;
 let topKillers=[], teamRegistry=new Map();
-let nextKillsTarget=20, lastT=0;
+let nextKillsTarget=20, lastT=0, gameTime=0.38;
 const BOT_NAMES=['dark_wolf99','fire_blade','shadow_x','night_storm','iron_fist','blaze_run','void_edge','steel_claw','red_ghost','swift_axe','cold_viper','mad_titan','lone_wolf','fury_wave','black_hawk','storm_eye','grim_edge','bone_crusher','death_note','ice_fang','war_raven','sun_blade','moon_fury','dark_tide','fire_storm','thunder_x','rock_solid','sharp_mind','wild_boar','eagle_eye'];
 let usedBotNames=[];
 
@@ -529,42 +529,97 @@ const sc = sandOC.getContext('2d');
   sc.restore();
 })();
 
+// ── SKY helpers ────────────────────────────────────────
+function skyAt(gt) {
+  // gt 0..1: 0=midnight, 0.25=dawn, 0.5=noon, 0.75=dusk
+  function lerp3(a,b,f){return[a[0]+(b[0]-a[0])*f,a[1]+(b[1]-a[1])*f,a[2]+(b[2]-a[2])*f];}
+  function toHex(rgb){return'#'+rgb.map(v=>Math.round(Math.max(0,Math.min(255,v))).toString(16).padStart(2,'0')).join('');}
+  const NIGHT=[4,1,26],DAWN=[140,70,30],DAY=[40,100,200],DUSK=[100,40,10];
+  const NIGHT_B=[14,5,48],DAWN_B=[200,120,60],DAY_B=[130,190,240],DUSK_B=[160,70,20];
+  let top,bot;
+  if(gt<0.2){const f=gt/0.2;top=lerp3(NIGHT,DAWN,f);bot=lerp3(NIGHT_B,DAWN_B,f);}
+  else if(gt<0.3){const f=(gt-0.2)/0.1;top=lerp3(DAWN,[20,60,160],f);bot=lerp3(DAWN_B,DAY_B,f);}
+  else if(gt<0.6){const f=(gt-0.3)/0.3;top=lerp3([20,60,160],DAY,f);bot=lerp3(DAY_B,DAY_B,f);}
+  else if(gt<0.75){const f=(gt-0.6)/0.15;top=lerp3(DAY,DUSK,f);bot=lerp3(DAY_B,DUSK_B,f);}
+  else if(gt<0.85){const f=(gt-0.75)/0.1;top=lerp3(DUSK,NIGHT,f);bot=lerp3(DUSK_B,NIGHT_B,f);}
+  else{top=NIGHT;bot=NIGHT_B;}
+  return{top:toHex(top),bot:toHex(bot)};
+}
+function isNight(){return gameTime<0.18||gameTime>0.82;}
+function isDuskDawn(){return(gameTime>=0.18&&gameTime<0.28)||(gameTime>=0.72&&gameTime<=0.82);}
+
 // ── SKY ──────────────────────────────────────────────
 function drawSky(t) {
+  const {top,bot} = skyAt(gameTime);
   const g = ctx.createLinearGradient(0, 0, 0, SKY_H + 60);
-  g.addColorStop(0,   '#04011a');
-  g.addColorStop(0.3, '#0e052a');
-  g.addColorStop(0.7, '#1c0840');
-  g.addColorStop(1,   '#2c0d58');
+  g.addColorStop(0, top);
+  g.addColorStop(1, bot);
   ctx.fillStyle = g; ctx.fillRect(0, 0, CW, SKY_H + 60);
 
-  // Stars
-  for (let i = 0; i < 90; i++) {
-    const sx = ((i * 137 + 50) % 578) + 11;
-    const sy = ((i * 103 + 17) % 158) + 5;
-    const tw = 0.3 + 0.6 * Math.abs(Math.sin(t * 0.0007 + i * 1.1));
-    ctx.globalAlpha = tw;
-    ctx.fillStyle = i % 11 === 0 ? '#bbddff' : '#ffffff';
-    ctx.beginPath(); ctx.arc(sx, sy, i % 7 === 0 ? 1.3 : 0.65, 0, Math.PI*2); ctx.fill();
+  // Stars — visible at night / dusk-dawn
+  const starAlpha = isNight() ? 1 : isDuskDawn() ? 0.5 : 0;
+  if (starAlpha > 0) {
+    for (let i = 0; i < 90; i++) {
+      const sx = ((i * 137 + 50) % 578) + 11;
+      const sy = ((i * 103 + 17) % 158) + 5;
+      const tw = starAlpha * (0.3 + 0.6 * Math.abs(Math.sin(t * 0.0007 + i * 1.1)));
+      ctx.globalAlpha = tw;
+      ctx.fillStyle = i % 11 === 0 ? '#bbddff' : '#ffffff';
+      ctx.beginPath(); ctx.arc(sx, sy, i % 7 === 0 ? 1.3 : 0.65, 0, Math.PI*2); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
   }
-  ctx.globalAlpha = 1;
 
-  // Moon
-  const mx = 488, my = 62, mr = 23;
-  const mhalo = ctx.createRadialGradient(mx, my, 2, mx, my, mr * 3.2);
-  mhalo.addColorStop(0, 'rgba(210,190,140,0.18)'); mhalo.addColorStop(1, 'rgba(0,0,0,0)');
-  ctx.fillStyle = mhalo; ctx.beginPath(); ctx.arc(mx, my, mr*3.2, 0, Math.PI*2); ctx.fill();
-  ctx.fillStyle = '#ddd4a8'; ctx.beginPath(); ctx.arc(mx, my, mr, 0, Math.PI*2); ctx.fill();
-  ctx.fillStyle = '#04011a';  ctx.beginPath(); ctx.arc(mx+mr*0.48, my-mr*0.12, mr*0.88, 0, Math.PI*2); ctx.fill();
+  // Sun arc — day phase 0.25..0.75
+  const sunPhase = (gameTime - 0.25) / 0.5; // 0 at dawn, 1 at dusk
+  if (sunPhase >= 0 && sunPhase <= 1) {
+    const sunAngle = Math.PI - sunPhase * Math.PI; // PI..0 left-to-right
+    const sx = CW * 0.5 + Math.cos(sunAngle) * (CW * 0.42);
+    const sy = SKY_H * 0.85 - Math.sin(sunAngle) * (SKY_H * 0.80);
+    const sunA = Math.min(1, Math.min(sunPhase * 8, (1 - sunPhase) * 8)); // fade at horizon
+    ctx.globalAlpha = sunA;
+    // Sun glow
+    const sg = ctx.createRadialGradient(sx, sy, 0, sx, sy, 60);
+    sg.addColorStop(0, 'rgba(255,250,200,0.6)'); sg.addColorStop(1, 'rgba(255,200,50,0)');
+    ctx.fillStyle = sg; ctx.beginPath(); ctx.arc(sx, sy, 60, 0, Math.PI*2); ctx.fill();
+    // Sun disk
+    ctx.fillStyle = sunPhase < 0.5 ? '#FFF5AA' : '#FFDD66';
+    ctx.beginPath(); ctx.arc(sx, sy, 18, 0, Math.PI*2); ctx.fill();
+    ctx.globalAlpha = 1;
+  }
 
-  // Nebula glow above colosseum
-  const ng = ctx.createRadialGradient(300, SKY_H + 20, 0, 300, SKY_H - 30, 230);
-  ng.addColorStop(0, 'rgba(70,15,150,0.28)'); ng.addColorStop(1, 'rgba(0,0,0,0)');
-  ctx.fillStyle = ng; ctx.fillRect(0, 0, CW, SKY_H + 80);
+  // Moon arc — night phase; offset by 0.5 from sun
+  const moonPhase = ((gameTime + 0.5) % 1 - 0.25) / 0.5;
+  if (moonPhase >= 0 && moonPhase <= 1) {
+    const moonAngle = Math.PI - moonPhase * Math.PI;
+    const mx2 = CW * 0.5 + Math.cos(moonAngle) * (CW * 0.42);
+    const my2 = SKY_H * 0.85 - Math.sin(moonAngle) * (SKY_H * 0.80);
+    const moonA = Math.min(1, Math.min(moonPhase * 8, (1 - moonPhase) * 8));
+    ctx.globalAlpha = moonA * (isNight() ? 1 : 0.4);
+    const mr = 23;
+    const mhalo = ctx.createRadialGradient(mx2, my2, 2, mx2, my2, mr * 3.2);
+    mhalo.addColorStop(0, 'rgba(210,190,140,0.18)'); mhalo.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = mhalo; ctx.beginPath(); ctx.arc(mx2, my2, mr*3.2, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#ddd4a8'; ctx.beginPath(); ctx.arc(mx2, my2, mr, 0, Math.PI*2); ctx.fill();
+    // crescent shadow
+    const bgTop = top; ctx.fillStyle = bgTop;
+    ctx.beginPath(); ctx.arc(mx2+mr*0.48, my2-mr*0.12, mr*0.88, 0, Math.PI*2); ctx.fill();
+    ctx.globalAlpha = 1;
+  }
 
-  // Moving clouds
-  ctx.fillStyle = '#260858';
-  [[75, 48, 0.5], [330, 32, 0.35]].forEach(([x, y, a], ci) => {
+  // Nebula glow — only at night
+  if (isNight() || isDuskDawn()) {
+    const nebulaA = isNight() ? 0.28 : 0.12;
+    const ng = ctx.createRadialGradient(300, SKY_H + 20, 0, 300, SKY_H - 30, 230);
+    ng.addColorStop(0, `rgba(70,15,150,${nebulaA})`); ng.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = ng; ctx.fillRect(0, 0, CW, SKY_H + 80);
+  }
+
+  // Moving clouds — color tinted by time of day
+  const cloudColor = isNight() ? '#260858' : isDuskDawn() ? '#884422' : '#aaccee';
+  const cloudAlpha = isNight() ? 0.5 : isDuskDawn() ? 0.55 : 0.35;
+  ctx.fillStyle = cloudColor;
+  [[75, 48, cloudAlpha], [330, 32, cloudAlpha * 0.7]].forEach(([x, y, a], ci) => {
     const dx = ((t * (0.007 - ci*0.003) + ci*400) % 900) - 100;
     ctx.globalAlpha = a;
     ctx.beginPath();
@@ -1034,6 +1089,7 @@ function drawEventLabel(){const a=Math.min(1,eventLabelTimer/600);ctx.save();ctx
 function frame(now) {
   requestAnimationFrame(frame);
   const dt=Math.min(now-(lastT||now),100); lastT=now;
+  gameTime=(gameTime+dt/90000)%1;
   updateWarriors(dt);
   updateParticles(dt);
   updateDmgNums(dt);
