@@ -807,20 +807,20 @@ function drawTerminator(cx,cy,sc,facing,state,now){
   const hipY=22,hipSep=7,thighLen=28,shinLen=26,footLen=10;
   // LEFT leg
   const lhx=-hipSep,lhy=hipY,lThighAng=Math.PI/2+legSwing,lKnee=limbEnd(lhx,lhy,lThighAng,thighLen);
-  const lShinAng=lThighAng+d2r(15)+kneeBendL,lAnkle=limbEnd(lKnee.x,lKnee.y,lShinAng,shinLen);
+  const lShinAng=lThighAng-kneeBendL,lAnkle=limbEnd(lKnee.x,lKnee.y,lShinAng,shinLen);
   capsule(lhx,lhy,lKnee.x,lKnee.y,6,M3,M4,1.5);
   ctx.fillStyle=JOINT;ctx.beginPath();ctx.arc(lKnee.x,lKnee.y,5.5,0,Math.PI*2);ctx.fill();
   ctx.fillStyle=M4;ctx.beginPath();ctx.arc(lKnee.x,lKnee.y,3.5,0,Math.PI*2);ctx.fill();
   capsule(lKnee.x,lKnee.y,lAnkle.x,lAnkle.y,5,M3,M4,1.5);
-  ctx.fillStyle=M3;ctx.beginPath();ctx.ellipse(lAnkle.x+f*footLen*0.4,lAnkle.y+2,footLen,4,0,0,Math.PI*2);ctx.fill();ctx.strokeStyle=M4;ctx.lineWidth=1.5;ctx.stroke();
+  ctx.fillStyle=M3;ctx.beginPath();ctx.ellipse(lAnkle.x+footLen*0.5,lAnkle.y+2,footLen,4,0,0,Math.PI*2);ctx.fill();ctx.strokeStyle=M4;ctx.lineWidth=1.5;ctx.stroke();
   // RIGHT leg
   const rhx=hipSep,rhy=hipY,rThighAng=Math.PI/2-legSwing,rKnee=limbEnd(rhx,rhy,rThighAng,thighLen);
-  const rShinAng=rThighAng+d2r(15)+kneeBendR,rAnkle=limbEnd(rKnee.x,rKnee.y,rShinAng,shinLen);
+  const rShinAng=rThighAng+kneeBendR,rAnkle=limbEnd(rKnee.x,rKnee.y,rShinAng,shinLen);
   capsule(rhx,rhy,rKnee.x,rKnee.y,7,M2,M3,1.5);
   ctx.fillStyle=JOINT;ctx.beginPath();ctx.arc(rKnee.x,rKnee.y,6,0,Math.PI*2);ctx.fill();
   ctx.fillStyle=M3;ctx.beginPath();ctx.arc(rKnee.x,rKnee.y,3.5,0,Math.PI*2);ctx.fill();
   capsule(rKnee.x,rKnee.y,rAnkle.x,rAnkle.y,5.5,M2,M3,1.5);
-  ctx.fillStyle=M2;ctx.beginPath();ctx.ellipse(rAnkle.x+f*footLen*0.4,rAnkle.y+2,footLen,4.5,0,0,Math.PI*2);ctx.fill();ctx.strokeStyle=M3;ctx.lineWidth=1.5;ctx.stroke();
+  ctx.fillStyle=M2;ctx.beginPath();ctx.ellipse(rAnkle.x+footLen*0.5,rAnkle.y+2,footLen,4.5,0,0,Math.PI*2);ctx.fill();ctx.strokeStyle=M3;ctx.lineWidth=1.5;ctx.stroke();
   // pelvis
   ctx.save();ctx.rotate(bodyLean);
   const pg=ctx.createLinearGradient(-12,hipY-8,12,hipY+2);pg.addColorStop(0,M3);pg.addColorStop(0.5,M2);pg.addColorStop(1,M3);
