@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Forest Glade Preview</title>
+<style>
+  body { margin:0; background:#000; display:flex; align-items:center; justify-content:center; min-height:100vh; }
+  canvas { display:block; }
+</style>
+</head>
+<body>
+<canvas id="c" width="600" height="1000"></canvas>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const CW=600, CH=1000, SKY_H=200;
+let gameTime=0.38, lastT=0;
+
+// ── Time helpers ─────────────────────────────────────
+function isNight(){return gameTime<0.18||gameTime>0.82;}
+function isDusk(){return gameTime>=0.68&&gameTime<=0.82;}
+function isDawn(){return gameTime>=0.18&&gameTime<=0.30;}
+function isDuskDawn(){return isDusk()||isDawn();}
+function dayFactor(){
+  if(isNight()) return 0.28; // не совсем темно ночью
+  if(isDawn()) return lerp(0.28,1,(gameTime-0.18)/0.12);
+  if(isDusk()) return lerp(0.28,1,1-(gameTime-0.68)/0.14);
+  return 1;
+}
+function lerp(a,b,t){return a+(b-a)*t;}
+function lerp3(a,b,f){return[a[0]+(b[0]-a[0])*f,a[1]+(b[1]-a[1])*f,a[2]+(b[2]-a[2])*f];}
+function rgb(r,g,b){return`rgb(${Math.round(r)},${Math.round(g)},${Math.round(b)})`;}
+function rgba(r,g,b,a){return`rgba(${Math.round(r)},${Math.round(g)},${Math.round(b)},${a})`;}
+
+// ── Sky ──────────────────────────────────────────────
+function drawSky(t){
+  const df=dayFactor();
+  // top color
+  const topDay=[70,140,230], topDusk=[140,60,20], topNight=[18,22,55];
+  const botDay=[160,210,255], botDusk=[220,110,50], botNight=[35,30,75];
+  let top,bot;
+  if(isDawn()){const f=(gameTime-0.18)/0.12; top=lerp3(topNight,topDay,f); bot=lerp3(botNight,botDay,f);}
+  else if(isDusk()){const f=(gameTime-0.68)/0.14; top=lerp3(topDay,topNight,f); bot=lerp3(botDay,botNight,f);}
+  else if(isNight()){top=topNight;bot=botNight;}
+  else{top=topDay;bot=botDay;}
+  // orange horizon at dusk/dawn
+  const horizonOrange = isDuskDawn()?Math.min(1,Math.abs(0.5-df)*2.5):0;
+
+  const g=ctx.createLinearGradient(0,0,0,SKY_H+60);
+  g.addColorStop(0, rgb(...top));
+  if(horizonOrange>0){
+    g.addColorStop(0.55, rgba(255,140,40,horizonOrange*0.7));
+    g.addColorStop(0.75, rgba(255,80,10,horizonOrange*0.5));
+  }
+  g.addColorStop(1, rgb(...bot));
+  ctx.fillStyle=g; ctx.fillRect(0,0,CW,SKY_H+60);
+
+  // Stars
+  if(df<0.9){
+    const sa=Math.min(1,(1-df)*2.5);
+    for(let i=0;i<120;i++){
+      const sx=((i*157+43)%594)+3, sy=((i*97+19)%175)+3;
+      const tw=sa*(0.3+0.65*Math.abs(Math.sin(t*0.0008+i*0.9)));
+      ctx.globalAlpha=tw;
+      ctx.fillStyle=i%13===0?'#cce8ff':i%7===0?'#ffe8cc':'#ffffff';
+      ctx.beginPath(); ctx.arc(sx,sy,i%9===0?1.4:0.65,0,Math.PI*2); ctx.fill();
+    }
+    ctx.globalAlpha=1;
+  }
+
+  // Sun
+  const sunPhase=(gameTime-0.25)/0.5;
+  if(sunPhase>=0&&sunPhase<=1){
+    const sa=Math.min(1,Math.min(sunPhase*10,(1-sunPhase)*10));
+    const angle=Math.PI-sunPhase*Math.PI;
+    const sx2=CW*0.5+Math.cos(angle)*CW*0.42;
+    const sy2=SKY_H*0.78-Math.sin(angle)*SKY_H*0.72;
+    ctx.globalAlpha=sa;
+    // outer glow
+    const sg=ctx.createRadialGradient(sx2,sy2,0,sx2,sy2,80);
+    sg.addColorStop(0,'rgba(255,255,220,0.55)'); sg.addColorStop(0.3,'rgba(255,230,100,0.25)'); sg.addColorStop(1,'rgba(255,180,0,0)');
+    ctx.fillStyle=sg; ctx.beginPath(); ctx.arc(sx2,sy2,80,0,Math.PI*2); ctx.fill();
+    // disk
+    ctx.fillStyle=sunPhase<0.5?'#FFFDE8':'#FFE87A';
+    ctx.beginPath(); ctx.arc(sx2,sy2,19,0,Math.PI*2); ctx.fill();
+    // rim
+    ctx.strokeStyle='rgba(255,200,50,0.6)'; ctx.lineWidth=3;
+    ctx.beginPath(); ctx.arc(sx2,sy2,22,0,Math.PI*2); ctx.stroke();
+    ctx.globalAlpha=1;
+  }
+
+  // Moon
+  const moonPhase=((gameTime+0.5)%1-0.25)/0.5;
+  if(moonPhase>=0&&moonPhase<=1){
+    const ma=Math.min(1,Math.min(moonPhase*10,(1-moonPhase)*10))*(isNight()?1:0.25);
+    const angle=Math.PI-moonPhase*Math.PI;
+    const mx2=CW*0.5+Math.cos(angle)*CW*0.42;
+    const my2=SKY_H*0.78-Math.sin(angle)*SKY_H*0.72;
+    ctx.globalAlpha=ma;
+    const mh=ctx.createRadialGradient(mx2,my2,0,mx2,my2,55);
+    mh.addColorStop(0,'rgba(200,195,170,0.22)'); mh.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.fillStyle=mh; ctx.beginPath(); ctx.arc(mx2,my2,55,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='#e8e0c0'; ctx.beginPath(); ctx.arc(mx2,my2,20,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle=rgb(...bot); ctx.beginPath(); ctx.arc(mx2+9,my2-3,17,0,Math.PI*2); ctx.fill();
+    // moon craters
+    ctx.globalAlpha=ma*0.25;
+    ctx.fillStyle='#b0a880';
+    [[mx2-4,my2+4,3],[mx2+3,my2-7,2],[mx2-9,my2-2,2]].forEach(([cx2,cy2,r])=>{
+      ctx.beginPath(); ctx.arc(cx2,cy2,r,0,Math.PI*2); ctx.fill();
+    });
+    ctx.globalAlpha=1;
+  }
+
+  // Clouds
+  drawClouds(t);
+}
+
+function drawClouds(t){
+  const df=dayFactor();
+  const col=isNight()?rgba(150,155,180,0.08):isDuskDawn()?rgba(255,200,150,0.55):rgba(255,255,255,0.82);
+  const shadow=isNight()?'rgba(0,0,0,0)':isDuskDawn()?rgba(200,130,80,0.3):rgba(180,180,180,0.3);
+  const clouds=[
+    {x:60,  y:55, s:1.0, sp:0.009},
+    {x:280, y:38, s:0.7, sp:0.006},
+    {x:470, y:62, s:0.85,sp:0.007},
+    {x:150, y:80, s:0.55,sp:0.005},
+  ];
+  clouds.forEach((cl,ci)=>{
+    const dx=((t*cl.sp+ci*250)%820)-120;
+    ctx.save(); ctx.translate(cl.x+dx, cl.y); ctx.scale(cl.s,cl.s);
+    // shadow
+    ctx.globalAlpha=0.18; ctx.fillStyle=shadow;
+    ctx.beginPath();
+    ctx.ellipse(8,14,52,12,0,0,Math.PI*2); ctx.fill();
+    ctx.globalAlpha=1;
+    // puffs
+    ctx.fillStyle=col;
+    ctx.beginPath();
+    ctx.arc(0,0,26,0,Math.PI*2);
+    ctx.arc(30,-12,22,0,Math.PI*2);
+    ctx.arc(60,0,28,0,Math.PI*2);
+    ctx.arc(88,-6,20,0,Math.PI*2);
+    ctx.arc(20,-20,18,0,Math.PI*2);
+    ctx.arc(50,-22,16,0,Math.PI*2);
+    ctx.fill();
+    ctx.restore();
+  });
+}
+
+// ── Background forest layers ──────────────────────────
+function drawBgForest(){
+  const df=dayFactor();
+  // layer 3 — distant (lightest/bluest)
+  const l3=df>0?rgba(lerp(40,80,df),lerp(55,110,df),lerp(40,70,df),0.55):rgba(10,12,20,0.7);
+  drawTreeSilhouetteLayer(l3, 0, SKY_H-10, 0.45, 42);
+  // layer 2
+  const l2=df>0?rgba(lerp(25,50,df),lerp(75,115,df),lerp(20,45,df),0.75):rgba(8,15,12,0.8);
+  drawTreeSilhouetteLayer(l2, 0, SKY_H+10, 0.62, 28);
+  // layer 1 — closest bg
+  const l1=df>0?rgba(lerp(18,38,df),lerp(68,98,df),lerp(14,32,df),0.9):rgba(5,18,8,0.92);
+  drawTreeSilhouetteLayer(l1, 0, SKY_H+30, 0.82, 18);
+}
+
+function drawTreeSilhouetteLayer(col, yOff, yBase, scl, seed){
+  ctx.fillStyle=col;
+  ctx.beginPath();
+  ctx.moveTo(0, CH);
+  ctx.lineTo(0, yBase);
+  for(let i=0;i<=32;i++){
+    const x=i*(CW/32);
+    const h=55*scl + Math.sin(i*seed*0.7+seed)*28*scl + Math.sin(i*2.3+seed*0.4)*18*scl;
+    ctx.lineTo(x, yBase-h);
+  }
+  ctx.lineTo(CW, CH);
+  ctx.closePath(); ctx.fill();
+}
+
+// ── Ground / grass ────────────────────────────────────
+function drawGround(t){
+  const df=dayFactor();
+  const GY=SKY_H+55;
+
+  // Base gradient — grass field
+  const gg=ctx.createLinearGradient(0,GY,0,CH);
+  if(isNight()){
+    gg.addColorStop(0,'#0d1a0a');
+    gg.addColorStop(0.4,'#0a1508');
+    gg.addColorStop(1,'#070e05');
+  } else if(isDuskDawn()){
+    gg.addColorStop(0,rgba(lerp(30,80,df),lerp(60,100,df),lerp(20,45,df),1));
+    gg.addColorStop(1,rgba(lerp(15,40,df),lerp(35,65,df),lerp(10,28,df),1));
+  } else {
+    gg.addColorStop(0,'#3d7a22');
+    gg.addColorStop(0.3,'#346b1c');
+    gg.addColorStop(0.7,'#2d5e18');
+    gg.addColorStop(1,'#264f14');
+  }
+  ctx.fillStyle=gg; ctx.fillRect(0,GY,CW,CH-GY);
+
+  // Soft horizon blend sky→grass
+  const blend=ctx.createLinearGradient(0,GY-30,0,GY+60);
+  const [br,bg2,bb]=isNight()?[8,5,28]:isDuskDawn()?[200,100,40]:[140,210,255];
+  blend.addColorStop(0,rgba(br,bg2,bb,0.5));
+  blend.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.fillStyle=blend; ctx.fillRect(0,GY-30,CW,90);
+
+  // Darker vignette edges (forest shadow)
+  const vL=ctx.createLinearGradient(0,0,160,0);
+  vL.addColorStop(0,'rgba(0,0,0,0.55)'); vL.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.fillStyle=vL; ctx.fillRect(0,GY,160,CH-GY);
+  const vR=ctx.createLinearGradient(CW,0,CW-160,0);
+  vR.addColorStop(0,'rgba(0,0,0,0.55)'); vR.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.fillStyle=vR; ctx.fillRect(CW-160,GY,160,CH-GY);
+
+  // Grass texture — scattered blades
+  drawGrassBlades(t, GY, df);
+
+  // Flowers / details
+  drawFlowers(df);
+
+}
+
+function drawGrassBlades(t, GY, df){
+  const gc=isNight()?'rgba(20,40,14,0.7)':isDuskDawn()?'rgba(60,90,30,0.6)':'rgba(55,110,25,0.55)';
+  const gc2=isNight()?'rgba(30,55,18,0.5)':isDuskDawn()?'rgba(80,115,40,0.5)':'rgba(80,150,35,0.5)';
+  const seed=[17,31,53,79,97,113,131,149,167,191,211,233];
+  for(let i=0;i<320;i++){
+    const bx=((i*seed[i%12]+i*23)%596)+2;
+    const by2=GY+30+((i*seed[(i+3)%12]+i*17)%(CH-GY-40));
+    const h=4+((i*7)%9);
+    const sway=Math.sin(t*0.0014*(0.8+i%3*0.2)+i*0.5)*2.5;
+    ctx.strokeStyle=(i%3===0)?gc2:gc;
+    ctx.lineWidth=0.9;
+    ctx.beginPath();
+    ctx.moveTo(bx,by2);
+    ctx.quadraticCurveTo(bx+sway,by2-h*0.5,bx+sway*1.4,by2-h);
+    ctx.stroke();
+  }
+}
+
+function drawDirtPatch(df){
+  const cx=300, cy=630, rx=210, ry=175;
+  // Dirt base
+  const dg=ctx.createRadialGradient(cx,cy,0,cx,cy,rx);
+  if(isNight()){
+    dg.addColorStop(0,'rgba(35,25,12,0.6)');
+    dg.addColorStop(0.6,'rgba(25,18,8,0.4)');
+    dg.addColorStop(1,'rgba(0,0,0,0)');
+  } else {
+    dg.addColorStop(0,'rgba(110,80,45,0.55)');
+    dg.addColorStop(0.5,'rgba(90,65,35,0.35)');
+    dg.addColorStop(1,'rgba(0,0,0,0)');
+  }
+  ctx.fillStyle=dg; ctx.beginPath(); ctx.ellipse(cx,cy,rx,ry,0,0,Math.PI*2); ctx.fill();
+
+  // Worn track ring
+  ctx.strokeStyle=isNight()?'rgba(40,30,15,0.3)':'rgba(130,95,50,0.3)';
+  ctx.lineWidth=8;
+  ctx.beginPath(); ctx.ellipse(cx,cy,rx-20,ry-18,0,0,Math.PI*2); ctx.stroke();
+  ctx.lineWidth=3;
+  ctx.strokeStyle=isNight()?'rgba(50,38,20,0.2)':'rgba(150,110,60,0.25)';
+  ctx.beginPath(); ctx.ellipse(cx,cy,rx-8,ry-7,0,0,Math.PI*2); ctx.stroke();
+}
+
+function drawFlowers(df){
+  const flowers=[
+    {x:130,y:500,col:'#ff6688',r:3},  {x:160,y:560,col:'#ffdd44',r:2.5},
+    {x:100,y:620,col:'#ffffff',r:2.5},{x:185,y:680,col:'#ff8844',r:3},
+    {x:145,y:740,col:'#cc44ff',r:2.5},{x:90, y:700,col:'#ffdd44',r:2},
+    {x:170,y:820,col:'#ff6688',r:2.5},{x:120,y:860,col:'#ffffff',r:2},
+
+    {x:470,y:500,col:'#cc44ff',r:3},  {x:440,y:560,col:'#ffdd44',r:2.5},
+    {x:500,y:620,col:'#ff6688',r:2.5},{x:415,y:680,col:'#ffffff',r:3},
+    {x:455,y:740,col:'#ff8844',r:2.5},{x:510,y:700,col:'#ffdd44',r:2},
+    {x:430,y:820,col:'#cc44ff',r:2.5},{x:480,y:860,col:'#ff6688',r:2},
+
+    {x:240,y:520,col:'#ffffff',r:2.5},{x:280,y:490,col:'#ffdd44',r:2},
+    {x:320,y:510,col:'#ff6688',r:2.5},{x:360,y:490,col:'#cc44ff',r:2},
+    {x:220,y:600,col:'#ff8844',r:2},  {x:310,y:580,col:'#ffffff',r:2.5},
+    {x:390,y:600,col:'#ffdd44',r:2},  {x:260,y:680,col:'#ff6688',r:2.5},
+    {x:340,y:700,col:'#cc44ff',r:2},  {x:300,y:760,col:'#ffffff',r:2.5},
+    {x:250,y:800,col:'#ffdd44',r:2},  {x:350,y:810,col:'#ff8844',r:2.5},
+    {x:200,y:760,col:'#cc44ff',r:2},  {x:400,y:760,col:'#ffffff',r:2},
+    {x:270,y:860,col:'#ff6688',r:2.5},{x:330,y:850,col:'#ffdd44',r:2},
+  ];
+  const alpha=isNight()?0.2:isDuskDawn()?0.5:0.85;
+  flowers.forEach(({x,y,col,r})=>{
+    ctx.globalAlpha=alpha;
+    // petals
+    for(let p=0;p<5;p++){
+      const a=(p/5)*Math.PI*2;
+      ctx.fillStyle=col;
+      ctx.beginPath(); ctx.ellipse(x+Math.cos(a)*r*1.8, y+Math.sin(a)*r*1.8, r, r*0.7, a, 0, Math.PI*2); ctx.fill();
+    }
+    // center
+    ctx.fillStyle='#ffee88'; ctx.beginPath(); ctx.arc(x,y,r*0.7,0,Math.PI*2); ctx.fill();
+    ctx.globalAlpha=1;
+  });
+}
+
+function drawFireflies(t, GY, df){
+  const count=28;
+  const alpha=(1-df*2)*0.85;
+  for(let i=0;i<count;i++){
+    const fx=100+((i*137+Math.sin(t*0.0003+i)*40)%400);
+    const fy=GY+80+((i*97+Math.cos(t*0.0004+i*1.3)*30)%(CH-GY-200));
+    const pulse=0.4+0.6*Math.abs(Math.sin(t*0.002+i*0.8));
+    const fg=ctx.createRadialGradient(fx,fy,0,fx,fy,8);
+    fg.addColorStop(0,`rgba(200,255,100,${pulse*alpha})`);
+    fg.addColorStop(1,'rgba(100,200,50,0)');
+    ctx.fillStyle=fg; ctx.beginPath(); ctx.arc(fx,fy,8,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle=`rgba(220,255,130,${pulse*alpha*0.9})`;
+    ctx.beginPath(); ctx.arc(fx,fy,1.5,0,Math.PI*2); ctx.fill();
+  }
+}
+
+// ── Realistic tree ────────────────────────────────────
+function drawTree(x, y, trunkH, trunkW, foliageR, seed, variant, df){
+  const nf=isNight()?0.22:isDuskDawn()?0.55:1;
+
+  // Shadow on ground
+  ctx.fillStyle=rgba(0,0,0,0.18*nf);
+  ctx.beginPath(); ctx.ellipse(x+trunkH*0.3, y+4, trunkW*2.5, trunkW*0.8, 0.2, 0, Math.PI*2); ctx.fill();
+
+  // Trunk
+  const tg=ctx.createLinearGradient(x-trunkW,0,x+trunkW,0);
+  const tb1=Math.round(lerp(30,70,nf)), tb2=Math.round(lerp(18,42,nf)), tb3=Math.round(lerp(12,28,nf));
+  tg.addColorStop(0,rgb(tb3,tb2-4,tb3-6));
+  tg.addColorStop(0.3,rgb(tb1,tb1-8,tb1-16));
+  tg.addColorStop(0.7,rgb(tb1-6,tb1-14,tb1-22));
+  tg.addColorStop(1,rgb(tb3-4,tb2-8,tb3-10));
+  ctx.fillStyle=tg;
+  ctx.beginPath();
+  ctx.moveTo(x-trunkW*0.7, y);
+  ctx.bezierCurveTo(x-trunkW*0.8, y-trunkH*0.3, x-trunkW*0.6, y-trunkH*0.6, x+(seed%5-2)*3, y-trunkH);
+  ctx.bezierCurveTo(x+trunkW*0.5+seed%3, y-trunkH*0.7, x+trunkW*0.8, y-trunkH*0.3, x+trunkW*0.7, y);
+  ctx.closePath(); ctx.fill();
+
+  // Bark texture
+  ctx.strokeStyle=rgba(tb3-4,tb2-10,tb3-12,0.45);
+  ctx.lineWidth=0.8;
+  for(let b=0;b<4;b++){
+    const bx=x+(b-2)*trunkW*0.3+seed%3;
+    ctx.beginPath(); ctx.moveTo(bx, y-6);
+    ctx.bezierCurveTo(bx+seed%4-1, y-trunkH*0.4, bx-seed%3+1, y-trunkH*0.7, bx+seed%3-1, y-trunkH+8);
+    ctx.stroke();
+  }
+
+  // Branch stubs
+  const branchColor=rgb(tb3,tb2-4,tb3-8);
+  [[0.35, -1, 18],[0.6, 1, 15],[0.5, -1, 12]].forEach(([yf,dir,len],bi)=>{
+    const bx0=x+dir*(trunkW*0.5), by0=y-trunkH*yf;
+    ctx.strokeStyle=branchColor; ctx.lineWidth=trunkW*0.55;
+    ctx.beginPath(); ctx.moveTo(bx0,by0);
+    ctx.quadraticCurveTo(bx0+dir*len*0.6, by0-len*0.4, bx0+dir*len, by0-len*0.7);
+    ctx.stroke();
+  });
+
+  // Foliage — layered blobs
+  const tx=x+(seed%5-2)*4, ty=y-trunkH;
+  const foliageBlobs=[
+    {ox:0,       oy:0,        r:foliageR,     layer:0},
+    {ox:-foliageR*0.55, oy:foliageR*0.25, r:foliageR*0.72, layer:1},
+    {ox: foliageR*0.55, oy:foliageR*0.25, r:foliageR*0.68, layer:1},
+    {ox: foliageR*0.25, oy:-foliageR*0.45, r:foliageR*0.62, layer:2},
+    {ox:-foliageR*0.3,  oy:-foliageR*0.4,  r:foliageR*0.58, layer:2},
+    {ox: foliageR*0.55, oy:-foliageR*0.3,  r:foliageR*0.5,  layer:2},
+    {ox:-foliageR*0.6,  oy:-foliageR*0.1,  r:foliageR*0.48, layer:2},
+    {ox:0,       oy:-foliageR*0.6,  r:foliageR*0.55, layer:3},
+  ];
+
+  const greenSets=[
+    [[28,75,14],[38,92,18],[22,60,10],[48,108,22]],
+    [[20,68,16],[30,85,20],[18,55,12],[42,100,24]],
+    [[32,60,10],[40,78,14],[26,50,8], [52,90,18]],
+  ][variant%3];
+
+  foliageBlobs.forEach(({ox,oy,r,layer})=>{
+    const gc=greenSets[layer%greenSets.length];
+    const fg=ctx.createRadialGradient(tx+ox-r*0.25, ty+oy-r*0.25, 0, tx+ox, ty+oy, r);
+    const cr=Math.round(gc[0]*nf+gc[0]*0.3*nf), cg2=Math.round(gc[1]*nf+gc[1]*0.25*nf), cb=Math.round(gc[2]*nf);
+    fg.addColorStop(0, rgb(cr,cg2,cb));
+    fg.addColorStop(0.5,rgb(Math.round(gc[0]*nf),Math.round(gc[1]*nf),Math.round(gc[2]*nf)));
+    fg.addColorStop(1, rgb(Math.round(gc[0]*nf*0.7),Math.round(gc[1]*nf*0.75),Math.round(gc[2]*nf*0.6)));
+    ctx.fillStyle=fg;
+    ctx.beginPath(); ctx.arc(tx+ox, ty+oy, r, 0, Math.PI*2); ctx.fill();
+  });
+
+  // Highlight top
+  ctx.fillStyle=rgba(Math.round(180*nf),Math.round(230*nf),Math.round(100*nf),0.13*nf);
+  ctx.beginPath(); ctx.ellipse(tx-foliageR*0.18, ty-foliageR*0.38, foliageR*0.55, foliageR*0.3, -0.3, 0, Math.PI*2); ctx.fill();
+
+  // Leaf sparkles at day
+  if(nf>0.5){
+    for(let l=0;l<6;l++){
+      const lx=tx+(Math.sin(l*1.9+seed)*foliageR*0.7);
+      const ly=ty+(Math.cos(l*2.3+seed)*foliageR*0.65);
+      ctx.fillStyle=rgba(160,220,80,0.3*nf);
+      ctx.beginPath(); ctx.arc(lx,ly,2,0,Math.PI*2); ctx.fill();
+    }
+  }
+}
+
+// ── Bushes ────────────────────────────────────────────
+function drawBush(x, y, r, seed){
+  const nf=isNight()?0.22:isDuskDawn()?0.55:1;
+  const blobs=[[0,0,r],[-r*0.55,r*0.2,r*0.7],[r*0.55,r*0.15,r*0.72],[r*0.2,-r*0.35,r*0.6],[0,r*0.3,r*0.65]];
+  blobs.forEach(([ox,oy,br])=>{
+    const bg=ctx.createRadialGradient(x+ox-br*0.2,y+oy-br*0.2,0,x+ox,y+oy,br);
+    bg.addColorStop(0,rgb(Math.round(50*nf),Math.round(100*nf),Math.round(28*nf)));
+    bg.addColorStop(1,rgb(Math.round(22*nf),Math.round(55*nf),Math.round(12*nf)));
+    ctx.fillStyle=bg; ctx.beginPath(); ctx.arc(x+ox,y+oy,br,0,Math.PI*2); ctx.fill();
+  });
+}
+
+// ── Rocks ─────────────────────────────────────────────
+function drawRock(x, y, w, h, seed){
+  const nf=isNight()?0.3:isDuskDawn()?0.6:1;
+  const rg=ctx.createLinearGradient(x-w/2,y-h,x+w/2,y);
+  rg.addColorStop(0,rgb(Math.round(140*nf),Math.round(135*nf),Math.round(125*nf)));
+  rg.addColorStop(1,rgb(Math.round(80*nf),Math.round(76*nf),Math.round(68*nf)));
+  ctx.fillStyle=rg;
+  ctx.beginPath();
+  ctx.moveTo(x-w*0.5+seed%5,y);
+  ctx.bezierCurveTo(x-w*0.55,y-h*0.4,x-w*0.4+seed%3,y-h,x+seed%4-2,y-h*1.05);
+  ctx.bezierCurveTo(x+w*0.38+seed%4,y-h*0.95,x+w*0.55,y-h*0.35,x+w*0.5-seed%4,y);
+  ctx.closePath(); ctx.fill();
+  // highlight
+  ctx.fillStyle=rgba(255,255,255,0.1*nf);
+  ctx.beginPath(); ctx.ellipse(x-w*0.12,y-h*0.65,w*0.2,h*0.15,-0.3,0,Math.PI*2); ctx.fill();
+  // shadow below
+  ctx.fillStyle='rgba(0,0,0,0.18)';
+  ctx.beginPath(); ctx.ellipse(x+seed%4,y+3,w*0.42,5,0,0,Math.PI*2); ctx.fill();
+}
+
+// ── Torches ───────────────────────────────────────────
+function drawTorches(t){
+  const df=dayFactor();
+  const nightAlpha=Math.max(0,Math.min(1,(0.7-df)*2.5)); // появляются при df<0.7
+  if(nightAlpha<=0) return;
+
+  // Позиции — между деревьями нет: по бокам выше и ниже угловых деревьев
+  const positions=[
+    {x:24, y:340}, {x:24, y:480},   // левый бок — верхняя зона
+    {x:24, y:900},                    // левый бок — нижняя зона
+    {x:576,y:340}, {x:576,y:480},   // правый бок — верхняя зона
+    {x:576,y:900},                    // правый бок — нижняя зона
+  ];
+
+  positions.forEach(({x,y},i)=>{
+    const flicker=0.72+0.28*Math.sin(t*0.007+i*2.1+Math.sin(t*0.013+i)*0.5);
+    const flicker2=0.68+0.32*Math.sin(t*0.009+i*1.3);
+
+    // Широкое свечение на земле
+    const glowR=130*flicker;
+    const gl=ctx.createRadialGradient(x,y,0,x,y,glowR);
+    gl.addColorStop(0,`rgba(255,200,80,${0.18*nightAlpha*flicker})`);
+    gl.addColorStop(0.4,`rgba(255,140,30,${0.1*nightAlpha*flicker})`);
+    gl.addColorStop(1,'rgba(255,80,0,0)');
+    ctx.fillStyle=gl; ctx.beginPath(); ctx.arc(x,y,glowR,0,Math.PI*2); ctx.fill();
+
+    // Шест факела
+    const px=x, py=y;
+    ctx.strokeStyle=`rgba(90,55,20,${nightAlpha})`;
+    ctx.lineWidth=4;
+    ctx.beginPath(); ctx.moveTo(px,py+30); ctx.lineTo(px,py-18); ctx.stroke();
+
+    // Чашка с факелом
+    ctx.fillStyle=`rgba(70,45,15,${nightAlpha})`;
+    ctx.beginPath();
+    ctx.moveTo(px-7,py-16);
+    ctx.lineTo(px+7,py-16);
+    ctx.lineTo(px+5,py-8);
+    ctx.lineTo(px-5,py-8);
+    ctx.closePath(); ctx.fill();
+
+    // Угли внутри чашки
+    ctx.fillStyle=`rgba(255,100,20,${nightAlpha*0.9})`;
+    ctx.beginPath(); ctx.ellipse(px,py-9,4,2,0,0,Math.PI*2); ctx.fill();
+
+    // Пламя — несколько слоёв
+    ctx.save(); ctx.globalAlpha=nightAlpha;
+    // внешний язык
+    const f1=ctx.createRadialGradient(px,py-22,0,px,py-20,18*flicker);
+    f1.addColorStop(0,'rgba(255,240,120,0.95)');
+    f1.addColorStop(0.3,'rgba(255,160,30,0.7)');
+    f1.addColorStop(0.7,'rgba(255,80,10,0.4)');
+    f1.addColorStop(1,'rgba(255,40,0,0)');
+    ctx.fillStyle=f1;
+    ctx.beginPath();
+    ctx.moveTo(px-7,py-14);
+    ctx.bezierCurveTo(px-10,py-22,px+(Math.sin(t*0.011+i)*3),py-36*flicker,px,py-38*flicker);
+    ctx.bezierCurveTo(px+(Math.sin(t*0.009+i)*3),py-36*flicker,px+10,py-22,px+7,py-14);
+    ctx.closePath(); ctx.fill();
+
+    // средний язык
+    const f2=ctx.createRadialGradient(px,py-24,0,px,py-22,10*flicker2);
+    f2.addColorStop(0,'rgba(255,255,200,1)');
+    f2.addColorStop(0.5,'rgba(255,200,60,0.8)');
+    f2.addColorStop(1,'rgba(255,120,10,0)');
+    ctx.fillStyle=f2;
+    ctx.beginPath();
+    ctx.moveTo(px-4,py-16);
+    ctx.bezierCurveTo(px-5,py-26,px+(Math.sin(t*0.013+i+1)*2),py-32*flicker2,px,py-34*flicker2);
+    ctx.bezierCurveTo(px+(Math.sin(t*0.011+i)*2),py-32*flicker2,px+5,py-26,px+4,py-16);
+    ctx.closePath(); ctx.fill();
+
+    // яркий центр
+    ctx.fillStyle=`rgba(255,255,240,${0.95*flicker})`;
+    ctx.beginPath(); ctx.ellipse(px,py-19,2.5,3.5,0,0,Math.PI*2); ctx.fill();
+    ctx.restore();
+
+    // тень от шеста на земле
+    ctx.fillStyle=`rgba(0,0,0,${0.15*nightAlpha})`;
+    ctx.beginPath(); ctx.ellipse(px+15,py+32,8,3,0.3,0,Math.PI*2); ctx.fill();
+  });
+}
+
+// ── All trees placed around the glade ────────────────
+function drawTrees(){
+  const df=dayFactor();
+  // LEFT corner — 4 trees, spaced out
+  drawTree(0,   620, 155, 11, 65, 3, 0, df);
+  drawTree(55,  580, 135, 9,  55, 7, 1, df);
+  drawTree(15,  760, 115, 9,  50, 9, 2, df);
+  drawTree(65,  800, 100, 7,  44, 4, 0, df);
+  // RIGHT corner — 4 trees, spaced out
+  drawTree(600, 620, 155, 11, 65, 8, 1, df);
+  drawTree(545, 580, 135, 9,  55, 3, 2, df);
+  drawTree(585, 760, 115, 9,  50, 6, 0, df);
+  drawTree(535, 800, 100, 7,  44, 1, 1, df);
+
+  // Bushes only near corners
+  drawBush(95,  780, 20, 3);
+  drawBush(115, 800, 15, 7);
+  drawBush(505, 785, 20, 5);
+  drawBush(488, 805, 16, 2);
+
+  // Rocks
+  drawRock(230, 760, 28, 18, 5);
+  drawRock(390, 755, 22, 14, 2);
+  drawRock(135, 860, 18, 12, 8);
+  drawRock(475, 845, 24, 16, 3);
+}
+
+// ── Main loop ─────────────────────────────────────────
+function frame(now){
+  requestAnimationFrame(frame);
+  const dt=Math.min(now-(lastT||now),100); lastT=now;
+  gameTime=(gameTime+dt/90000)%1;
+
+  ctx.clearRect(0,0,CW,CH);
+  drawSky(now);
+  drawBgForest();
+  drawGround(now);
+  drawTorches(now);
+  drawTrees();
+
+}
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
