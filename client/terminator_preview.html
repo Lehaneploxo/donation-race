@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>🤖 Terminator Preview</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+html, body { width:100vw; height:100vh; background:#0a0a0a; overflow:hidden; font-family:Arial,sans-serif; }
+canvas { display:block; margin:auto; }
+#ui { position:fixed; bottom:20px; left:50%; transform:translateX(-50%); display:flex; gap:12px; }
+button { padding:10px 22px; border:none; border-radius:8px; cursor:pointer; font-size:15px; font-weight:bold;
+  background:#0a0a0a; color:#ff3333; border:2px solid #ff3333; transition:background 0.15s; }
+button.active { background:#ff3333; color:#000; }
+button:hover { background:#2a0000; }
+#label { position:fixed; top:18px; left:50%; transform:translateX(-50%);
+  color:#ff3333; font-size:18px; font-weight:bold; letter-spacing:3px; text-shadow:0 0 16px #ff0000; }
+</style>
+</head>
+<body>
+<div id="label">T-800 — TERMINATOR</div>
+<canvas id="c"></canvas>
+<div id="ui">
+  <button id="btnIdle"   class="active" onclick="setState('idle')">IDLE</button>
+  <button id="btnWalk"              onclick="setState('walk')">WALK</button>
+  <button id="btnAttack"            onclick="setState('attack')">ATTACK</button>
+  <button                           onclick="facing*=-1">◀▶ FLIP</button>
+</div>
+<script>
+'use strict';
+const cvs = document.getElementById('c');
+const ctx  = cvs.getContext('2d');
+function resize(){ cvs.width=window.innerWidth; cvs.height=window.innerHeight-80; }
+window.addEventListener('resize',resize); resize();
+
+let curState='idle', facing=1;
+function setState(s){
+  curState=s;
+  ['idle','walk','attack'].forEach(id=>{
+    document.getElementById('btn'+id[0].toUpperCase()+id.slice(1)).classList.toggle('active',id===s);
+  });
+}
+
+const PI=Math.PI;
+function d2r(d){return d*PI/180;}
+function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
+function lerp(a,b,t){return a+(b-a)*clamp(t,0,1);}
+function easeInOut(t){t=clamp(t,0,1);return t*t*(3-2*t);}
+
+function capsule(x1,y1,x2,y2,r,color,strokeColor,strokeW){
+  const dx=x2-x1,dy=y2-y1,len=Math.sqrt(dx*dx+dy*dy);
+  if(len<0.5){ctx.beginPath();ctx.arc(x1,y1,r,0,PI*2);ctx.fillStyle=color;ctx.fill();return;}
+  const nx=-dy/len,ny=dx/len,ang=Math.atan2(dy,dx);
+  ctx.beginPath();
+  ctx.moveTo(x1+nx*r,y1+ny*r);ctx.lineTo(x2+nx*r,y2+ny*r);
+  ctx.arc(x2,y2,r,ang-PI/2,ang+PI/2);
+  ctx.lineTo(x1-nx*r,y1-ny*r);ctx.arc(x1,y1,r,ang+PI/2,ang-PI/2);
+  ctx.closePath();ctx.fillStyle=color;ctx.fill();
+  if(strokeColor){ctx.strokeStyle=strokeColor;ctx.lineWidth=strokeW||1;ctx.stroke();}
+}
+function limbEnd(px,py,ang,len){return{x:px+Math.cos(ang)*len,y:py+Math.sin(ang)*len};}
+
+// ── Color palette ─────────────────────────────────────
+const M1 = '#b0b8c0'; // light metal
+const M2 = '#707880'; // mid metal
+const M3 = '#3a4048'; // dark metal
+const M4 = '#1e2228'; // very dark
+const M5 = '#c8d0d8'; // chrome highlight
+const JOINT = '#505860';
+const RED  = '#ff2200';
+const RED2 = '#ff6644';
+const DARK_METAL = '#28303a';
+
+// ── Main draw ─────────────────────────────────────────
+function drawTerminator(cx, cy, sc, facing, state, now) {
+  const t = now * 0.001;
+  const f = facing;
+
+  // Animation params
+  let legSwing=0, armSwingL=0, armSwingR=0, bodyLean=0, headTilt=0;
+  let elbowBendL=0, elbowBendR=0, kneeBendL=0, kneeBendR=0;
+  let gunRaise=0, bodyBob=0;
+
+  if(state==='idle'){
+    bodyBob    = Math.sin(t*1.1)*1.5;
+    armSwingL  = Math.sin(t*0.9)*d2r(4);    // чуть покачиваются
+    armSwingR  = Math.sin(t*0.9+1)*d2r(4);
+    elbowBendL = d2r(6);
+    elbowBendR = d2r(6);
+    headTilt   = Math.sin(t*0.6)*0.03;
+  } else if(state==='walk'){
+    const wt = t*2.2;
+    legSwing   = Math.sin(wt)*d2r(32);
+    bodyLean   = f*d2r(5);
+    bodyBob    = Math.abs(Math.sin(wt))*-2.5;
+    armSwingL  = Math.sin(wt+PI)*d2r(20);   // качаются вперёд-назад
+    armSwingR  = Math.sin(wt)*d2r(20);
+    elbowBendL = Math.max(0,Math.sin(wt+PI))*d2r(22);
+    elbowBendR = Math.max(0,Math.sin(wt))*d2r(22);
+    kneeBendL  = Math.max(0,Math.sin(wt))*d2r(40);
+    kneeBendR  = Math.max(0,Math.sin(wt+PI))*d2r(40);
+  } else if(state==='attack'){
+    // 0→0.35 поднять руку вверх, 0.35→0.65 удар вниз, 0.65→1 отдача
+    const cycle = (t*1.8) % 1;
+    if(cycle < 0.35)      gunRaise = easeInOut(cycle/0.35);
+    else if(cycle < 0.65) gunRaise = 1 - easeInOut((cycle-0.35)/0.30);
+    else                  gunRaise = easeInOut(1-(cycle-0.65)/0.35)*0.12;
+    // вверх = -PI (180° назад от низа = прямо вверх)
+    armSwingR  = -gunRaise * d2r(175);
+    elbowBendR = d2r(8);
+    armSwingL  = gunRaise * d2r(18);   // левая для баланса
+    elbowBendL = d2r(8) + gunRaise*d2r(20);
+    bodyLean   = f*d2r(7)*gunRaise;
+    bodyBob    = gunRaise * -5;
+    headTilt   = -0.05*gunRaise;
+  }
+
+  ctx.save();
+  ctx.translate(cx, cy + bodyBob);
+  ctx.scale(sc * f, sc);
+
+  // ── Shadow ──────────────────────────────────────────
+  ctx.fillStyle='rgba(0,0,0,0.35)';
+  ctx.beginPath(); ctx.ellipse(0, 62, 22, 6, 0, 0, PI*2); ctx.fill();
+
+  // ── Leg positions ────────────────────────────────────
+  const hipY = 22, hipSep = 7;
+  const thighLen = 28, shinLen = 26, footLen = 10;
+
+  // LEFT leg (back)
+  const lhx = -hipSep, lhy = hipY;
+  const lThighAng = PI/2 + legSwing;
+  const lKnee = limbEnd(lhx, lhy, lThighAng, thighLen);
+  const lShinAng = lThighAng + d2r(15) + kneeBendL;
+  const lAnkle = limbEnd(lKnee.x, lKnee.y, lShinAng, shinLen);
+
+  capsule(lhx, lhy, lKnee.x, lKnee.y, 6, M3, M4, 1.5);
+  // knee joint
+  ctx.fillStyle=JOINT; ctx.beginPath(); ctx.arc(lKnee.x,lKnee.y,5.5,0,PI*2); ctx.fill();
+  ctx.fillStyle=M4; ctx.beginPath(); ctx.arc(lKnee.x,lKnee.y,3.5,0,PI*2); ctx.fill();
+  capsule(lKnee.x,lKnee.y,lAnkle.x,lAnkle.y,5,M3,M4,1.5);
+  // foot
+  ctx.fillStyle=M3; ctx.beginPath(); ctx.ellipse(lAnkle.x+f*footLen*0.4,lAnkle.y+2,footLen,4,0,0,PI*2); ctx.fill();
+  ctx.strokeStyle=M4; ctx.lineWidth=1.5; ctx.stroke();
+
+  // RIGHT leg (front)
+  const rhx = hipSep, rhy = hipY;
+  const rThighAng = PI/2 - legSwing;
+  const rKnee = limbEnd(rhx, rhy, rThighAng, thighLen);
+  const rShinAng = rThighAng + d2r(15) + kneeBendR;
+  const rAnkle = limbEnd(rKnee.x, rKnee.y, rShinAng, shinLen);
+
+  capsule(rhx, rhy, rKnee.x, rKnee.y, 7, M2, M3, 1.5);
+  ctx.fillStyle=JOINT; ctx.beginPath(); ctx.arc(rKnee.x,rKnee.y,6,0,PI*2); ctx.fill();
+  ctx.fillStyle=M3; ctx.beginPath(); ctx.arc(rKnee.x,rKnee.y,3.5,0,PI*2); ctx.fill();
+  capsule(rKnee.x,rKnee.y,rAnkle.x,rAnkle.y,5.5,M2,M3,1.5);
+  // foot
+  ctx.fillStyle=M2; ctx.beginPath(); ctx.ellipse(rAnkle.x+f*footLen*0.4,rAnkle.y+2,footLen,4.5,0,0,PI*2); ctx.fill();
+  ctx.strokeStyle=M3; ctx.lineWidth=1.5; ctx.stroke();
+
+  // knee plate details
+  [lKnee,rKnee].forEach((k,i)=>{
+    ctx.fillStyle=i===0?M3:M2;
+    ctx.fillRect(k.x-4,k.y-3,8,4);
+  });
+
+  // ── Pelvis ───────────────────────────────────────────
+  ctx.save(); ctx.rotate(bodyLean);
+  // pelvis block
+  const pg = ctx.createLinearGradient(-12,hipY-8,12,hipY+2);
+  pg.addColorStop(0,M3); pg.addColorStop(0.5,M2); pg.addColorStop(1,M3);
+  ctx.fillStyle=pg;
+  ctx.beginPath();
+  ctx.moveTo(-10,hipY-8); ctx.lineTo(10,hipY-8);
+  ctx.lineTo(12,hipY+2); ctx.lineTo(-12,hipY+2); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle=M4; ctx.lineWidth=1.2; ctx.stroke();
+
+  // ── Spine / Torso ─────────────────────────────────────
+  const torsoTop = -12;
+  // spine rod visible
+  capsule(0, hipY-6, 0, torsoTop+4, 3, M4, '#202830', 1);
+
+  // chest plates
+  const cg = ctx.createLinearGradient(-16, torsoTop, 16, hipY);
+  cg.addColorStop(0, M5); cg.addColorStop(0.3, M1); cg.addColorStop(0.6, M2); cg.addColorStop(1, M3);
+  ctx.fillStyle=cg;
+  // chest shape — trapezoidal, wide shoulders
+  ctx.beginPath();
+  ctx.moveTo(-15, torsoTop+2);
+  ctx.lineTo( 15, torsoTop+2);
+  ctx.lineTo( 13, hipY-6);
+  ctx.lineTo(-13, hipY-6);
+  ctx.closePath(); ctx.fill();
+  ctx.strokeStyle=M4; ctx.lineWidth=1.5; ctx.stroke();
+
+  // chest armor panel lines
+  ctx.strokeStyle=M3; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(-14,torsoTop+10); ctx.lineTo(14,torsoTop+10); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(-13,torsoTop+17); ctx.lineTo(13,torsoTop+17); ctx.stroke();
+  // center sternum ridge
+  ctx.strokeStyle=M5; ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.moveTo(0,torsoTop+2); ctx.lineTo(0,hipY-8); ctx.stroke();
+  // collar bones
+  ctx.strokeStyle=M4; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.moveTo(-15,torsoTop+4); ctx.lineTo(-9,torsoTop+1); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo( 15,torsoTop+4); ctx.lineTo(  9,torsoTop+1); ctx.stroke();
+
+  // ── Shoulder joints ───────────────────────────────────
+  const sholY = torsoTop + 3;
+  const sholSep = 16;
+  [-sholSep, sholSep].forEach((sx,si)=>{
+    const sg2=ctx.createRadialGradient(sx,sholY,0,sx,sholY,8);
+    sg2.addColorStop(0,M5); sg2.addColorStop(0.4,M1); sg2.addColorStop(1,JOINT);
+    ctx.fillStyle=sg2; ctx.beginPath(); ctx.arc(sx,sholY,8,0,PI*2); ctx.fill();
+    ctx.strokeStyle=M4; ctx.lineWidth=1.5; ctx.stroke();
+    // bolt in center
+    ctx.fillStyle=M4; ctx.beginPath(); ctx.arc(sx,sholY,3,0,PI*2); ctx.fill();
+  });
+
+  // ── LEFT ARM (far side) ──────────────────────────────
+  const laShx = -sholSep, laShY = sholY;
+  const laAng = PI/2 + armSwingL;
+  const laElbow = limbEnd(laShx, laShY, laAng, 20);
+  const laForeAng = laAng + elbowBendL;
+  const laHand = limbEnd(laElbow.x, laElbow.y, laForeAng, 18);
+
+  capsule(laShx,laShY,laElbow.x,laElbow.y,5,M2,M3,1.2);
+  ctx.fillStyle=JOINT; ctx.beginPath(); ctx.arc(laElbow.x,laElbow.y,4.5,0,PI*2); ctx.fill();
+  ctx.fillStyle=M4; ctx.beginPath(); ctx.arc(laElbow.x,laElbow.y,2.5,0,PI*2); ctx.fill();
+  capsule(laElbow.x,laElbow.y,laHand.x,laHand.y,4,M2,M3,1.2);
+  // hand / fist
+  capsule(laHand.x,laHand.y,laHand.x+3,laHand.y+2,5,M1,M3,1);
+
+  // ── RIGHT ARM (near side) — gun arm ──────────────────
+  const raShx = sholSep, raShY = sholY;
+  const raAng = PI/2 + armSwingR;
+  const raElbow = limbEnd(raShx, raShY, raAng, 20);
+  const raForeAng = raAng - elbowBendR;
+  const raHand = limbEnd(raElbow.x, raElbow.y, raForeAng, 18);
+
+  capsule(raShx,raShY,raElbow.x,raElbow.y,5.5,M1,M3,1.2);
+  ctx.fillStyle=JOINT; ctx.beginPath(); ctx.arc(raElbow.x,raElbow.y,5,0,PI*2); ctx.fill();
+  ctx.fillStyle=M3; ctx.beginPath(); ctx.arc(raElbow.x,raElbow.y,2.5,0,PI*2); ctx.fill();
+  capsule(raElbow.x,raElbow.y,raHand.x,raHand.y,4.5,M1,M3,1.2);
+  // fist — right hand
+  capsule(raHand.x,raHand.y,raHand.x,raHand.y+5,7,M1,M3,1.5);
+  // knuckle lines
+  ctx.strokeStyle=M3; ctx.lineWidth=1;
+  [-2,0,2].forEach(kx=>{ ctx.beginPath(); ctx.moveTo(raHand.x+kx,raHand.y+2); ctx.lineTo(raHand.x+kx,raHand.y+6); ctx.stroke(); });
+  // impact shockwave when smashing down
+  if(state==='attack' && gunRaise < 0.15 && gunRaise > 0){
+    const impA = 1 - gunRaise/0.15;
+    ctx.globalAlpha = impA * 0.8;
+    const ig = ctx.createRadialGradient(raHand.x,raHand.y+6,0,raHand.x,raHand.y+6,22*impA);
+    ig.addColorStop(0,'rgba(255,80,0,0.9)'); ig.addColorStop(0.5,'rgba(255,40,0,0.4)'); ig.addColorStop(1,'rgba(255,0,0,0)');
+    ctx.fillStyle=ig; ctx.beginPath(); ctx.arc(raHand.x,raHand.y+6,22*impA,0,PI*2); ctx.fill();
+    ctx.globalAlpha=1;
+  }
+
+  // ── NECK ──────────────────────────────────────────────
+  capsule(0,torsoTop+2,0,torsoTop-6,6,M2,M4,1.5);
+  // neck rings (hydraulic)
+  [torsoTop, torsoTop-3].forEach(ny=>{
+    ctx.fillStyle=M3; ctx.beginPath(); ctx.rect(-5,ny-1,10,3); ctx.fill();
+    ctx.strokeStyle=M4; ctx.lineWidth=1; ctx.stroke();
+  });
+
+  // ── HEAD ──────────────────────────────────────────────
+  ctx.save();
+  ctx.translate(0, torsoTop-6);
+  ctx.rotate(headTilt);
+
+  const headY = -14;
+
+  // skull back
+  const skulG = ctx.createRadialGradient(-3, headY-2, 0, 0, headY, 13);
+  skulG.addColorStop(0, M5);
+  skulG.addColorStop(0.35, M1);
+  skulG.addColorStop(0.7, M2);
+  skulG.addColorStop(1, M4);
+  ctx.fillStyle=skulG;
+  ctx.beginPath();
+  ctx.moveTo(-11, headY+8);
+  ctx.bezierCurveTo(-13,headY+2,-12,headY-8,-6,headY-13);
+  ctx.bezierCurveTo(-2,headY-16,2,headY-16,6,headY-13);
+  ctx.bezierCurveTo(12,headY-8,13,headY+2,11,headY+8);
+  ctx.lineTo(9, headY+10);
+  ctx.lineTo(-9,headY+10);
+  ctx.closePath(); ctx.fill();
+  ctx.strokeStyle=M4; ctx.lineWidth=1.5; ctx.stroke();
+
+  // cheekbones / jaw structure
+  ctx.strokeStyle=M3; ctx.lineWidth=1.2;
+  ctx.beginPath(); ctx.moveTo(-11,headY+2); ctx.lineTo(-8,headY-4); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(11,headY+2); ctx.lineTo(8,headY-4); ctx.stroke();
+  // brow ridge
+  ctx.fillStyle=M3;
+  ctx.beginPath(); ctx.moveTo(-10,headY-6); ctx.lineTo(10,headY-6); ctx.lineTo(9,headY-9); ctx.lineTo(-9,headY-9); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle=M4; ctx.lineWidth=1; ctx.stroke();
+
+  // ── EYES — the iconic red glow ────────────────────────
+  const eyePulse = 0.75 + 0.25*Math.sin(t*2.5);
+  const eyeY = headY - 4;
+
+  [-4.5, 4.5].forEach((ex,ei) => {
+    // socket
+    ctx.fillStyle=M4;
+    ctx.beginPath(); ctx.ellipse(ex,eyeY,4.5,3,0,0,PI*2); ctx.fill();
+    // outer glow
+    ctx.globalAlpha=0.5*eyePulse;
+    const eg=ctx.createRadialGradient(ex,eyeY,0,ex,eyeY,10);
+    eg.addColorStop(0,RED); eg.addColorStop(1,'rgba(255,0,0,0)');
+    ctx.fillStyle=eg; ctx.beginPath(); ctx.arc(ex,eyeY,10,0,PI*2); ctx.fill();
+    ctx.globalAlpha=1;
+    // inner glow
+    ctx.globalAlpha=0.8*eyePulse;
+    const eg2=ctx.createRadialGradient(ex,eyeY,0,ex,eyeY,4);
+    eg2.addColorStop(0,'#ffaaaa'); eg2.addColorStop(0.3,RED); eg2.addColorStop(1,'rgba(200,0,0,0)');
+    ctx.fillStyle=eg2; ctx.beginPath(); ctx.ellipse(ex,eyeY,3.5,2.2,0,0,PI*2); ctx.fill();
+    ctx.globalAlpha=1;
+    // bright center dot
+    ctx.fillStyle='#ffffff';
+    ctx.beginPath(); ctx.ellipse(ex,eyeY,1.2,0.8,0,0,PI*2); ctx.fill();
+  });
+
+  // nose ridge
+  ctx.strokeStyle=M3; ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.moveTo(0,eyeY+3); ctx.lineTo(0,headY+6); ctx.stroke();
+  // nostril hints
+  ctx.fillStyle=M4;
+  ctx.beginPath(); ctx.ellipse(-2,headY+6,2,1.2,0,0,PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(2,headY+6,2,1.2,0,0,PI*2); ctx.fill();
+
+  // teeth / jaw line
+  ctx.fillStyle=M2;
+  ctx.beginPath(); ctx.moveTo(-8,headY+8); ctx.lineTo(8,headY+8); ctx.lineTo(7,headY+11); ctx.lineTo(-7,headY+11); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle=M4; ctx.lineWidth=1; ctx.stroke();
+  // teeth gaps
+  ctx.strokeStyle=M4; ctx.lineWidth=1.2;
+  [-5,-2.5,0,2.5,5].forEach(tx=>{
+    ctx.beginPath(); ctx.moveTo(tx,headY+8); ctx.lineTo(tx,headY+11); ctx.stroke();
+  });
+
+  // chrome highlight on skull top
+  ctx.fillStyle='rgba(255,255,255,0.2)';
+  ctx.beginPath(); ctx.ellipse(-2,headY-9,5,2.5,-0.3,0,PI*2); ctx.fill();
+
+  ctx.restore(); // head
+
+  // ── Chest detail — glowing core ───────────────────────
+  const corePulse = 0.6 + 0.4*Math.sin(t*2.8);
+  ctx.globalAlpha = 0.35*corePulse;
+  const coreG=ctx.createRadialGradient(0,torsoTop+12,0,0,torsoTop+12,14);
+  coreG.addColorStop(0,RED); coreG.addColorStop(1,'rgba(255,0,0,0)');
+  ctx.fillStyle=coreG; ctx.beginPath(); ctx.arc(0,torsoTop+12,14,0,PI*2); ctx.fill();
+  ctx.globalAlpha=1;
+
+  // core crystal
+  ctx.fillStyle=`rgba(255,${Math.round(30*corePulse)},0,${0.8*corePulse})`;
+  ctx.beginPath();
+  ctx.moveTo(0,torsoTop+8); ctx.lineTo(4,torsoTop+12); ctx.lineTo(0,torsoTop+16); ctx.lineTo(-4,torsoTop+12); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle=RED2; ctx.lineWidth=1; ctx.stroke();
+
+  ctx.restore(); // bodyLean
+  ctx.restore(); // main transform
+}
+
+// ── Main loop ─────────────────────────────────────────
+function frame(now){
+  requestAnimationFrame(frame);
+  ctx.clearRect(0,0,cvs.width,cvs.height);
+
+  // Background grid (cyber look)
+  ctx.strokeStyle='rgba(255,30,30,0.06)'; ctx.lineWidth=1;
+  for(let x=0;x<cvs.width;x+=40){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,cvs.height);ctx.stroke();}
+  for(let y=0;y<cvs.height;y+=40){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(cvs.width,y);ctx.stroke();}
+
+  // Ground line
+  const gy = cvs.height*0.62;
+  ctx.strokeStyle='rgba(255,50,50,0.2)'; ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.moveTo(0,gy); ctx.lineTo(cvs.width,gy); ctx.stroke();
+  ctx.fillStyle='rgba(255,30,0,0.06)'; ctx.fillRect(0,gy,cvs.width,cvs.height-gy);
+
+  // Shadow glow on ground
+  const sg=ctx.createRadialGradient(cvs.width/2,gy,0,cvs.width/2,gy,80);
+  sg.addColorStop(0,'rgba(255,0,0,0.12)'); sg.addColorStop(1,'rgba(255,0,0,0)');
+  ctx.fillStyle=sg; ctx.beginPath(); ctx.ellipse(cvs.width/2,gy,80,20,0,0,Math.PI*2); ctx.fill();
+
+  drawTerminator(cvs.width/2, gy, 3.2, facing, curState, now);
+
+  // Label: state
+  ctx.fillStyle='rgba(255,50,50,0.4)';
+  ctx.font='12px monospace'; ctx.textAlign='left';
+  ctx.fillText(`STATE: ${curState.toUpperCase()}  |  FACING: ${facing>0?'RIGHT':'LEFT'}`, 16, cvs.height-16);
+}
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

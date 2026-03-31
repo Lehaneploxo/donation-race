@@ -118,7 +118,7 @@ function getWarriorScale(coins){return 1.3+Math.min(1.1,Math.log10(Math.max(1,co
 function makeWarrior(username,coins){
   const pos=rndArenaPos(),tgt=rndArenaPos();
   return{id:++uidSeq,username,coins,hp:coins*10,maxHp:coins*10,damage:coins,
-    class:Math.random()>0.5?'spearman':'conan',
+    class:['spearman','conan','terminator'][Math.floor(Math.random()*3)],
     ax:pos.ax,ay:pos.ay,tax:tgt.ax,tay:tgt.ay,
     walkTimer:Math.random()*2000,walkDelay:2000+Math.random()*2500,
     walkPhase:Math.random()*Math.PI*2,idlePhase:Math.random()*Math.PI*2,
@@ -780,6 +780,109 @@ function drawHUD(t) {
   ctx.textAlign = 'center'; ctx.fillText('all-time kills', 450, T + TH - 7);
 }
 
+// ── Terminator ───────────────────────────────────────
+function drawTerminator(cx,cy,sc,facing,state,now){
+  const t=now*0.001,f=facing;
+  const M1='#b0b8c0',M2='#707880',M3='#3a4048',M4='#1e2228',M5='#c8d0d8',JOINT='#505860',RED='#ff2200',RED2='#ff6644',DARK_METAL='#28303a';
+  let legSwing=0,armSwingL=0,armSwingR=0,bodyLean=0,headTilt=0,elbowBendL=0,elbowBendR=0,kneeBendL=0,kneeBendR=0,gunRaise=0,bodyBob=0;
+  if(state==='idle'){
+    bodyBob=Math.sin(t*1.1)*1.5;armSwingL=Math.sin(t*0.9)*d2r(4);armSwingR=Math.sin(t*0.9+1)*d2r(4);elbowBendL=d2r(6);elbowBendR=d2r(6);headTilt=Math.sin(t*0.6)*0.03;
+  }else if(state==='walk'){
+    const wt=t*2.2;legSwing=Math.sin(wt)*d2r(32);bodyLean=f*d2r(5);bodyBob=Math.abs(Math.sin(wt))*-2.5;
+    armSwingL=Math.sin(wt+Math.PI)*d2r(20);armSwingR=Math.sin(wt)*d2r(20);
+    elbowBendL=Math.max(0,Math.sin(wt+Math.PI))*d2r(22);elbowBendR=Math.max(0,Math.sin(wt))*d2r(22);
+    kneeBendL=Math.max(0,Math.sin(wt))*d2r(40);kneeBendR=Math.max(0,Math.sin(wt+Math.PI))*d2r(40);
+  }else if(state==='attack'){
+    const cycle=(t*1.8)%1;
+    if(cycle<0.35)gunRaise=easeInOut(cycle/0.35);
+    else if(cycle<0.65)gunRaise=1-easeInOut((cycle-0.35)/0.30);
+    else gunRaise=easeInOut(1-(cycle-0.65)/0.35)*0.12;
+    armSwingR=-gunRaise*d2r(175);elbowBendR=d2r(8);
+    armSwingL=gunRaise*d2r(18);elbowBendL=d2r(8)+gunRaise*d2r(20);
+    bodyLean=f*d2r(7)*gunRaise;bodyBob=gunRaise*-5;headTilt=-0.05*gunRaise;
+  }
+  ctx.save();ctx.translate(cx,cy+bodyBob);ctx.scale(sc*f,sc);
+  // shadow
+  ctx.fillStyle='rgba(0,0,0,0.35)';ctx.beginPath();ctx.ellipse(0,62,22,6,0,0,Math.PI*2);ctx.fill();
+  const hipY=22,hipSep=7,thighLen=28,shinLen=26,footLen=10;
+  // LEFT leg
+  const lhx=-hipSep,lhy=hipY,lThighAng=Math.PI/2+legSwing,lKnee=limbEnd(lhx,lhy,lThighAng,thighLen);
+  const lShinAng=lThighAng+d2r(15)+kneeBendL,lAnkle=limbEnd(lKnee.x,lKnee.y,lShinAng,shinLen);
+  capsule(lhx,lhy,lKnee.x,lKnee.y,6,M3,M4,1.5);
+  ctx.fillStyle=JOINT;ctx.beginPath();ctx.arc(lKnee.x,lKnee.y,5.5,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle=M4;ctx.beginPath();ctx.arc(lKnee.x,lKnee.y,3.5,0,Math.PI*2);ctx.fill();
+  capsule(lKnee.x,lKnee.y,lAnkle.x,lAnkle.y,5,M3,M4,1.5);
+  ctx.fillStyle=M3;ctx.beginPath();ctx.ellipse(lAnkle.x+f*footLen*0.4,lAnkle.y+2,footLen,4,0,0,Math.PI*2);ctx.fill();ctx.strokeStyle=M4;ctx.lineWidth=1.5;ctx.stroke();
+  // RIGHT leg
+  const rhx=hipSep,rhy=hipY,rThighAng=Math.PI/2-legSwing,rKnee=limbEnd(rhx,rhy,rThighAng,thighLen);
+  const rShinAng=rThighAng+d2r(15)+kneeBendR,rAnkle=limbEnd(rKnee.x,rKnee.y,rShinAng,shinLen);
+  capsule(rhx,rhy,rKnee.x,rKnee.y,7,M2,M3,1.5);
+  ctx.fillStyle=JOINT;ctx.beginPath();ctx.arc(rKnee.x,rKnee.y,6,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle=M3;ctx.beginPath();ctx.arc(rKnee.x,rKnee.y,3.5,0,Math.PI*2);ctx.fill();
+  capsule(rKnee.x,rKnee.y,rAnkle.x,rAnkle.y,5.5,M2,M3,1.5);
+  ctx.fillStyle=M2;ctx.beginPath();ctx.ellipse(rAnkle.x+f*footLen*0.4,rAnkle.y+2,footLen,4.5,0,0,Math.PI*2);ctx.fill();ctx.strokeStyle=M3;ctx.lineWidth=1.5;ctx.stroke();
+  // pelvis
+  ctx.save();ctx.rotate(bodyLean);
+  const pg=ctx.createLinearGradient(-12,hipY-8,12,hipY+2);pg.addColorStop(0,M3);pg.addColorStop(0.5,M2);pg.addColorStop(1,M3);
+  ctx.fillStyle=pg;ctx.beginPath();ctx.moveTo(-10,hipY-8);ctx.lineTo(10,hipY-8);ctx.lineTo(12,hipY+2);ctx.lineTo(-12,hipY+2);ctx.closePath();ctx.fill();ctx.strokeStyle=M4;ctx.lineWidth=1.2;ctx.stroke();
+  const torsoTop=-12;
+  capsule(0,hipY-6,0,torsoTop+4,3,M4,'#202830',1);
+  // chest
+  const cg=ctx.createLinearGradient(-16,torsoTop,16,hipY);cg.addColorStop(0,M5);cg.addColorStop(0.3,M1);cg.addColorStop(0.6,M2);cg.addColorStop(1,M3);
+  ctx.fillStyle=cg;ctx.beginPath();ctx.moveTo(-15,torsoTop+2);ctx.lineTo(15,torsoTop+2);ctx.lineTo(13,hipY-6);ctx.lineTo(-13,hipY-6);ctx.closePath();ctx.fill();ctx.strokeStyle=M4;ctx.lineWidth=1.5;ctx.stroke();
+  ctx.strokeStyle=M3;ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(-14,torsoTop+10);ctx.lineTo(14,torsoTop+10);ctx.stroke();ctx.beginPath();ctx.moveTo(-13,torsoTop+17);ctx.lineTo(13,torsoTop+17);ctx.stroke();
+  ctx.strokeStyle=M5;ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(0,torsoTop+2);ctx.lineTo(0,hipY-8);ctx.stroke();
+  // shoulders
+  const sholY=torsoTop+3,sholSep=16;
+  [-sholSep,sholSep].forEach(sx=>{const sg2=ctx.createRadialGradient(sx,sholY,0,sx,sholY,8);sg2.addColorStop(0,M5);sg2.addColorStop(0.4,M1);sg2.addColorStop(1,JOINT);ctx.fillStyle=sg2;ctx.beginPath();ctx.arc(sx,sholY,8,0,Math.PI*2);ctx.fill();ctx.strokeStyle=M4;ctx.lineWidth=1.5;ctx.stroke();ctx.fillStyle=M4;ctx.beginPath();ctx.arc(sx,sholY,3,0,Math.PI*2);ctx.fill();});
+  // LEFT arm
+  const laShx=-sholSep,laShY=sholY,laAng=Math.PI/2+armSwingL,laElbow=limbEnd(laShx,laShY,laAng,20),laForeAng=laAng+elbowBendL,laHand=limbEnd(laElbow.x,laElbow.y,laForeAng,18);
+  capsule(laShx,laShY,laElbow.x,laElbow.y,5,M2,M3,1.2);ctx.fillStyle=JOINT;ctx.beginPath();ctx.arc(laElbow.x,laElbow.y,4.5,0,Math.PI*2);ctx.fill();ctx.fillStyle=M4;ctx.beginPath();ctx.arc(laElbow.x,laElbow.y,2.5,0,Math.PI*2);ctx.fill();
+  capsule(laElbow.x,laElbow.y,laHand.x,laHand.y,4,M2,M3,1.2);capsule(laHand.x,laHand.y,laHand.x,laHand.y+5,6,M1,M3,1);
+  // RIGHT arm
+  const raShx=sholSep,raShY=sholY,raAng=Math.PI/2+armSwingR,raElbow=limbEnd(raShx,raShY,raAng,20),raForeAng=raAng-elbowBendR,raHand=limbEnd(raElbow.x,raElbow.y,raForeAng,18);
+  capsule(raShx,raShY,raElbow.x,raElbow.y,5.5,M1,M3,1.2);ctx.fillStyle=JOINT;ctx.beginPath();ctx.arc(raElbow.x,raElbow.y,5,0,Math.PI*2);ctx.fill();ctx.fillStyle=M3;ctx.beginPath();ctx.arc(raElbow.x,raElbow.y,2.5,0,Math.PI*2);ctx.fill();
+  capsule(raElbow.x,raElbow.y,raHand.x,raHand.y,4.5,M1,M3,1.2);
+  capsule(raHand.x,raHand.y,raHand.x,raHand.y+5,7,M1,M3,1.5);
+  ctx.strokeStyle=M3;ctx.lineWidth=1;[-2,0,2].forEach(kx=>{ctx.beginPath();ctx.moveTo(raHand.x+kx,raHand.y+2);ctx.lineTo(raHand.x+kx,raHand.y+6);ctx.stroke();});
+  // impact flash
+  if(state==='attack'&&gunRaise<0.15&&gunRaise>0.01){
+    ctx.globalAlpha=(1-gunRaise/0.15)*0.8;
+    const ig=ctx.createRadialGradient(raHand.x,raHand.y+6,0,raHand.x,raHand.y+6,24);
+    ig.addColorStop(0,'rgba(255,80,0,0.9)');ig.addColorStop(1,'rgba(255,0,0,0)');
+    ctx.fillStyle=ig;ctx.beginPath();ctx.arc(raHand.x,raHand.y+6,24,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1;
+  }
+  // neck
+  capsule(0,torsoTop+2,0,torsoTop-6,6,M2,M4,1.5);
+  [torsoTop,torsoTop-3].forEach(ny=>{ctx.fillStyle=M3;ctx.beginPath();ctx.rect(-5,ny-1,10,3);ctx.fill();ctx.strokeStyle=M4;ctx.lineWidth=1;ctx.stroke();});
+  // HEAD
+  ctx.save();ctx.translate(0,torsoTop-6);ctx.rotate(headTilt);
+  const headY=-14;
+  const skulG=ctx.createRadialGradient(-3,headY-2,0,0,headY,13);skulG.addColorStop(0,M5);skulG.addColorStop(0.35,M1);skulG.addColorStop(0.7,M2);skulG.addColorStop(1,M4);
+  ctx.fillStyle=skulG;ctx.beginPath();ctx.moveTo(-11,headY+8);ctx.bezierCurveTo(-13,headY+2,-12,headY-8,-6,headY-13);ctx.bezierCurveTo(-2,headY-16,2,headY-16,6,headY-13);ctx.bezierCurveTo(12,headY-8,13,headY+2,11,headY+8);ctx.lineTo(9,headY+10);ctx.lineTo(-9,headY+10);ctx.closePath();ctx.fill();ctx.strokeStyle=M4;ctx.lineWidth=1.5;ctx.stroke();
+  ctx.fillStyle=M3;ctx.beginPath();ctx.moveTo(-10,headY-6);ctx.lineTo(10,headY-6);ctx.lineTo(9,headY-9);ctx.lineTo(-9,headY-9);ctx.closePath();ctx.fill();
+  // red eyes
+  const eyePulse=0.75+0.25*Math.sin(t*2.5),eyeY=headY-4;
+  [-4.5,4.5].forEach(ex=>{
+    ctx.fillStyle=M4;ctx.beginPath();ctx.ellipse(ex,eyeY,4.5,3,0,0,Math.PI*2);ctx.fill();
+    ctx.globalAlpha=0.5*eyePulse;const eg=ctx.createRadialGradient(ex,eyeY,0,ex,eyeY,10);eg.addColorStop(0,RED);eg.addColorStop(1,'rgba(255,0,0,0)');ctx.fillStyle=eg;ctx.beginPath();ctx.arc(ex,eyeY,10,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1;
+    ctx.globalAlpha=0.85*eyePulse;const eg2=ctx.createRadialGradient(ex,eyeY,0,ex,eyeY,4);eg2.addColorStop(0,'#ffaaaa');eg2.addColorStop(0.3,RED);eg2.addColorStop(1,'rgba(200,0,0,0)');ctx.fillStyle=eg2;ctx.beginPath();ctx.ellipse(ex,eyeY,3.5,2.2,0,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1;
+    ctx.fillStyle='#fff';ctx.beginPath();ctx.ellipse(ex,eyeY,1.2,0.8,0,0,Math.PI*2);ctx.fill();
+  });
+  // nose & teeth
+  ctx.fillStyle=M4;ctx.beginPath();ctx.ellipse(-2,headY+6,2,1.2,0,0,Math.PI*2);ctx.fill();ctx.beginPath();ctx.ellipse(2,headY+6,2,1.2,0,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle=M2;ctx.beginPath();ctx.moveTo(-8,headY+8);ctx.lineTo(8,headY+8);ctx.lineTo(7,headY+11);ctx.lineTo(-7,headY+11);ctx.closePath();ctx.fill();ctx.strokeStyle=M4;ctx.lineWidth=1;ctx.stroke();
+  [-5,-2.5,0,2.5,5].forEach(tx=>{ctx.strokeStyle=M4;ctx.lineWidth=1.2;ctx.beginPath();ctx.moveTo(tx,headY+8);ctx.lineTo(tx,headY+11);ctx.stroke();});
+  ctx.fillStyle='rgba(255,255,255,0.2)';ctx.beginPath();ctx.ellipse(-2,headY-9,5,2.5,-0.3,0,Math.PI*2);ctx.fill();
+  ctx.restore();
+  // chest core glow
+  const corePulse=0.6+0.4*Math.sin(t*2.8);
+  ctx.globalAlpha=0.35*corePulse;const coreG=ctx.createRadialGradient(0,torsoTop+12,0,0,torsoTop+12,14);coreG.addColorStop(0,RED);coreG.addColorStop(1,'rgba(255,0,0,0)');ctx.fillStyle=coreG;ctx.beginPath();ctx.arc(0,torsoTop+12,14,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1;
+  ctx.fillStyle=`rgba(255,${Math.round(30*corePulse)},0,${0.8*corePulse})`;ctx.beginPath();ctx.moveTo(0,torsoTop+8);ctx.lineTo(4,torsoTop+12);ctx.lineTo(0,torsoTop+16);ctx.lineTo(-4,torsoTop+12);ctx.closePath();ctx.fill();
+  ctx.restore();
+  ctx.restore();
+}
+
 // ── Draw warriors ────────────────────────────────────
 function drawWarrior(w, now){
   if(w.dead&&w.deathTimer<=0)return;
@@ -801,10 +904,11 @@ function drawWarrior(w, now){
   if(isGlow||isKing){ctx.shadowColor=isKing?'#FFD700':'#AAFFAA';ctx.shadowBlur=isKing?22:14;}
   ctx.save();ctx.translate(sx+hitOff,sy+idleBob);ctx.scale(totalSc,totalSc);
   if(w.class==='conan')drawConan(0,0,1,facing,state,now);
+  else if(w.class==='terminator')drawTerminator(0,0,1,facing,state,now);
   else drawSpearman(0,0,1,facing,state,now);
   if(flash){ctx.globalAlpha=(w.flashTimer/600)*0.55;ctx.fillStyle='#FFFFFF';ctx.beginPath();ctx.ellipse(0,-25,18,30,0,0,Math.PI*2);ctx.fill();ctx.globalAlpha=alpha;}
   ctx.restore();ctx.shadowBlur=0;
-  _drawLabels(sx,sy+idleBob-88,w);
+  _drawLabels(sx,sy+idleBob-120,w);
   ctx.restore();
 }
 function _drawLabels(sx,labelY,w){
