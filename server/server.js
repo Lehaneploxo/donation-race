@@ -50,6 +50,11 @@ app.get('/arena', (req, res) => {
   res.sendFile(path.join(__dirname, '../client/arena.html'));
 });
 
+app.get('/arena2', (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  res.sendFile(path.join(__dirname, '../client/arena2.html'));
+});
+
 app.get('/civilization', (req, res) => {
   res.setHeader('Cache-Control', 'no-store');
   res.sendFile(path.join(__dirname, '../client/civilization.html'));

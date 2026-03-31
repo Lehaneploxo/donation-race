@@ -280,6 +280,22 @@
     <div class="status-msg" id="arenaStatus">⏳ Открываю игру…</div>
   </div>
 
+  <!-- ── ARENA BATTLE 2 ── -->
+  <div class="game-panel panel-arena" style="border-left:1px solid rgba(255,140,0,0.3)">
+    <div class="panel-title" style="color:#FF9900;text-shadow:0 0 18px #FF6600">⚔️ ARENA 2 — КОЛИЗЕЙ ⚔️</div>
+    <div class="panel-sub">Копьеносец vs Конан · Донаты · Армагеддон!</div>
+
+    <input class="nick-input" id="arena2Input" type="text"
+           placeholder="@your_username"
+           autocomplete="off" autocorrect="off" spellcheck="false">
+
+    <div class="error-msg" id="arena2Error">Введи никнейм TikTok</div>
+
+    <button class="btn-start" id="arena2Start" style="background:linear-gradient(90deg,#882200,#FF6600);color:#fff;box-shadow:0 4px 20px rgba(255,100,0,0.4)">⚔️ START ARENA 2</button>
+
+    <div class="status-msg" id="arena2Status">⏳ Открываю игру…</div>
+  </div>
+
 </div>
 
 <div class="stripe"></div>
@@ -287,16 +303,17 @@
 <script>
   // Prefill saved nick into all inputs
   const saved = localStorage.getItem('tiktok_username') || '';
-  document.getElementById('raceInput').value  = saved;
-  document.getElementById('warInput').value   = saved;
-  document.getElementById('arenaInput').value = saved;
-  document.getElementById('civInput').value   = saved;
+  document.getElementById('raceInput').value   = saved;
+  document.getElementById('warInput').value    = saved;
+  document.getElementById('arenaInput').value  = saved;
+  document.getElementById('arena2Input').value = saved;
+  document.getElementById('civInput').value    = saved;
 
   // Sync all inputs when typing
-  ['raceInput','warInput','arenaInput','civInput'].forEach(id => {
+  ['raceInput','warInput','arenaInput','arena2Input','civInput'].forEach(id => {
     document.getElementById(id).addEventListener('input', function() {
       if (this.value.startsWith('@')) this.value = this.value.slice(1);
-      ['raceInput','warInput','arenaInput','civInput'].forEach(oid => {
+      ['raceInput','warInput','arenaInput','arena2Input','civInput'].forEach(oid => {
         if (oid !== id) document.getElementById(oid).value = this.value;
       });
     });
@@ -349,6 +366,13 @@
     handleClick('arenaInput','arenaError','arenaStatus','arenaStart','/arena'));
   document.getElementById('arenaInput').addEventListener('keydown', e => {
     if (e.key === 'Enter') document.getElementById('arenaStart').click();
+  });
+
+  // Arena 2
+  document.getElementById('arena2Start').addEventListener('click', () =>
+    handleClick('arena2Input','arena2Error','arena2Status','arena2Start','/arena2'));
+  document.getElementById('arena2Input').addEventListener('keydown', e => {
+    if (e.key === 'Enter') document.getElementById('arena2Start').click();
   });
 </script>
 
