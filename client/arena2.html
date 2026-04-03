@@ -118,7 +118,7 @@ function getWarriorScale(coins){return 1.3+Math.min(1.1,Math.log10(Math.max(1,co
 function makeWarrior(username,coins){
   const pos=rndArenaPos(),tgt=rndArenaPos();
   return{id:++uidSeq,username,coins,hp:coins*10,maxHp:coins*10,damage:coins,
-    class:['spearman','conan','terminator','fan_warrior'][Math.floor(Math.random()*4)],
+    class:['spearman','conan','terminator','fan_warrior','dark_mage'][Math.floor(Math.random()*5)],
     ax:pos.ax,ay:pos.ay,tax:tgt.ax,tay:tgt.ay,
     walkTimer:Math.random()*2000,walkDelay:2000+Math.random()*2500,
     walkPhase:Math.random()*Math.PI*2,idlePhase:Math.random()*Math.PI*2,
@@ -1219,6 +1219,57 @@ function drawFanWarrior(cx,cy,sc,fac,state,now){
   }
 }
 
+// ── Dark Mage ─────────────────────────────────────────
+function drawDarkMage(cx,cy,sc,fac,state,now){
+  const t=now*0.001;
+  const ROBE='#1e0044',ROBE2='#2e006a',ROBE_D='#0d0022',ROBE_E='#6622cc';
+  const HAT='#160030',HAT2='#220050',HAT_BAND='#aa44ff';
+  const SKIN='#d4b896',SKIN_D='#a07850';
+  const BEARD='#ccccdd',BEARD2='#aaaacc',BEARD_D='#888899';
+  const STAFF_W='#3a2810',STAFF_L='#5a3c18';
+  const ORB='#cc44ff',ORB2='#ff99ff',ORB_W='#ffffff';
+  const STAR='rgba(200,150,255,0.7)';
+  const MAGIC='#aa00ff',MAGIC2='#cc66ff',MAGIC3='#eeaaff';
+  let bodyBob=0,bodyFloat=0,bodyLean=0,headTilt=0;
+  let legLA=0,legRA=0,kneeLB=0,kneeRB=0;
+  let armSwL=0,armSwR=0,elbBL=0,elbBR=0;
+  let robeSwing=0,orbPulse=0,magicCharge=0,castBurst=0;
+  function easeOut(t){t=clamp(t,0,1);return 1-(1-t)*(1-t);}
+  if(state==='idle'){
+    bodyFloat=Math.sin(t*0.8)*3;bodyBob=Math.sin(t*1.4)*1.5;headTilt=Math.sin(t*0.6)*3;
+    armSwL=d2r(-20)+Math.sin(t*0.9)*d2r(8);armSwR=d2r(-15)+Math.sin(t*1.1)*d2r(5);
+    elbBL=d2r(30);elbBR=d2r(10);robeSwing=Math.sin(t*0.8)*2.5;orbPulse=0.5+Math.sin(t*2.2)*0.5;
+  } else if(state==='walk'){
+    const wt=t*2.4,s2=Math.sin(wt);
+    bodyBob=Math.abs(s2)*-3;bodyLean=d2r(7);headTilt=s2*2;
+    legLA=d2r(s2*28);legRA=d2r(-s2*28);kneeLB=s2>0?0:d2r(-s2*24);kneeRB=s2<0?0:d2r(s2*24);
+    armSwL=d2r(-18+s2*14);armSwR=d2r(-15-s2*10);elbBL=d2r(25+Math.abs(s2)*12);elbBR=d2r(10);
+    robeSwing=s2*5;orbPulse=0.4+Math.sin(t*2.2)*0.28;
+  } else if(state==='attack'){
+    const period=1900,p=(t*1000%period)/period;
+    if(p<0.3){const q=easeInOut(p/0.3);armSwR=d2r(lerp(25,-160,q));elbBR=d2r(lerp(40,5,q));orbPulse=lerp(0.5,1,q);magicCharge=q;bodyFloat=Math.sin(t*0.8)*2-q*7;bodyLean=d2r(-q*10);}
+    else if(p<0.56){const q=easeOut((p-0.3)/0.26);armSwR=d2r(-160);elbBR=d2r(5);orbPulse=1;magicCharge=1;castBurst=q;bodyFloat=Math.sin(t*0.8)*2-7;bodyLean=d2r(-10);}
+    else if(p<0.72){const q=(p-0.56)/0.16;castBurst=1-easeInOut(q);orbPulse=lerp(1,0.6,q);magicCharge=1-q;armSwR=d2r(-160+q*30);bodyFloat=lerp(-7,0,q);bodyLean=d2r(lerp(-10,0,q));}
+    else{const q=easeInOut((p-0.72)/0.28);armSwR=d2r(lerp(-130,25,q));elbBR=d2r(lerp(5,40,q));orbPulse=lerp(0.55,0.5,q);bodyFloat=Math.sin(t*0.8)*2;}
+    armSwL=d2r(-18)+Math.sin(t*0.9)*d2r(8);elbBL=d2r(30);headTilt=Math.sin(t*0.6)*3;robeSwing=Math.sin(t*0.8)*2;
+  }
+  ctx.save();ctx.translate(cx,cy+bodyFloat+bodyBob);ctx.scale(sc*fac,sc);ctx.rotate(bodyLean);
+  const hipY=16,shY=-26,shSep=12,uAL=18,lAL=15;
+  ctx.fillStyle='rgba(80,0,150,0.22)';ctx.beginPath();ctx.ellipse(robeSwing*0.15,hipY+39,16,5,0,0,Math.PI*2);ctx.fill();
+  {const shx=-shSep*0.5,shy=shY;const uA=Math.PI/2+armSwL,elbow=limbEnd(shx,shy,uA,uAL);const fA=uA+elbBL,hand=limbEnd(elbow.x,elbow.y,fA,lAL);capsule(shx,shy,elbow.x,elbow.y,4.5,SKIN_D,ROBE2,0.8);capsule(elbow.x,elbow.y,hand.x,hand.y,4,SKIN_D,ROBE2,0.8);ctx.fillStyle=SKIN_D;ctx.beginPath();ctx.arc(hand.x,hand.y,4.5,0,Math.PI*2);ctx.fill();}
+  _dmRobe(robeSwing,hipY);
+  const torG=ctx.createLinearGradient(-12,hipY,12,-34);torG.addColorStop(0,ROBE2);torG.addColorStop(0.5,ROBE);torG.addColorStop(1,ROBE_D);ctx.fillStyle=torG;ctx.beginPath();ctx.moveTo(-12,hipY);ctx.lineTo(12,hipY);ctx.lineTo(10,-34);ctx.lineTo(-10,-34);ctx.closePath();ctx.fill();ctx.strokeStyle=ROBE_E;ctx.lineWidth=0.8;ctx.stroke();
+  _dmStars();
+  {const shx=shSep*0.7,shy=shY;const uA=Math.PI/2+armSwR,elbow=limbEnd(shx,shy,uA,uAL);const fA=uA-elbBR,hand=limbEnd(elbow.x,elbow.y,fA,lAL);capsule(shx,shy,elbow.x,elbow.y,5,SKIN,ROBE2,0.8);capsule(elbow.x,elbow.y,hand.x,hand.y,4.5,SKIN,ROBE2,0.8);ctx.fillStyle=SKIN;ctx.beginPath();ctx.arc(hand.x,hand.y,5.5,0,Math.PI*2);ctx.fill();ctx.strokeStyle=SKIN_D;ctx.lineWidth=0.7;ctx.stroke();_dmStaff(hand.x,hand.y,orbPulse,magicCharge,castBurst);if(castBurst>0.05){const hg=ctx.createRadialGradient(hand.x,hand.y,0,hand.x,hand.y,18*castBurst);hg.addColorStop(0,`rgba(200,80,255,${0.8*castBurst})`);hg.addColorStop(0.5,`rgba(120,0,220,${0.4*castBurst})`);hg.addColorStop(1,'rgba(60,0,150,0)');ctx.fillStyle=hg;ctx.beginPath();ctx.arc(hand.x,hand.y,18*castBurst,0,Math.PI*2);ctx.fill();}}
+  capsule(0,-34,0,-40,5,SKIN,SKIN_D,0.8);
+  _dmHead(headTilt);
+  ctx.restore();
+  function _dmRobe(sw,hy){const rg=ctx.createLinearGradient(-18,hy,14,hy+44);rg.addColorStop(0,ROBE2);rg.addColorStop(0.5,ROBE);rg.addColorStop(1,ROBE_D);ctx.fillStyle=rg;ctx.beginPath();ctx.moveTo(-12+sw*0.1,hy);ctx.lineTo(12+sw*0.1,hy);ctx.bezierCurveTo(16+sw*0.35,hy+16,18+sw*0.5,hy+30,15+sw*0.6,hy+42);ctx.bezierCurveTo(7,hy+47,-7,hy+47,-15+sw*0.6,hy+42);ctx.bezierCurveTo(-18+sw*0.5,hy+30,-16+sw*0.35,hy+16,-12+sw*0.1,hy);ctx.closePath();ctx.fill();ctx.strokeStyle=ROBE_E;ctx.lineWidth=0.7;ctx.stroke();}
+  function _dmStars(){const starPos=[{x:4,y:-8},{x:-6,y:-18},{x:6,y:-22},{x:-3,y:-28},{x:7,y:-14}];starPos.forEach(({x,y},i)=>{const sz=1.5+Math.sin(t*2+i)*0.5;ctx.save();ctx.globalAlpha=0.55+Math.sin(t*1.8+i)*0.3;ctx.fillStyle=STAR;ctx.beginPath();for(let k=0;k<8;k++){const a=k*Math.PI/4-Math.PI/8,r=k%2===0?sz*2.5:sz;k===0?ctx.moveTo(x+Math.cos(a)*r,y+Math.sin(a)*r):ctx.lineTo(x+Math.cos(a)*r,y+Math.sin(a)*r);}ctx.closePath();ctx.fill();ctx.restore();});}
+  function _dmStaff(hx,hy,pulse,charge,burst){const sA=-Math.PI/2+Math.sin(t*0.6)*0.05,sL=55,topX=hx+Math.cos(sA)*sL,topY=hy+Math.sin(sA)*sL;capsule(hx,hy,topX,topY,3,STAFF_L,STAFF_W,1);for(let i=1;i<4;i++){const bx=lerp(hx,topX,i/4),by=lerp(hy,topY,i/4);ctx.fillStyle='#6a5028';ctx.beginPath();ctx.ellipse(bx,by,4,2,sA+Math.PI/2,0,Math.PI*2);ctx.fill();}const orbR=8+pulse*3+charge*4;const og=ctx.createRadialGradient(topX,topY,0,topX,topY,orbR+12+burst*14);og.addColorStop(0,`rgba(220,100,255,${0.8*pulse+burst*0.2})`);og.addColorStop(0.35,`rgba(150,0,255,${0.5*pulse})`);og.addColorStop(0.7,`rgba(80,0,180,${0.2*pulse})`);og.addColorStop(1,'rgba(0,0,0,0)');ctx.fillStyle=og;ctx.beginPath();ctx.arc(topX,topY,orbR+12+burst*14,0,Math.PI*2);ctx.fill();const sg=ctx.createRadialGradient(topX-orbR*0.3,topY-orbR*0.3,0,topX,topY,orbR);sg.addColorStop(0,ORB_W);sg.addColorStop(0.25,ORB2);sg.addColorStop(0.65,ORB);sg.addColorStop(1,'#440088');ctx.fillStyle=sg;ctx.beginPath();ctx.arc(topX,topY,orbR,0,Math.PI*2);ctx.fill();ctx.strokeStyle=ORB2;ctx.lineWidth=1;ctx.stroke();ctx.fillStyle=`rgba(255,255,255,${0.7*pulse})`;ctx.beginPath();ctx.ellipse(topX-orbR*0.3,topY-orbR*0.3,orbR*0.3,orbR*0.18,d2r(-40),0,Math.PI*2);ctx.fill();ctx.strokeStyle=`rgba(200,100,255,${0.5*pulse})`;ctx.lineWidth=1.2;ctx.beginPath();ctx.arc(topX,topY,orbR+3,0,Math.PI*2);ctx.stroke();if(charge>0.08){for(let i=0;i<6;i++){const pa=t*2.8+i*Math.PI*2/6,pr=(orbR+6+charge*10)*(0.8+Math.sin(t*4+i)*0.2),px=topX+Math.cos(pa)*pr,py=topY+Math.sin(pa)*pr*0.55;ctx.save();ctx.globalAlpha=charge*(0.6+Math.sin(t*5+i)*0.3);ctx.fillStyle=i%2===0?ORB:MAGIC2;ctx.beginPath();ctx.arc(px,py,1.5+charge*1.5,0,Math.PI*2);ctx.fill();ctx.restore();}}if(burst>0.06){[0,0.4].forEach((off,ri)=>{const bp=clamp(burst-off,0,1);if(bp<=0)return;ctx.save();ctx.globalAlpha=(1-bp)*burst*0.9;ctx.strokeStyle=ri===0?ORB2:MAGIC2;ctx.lineWidth=2.5-ri*0.8;ctx.beginPath();ctx.arc(topX,topY,(orbR+5+burst*20+ri*12)*bp,0,Math.PI*2);ctx.stroke();ctx.restore();});}}
+  function _dmHead(tilt){const hcY=-52;ctx.save();ctx.translate(0,hcY);ctx.rotate(d2r(tilt));const brimG=ctx.createLinearGradient(-15,-12,15,-12);brimG.addColorStop(0,HAT);brimG.addColorStop(0.5,HAT2);brimG.addColorStop(1,HAT);ctx.fillStyle=brimG;ctx.beginPath();ctx.moveTo(-15,-12);ctx.bezierCurveTo(-12,-7,12,-7,15,-12);ctx.bezierCurveTo(12,-17,-12,-17,-15,-12);ctx.closePath();ctx.fill();ctx.strokeStyle=HAT_BAND;ctx.lineWidth=1;ctx.stroke();const hatG=ctx.createLinearGradient(-8,-14,8,-14);hatG.addColorStop(0,HAT2);hatG.addColorStop(0.5,HAT);hatG.addColorStop(1,HAT2);ctx.fillStyle=hatG;ctx.beginPath();ctx.moveTo(-8,-14);ctx.lineTo(8,-14);ctx.bezierCurveTo(6,-24,3,-34,0,-44);ctx.bezierCurveTo(-3,-34,-6,-24,-8,-14);ctx.closePath();ctx.fill();ctx.strokeStyle=HAT_BAND;ctx.lineWidth=0.8;ctx.stroke();ctx.fillStyle=HAT_BAND;ctx.beginPath();ctx.moveTo(-8,-14);ctx.bezierCurveTo(-6,-19,6,-19,8,-14);ctx.bezierCurveTo(6,-17,-6,-17,-8,-14);ctx.closePath();ctx.fill();ctx.save();ctx.globalAlpha=0.7+Math.sin(t*2.5)*0.3;ctx.fillStyle='#eeccff';ctx.beginPath();for(let k=0;k<10;k++){const a=k*Math.PI/5-Math.PI/2,r=k%2===0?3.5:1.5;k===0?ctx.moveTo(Math.cos(a)*r,-30+Math.sin(a)*r):ctx.lineTo(Math.cos(a)*r,-30+Math.sin(a)*r);}ctx.closePath();ctx.fill();ctx.restore();const faceG=ctx.createRadialGradient(-1,-3,1,0,-3,12);faceG.addColorStop(0,SKIN);faceG.addColorStop(0.7,SKIN_D);faceG.addColorStop(1,'#7a5838');ctx.fillStyle=faceG;ctx.beginPath();ctx.moveTo(-9,-10);ctx.bezierCurveTo(-12,-5,-12,3,-10,8);ctx.bezierCurveTo(-7,14,-3,16,0,16);ctx.bezierCurveTo(3,16,7,14,10,8);ctx.bezierCurveTo(12,3,12,-5,9,-10);ctx.bezierCurveTo(6,-14,-6,-14,-9,-10);ctx.closePath();ctx.fill();ctx.strokeStyle=SKIN_D;ctx.lineWidth=0.7;ctx.stroke();ctx.strokeStyle='#554433';ctx.lineWidth=2.2;ctx.lineCap='round';ctx.beginPath();ctx.moveTo(-9,-8);ctx.quadraticCurveTo(-5,-12,-1,-10);ctx.stroke();ctx.beginPath();ctx.moveTo(1,-10);ctx.quadraticCurveTo(5,-12,9,-8);ctx.stroke();const eyeGlow=0.7+Math.sin(t*3.5)*0.3;[[-4,-5],[4,-5]].forEach(([ex,ey])=>{const eg=ctx.createRadialGradient(ex,ey,0,ex,ey,5);eg.addColorStop(0,`rgba(220,140,255,${eyeGlow})`);eg.addColorStop(0.5,`rgba(150,50,255,${eyeGlow*0.5})`);eg.addColorStop(1,'rgba(80,0,180,0)');ctx.fillStyle=eg;ctx.beginPath();ctx.arc(ex,ey,5,0,Math.PI*2);ctx.fill();ctx.fillStyle='#f0e8ff';ctx.beginPath();ctx.ellipse(ex,ey,4,3,0,0,Math.PI*2);ctx.fill();ctx.fillStyle='#6600cc';ctx.beginPath();ctx.ellipse(ex,ey,2.2,2.2,0,0,Math.PI*2);ctx.fill();ctx.fillStyle='#cc88ff';ctx.beginPath();ctx.ellipse(ex-0.6,ey-0.6,0.9,0.9,0,0,Math.PI*2);ctx.fill();});ctx.strokeStyle=SKIN_D;ctx.lineWidth=1.5;ctx.lineCap='round';ctx.beginPath();ctx.moveTo(0,-3);ctx.bezierCurveTo(3,0,4,3,2,5);ctx.stroke();ctx.beginPath();ctx.moveTo(-2,5);ctx.bezierCurveTo(-4,4,-5,2,-4,0);ctx.stroke();ctx.strokeStyle='#8a5a3a';ctx.lineWidth=1.4;ctx.lineCap='round';ctx.beginPath();ctx.moveTo(-5,9);ctx.quadraticCurveTo(0,12,5,9);ctx.stroke();const beardG=ctx.createLinearGradient(-8,10,4,36);beardG.addColorStop(0,BEARD);beardG.addColorStop(0.5,BEARD2);beardG.addColorStop(1,BEARD_D);ctx.fillStyle=beardG;ctx.beginPath();ctx.moveTo(-8,10);ctx.bezierCurveTo(-11,16,-12,24,-10,32);ctx.bezierCurveTo(-7,38,-2,40,0,38);ctx.bezierCurveTo(2,40,7,38,10,32);ctx.bezierCurveTo(12,24,11,16,8,10);ctx.bezierCurveTo(4,8,-4,8,-8,10);ctx.closePath();ctx.fill();ctx.strokeStyle=BEARD_D;ctx.lineWidth=0.5;ctx.stroke();ctx.strokeStyle=BEARD_D;ctx.lineWidth=0.8;ctx.lineCap='round';[[-5,14,-3,32],[0,14,1,35],[5,14,3,32],[-3,13,-4,28],[3,13,4,28]].forEach(([x1,y1,x2,y2])=>{ctx.beginPath();ctx.moveTo(x1,y1);ctx.bezierCurveTo(x1-1,y1+8,x2-1,y2-8,x2,y2);ctx.stroke();});ctx.strokeStyle=BEARD2;ctx.lineWidth=1.6;ctx.lineCap='round';ctx.beginPath();ctx.moveTo(-7,9);ctx.bezierCurveTo(-5,7,-2,8,0,9);ctx.stroke();ctx.beginPath();ctx.moveTo(7,9);ctx.bezierCurveTo(5,7,2,8,0,9);ctx.stroke();ctx.restore();}
+}
+
 // ── Draw warriors ────────────────────────────────────
 function drawWarrior(w, now){
   if(w.dead&&w.deathTimer<=0)return;
@@ -1242,6 +1293,7 @@ function drawWarrior(w, now){
   if(w.class==='conan')drawConan(0,0,1,facing,state,now);
   else if(w.class==='terminator')drawTerminator(0,0,1,facing,state,now);
   else if(w.class==='fan_warrior')drawFanWarrior(0,0,1,facing,state,now);
+  else if(w.class==='dark_mage')drawDarkMage(0,0,1,facing,state,now);
   else drawSpearman(0,0,1,facing,state,now);
   if(flash){ctx.globalAlpha=(w.flashTimer/600)*0.55;ctx.fillStyle='#FFFFFF';ctx.beginPath();ctx.ellipse(0,-25,18,30,0,0,Math.PI*2);ctx.fill();ctx.globalAlpha=alpha;}
   ctx.restore();ctx.shadowBlur=0;

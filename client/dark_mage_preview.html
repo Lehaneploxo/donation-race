@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>🧙 Dark Mage Preview</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+html, body { width:100vw; height:100vh; background:#07000f; overflow:hidden; font-family:Arial,sans-serif; }
+canvas { display:block; margin:auto; }
+#ui { position:fixed; bottom:20px; left:50%; transform:translateX(-50%); display:flex; gap:12px; }
+button { padding:10px 22px; border:none; border-radius:8px; cursor:pointer; font-size:15px; font-weight:bold;
+  background:#07000f; color:#cc66ff; border:2px solid #cc66ff; transition:background 0.15s; }
+button.active { background:#cc66ff; color:#000; }
+button:hover { background:#1a0030; }
+#label { position:fixed; top:18px; left:50%; transform:translateX(-50%);
+  color:#dd88ff; font-size:18px; font-weight:bold; letter-spacing:3px;
+  text-shadow:0 0 18px #aa00ff, 0 0 40px #6600cc; }
+</style>
+</head>
+<body>
+<div id="label">🧙 DARK MAGE 🧙</div>
+<canvas id="c"></canvas>
+<div id="ui">
+  <button id="btnIdle" class="active" onclick="setState('idle')">IDLE</button>
+  <button id="btnWalk"              onclick="setState('walk')">WALK</button>
+  <button id="btnAttack"            onclick="setState('attack')">ATTACK</button>
+  <button                           onclick="facing*=-1">◀▶ FLIP</button>
+</div>
+<script>
+'use strict';
+const cvs=document.getElementById('c');
+const ctx=cvs.getContext('2d');
+function resize(){cvs.width=window.innerWidth;cvs.height=window.innerHeight-80;}
+window.addEventListener('resize',resize);resize();
+
+let curState='idle',facing=1;
+function setState(s){
+  curState=s;
+  ['idle','walk','attack'].forEach(id=>{
+    document.getElementById('btn'+id[0].toUpperCase()+id.slice(1)).classList.toggle('active',id===s);
+  });
+}
+
+const PI=Math.PI;
+function d2r(d){return d*PI/180;}
+function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
+function lerp(a,b,t){return a+(b-a)*clamp(t,0,1);}
+function easeInOut(t){t=clamp(t,0,1);return t*t*(3-2*t);}
+function easeOut(t){t=clamp(t,0,1);return 1-(1-t)*(1-t);}
+
+function capsule(x1,y1,x2,y2,r,color,strokeColor,strokeW){
+  const dx=x2-x1,dy=y2-y1,len=Math.sqrt(dx*dx+dy*dy);
+  if(len<0.5){ctx.beginPath();ctx.arc(x1,y1,r,0,PI*2);ctx.fillStyle=color;ctx.fill();return;}
+  const nx=-dy/len,ny=dx/len,ang=Math.atan2(dy,dx);
+  ctx.beginPath();
+  ctx.moveTo(x1+nx*r,y1+ny*r);ctx.lineTo(x2+nx*r,y2+ny*r);
+  ctx.arc(x2,y2,r,ang-PI/2,ang+PI/2);
+  ctx.lineTo(x1-nx*r,y1-ny*r);ctx.arc(x1,y1,r,ang+PI/2,ang-PI/2);
+  ctx.closePath();ctx.fillStyle=color;ctx.fill();
+  if(strokeColor){ctx.strokeStyle=strokeColor;ctx.lineWidth=strokeW||1;ctx.stroke();}
+}
+function limbEnd(px,py,ang,len){return{x:px+Math.cos(ang)*len,y:py+Math.sin(ang)*len};}
+
+// ── DARK MAGE ──────────────────────────────────────────────────────────────
+function drawDarkMage(cx,cy,sc,fac,state,now){
+  const t=now*0.001;
+
+  // цвета
+  const ROBE='#1e0044',ROBE2='#2e006a',ROBE_D='#0d0022',ROBE_E='#6622cc';
+  const HAT='#160030',HAT2='#220050',HAT_BAND='#aa44ff';
+  const SKIN='#d4b896',SKIN_D='#a07850';
+  const BEARD='#ccccdd',BEARD2='#aaaacc',BEARD_D='#888899';
+  const STAFF_W='#3a2810',STAFF_L='#5a3c18';
+  const ORB='#cc44ff',ORB2='#ff99ff',ORB_W='#ffffff';
+  const STAR='rgba(200,150,255,0.7)';
+  const MAGIC='#aa00ff',MAGIC2='#cc66ff',MAGIC3='#eeaaff';
+
+  // анимация
+  let bodyBob=0,bodyFloat=0,bodyLean=0,headTilt=0;
+  let legLA=0,legRA=0,kneeLB=0,kneeRB=0;
+  let armSwL=0,armSwR=0,elbBL=0,elbBR=0;
+  let robeSwing=0,orbPulse=0,magicCharge=0,castBurst=0;
+
+  if(state==='idle'){
+    bodyFloat=Math.sin(t*0.8)*3;
+    bodyBob=Math.sin(t*1.4)*1.5;
+    headTilt=Math.sin(t*0.6)*3;
+    armSwL=d2r(-20)+Math.sin(t*0.9)*d2r(8);   // рука со посохом
+    armSwR=d2r(-15)+Math.sin(t*1.1)*d2r(5);
+    elbBL=d2r(30); elbBR=d2r(10);
+    robeSwing=Math.sin(t*0.8)*2.5;
+    orbPulse=0.5+Math.sin(t*2.2)*0.5;
+  } else if(state==='walk'){
+    const wt=t*2.4,s2=Math.sin(wt);
+    bodyBob=Math.abs(s2)*-3;
+    bodyLean=d2r(7);
+    headTilt=s2*2;
+    legLA=d2r(s2*28); legRA=d2r(-s2*28);
+    kneeLB=s2>0?0:d2r(-s2*24); kneeRB=s2<0?0:d2r(s2*24);
+    armSwL=d2r(-18+s2*14);
+    armSwR=d2r(-15-s2*10);
+    elbBL=d2r(25+Math.abs(s2)*12); elbBR=d2r(10);
+    robeSwing=s2*5;
+    orbPulse=0.4+Math.sin(t*2.2)*0.28;
+  } else if(state==='attack'){
+    const period=1900,p=(t*1000%period)/period;
+    if(p<0.3){
+      const q=easeInOut(p/0.3);
+      armSwR=d2r(lerp(25,-160,q));
+      elbBR=d2r(lerp(40,5,q));
+      orbPulse=lerp(0.5,1,q);
+      magicCharge=q;
+      bodyFloat=Math.sin(t*0.8)*2-q*7;
+      bodyLean=d2r(-q*10);
+    } else if(p<0.56){
+      const q=easeOut((p-0.3)/0.26);
+      armSwR=d2r(-160);
+      elbBR=d2r(5);
+      orbPulse=1; magicCharge=1;
+      castBurst=q;
+      bodyFloat=Math.sin(t*0.8)*2-7;
+      bodyLean=d2r(-10);
+    } else if(p<0.72){
+      const q=(p-0.56)/0.16;
+      castBurst=1-easeInOut(q);
+      orbPulse=lerp(1,0.6,q);
+      magicCharge=1-q;
+      armSwR=d2r(-160+q*30);
+      bodyFloat=lerp(-7,0,q);
+      bodyLean=d2r(lerp(-10,0,q));
+    } else {
+      const q=easeInOut((p-0.72)/0.28);
+      armSwR=d2r(lerp(-130,25,q));
+      elbBR=d2r(lerp(5,40,q));
+      orbPulse=lerp(0.55,0.5,q);
+      bodyFloat=Math.sin(t*0.8)*2;
+    }
+    armSwL=d2r(-18)+Math.sin(t*0.9)*d2r(8);
+    elbBL=d2r(30);
+    headTilt=Math.sin(t*0.6)*3;
+    robeSwing=Math.sin(t*0.8)*2;
+  }
+
+  ctx.save();
+  ctx.translate(cx,cy+bodyFloat+bodyBob);
+  ctx.scale(sc*fac,sc);
+  ctx.rotate(bodyLean);
+
+  const hipY=16,hipSep=7,thighL=24,shinL=20;
+  const shY=-26,shSep=12,uAL=18,lAL=15;
+
+  // тень
+  ctx.fillStyle='rgba(80,0,150,0.22)';
+  ctx.beginPath();ctx.ellipse(robeSwing*0.15,hipY+39,16,5,0,0,PI*2);ctx.fill();
+
+  // ── ЗАДНЯЯ РУКА (свободная) ──
+  {
+    const shx=-shSep*0.5,shy=shY;
+    const uA=PI/2+armSwL,elbow=limbEnd(shx,shy,uA,uAL);
+    const fA=uA+elbBL,hand=limbEnd(elbow.x,elbow.y,fA,lAL);
+    capsule(shx,shy,elbow.x,elbow.y,4.5,SKIN_D,ROBE2,0.8);
+    capsule(elbow.x,elbow.y,hand.x,hand.y,4,SKIN_D,ROBE2,0.8);
+    ctx.fillStyle=SKIN_D;ctx.beginPath();ctx.arc(hand.x,hand.y,4.5,0,PI*2);ctx.fill();
+  }
+
+  // ── МАНТИЯ (тело + юбка) — покрывает ноги ──
+  _drawRobe(robeSwing,hipY);
+
+  // ── ТУЛОВИЩЕ ──
+  const torG=ctx.createLinearGradient(-12,hipY,12,-34);
+  torG.addColorStop(0,ROBE2);torG.addColorStop(0.5,ROBE);torG.addColorStop(1,ROBE_D);
+  ctx.fillStyle=torG;
+  ctx.beginPath();
+  ctx.moveTo(-12,hipY);ctx.lineTo(12,hipY);
+  ctx.lineTo(10,-34);ctx.lineTo(-10,-34);ctx.closePath();ctx.fill();
+  ctx.strokeStyle=ROBE_E;ctx.lineWidth=0.8;ctx.stroke();
+
+  // звёзды на мантии
+  _drawStars();
+
+  // ── ПЕРЕДНЯЯ РУКА (со посохом) ──
+  {
+    const shx=shSep*0.7,shy=shY;
+    const uA=PI/2+armSwR,elbow=limbEnd(shx,shy,uA,uAL);
+    const fA=uA-elbBR,hand=limbEnd(elbow.x,elbow.y,fA,lAL);
+    capsule(shx,shy,elbow.x,elbow.y,5,SKIN,ROBE2,0.8);
+    capsule(elbow.x,elbow.y,hand.x,hand.y,4.5,SKIN,ROBE2,0.8);
+    ctx.fillStyle=SKIN;ctx.beginPath();ctx.arc(hand.x,hand.y,5.5,0,PI*2);ctx.fill();
+    ctx.strokeStyle=SKIN_D;ctx.lineWidth=0.7;ctx.stroke();
+    // посох в передней руке
+    _drawStaff(hand.x,hand.y,orbPulse,magicCharge,castBurst);
+    // свечение руки при каст
+    if(castBurst>0.05){
+      const hg=ctx.createRadialGradient(hand.x,hand.y,0,hand.x,hand.y,18*castBurst);
+      hg.addColorStop(0,`rgba(200,80,255,${0.8*castBurst})`);
+      hg.addColorStop(0.5,`rgba(120,0,220,${0.4*castBurst})`);
+      hg.addColorStop(1,'rgba(60,0,150,0)');
+      ctx.fillStyle=hg;ctx.beginPath();ctx.arc(hand.x,hand.y,18*castBurst,0,PI*2);ctx.fill();
+    }
+  }
+
+  // ── ШЕЯ ──
+  capsule(0,-34,0,-40,5,SKIN,SKIN_D,0.8);
+
+  // ── ГОЛОВА + ШЛЯПА + БОРОДА ──
+  _drawHead(headTilt);
+
+  ctx.restore();
+
+  // ─── HELPERS ───────────────────────────────────────────
+
+  function _drawRobe(sw,hy){
+    const rg=ctx.createLinearGradient(-18,hy,14,hy+44);
+    rg.addColorStop(0,ROBE2);rg.addColorStop(0.5,ROBE);rg.addColorStop(1,ROBE_D);
+    ctx.fillStyle=rg;
+    ctx.beginPath();
+    ctx.moveTo(-12+sw*0.1,hy);ctx.lineTo(12+sw*0.1,hy);
+    ctx.bezierCurveTo(16+sw*0.35,hy+16,18+sw*0.5,hy+30,15+sw*0.6,hy+42);
+    ctx.bezierCurveTo(7,hy+47,-7,hy+47,-15+sw*0.6,hy+42);
+    ctx.bezierCurveTo(-18+sw*0.5,hy+30,-16+sw*0.35,hy+16,-12+sw*0.1,hy);
+    ctx.closePath();ctx.fill();
+    ctx.strokeStyle=ROBE_E;ctx.lineWidth=0.7;ctx.stroke();
+  }
+
+  function _drawStars(){
+    const starPos=[{x:4,y:-8},{x:-6,y:-18},{x:6,y:-22},{x:-3,y:-28},{x:7,y:-14}];
+    starPos.forEach(({x,y},i)=>{
+      const sz=1.5+Math.sin(t*2+i)*0.5;
+      ctx.save();ctx.globalAlpha=0.55+Math.sin(t*1.8+i)*0.3;
+      ctx.fillStyle=STAR;
+      // маленькая 4-лучевая звезда
+      ctx.beginPath();
+      for(let k=0;k<8;k++){
+        const a=k*PI/4-PI/8;
+        const r=k%2===0?sz*2.5:sz;
+        k===0?ctx.moveTo(x+Math.cos(a)*r,y+Math.sin(a)*r):ctx.lineTo(x+Math.cos(a)*r,y+Math.sin(a)*r);
+      }
+      ctx.closePath();ctx.fill();
+      ctx.restore();
+    });
+  }
+
+  function _drawStaff(hx,hy,pulse,charge,burst){
+    const staffAng=-PI/2+Math.sin(t*0.6)*0.05;
+    const staffLen=55;
+    const topX=hx+Math.cos(staffAng)*staffLen;
+    const topY=hy+Math.sin(staffAng)*staffLen;
+
+    // тело посоха
+    capsule(hx,hy,topX,topY,3,STAFF_L,STAFF_W,1);
+    // металлическая лента
+    for(let i=1;i<4;i++){
+      const bx=lerp(hx,topX,i/4),by=lerp(hy,topY,i/4);
+      ctx.fillStyle='#6a5028';
+      ctx.beginPath();ctx.ellipse(bx,by,4,2,staffAng+PI/2,0,PI*2);ctx.fill();
+    }
+
+    // светящийся ШАР на вершине
+    const orbR=8+pulse*3+charge*4;
+    // внешнее свечение
+    const og=ctx.createRadialGradient(topX,topY,0,topX,topY,orbR+12+burst*14);
+    og.addColorStop(0,`rgba(220,100,255,${0.8*pulse+burst*0.2})`);
+    og.addColorStop(0.35,`rgba(150,0,255,${0.5*pulse})`);
+    og.addColorStop(0.7,`rgba(80,0,180,${0.2*pulse})`);
+    og.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.fillStyle=og;
+    ctx.beginPath();ctx.arc(topX,topY,orbR+12+burst*14,0,PI*2);ctx.fill();
+
+    // сам шар
+    const sg=ctx.createRadialGradient(topX-orbR*0.3,topY-orbR*0.3,0,topX,topY,orbR);
+    sg.addColorStop(0,ORB_W);
+    sg.addColorStop(0.25,ORB2);
+    sg.addColorStop(0.65,ORB);
+    sg.addColorStop(1,'#440088');
+    ctx.fillStyle=sg;
+    ctx.beginPath();ctx.arc(topX,topY,orbR,0,PI*2);ctx.fill();
+    ctx.strokeStyle=ORB2;ctx.lineWidth=1;ctx.stroke();
+
+    // блик на шаре
+    ctx.fillStyle=`rgba(255,255,255,${0.7*pulse})`;
+    ctx.beginPath();ctx.ellipse(topX-orbR*0.3,topY-orbR*0.3,orbR*0.3,orbR*0.18,d2r(-40),0,PI*2);ctx.fill();
+
+    // кольцо вокруг шара
+    ctx.strokeStyle=`rgba(200,100,255,${0.5*pulse})`;
+    ctx.lineWidth=1.2;
+    ctx.beginPath();ctx.arc(topX,topY,orbR+3,0,PI*2);ctx.stroke();
+
+    // орбитальные частицы при заряде
+    if(charge>0.08){
+      for(let i=0;i<6;i++){
+        const pa=t*2.8+i*PI*2/6;
+        const pr=(orbR+6+charge*10)*(0.8+Math.sin(t*4+i)*0.2);
+        const px=topX+Math.cos(pa)*pr,py=topY+Math.sin(pa)*pr*0.55;
+        ctx.save();ctx.globalAlpha=charge*(0.6+Math.sin(t*5+i)*0.3);
+        ctx.fillStyle=i%2===0?ORB:MAGIC2;
+        ctx.beginPath();ctx.arc(px,py,1.5+charge*1.5,0,PI*2);ctx.fill();
+        ctx.restore();
+      }
+    }
+
+    // взрывная волна при касте
+    if(burst>0.06){
+      [0,0.4].forEach((offset,ri)=>{
+        const bp=clamp(burst-offset,0,1);
+        if(bp<=0)return;
+        ctx.save();
+        ctx.globalAlpha=(1-bp)*burst*0.9;
+        ctx.strokeStyle=ri===0?ORB2:MAGIC2;
+        ctx.lineWidth=2.5-ri*0.8;
+        ctx.beginPath();ctx.arc(topX,topY,(orbR+5+burst*20+ri*12)*bp,0,PI*2);ctx.stroke();
+        ctx.restore();
+      });
+    }
+  }
+
+  function _drawHead(tilt){
+    const headCY=-52;
+    ctx.save();ctx.translate(0,headCY);ctx.rotate(d2r(tilt));
+
+    // ── ШЛЯПА МАГА (острый конус) ──
+    // поля шляпы — сидят на голове (верх головы ~y=-12)
+    const brimG=ctx.createLinearGradient(-15,-12,15,-12);
+    brimG.addColorStop(0,HAT);brimG.addColorStop(0.5,HAT2);brimG.addColorStop(1,HAT);
+    ctx.fillStyle=brimG;
+    ctx.beginPath();
+    ctx.moveTo(-15,-12);ctx.bezierCurveTo(-12,-7,12,-7,15,-12);
+    ctx.bezierCurveTo(12,-17,-12,-17,-15,-12);ctx.closePath();ctx.fill();
+    ctx.strokeStyle=HAT_BAND;ctx.lineWidth=1;ctx.stroke();
+
+    // конус шляпы
+    const hatG=ctx.createLinearGradient(-8,-14,8,-14);
+    hatG.addColorStop(0,HAT2);hatG.addColorStop(0.5,HAT);hatG.addColorStop(1,HAT2);
+    ctx.fillStyle=hatG;
+    ctx.beginPath();
+    ctx.moveTo(-8,-14);ctx.lineTo(8,-14);
+    ctx.bezierCurveTo(6,-24,3,-34,0,-44);
+    ctx.bezierCurveTo(-3,-34,-6,-24,-8,-14);
+    ctx.closePath();ctx.fill();
+    ctx.strokeStyle=HAT_BAND;ctx.lineWidth=0.8;ctx.stroke();
+
+    // лента на шляпе
+    ctx.fillStyle=HAT_BAND;
+    ctx.beginPath();
+    ctx.moveTo(-8,-14);ctx.bezierCurveTo(-6,-19,6,-19,8,-14);
+    ctx.bezierCurveTo(6,-17,-6,-17,-8,-14);ctx.closePath();ctx.fill();
+
+    // звезда на шляпе
+    ctx.save();ctx.globalAlpha=0.7+Math.sin(t*2.5)*0.3;
+    ctx.fillStyle='#eeccff';
+    ctx.beginPath();
+    for(let k=0;k<10;k++){
+      const a=k*PI/5-PI/2;
+      const r=k%2===0?3.5:1.5;
+      k===0?ctx.moveTo(Math.cos(a)*r,-30+Math.sin(a)*r):ctx.lineTo(Math.cos(a)*r,-30+Math.sin(a)*r);
+    }
+    ctx.closePath();ctx.fill();
+    ctx.restore();
+
+    // ── ЛИЦО ──
+    const faceG=ctx.createRadialGradient(-1,-3,1,0,-3,12);
+    faceG.addColorStop(0,SKIN);faceG.addColorStop(0.7,SKIN_D);faceG.addColorStop(1,'#7a5838');
+    ctx.fillStyle=faceG;
+    ctx.beginPath();
+    ctx.moveTo(-9,-10);ctx.bezierCurveTo(-12,-5,-12,3,-10,8);
+    ctx.bezierCurveTo(-7,14,-3,16,0,16);ctx.bezierCurveTo(3,16,7,14,10,8);
+    ctx.bezierCurveTo(12,3,12,-5,9,-10);ctx.bezierCurveTo(6,-14,-6,-14,-9,-10);
+    ctx.closePath();ctx.fill();
+    ctx.strokeStyle=SKIN_D;ctx.lineWidth=0.7;ctx.stroke();
+
+    // брови — нахмуренные (мудрые)
+    ctx.strokeStyle='#554433';ctx.lineWidth=2.2;ctx.lineCap='round';
+    ctx.beginPath();ctx.moveTo(-9,-8);ctx.quadraticCurveTo(-5,-12,-1,-10);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(1,-10);ctx.quadraticCurveTo(5,-12,9,-8);ctx.stroke();
+
+    // глаза — светящиеся белые с фиолетовым зрачком
+    const eyeGlow=0.7+Math.sin(t*3.5)*0.3;
+    [[-4,-5],[4,-5]].forEach(([ex,ey])=>{
+      // свечение
+      const eg=ctx.createRadialGradient(ex,ey,0,ex,ey,5);
+      eg.addColorStop(0,`rgba(220,140,255,${eyeGlow})`);
+      eg.addColorStop(0.5,`rgba(150,50,255,${eyeGlow*0.5})`);
+      eg.addColorStop(1,'rgba(80,0,180,0)');
+      ctx.fillStyle=eg;ctx.beginPath();ctx.arc(ex,ey,5,0,PI*2);ctx.fill();
+      // белок
+      ctx.fillStyle='#f0e8ff';ctx.beginPath();ctx.ellipse(ex,ey,4,3,0,0,PI*2);ctx.fill();
+      // зрачок
+      ctx.fillStyle='#6600cc';ctx.beginPath();ctx.ellipse(ex,ey,2.2,2.2,0,0,PI*2);ctx.fill();
+      ctx.fillStyle='#cc88ff';ctx.beginPath();ctx.ellipse(ex-0.6,ey-0.6,0.9,0.9,0,0,PI*2);ctx.fill();
+    });
+
+    // нос — крючковатый (мудрый старик)
+    ctx.strokeStyle=SKIN_D;ctx.lineWidth=1.5;ctx.lineCap='round';
+    ctx.beginPath();ctx.moveTo(0,-3);ctx.bezierCurveTo(3,0,4,3,2,5);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(-2,5);ctx.bezierCurveTo(-4,4,-5,2,-4,0);ctx.stroke();
+
+    // рот — полуулыбка мудреца
+    ctx.strokeStyle='#8a5a3a';ctx.lineWidth=1.4;ctx.lineCap='round';
+    ctx.beginPath();ctx.moveTo(-5,9);ctx.quadraticCurveTo(0,12,5,9);ctx.stroke();
+
+    // ── БОРОДА ──
+    const beardG=ctx.createLinearGradient(-8,10,4,36);
+    beardG.addColorStop(0,BEARD);beardG.addColorStop(0.5,BEARD2);beardG.addColorStop(1,BEARD_D);
+    ctx.fillStyle=beardG;
+    ctx.beginPath();
+    ctx.moveTo(-8,10);ctx.bezierCurveTo(-11,16,-12,24,-10,32);
+    ctx.bezierCurveTo(-7,38,-2,40,0,38);ctx.bezierCurveTo(2,40,7,38,10,32);
+    ctx.bezierCurveTo(12,24,11,16,8,10);ctx.bezierCurveTo(4,8,-4,8,-8,10);
+    ctx.closePath();ctx.fill();
+    ctx.strokeStyle=BEARD_D;ctx.lineWidth=0.5;ctx.stroke();
+
+    // волоски бороды
+    ctx.strokeStyle=BEARD_D;ctx.lineWidth=0.8;ctx.lineCap='round';
+    [[-5,14,-3,32],[0,14,1,35],[5,14,3,32],[-3,13,-4,28],[3,13,4,28]].forEach(([x1,y1,x2,y2])=>{
+      ctx.beginPath();ctx.moveTo(x1,y1);ctx.bezierCurveTo(x1-1,y1+8,x2-1,y2-8,x2,y2);ctx.stroke();
+    });
+
+    // усы
+    ctx.strokeStyle=BEARD2;ctx.lineWidth=1.6;ctx.lineCap='round';
+    ctx.beginPath();ctx.moveTo(-7,9);ctx.bezierCurveTo(-5,7,-2,8,0,9);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(7,9);ctx.bezierCurveTo(5,7,2,8,0,9);ctx.stroke();
+
+    ctx.restore();
+  }
+}
+
+// ── фон ────────────────────────────────────────────────
+function drawBg(){
+  const bg=ctx.createRadialGradient(cvs.width/2,cvs.height*0.6,20,cvs.width/2,cvs.height*0.45,cvs.height*0.8);
+  bg.addColorStop(0,'#0f0022');bg.addColorStop(0.5,'#07000f');bg.addColorStop(1,'#030008');
+  ctx.fillStyle=bg;ctx.fillRect(0,0,cvs.width,cvs.height);
+  const fg=ctx.createRadialGradient(cvs.width/2,cvs.height*0.72,0,cvs.width/2,cvs.height*0.72,220);
+  fg.addColorStop(0,'rgba(100,0,180,0.2)');fg.addColorStop(0.5,'rgba(50,0,100,0.08)');fg.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.fillStyle=fg;ctx.fillRect(0,0,cvs.width,cvs.height);
+  ctx.strokeStyle='rgba(100,0,180,0.18)';ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(cvs.width*0.1,cvs.height*0.72);ctx.lineTo(cvs.width*0.9,cvs.height*0.72);ctx.stroke();
+  [60,110,160].forEach(r=>{
+    ctx.strokeStyle='rgba(80,0,150,0.12)';ctx.lineWidth=1;
+    ctx.beginPath();ctx.arc(cvs.width/2,cvs.height*0.72,r,0,PI*2);ctx.stroke();
+  });
+}
+
+function loop(now){
+  requestAnimationFrame(loop);
+  ctx.clearRect(0,0,cvs.width,cvs.height);
+  drawBg();
+  drawDarkMage(cvs.width/2,cvs.height*0.57,3.2,facing,curState,now);
+}
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
