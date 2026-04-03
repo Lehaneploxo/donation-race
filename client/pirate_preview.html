@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>🏴‍☠️ Pirate Preview</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+html, body { width:100vw; height:100vh; background:#06080a; overflow:hidden; font-family:Arial,sans-serif; }
+canvas { display:block; margin:auto; }
+#ui { position:fixed; bottom:20px; left:50%; transform:translateX(-50%); display:flex; gap:12px; }
+button { padding:10px 22px; border:none; border-radius:8px; cursor:pointer; font-size:15px; font-weight:bold;
+  background:#06080a; color:#ddaa44; border:2px solid #ddaa44; transition:background 0.15s; }
+button.active { background:#ddaa44; color:#000; }
+button:hover { background:#141008; }
+#label { position:fixed; top:18px; left:50%; transform:translateX(-50%);
+  color:#ffcc55; font-size:18px; font-weight:bold; letter-spacing:3px;
+  text-shadow:0 0 18px #cc8800, 0 0 40px #884400; }
+</style>
+</head>
+<body>
+<div id="label">🏴‍☠️ PIRATE 🏴‍☠️</div>
+<canvas id="c"></canvas>
+<div id="ui">
+  <button id="btnIdle" class="active" onclick="setState('idle')">IDLE</button>
+  <button id="btnWalk"              onclick="setState('walk')">WALK</button>
+  <button id="btnAttack"            onclick="setState('attack')">ATTACK</button>
+  <button                           onclick="facing*=-1">◀▶ FLIP</button>
+</div>
+<script>
+'use strict';
+const cvs=document.getElementById('c');
+const ctx=cvs.getContext('2d');
+function resize(){cvs.width=window.innerWidth;cvs.height=window.innerHeight-80;}
+window.addEventListener('resize',resize);resize();
+
+let curState='idle',facing=1;
+function setState(s){
+  curState=s;
+  ['idle','walk','attack'].forEach(id=>{
+    document.getElementById('btn'+id[0].toUpperCase()+id.slice(1)).classList.toggle('active',id===s);
+  });
+}
+const PI=Math.PI;
+function d2r(d){return d*PI/180;}
+function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
+function lerp(a,b,t){return a+(b-a)*clamp(t,0,1);}
+function easeInOut(t){t=clamp(t,0,1);return t*t*(3-2*t);}
+function easeOut(t){t=clamp(t,0,1);return 1-(1-t)*(1-t);}
+function capsule(x1,y1,x2,y2,r,color,strokeColor,strokeW){
+  const dx=x2-x1,dy=y2-y1,len=Math.sqrt(dx*dx+dy*dy);
+  if(len<0.5){ctx.beginPath();ctx.arc(x1,y1,r,0,PI*2);ctx.fillStyle=color;ctx.fill();return;}
+  const nx=-dy/len,ny=dx/len,ang=Math.atan2(dy,dx);
+  ctx.beginPath();
+  ctx.moveTo(x1+nx*r,y1+ny*r);ctx.lineTo(x2+nx*r,y2+ny*r);
+  ctx.arc(x2,y2,r,ang-PI/2,ang+PI/2);
+  ctx.lineTo(x1-nx*r,y1-ny*r);ctx.arc(x1,y1,r,ang+PI/2,ang-PI/2);
+  ctx.closePath();ctx.fillStyle=color;ctx.fill();
+  if(strokeColor){ctx.strokeStyle=strokeColor;ctx.lineWidth=strokeW||1;ctx.stroke();}
+}
+function limbEnd(px,py,ang,len){return{x:px+Math.cos(ang)*len,y:py+Math.sin(ang)*len};}
+
+function drawPirate(cx,cy,sc,fac,state,now){
+  const t=now*0.001;
+
+  const SKIN='#c8845a',SKIN_L='#e09a6a',SKIN_D='#8a4a28';
+  const COAT='#8b1a1a',COAT2='#aa2222',COAT_D='#4a0a0a',COAT_E='#cc3333';
+  const COAT_LACE='#ddbb66';
+  const HAT='#0d0d10',HAT2='#1a1a20',HAT_E='#cc2222';
+  const SHIRT='#e8dfc0',SHIRT2='#d4c8a8';
+  const BOOT='#1e1408',BOOT2='#2e2010',BOOT_BUCK='#d4a030';
+  const BELT='#3a2808',BELT2='#5a3c10',GOLD='#ddaa33',GOLD2='#ffcc44';
+  const SABER='#9090a0',SABER2='#b8b8cc',SABER_SH='#e0e8f0';
+  const SABER_G='#c8900a',SABER_G2='#f0b820';
+  const SKULL='#f0ece0';
+  const EYE_P='#0a0a0e';
+
+  let bodyBob=0,bodyLean=0,headTilt=0;
+  let legLA=0,legRA=0,kneeLB=0,kneeRB=0;
+  let armSwL=0,armSwR=0,elbBL=0,elbBR=0;
+  let saberAng=0,slashFX=0,coatSway=0;
+
+  if(state==='idle'){
+    bodyBob=Math.sin(t*1.0)*2.5;
+    headTilt=Math.sin(t*0.65)*3;
+    armSwL=d2r(18)+Math.sin(t*0.9)*d2r(6);
+    armSwR=d2r(-35)+Math.sin(t*1.0)*d2r(7);
+    elbBL=d2r(48); elbBR=d2r(22);
+    saberAng=PI/2+d2r(10)+Math.sin(t*0.9)*d2r(4);
+    coatSway=Math.sin(t*0.9)*2;
+  } else if(state==='walk'){
+    const s2=Math.sin(t*2.4);
+    bodyBob=Math.abs(s2)*-3;
+    bodyLean=d2r(6);
+    headTilt=s2*2.5;
+    legLA=d2r(s2*30); legRA=d2r(s2*30);
+    kneeLB=s2>0?0:d2r(-s2*26); kneeRB=s2<0?0:d2r(s2*26);
+    armSwL=d2r(14+s2*18);
+    armSwR=d2r(-32-s2*16);
+    elbBL=d2r(44+Math.abs(s2)*10); elbBR=d2r(20);
+    saberAng=PI/2+d2r(8)+s2*d2r(8);
+    coatSway=s2*4;
+  } else if(state==='attack'){
+    const period=1400,p=(t*1000%period)/period;
+    if(p<0.25){
+      const q=easeInOut(p/0.25);
+      armSwR=d2r(lerp(-35,-160,q));
+      elbBR=d2r(lerp(22,8,q));
+      saberAng=lerp(PI/2+d2r(10),-d2r(20),q);
+      bodyLean=d2r(-q*8);
+      headTilt=lerp(0,-4,q);
+    } else if(p<0.52){
+      const q=easeOut((p-0.25)/0.27);
+      armSwR=d2r(lerp(-160,65,q));
+      elbBR=d2r(lerp(8,14,q));
+      saberAng=lerp(-d2r(20),PI*0.85,q);
+      bodyLean=d2r(lerp(-8,18,q));
+      headTilt=lerp(-4,6,q);
+      slashFX=Math.sin(q*PI);
+    } else if(p<0.66){
+      armSwR=d2r(65); saberAng=PI*0.85;
+      bodyLean=d2r(18); slashFX=0;
+    } else {
+      const q=easeInOut((p-0.66)/0.34);
+      armSwR=d2r(lerp(65,-35,q));
+      elbBR=d2r(lerp(14,22,q));
+      saberAng=lerp(PI*0.85,PI/2+d2r(10),q);
+      bodyLean=d2r(lerp(18,0,q));
+      headTilt=lerp(6,0,q);
+    }
+    armSwL=d2r(16)+Math.sin(t*0.9)*d2r(5);
+    elbBL=d2r(46);
+    coatSway=Math.sin(t*0.9)*2;
+  }
+
+  ctx.save();
+  ctx.translate(cx,cy+bodyBob);
+  ctx.scale(sc*fac,sc);
+  ctx.rotate(d2r(bodyLean));
+
+  const hipY=16,hipSep=7,thighL=24,shinL=20;
+  const shY=-26,shSep=13,uAL=18,lAL=15;
+
+  // тень
+  ctx.fillStyle='rgba(0,0,0,0.3)';
+  ctx.beginPath();ctx.ellipse(0,hipY+42,17,5,0,0,PI*2);ctx.fill();
+
+  // ── ЗАДНЯЯ НОГА ──
+  {
+    const hx=hipSep*0.6,hy=hipY;
+    const tA=PI/2-legRA,knee=limbEnd(hx,hy,tA,thighL);
+    const sA=tA+kneeRB,ankle=limbEnd(knee.x,knee.y,sA,shinL);
+    capsule(hx,hy,knee.x,knee.y,6,COAT_D,'#220808',0.8);
+    capsule(knee.x,knee.y,ankle.x,ankle.y,5.5,BOOT,BOOT2,0.8);
+    ctx.fillStyle=BOOT;ctx.beginPath();ctx.ellipse(ankle.x+4,ankle.y+3,9,4,d2r(-8),0,PI*2);ctx.fill();
+    ctx.strokeStyle=BOOT2;ctx.lineWidth=0.8;ctx.stroke();
+    // пряжка
+    ctx.fillStyle=BOOT_BUCK;ctx.beginPath();ctx.rect(ankle.x-3,ankle.y-6,6,4);ctx.fill();
+    ctx.strokeStyle=GOLD;ctx.lineWidth=0.7;ctx.stroke();
+  }
+
+  // ── ЗАДНЯЯ РУКА ──
+  {
+    const shx=-shSep*0.5,shy=shY;
+    const uA=PI/2+armSwL,elbow=limbEnd(shx,shy,uA,uAL);
+    const fA=uA+elbBL,hand=limbEnd(elbow.x,elbow.y,fA,lAL);
+    capsule(shx,shy,elbow.x,elbow.y,6,COAT_D,COAT,0.8);
+    capsule(elbow.x,elbow.y,hand.x,hand.y,5,SHIRT2,COAT,0.7);
+    ctx.fillStyle=SKIN_D;ctx.beginPath();ctx.arc(hand.x,hand.y,5.5,0,PI*2);ctx.fill();
+  }
+
+  // ── КАМЗОЛ (тело) ──
+  const coatG=ctx.createLinearGradient(-14,shY,14,hipY+8);
+  coatG.addColorStop(0,COAT2);coatG.addColorStop(0.45,COAT);coatG.addColorStop(1,COAT_D);
+  ctx.fillStyle=coatG;
+  ctx.beginPath();
+  ctx.moveTo(-13,shY+2);ctx.lineTo(13,shY+2);
+  ctx.bezierCurveTo(16,shY+10,15,hipY-2,13,hipY+2);
+  ctx.lineTo(-13,hipY+2);
+  ctx.bezierCurveTo(-15,hipY-2,-16,shY+10,-13,shY+2);
+  ctx.closePath();ctx.fill();
+  ctx.strokeStyle=COAT_D;ctx.lineWidth=0.8;ctx.stroke();
+
+  // полы камзола (развеваются)
+  ctx.fillStyle=COAT;
+  ctx.beginPath();
+  ctx.moveTo(-13,hipY+2);
+  ctx.bezierCurveTo(-15,hipY+10,-17+coatSway,hipY+28,-14+coatSway*0.5,hipY+34);
+  ctx.bezierCurveTo(-10,hipY+36,-7,hipY+32,-8,hipY+22);
+  ctx.bezierCurveTo(-9,hipY+14,-10,hipY+8,-10,hipY+2);
+  ctx.closePath();ctx.fill();
+  ctx.strokeStyle=COAT_D;ctx.lineWidth=0.7;ctx.stroke();
+  ctx.fillStyle=COAT2;
+  ctx.beginPath();
+  ctx.moveTo(13,hipY+2);
+  ctx.bezierCurveTo(15,hipY+10,16-coatSway,hipY+26,13-coatSway*0.5,hipY+32);
+  ctx.bezierCurveTo(10,hipY+34,7,hipY+30,8,hipY+20);
+  ctx.bezierCurveTo(9,hipY+12,10,hipY+8,10,hipY+2);
+  ctx.closePath();ctx.fill();
+  ctx.strokeStyle=COAT_D;ctx.lineWidth=0.7;ctx.stroke();
+
+  // рубашка (видна в разрезе)
+  ctx.fillStyle=SHIRT;
+  ctx.beginPath();ctx.moveTo(-4,shY+4);ctx.lineTo(4,shY+4);ctx.lineTo(3,hipY);ctx.lineTo(-3,hipY);ctx.closePath();ctx.fill();
+
+  // пуговицы на камзоле
+  for(let i=0;i<4;i++){
+    const by=shY+8+i*9;
+    ctx.fillStyle=GOLD;ctx.beginPath();ctx.arc(0,by,2.2,0,PI*2);ctx.fill();
+    ctx.strokeStyle=GOLD2;ctx.lineWidth=0.5;ctx.stroke();
+  }
+
+  // кружева на манжетах (наплечники)
+  [[-shSep,shY+2],[shSep,shY+2]].forEach(([px,py])=>{
+    ctx.strokeStyle=COAT_LACE;ctx.lineWidth=2;ctx.lineCap='round';
+    ctx.beginPath();ctx.arc(px,py,6,d2r(160),d2r(380));ctx.stroke();
+  });
+
+  // пояс с черепом
+  ctx.fillStyle=BELT;
+  ctx.beginPath();ctx.rect(-12,hipY-2,24,6);ctx.fill();
+  ctx.strokeStyle=BELT2;ctx.lineWidth=0.7;ctx.stroke();
+  _drawSkullBuckle(0,hipY+1);
+
+  // ── ПЕРЕДНЯЯ НОГА ──
+  {
+    const hx=-hipSep*0.6,hy=hipY;
+    const tA=PI/2+legLA,knee=limbEnd(hx,hy,tA,thighL);
+    const sA=tA-kneeLB,ankle=limbEnd(knee.x,knee.y,sA,shinL);
+    capsule(hx,hy,knee.x,knee.y,6.5,COAT,'#330a0a',0.7);
+    capsule(knee.x,knee.y,ankle.x,ankle.y,6,BOOT,BOOT2,0.8);
+    ctx.fillStyle=BOOT;ctx.beginPath();ctx.ellipse(ankle.x+5,ankle.y+3,10,4.5,d2r(-8),0,PI*2);ctx.fill();
+    ctx.strokeStyle=BOOT2;ctx.lineWidth=0.8;ctx.stroke();
+    // большая пряжка
+    ctx.fillStyle=BOOT_BUCK;ctx.beginPath();ctx.rect(ankle.x-4,ankle.y-7,8,5);ctx.fill();
+    ctx.strokeStyle=GOLD2;ctx.lineWidth=0.8;ctx.stroke();
+  }
+
+  // ── ПЕРЕДНЯЯ РУКА (с саблей) ──
+  {
+    const shx=shSep*0.65,shy=shY;
+    const uA=PI/2+armSwR,elbow=limbEnd(shx,shy,uA,uAL);
+    const fA=uA-elbBR,hand=limbEnd(elbow.x,elbow.y,fA,lAL);
+    capsule(shx,shy,elbow.x,elbow.y,6.5,COAT2,COAT_D,0.8);
+    capsule(elbow.x,elbow.y,hand.x,hand.y,5.5,SHIRT,COAT,0.7);
+    ctx.fillStyle=SKIN_L;ctx.beginPath();ctx.arc(hand.x,hand.y,6,0,PI*2);ctx.fill();
+    ctx.strokeStyle=SKIN_D;ctx.lineWidth=0.7;ctx.stroke();
+    _drawSaber(hand.x,hand.y,saberAng,slashFX);
+  }
+
+  // ── ШЕЯ ──
+  capsule(0,shY+4,0,-34,5.5,SKIN,SKIN_D,0.8);
+
+  // ── ГОЛОВА ──
+  _drawHead(headTilt);
+
+  ctx.restore();
+
+  // ──── HELPERS ────────────────────────────────────────
+
+  function _drawSkullBuckle(x,y){
+    ctx.fillStyle=GOLD;ctx.beginPath();ctx.rect(x-5,y-3.5,10,7);ctx.fill();
+    ctx.strokeStyle=GOLD2;ctx.lineWidth=0.8;ctx.stroke();
+    // череп
+    ctx.fillStyle=SKULL;ctx.beginPath();ctx.arc(x,y-1,3,0,PI*2);ctx.fill();
+    ctx.beginPath();ctx.rect(x-2,y+1,4,2);ctx.fill();
+    // глазницы
+    ctx.fillStyle='#0a0a0e';
+    ctx.beginPath();ctx.arc(x-1.2,y-1.2,0.8,0,PI*2);ctx.fill();
+    ctx.beginPath();ctx.arc(x+1.2,y-1.2,0.8,0,PI*2);ctx.fill();
+  }
+
+  function _drawSaber(hx,hy,ang,fx){
+    ctx.save();ctx.translate(hx,hy);ctx.rotate(ang-PI/2);
+
+    // гарда (защита руки — крест)
+    const guardG=ctx.createLinearGradient(-8,0,8,0);
+    guardG.addColorStop(0,SABER_G);guardG.addColorStop(0.5,SABER_G2);guardG.addColorStop(1,SABER_G);
+    ctx.fillStyle=guardG;
+    ctx.beginPath();ctx.ellipse(0,0,8,3.5,0,0,PI*2);ctx.fill();
+    ctx.strokeStyle=GOLD;ctx.lineWidth=0.8;ctx.stroke();
+    // украшение гарды
+    ctx.fillStyle=GOLD2;ctx.beginPath();ctx.arc(0,0,2.5,0,PI*2);ctx.fill();
+
+    // рукоять
+    const hgG=ctx.createLinearGradient(-3,0,3,10);
+    hgG.addColorStop(0,SABER_G2);hgG.addColorStop(1,SABER_G);
+    ctx.fillStyle=hgG;
+    ctx.beginPath();ctx.rect(-3,0,6,10);ctx.fill();
+    ctx.strokeStyle=GOLD;ctx.lineWidth=0.7;ctx.stroke();
+    // обмотка рукояти
+    for(let i=1;i<4;i++){
+      ctx.strokeStyle=BELT;ctx.lineWidth=1.5;
+      ctx.beginPath();ctx.moveTo(-3,i*2.5);ctx.lineTo(3,i*2.5);ctx.stroke();
+    }
+    ctx.fillStyle=SABER_G;ctx.beginPath();ctx.arc(0,10,3,0,PI*2);ctx.fill();
+    ctx.strokeStyle=GOLD;ctx.lineWidth=0.7;ctx.stroke();
+
+    // клинок сабли (изогнутый!)
+    const bladeG=ctx.createLinearGradient(-2,-5,-2,-50);
+    bladeG.addColorStop(0,SABER);bladeG.addColorStop(0.5,SABER2);bladeG.addColorStop(1,SABER_SH);
+    ctx.fillStyle=bladeG;
+    ctx.beginPath();
+    ctx.moveTo(-2,-2);
+    ctx.bezierCurveTo(-3,-16,-4,-30,-2,-46);  // спинка
+    ctx.bezierCurveTo(-1,-48,1,-48,2,-45);    // острие
+    ctx.bezierCurveTo(2,-32,2,-16,2,-2);      // режущая кромка (изогнута)
+    ctx.closePath();ctx.fill();
+    ctx.strokeStyle=SABER;ctx.lineWidth=0.6;ctx.stroke();
+    // блик на клинке
+    ctx.strokeStyle=SABER_SH;ctx.lineWidth=1.4;ctx.lineCap='round';
+    ctx.beginPath();ctx.moveTo(-1,-4);ctx.bezierCurveTo(-1.5,-18,-2,-32,-1,-44);ctx.stroke();
+
+    ctx.restore();
+
+    // эффект взмаха
+    if(fx>0.15){
+      ctx.save();
+      const trailAng=ang-PI/2;
+      for(let i=0;i<4;i++){
+        const ta=trailAng+d2r(12+i*10);
+        ctx.globalAlpha=fx*(0.5-i*0.1);
+        ctx.strokeStyle=i%2===0?'#ffffcc':'#aaddff';
+        ctx.lineWidth=2-i*0.3;ctx.lineCap='round';
+        ctx.beginPath();
+        ctx.moveTo(hx+Math.cos(ta)*4,hy+Math.sin(ta)*4);
+        ctx.lineTo(hx+Math.cos(ta)*46,hy+Math.sin(ta)*46);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+  }
+
+  function _drawHead(tilt){
+    const hcY=-47;
+    ctx.save();ctx.translate(0,hcY);ctx.rotate(d2r(tilt));
+
+    // ── ТРЕУГОЛКА (самое важное!) ──
+    // поля треуголки
+    ctx.fillStyle=HAT;
+    ctx.beginPath();
+    ctx.moveTo(-20,4);ctx.bezierCurveTo(-16,9,16,9,20,4);
+    ctx.bezierCurveTo(16,0,-16,0,-20,4);ctx.closePath();ctx.fill();
+    ctx.strokeStyle=HAT_E;ctx.lineWidth=1;ctx.stroke();
+
+    // передний край поля загнут
+    ctx.fillStyle=HAT2;
+    ctx.beginPath();
+    ctx.moveTo(-20,4);ctx.bezierCurveTo(-14,1,14,1,20,4);
+    ctx.bezierCurveTo(16,7,-16,7,-20,4);ctx.closePath();ctx.fill();
+
+    // купол треуголки (три угла)
+    ctx.fillStyle=HAT;
+    ctx.beginPath();
+    ctx.moveTo(-18,4);   // левый угол
+    ctx.bezierCurveTo(-14,-4,-6,-16,0,-20);  // к вершине
+    ctx.bezierCurveTo(6,-16,14,-4,18,4);     // правый угол
+    ctx.bezierCurveTo(10,2,-10,2,-18,4);
+    ctx.closePath();ctx.fill();
+    ctx.strokeStyle='#050508';ctx.lineWidth=0.8;ctx.stroke();
+
+    // красная лента на шляпе
+    ctx.strokeStyle=HAT_E;ctx.lineWidth=3;ctx.lineCap='round';
+    ctx.beginPath();ctx.moveTo(-17,4);ctx.bezierCurveTo(-8,1,8,1,17,4);ctx.stroke();
+
+    // череп и кости на шляпе
+    ctx.save();ctx.translate(0,-10);
+    ctx.fillStyle=SKULL;ctx.beginPath();ctx.arc(0,0,4,0,PI*2);ctx.fill();
+    ctx.beginPath();ctx.rect(-1,3,2,2.5);ctx.fill();
+    ctx.fillStyle=HAT;ctx.beginPath();ctx.arc(-1.5,-0.5,1.2,0,PI*2);ctx.fill();
+    ctx.beginPath();ctx.arc(1.5,-0.5,1.2,0,PI*2);ctx.fill();
+    // кости
+    ctx.strokeStyle=SKULL;ctx.lineWidth=1.8;ctx.lineCap='round';
+    ctx.beginPath();ctx.moveTo(-8,3);ctx.lineTo(8,3);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(-7,0);ctx.lineTo(7,6);ctx.stroke();
+    ctx.restore();
+
+    // ── ЛИЦО ──
+    const faceG=ctx.createRadialGradient(-2,-1,1,0,-1,12);
+    faceG.addColorStop(0,SKIN_L);faceG.addColorStop(0.5,SKIN);faceG.addColorStop(1,SKIN_D);
+    ctx.fillStyle=faceG;
+    ctx.beginPath();
+    ctx.moveTo(-9,-8);ctx.bezierCurveTo(-12,-2,-11,7,-9,12);
+    ctx.bezierCurveTo(-6,17,-2,18,0,18);ctx.bezierCurveTo(2,18,6,17,9,12);
+    ctx.bezierCurveTo(11,7,12,-2,9,-8);ctx.bezierCurveTo(6,-13,-6,-13,-9,-8);
+    ctx.closePath();ctx.fill();
+    ctx.strokeStyle=SKIN_D;ctx.lineWidth=0.7;ctx.stroke();
+
+    // ── ПОВЯЗКА НА ГЛАЗУ (левый) ──
+    ctx.fillStyle=EYE_P;
+    ctx.beginPath();ctx.ellipse(-4,-3,5.5,4,d2r(-5),0,PI*2);ctx.fill();
+    ctx.strokeStyle='#1a1a22';ctx.lineWidth=1;ctx.stroke();
+    // ремешок повязки
+    ctx.strokeStyle=EYE_P;ctx.lineWidth=1.8;ctx.lineCap='round';
+    ctx.beginPath();ctx.moveTo(-9,-3);ctx.bezierCurveTo(-7,-6,-2,-7,4,-5);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(1,-3);ctx.bezierCurveTo(-1,0,-3,2,-8,1);ctx.stroke();
+
+    // правый глаз — хитрый прищур
+    ctx.fillStyle='#e8d8c0';ctx.beginPath();ctx.ellipse(4,-3,4,2.8,0,0,PI*2);ctx.fill();
+    ctx.fillStyle='#1a3a18';ctx.beginPath();ctx.ellipse(4,-3,2.2,2.2,0,0,PI*2);ctx.fill();
+    ctx.fillStyle='rgba(255,255,255,0.7)';ctx.beginPath();ctx.ellipse(4.8,-3.8,0.9,0.7,0,0,PI*2);ctx.fill();
+
+    // бровь
+    ctx.strokeStyle=SKIN_D;ctx.lineWidth=2.2;ctx.lineCap='round';
+    ctx.beginPath();ctx.moveTo(1,-7);ctx.quadraticCurveTo(4,-9,8,-7);ctx.stroke();
+
+    // нос с горбинкой (пиратский)
+    ctx.strokeStyle=SKIN_D;ctx.lineWidth=1.6;ctx.lineCap='round';
+    ctx.beginPath();ctx.moveTo(0,-2);ctx.bezierCurveTo(3,1,4,4,2,7);ctx.stroke();
+    ctx.fillStyle=SKIN_D;ctx.beginPath();ctx.ellipse(1,7,3,2,0,0,PI*2);ctx.fill();
+
+    // ухмылка
+    ctx.strokeStyle=SKIN_D;ctx.lineWidth=1.5;ctx.lineCap='round';
+    ctx.beginPath();ctx.moveTo(-5,12);ctx.quadraticCurveTo(0,15.5,6,11);ctx.stroke();
+    // золотой зуб
+    ctx.fillStyle=GOLD2;ctx.beginPath();ctx.rect(-1.5,11,3,3);ctx.fill();
+
+    // серьга (золотое кольцо)
+    ctx.strokeStyle=GOLD2;ctx.lineWidth=2.2;
+    ctx.beginPath();ctx.arc(-9,5,3.5,d2r(-30),d2r(200));ctx.stroke();
+
+    // бандана под шляпой
+    ctx.fillStyle='#aa1a1a';
+    ctx.beginPath();ctx.moveTo(-10,-8);ctx.bezierCurveTo(-12,-4,-12,0,-10,2);
+    ctx.bezierCurveTo(-8,4,-6,2,-8,-2);ctx.bezierCurveTo(-9,-5,-10,-7,-10,-8);ctx.closePath();ctx.fill();
+
+    ctx.restore();
+  }
+}
+
+function drawBg(){
+  const bg=ctx.createRadialGradient(cvs.width/2,cvs.height*0.55,10,cvs.width/2,cvs.height*0.45,cvs.height*0.9);
+  bg.addColorStop(0,'#0c0a08');bg.addColorStop(0.5,'#06080a');bg.addColorStop(1,'#030405');
+  ctx.fillStyle=bg;ctx.fillRect(0,0,cvs.width,cvs.height);
+  const fg=ctx.createRadialGradient(cvs.width/2,cvs.height*0.72,0,cvs.width/2,cvs.height*0.72,240);
+  fg.addColorStop(0,'rgba(40,30,10,0.3)');fg.addColorStop(0.5,'rgba(15,12,4,0.1)');fg.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.fillStyle=fg;ctx.fillRect(0,0,cvs.width,cvs.height);
+  ctx.strokeStyle='rgba(80,60,20,0.2)';ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(cvs.width*0.1,cvs.height*0.72);ctx.lineTo(cvs.width*0.9,cvs.height*0.72);ctx.stroke();
+}
+
+function loop(now){
+  requestAnimationFrame(loop);
+  ctx.clearRect(0,0,cvs.width,cvs.height);
+  drawBg();
+  drawPirate(cvs.width/2,cvs.height*0.57,3.2,facing,curState,now);
+}
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
