@@ -918,8 +918,8 @@ function drawFanWarrior(cx,cy,sc,fac,state,now){
     armSwR=d2r(-35+s2*14);
     elbBL=Math.max(0,s2)*d2r(15);
     elbBR=d2r(65);
-    kneeBL=Math.max(0,s2)*d2r(36);
-    kneeBR=Math.max(0,-s2)*d2r(36);
+    kneeBL=0;
+    kneeBR=0;
     hairWave=s2*8;
     fanOpen=0.14; fanDir=d2r(-45);
   } else if(state==='attack'){
@@ -963,15 +963,6 @@ function drawFanWarrior(cx,cy,sc,fac,state,now){
   const shY=-24,shSep=13,uAL=19,lAL=16;
   ctx.fillStyle='rgba(0,0,0,0.28)';
   ctx.beginPath();ctx.ellipse(hipSway*0.2,52,17,5,0,0,Math.PI*2);ctx.fill();
-  {
-    const hx=hipSep+hipSway*0.25,hy=hipY;
-    const tA=Math.PI/2-legSwing,knee=limbEnd(hx,hy,tA,thighL);
-    const sA=tA+kneeBR,ankle=limbEnd(knee.x,knee.y,sA,shinL);
-    capsule(hx,hy,knee.x,knee.y,5,SKIN_DARK,ARMOR_D,0.8);
-    capsule(knee.x,knee.y,ankle.x,ankle.y,4.5,BOOT,BOOT2,0.8);
-    ctx.fillStyle=BOOT2;ctx.beginPath();ctx.ellipse(ankle.x+5,ankle.y+2,7,3.5,d2r(-8),0,Math.PI*2);ctx.fill();
-    ctx.strokeStyle=GOLD_D;ctx.lineWidth=1;ctx.stroke();
-  }
   _skirt(hipSway,hipY,SKIRT1,SKIRT2,SKIRT3,0.65);
   {
     const shx=-shSep*0.55,shy=shY;
@@ -1007,18 +998,6 @@ function drawFanWarrior(cx,cy,sc,fac,state,now){
     ctx.fillStyle=FAN1;ctx.beginPath();ctx.arc(sx,shY,2.5,0,Math.PI*2);ctx.fill();
   });
   ctx.restore();
-  {
-    const hx=-hipSep+hipSway*0.5,hy=hipY;
-    const tA=Math.PI/2+legSwing,knee=limbEnd(hx,hy,tA,thighL);
-    const sA=tA-kneeBL,ankle=limbEnd(knee.x,knee.y,sA,shinL);
-    capsule(hx,hy,knee.x,knee.y,5.5,SKIN,ARMOR_D,0.8);
-    capsule(knee.x,knee.y,ankle.x,ankle.y,5,BOOT,BOOT2,0.8);
-    ctx.fillStyle=BOOT2;ctx.beginPath();ctx.ellipse(ankle.x+5,ankle.y+2,7,3.5,d2r(-8),0,Math.PI*2);ctx.fill();
-    ctx.strokeStyle=GOLD;ctx.lineWidth=1;ctx.stroke();
-    ctx.strokeStyle=GOLD;ctx.lineWidth=1.8;ctx.lineCap='round';
-    ctx.beginPath();ctx.moveTo(ankle.x-1,ankle.y-3);ctx.lineTo(ankle.x-1,ankle.y-11);ctx.stroke();
-    ctx.beginPath();ctx.moveTo(ankle.x+2,ankle.y-5);ctx.lineTo(ankle.x+2,ankle.y-13);ctx.stroke();
-  }
   _skirt(hipSway,hipY,SKIRT1,SKIRT2,SKIRT3,1.0);
   {
     const shx=shSep*0.75,shy=shY;
@@ -1293,11 +1272,11 @@ function drawWarrior(w, now){
   if(w.class==='conan')drawConan(0,0,1,facing,state,now);
   else if(w.class==='terminator')drawTerminator(0,0,1,facing,state,now);
   else if(w.class==='fan_warrior')drawFanWarrior(0,0,1,facing,state,now);
-  else if(w.class==='dark_mage')drawDarkMage(0,0,1,facing,state,now);
+  else if(w.class==='dark_mage')drawDarkMage(0,0,0.82,facing,state,now);
   else drawSpearman(0,0,1,facing,state,now);
   if(flash){ctx.globalAlpha=(w.flashTimer/600)*0.55;ctx.fillStyle='#FFFFFF';ctx.beginPath();ctx.ellipse(0,-25,18,30,0,0,Math.PI*2);ctx.fill();ctx.globalAlpha=alpha;}
   ctx.restore();ctx.shadowBlur=0;
-  _drawLabels(sx,sy+idleBob-135,w);
+  _drawLabels(sx,sy+idleBob-80,w);
   ctx.restore();
 }
 function _drawLabels(sx,labelY,w){
