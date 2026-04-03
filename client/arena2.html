@@ -1274,7 +1274,7 @@ function drawDarkMage(cx,cy,sc,fac,state,now){
 function drawWarrior(w, now){
   if(w.dead&&w.deathTimer<=0)return;
   const s=arenaToScreen(w.ax,w.ay);
-  const totalSc=1.5; // фиксированный размер у всех
+  const totalSc=1.05; // фиксированный размер у всех
   const alpha=w.dead?Math.max(0,w.deathTimer/700):1;
   const sx=s.x,sy=s.y+w.floatY;
   const idleBob=w.dead?0:Math.sin(w.idlePhase)*3.2;
