@@ -1276,7 +1276,7 @@ function drawWarrior(w, now){
   else drawSpearman(0,0,1,facing,state,now);
   if(flash){ctx.globalAlpha=(w.flashTimer/600)*0.55;ctx.fillStyle='#FFFFFF';ctx.beginPath();ctx.ellipse(0,-25,18,30,0,0,Math.PI*2);ctx.fill();ctx.globalAlpha=alpha;}
   ctx.restore();ctx.shadowBlur=0;
-  _drawLabels(sx,sy+idleBob-80,w);
+  _drawLabels(sx,sy+idleBob-105,w);
   ctx.restore();
 }
 function _drawLabels(sx,labelY,w){
