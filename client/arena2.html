@@ -1281,7 +1281,7 @@ function drawPirate(cx,cy,sc,fac,state,now){
     bodyLean=d2r(6);
     headTilt=s2*2.5;
     legLA=d2r(s2*32); legRA=d2r(-s2*32);
-    kneeLB=s2>0?d2r(s2*48):0; kneeRB=s2<0?d2r(-s2*48):0;
+    kneeLB=d2r(Math.abs(s2)*18); kneeRB=kneeLB;
     armSwL=d2r(14+s2*18);
     armSwR=d2r(-32-s2*16);
     elbBL=d2r(44+Math.abs(s2)*10); elbBR=d2r(20);
@@ -1390,7 +1390,7 @@ function drawPirate(cx,cy,sc,fac,state,now){
   {
     const hx=-hipSep*0.6,hy=hipY;
     const tA=legLA,knee=limbEnd(hx,hy,tA,thighL);
-    const sA=tA+Math.PI/2-kneeLB,ankle=limbEnd(knee.x,knee.y,sA,shinL);
+    const sA=tA+Math.PI/2+kneeLB,ankle=limbEnd(knee.x,knee.y,sA,shinL);
     capsule(hx,hy,knee.x,knee.y,6.5,COAT,'#330a0a',0.7);
     capsule(knee.x,knee.y,ankle.x,ankle.y,6,BOOT,BOOT2,0.8);
     ctx.fillStyle=BOOT;ctx.beginPath();ctx.ellipse(ankle.x+5,ankle.y+3,10,4.5,d2r(-8),0,Math.PI*2);ctx.fill();
