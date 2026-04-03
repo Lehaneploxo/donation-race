@@ -118,7 +118,7 @@ function getWarriorScale(coins){return 1.3+Math.min(1.1,Math.log10(Math.max(1,co
 function makeWarrior(username,coins){
   const pos=rndArenaPos(),tgt=rndArenaPos();
   return{id:++uidSeq,username,coins,hp:coins*10,maxHp:coins*10,damage:coins,
-    class:['spearman','conan','terminator','fan_warrior','dark_mage','pirate'][Math.floor(Math.random()*6)],
+    class:['spearman','conan','terminator','fan_warrior','dark_mage','pirate','knight'][Math.floor(Math.random()*7)],
     ax:pos.ax,ay:pos.ay,tax:tgt.ax,tay:tgt.ay,
     walkTimer:Math.random()*2000,walkDelay:2000+Math.random()*2500,
     walkPhase:Math.random()*Math.PI*2,idlePhase:Math.random()*Math.PI*2,
@@ -1534,6 +1534,63 @@ function drawPirate(cx,cy,sc,fac,state,now){
   }
 }
 
+function drawKnight(cx,cy,sc,fac,state,now){
+  function easeOut(t){t=Math.max(0,Math.min(1,t));return 1-(1-t)*(1-t);}
+  const t=now*0.001;
+  const STEEL='#b0b8c0',STEEL2='#d8e0e8',STEEL_D='#687080',STEEL_E='#3a4450';
+  const GOLD='#c8a030',GOLD2='#f0cc44',GOLD_D='#7a5c10';
+  const PLUME='#cc1e1e',PLUME2='#ff5555';
+  const VISOR='#1a2028',VISOR_SH='#080e14';
+  const SHIELD_BG='#1a2060',SHIELD2='#2a3480',SHIELD_E='#0a1030';
+  const SHIELD_CR='#ddd8c8',SHIELD_CR2='#ffffff';
+  const SWORD_BL='#c0c8d0',SWORD_BL2='#eef4ff',SWORD_G='#8a7020',SWORD_G2='#c0a030';
+  let bodyBob=0,bodyLean=0,headTilt=0;
+  let legLA=0,legRA=0,kneeLB=0,kneeRB=0;
+  let armSwL=0,armSwR=0,elbBL=0,elbBR=0;
+  let swordAng=0,shieldBob=0;
+  if(state==='idle'){
+    bodyBob=Math.sin(t*0.9)*2;headTilt=Math.sin(t*0.6)*1.5;
+    armSwL=d2r(-18)+Math.sin(t*0.85)*d2r(4);armSwR=d2r(-12)+Math.sin(t*1.0)*d2r(5);
+    elbBL=d2r(52);elbBR=d2r(14);
+    swordAng=d2r(-82)+Math.sin(t*0.9)*d2r(3);shieldBob=Math.sin(t*0.85)*2.5;
+  } else if(state==='walk'){
+    const s2=Math.sin(t*2.4);
+    bodyBob=Math.abs(s2)*-3;bodyLean=d2r(5);headTilt=s2*1.5;
+    legLA=d2r(s2*30);legRA=d2r(s2*30);
+    kneeLB=d2r(Math.abs(s2)*14);kneeRB=kneeLB;
+    armSwL=d2r(-18-s2*14);armSwR=d2r(-10+s2*16);
+    elbBL=d2r(48);elbBR=d2r(12);
+    swordAng=d2r(-76+s2*8);shieldBob=s2*3;
+  } else if(state==='attack'){
+    const period=1300,p=(t*1000%period)/period;
+    if(p<0.22){const q=easeInOut(p/0.22);armSwR=d2r(lerp(-12,-168,q));elbBR=d2r(lerp(14,5,q));swordAng=lerp(d2r(-82),d2r(-155),q);bodyLean=d2r(-q*10);headTilt=lerp(0,-5,q);}
+    else if(p<0.50){const q=easeOut((p-0.22)/0.28);armSwR=d2r(lerp(-168,60,q));elbBR=d2r(lerp(5,18,q));swordAng=lerp(d2r(-155),d2r(35),q);bodyLean=d2r(lerp(-10,20,q));headTilt=lerp(-5,8,q);}
+    else if(p<0.64){armSwR=d2r(60);swordAng=d2r(35);bodyLean=d2r(20);}
+    else{const q=easeInOut((p-0.64)/0.36);armSwR=d2r(lerp(60,-12,q));elbBR=d2r(lerp(18,14,q));swordAng=lerp(d2r(35),d2r(-82),q);bodyLean=d2r(lerp(20,0,q));headTilt=lerp(8,0,q);}
+    armSwL=d2r(-20)+Math.sin(t*0.9)*d2r(4);elbBL=d2r(52);shieldBob=Math.sin(t*0.9)*2.5;
+  }
+  ctx.save();ctx.translate(cx,cy+bodyBob);ctx.scale(sc*fac,sc);ctx.rotate(d2r(bodyLean));
+  const hipY=16,hipSep=7,thighL=24,shinL=20;
+  const shY=-26,shSep=14,uAL=18,lAL=14;
+  ctx.fillStyle='rgba(0,0,0,0.38)';ctx.beginPath();ctx.ellipse(0,hipY+44,20,5,0,0,Math.PI*2);ctx.fill();
+  {const hx=hipSep*0.6,hy=hipY;const tA=Math.PI/2-legRA,knee=limbEnd(hx,hy,tA,thighL);const sA=tA+kneeRB,ankle=limbEnd(knee.x,knee.y,sA,shinL);capsule(hx,hy,knee.x,knee.y,7,STEEL_D,STEEL_E,0.8);capsule(knee.x,knee.y,ankle.x,ankle.y,6,STEEL_D,STEEL_E,0.8);ctx.fillStyle=STEEL_D;ctx.beginPath();ctx.arc(knee.x,knee.y,7.5,0,Math.PI*2);ctx.fill();ctx.strokeStyle=STEEL_E;ctx.lineWidth=0.8;ctx.stroke();ctx.fillStyle=STEEL_D;ctx.beginPath();ctx.ellipse(ankle.x+5,ankle.y+3,10,4.5,d2r(-8),0,Math.PI*2);ctx.fill();ctx.strokeStyle=STEEL_E;ctx.lineWidth=0.8;ctx.stroke();}
+  {const shx=-shSep*0.5,shy=shY;const uA=Math.PI/2+armSwL,elbow=limbEnd(shx,shy,uA,uAL);const fA=uA+elbBL,hand=limbEnd(elbow.x,elbow.y,fA,lAL);capsule(shx,shy,elbow.x,elbow.y,7,STEEL_D,STEEL_E,0.8);capsule(elbow.x,elbow.y,hand.x,hand.y,6,STEEL_D,STEEL_E,0.8);_drawShield(hand.x,hand.y+shieldBob,armSwL);}
+  ctx.fillStyle='#607080';ctx.beginPath();ctx.moveTo(-10,hipY-4);ctx.lineTo(10,hipY-4);ctx.bezierCurveTo(12,hipY+4,12,hipY+14,10,hipY+18);ctx.bezierCurveTo(5,hipY+22,-5,hipY+22,-10,hipY+18);ctx.bezierCurveTo(-12,hipY+14,-12,hipY+4,-10,hipY-4);ctx.closePath();ctx.fill();ctx.strokeStyle=STEEL_E;ctx.lineWidth=0.7;ctx.stroke();
+  const torsoG=ctx.createLinearGradient(-14,shY,14,hipY-4);torsoG.addColorStop(0,STEEL2);torsoG.addColorStop(0.25,STEEL);torsoG.addColorStop(0.65,STEEL_D);torsoG.addColorStop(1,STEEL_E);ctx.fillStyle=torsoG;ctx.beginPath();ctx.moveTo(-12,shY+2);ctx.lineTo(12,shY+2);ctx.bezierCurveTo(15,shY+10,14,hipY-8,12,hipY-4);ctx.lineTo(-12,hipY-4);ctx.bezierCurveTo(-14,hipY-8,-15,shY+10,-12,shY+2);ctx.closePath();ctx.fill();ctx.strokeStyle=STEEL_E;ctx.lineWidth=0.8;ctx.stroke();
+  ctx.strokeStyle=STEEL2;ctx.lineWidth=2.5;ctx.lineCap='round';ctx.beginPath();ctx.moveTo(0,shY+4);ctx.lineTo(0,hipY-5);ctx.stroke();
+  ctx.strokeStyle=STEEL_D;ctx.lineWidth=0.9;for(let i=1;i<4;i++){const ry=shY+4+i*((hipY-4-shY-4)/4);const rw=lerp(11,13,i/4);ctx.beginPath();ctx.moveTo(-rw,ry);ctx.lineTo(rw,ry);ctx.stroke();}
+  ctx.strokeStyle=GOLD;ctx.lineWidth=1.8;ctx.lineCap='round';ctx.beginPath();ctx.moveTo(-11,shY+3);ctx.lineTo(-11,hipY-5);ctx.stroke();ctx.beginPath();ctx.moveTo(11,shY+3);ctx.lineTo(11,hipY-5);ctx.stroke();ctx.beginPath();ctx.moveTo(-11,shY+3);ctx.lineTo(11,shY+3);ctx.stroke();
+  [[-shSep,shY+2,'left'],[shSep,shY+2,'right']].forEach(([px,py,side])=>{const pG=ctx.createRadialGradient(px+(side==='right'?-3:3),py-3,0,px,py,12);pG.addColorStop(0,STEEL2);pG.addColorStop(0.4,STEEL);pG.addColorStop(1,STEEL_D);ctx.fillStyle=pG;ctx.beginPath();ctx.ellipse(px,py,12,9,d2r(side==='left'?8:-8),0,Math.PI*2);ctx.fill();ctx.strokeStyle=STEEL_E;ctx.lineWidth=0.8;ctx.stroke();ctx.strokeStyle=GOLD;ctx.lineWidth=1.8;ctx.beginPath();ctx.arc(px,py,11,d2r(150),d2r(390));ctx.stroke();ctx.strokeStyle=STEEL2;ctx.lineWidth=1.5;ctx.lineCap='round';ctx.beginPath();ctx.moveTo(px+(side==='left'?2:-2),py-8);ctx.bezierCurveTo(px+(side==='left'?5:-5),py,px+(side==='left'?4:-4),py+4,px,py+8);ctx.stroke();});
+  {const hx=-hipSep*0.6,hy=hipY;const tA=Math.PI/2+legLA,knee=limbEnd(hx,hy,tA,thighL);const sA=tA-kneeLB,ankle=limbEnd(knee.x,knee.y,sA,shinL);capsule(hx,hy,knee.x,knee.y,7.5,STEEL,STEEL_D,0.7);capsule(knee.x,knee.y,ankle.x,ankle.y,7,STEEL,STEEL_D,0.8);ctx.fillStyle=STEEL;ctx.beginPath();ctx.arc(knee.x,knee.y,8,0,Math.PI*2);ctx.fill();ctx.strokeStyle=STEEL_E;ctx.lineWidth=0.8;ctx.stroke();ctx.fillStyle=STEEL2;ctx.beginPath();ctx.arc(knee.x-1.5,knee.y-2,3.5,0,Math.PI*2);ctx.fill();ctx.strokeStyle=GOLD;ctx.lineWidth=1.2;ctx.beginPath();ctx.arc(knee.x,knee.y,8,d2r(160),d2r(380));ctx.stroke();ctx.fillStyle=STEEL;ctx.beginPath();ctx.ellipse(ankle.x+5,ankle.y+3,11,5,d2r(-8),0,Math.PI*2);ctx.fill();ctx.strokeStyle=STEEL_D;ctx.lineWidth=0.8;ctx.stroke();ctx.strokeStyle=GOLD;ctx.lineWidth=1.2;ctx.beginPath();ctx.moveTo(ankle.x-5,ankle.y+1);ctx.lineTo(ankle.x+11,ankle.y+1);ctx.stroke();ctx.strokeStyle=STEEL2;ctx.lineWidth=2;ctx.lineCap='round';ctx.beginPath();ctx.moveTo(lerp(hx,knee.x,0.2)+2,lerp(hy,knee.y,0.2)-1);ctx.lineTo(lerp(hx,knee.x,0.7)+2,lerp(hy,knee.y,0.7)-1);ctx.stroke();}
+  {const shx=shSep*0.6,shy=shY;const uA=Math.PI/2+armSwR,elbow=limbEnd(shx,shy,uA,uAL);const fA=uA-elbBR,hand=limbEnd(elbow.x,elbow.y,fA,lAL);capsule(shx,shy,elbow.x,elbow.y,7.5,STEEL,STEEL_E,0.8);capsule(elbow.x,elbow.y,hand.x,hand.y,6.5,STEEL,STEEL_E,0.8);ctx.fillStyle=STEEL;ctx.beginPath();ctx.arc(hand.x,hand.y,7.5,0,Math.PI*2);ctx.fill();ctx.strokeStyle=STEEL_D;ctx.lineWidth=0.7;ctx.stroke();ctx.strokeStyle=GOLD;ctx.lineWidth=1.2;ctx.beginPath();ctx.arc(hand.x,hand.y,7,d2r(160),d2r(380));ctx.stroke();_drawSword(hand.x,hand.y,swordAng);}
+  const gorG=ctx.createLinearGradient(-7,shY,-7,-38);gorG.addColorStop(0,STEEL);gorG.addColorStop(0.5,STEEL2);gorG.addColorStop(1,STEEL_D);ctx.fillStyle=gorG;ctx.beginPath();ctx.moveTo(-7,shY+2);ctx.lineTo(7,shY+2);ctx.lineTo(5,-36);ctx.lineTo(-5,-36);ctx.closePath();ctx.fill();ctx.strokeStyle=STEEL_E;ctx.lineWidth=0.7;ctx.stroke();ctx.strokeStyle=GOLD;ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(-6,shY+1);ctx.lineTo(6,shY+1);ctx.stroke();
+  _drawHelmet(headTilt);
+  ctx.restore();
+  function _drawShield(hx,hy,ang){ctx.save();ctx.translate(hx,hy);ctx.rotate(ang+d2r(15));const sg=ctx.createLinearGradient(-15,-22,15,-22);sg.addColorStop(0,SHIELD2);sg.addColorStop(0.5,SHIELD_BG);sg.addColorStop(1,SHIELD2);ctx.fillStyle=sg;ctx.beginPath();ctx.moveTo(-14,-22);ctx.lineTo(14,-22);ctx.lineTo(14,0);ctx.bezierCurveTo(14,14,8,22,0,26);ctx.bezierCurveTo(-8,22,-14,14,-14,0);ctx.closePath();ctx.fill();ctx.strokeStyle=SHIELD_E;ctx.lineWidth=1.2;ctx.stroke();ctx.fillStyle=SHIELD_CR;ctx.beginPath();ctx.rect(-3.5,-20,7,44);ctx.fill();ctx.beginPath();ctx.rect(-13,-6,26,7);ctx.fill();ctx.fillStyle=SHIELD_CR2;ctx.globalAlpha=0.35;ctx.beginPath();ctx.rect(-2.5,-20,2.5,42);ctx.fill();ctx.globalAlpha=1;ctx.strokeStyle=GOLD;ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(-14,-22);ctx.lineTo(14,-22);ctx.lineTo(14,0);ctx.bezierCurveTo(14,14,8,22,0,26);ctx.bezierCurveTo(-8,22,-14,14,-14,0);ctx.closePath();ctx.stroke();const umbG=ctx.createRadialGradient(-1,-1,0,0,0,5);umbG.addColorStop(0,GOLD2);umbG.addColorStop(0.5,GOLD);umbG.addColorStop(1,GOLD_D);ctx.fillStyle=umbG;ctx.beginPath();ctx.arc(0,-8,5,0,Math.PI*2);ctx.fill();ctx.strokeStyle=GOLD_D;ctx.lineWidth=0.8;ctx.stroke();ctx.restore();}
+  function _drawSword(hx,hy,ang){ctx.save();ctx.translate(hx,hy);ctx.rotate(ang+Math.PI/2);const pomG=ctx.createRadialGradient(-1,-1,0,0,0,6);pomG.addColorStop(0,GOLD2);pomG.addColorStop(0.5,GOLD);pomG.addColorStop(1,GOLD_D);ctx.fillStyle=pomG;ctx.beginPath();ctx.ellipse(0,12,6,5,0,0,Math.PI*2);ctx.fill();ctx.strokeStyle=GOLD_D;ctx.lineWidth=0.8;ctx.stroke();const gripG=ctx.createLinearGradient(-3,0,3,12);gripG.addColorStop(0,SWORD_G2);gripG.addColorStop(1,SWORD_G);ctx.fillStyle=gripG;ctx.beginPath();ctx.rect(-3,0,6,12);ctx.fill();ctx.strokeStyle=GOLD_D;ctx.lineWidth=0.6;ctx.stroke();for(let i=1;i<5;i++){ctx.strokeStyle='#5a3810';ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(-3,i*2.8);ctx.lineTo(3,i*2.8);ctx.stroke();}const cgG=ctx.createLinearGradient(-16,-2,16,-2);cgG.addColorStop(0,GOLD_D);cgG.addColorStop(0.3,GOLD2);cgG.addColorStop(0.7,GOLD2);cgG.addColorStop(1,GOLD_D);ctx.fillStyle=cgG;ctx.beginPath();ctx.moveTo(-16,-1);ctx.lineTo(16,-1);ctx.lineTo(15,3);ctx.lineTo(-15,3);ctx.closePath();ctx.fill();ctx.strokeStyle=GOLD_D;ctx.lineWidth=0.8;ctx.stroke();ctx.fillStyle=GOLD2;ctx.beginPath();ctx.arc(-16,1,3.5,0,Math.PI*2);ctx.fill();ctx.beginPath();ctx.arc(16,1,3.5,0,Math.PI*2);ctx.fill();const bladeG=ctx.createLinearGradient(-3,-5,3,-5);bladeG.addColorStop(0,SWORD_BL);bladeG.addColorStop(0.45,SWORD_BL2);bladeG.addColorStop(1,SWORD_BL);ctx.fillStyle=bladeG;ctx.beginPath();ctx.moveTo(-3,-3);ctx.lineTo(-3,-56);ctx.lineTo(0,-62);ctx.lineTo(3,-56);ctx.lineTo(3,-3);ctx.closePath();ctx.fill();ctx.strokeStyle=STEEL_D;ctx.lineWidth=0.6;ctx.stroke();ctx.strokeStyle='rgba(255,255,255,0.75)';ctx.lineWidth=1.4;ctx.lineCap='round';ctx.beginPath();ctx.moveTo(-0.5,-4);ctx.lineTo(-0.5,-56);ctx.stroke();ctx.strokeStyle='rgba(100,120,140,0.5)';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(1.5,-4);ctx.lineTo(1.5,-50);ctx.stroke();ctx.restore();}
+  function _drawHelmet(tilt){const hcY=-44;ctx.save();ctx.translate(0,hcY);ctx.rotate(d2r(tilt));ctx.fillStyle=STEEL_D;ctx.beginPath();ctx.moveTo(-10,10);ctx.bezierCurveTo(-13,6,-13,-2,-11,-6);ctx.lineTo(11,-6);ctx.bezierCurveTo(13,-2,13,6,10,10);ctx.closePath();ctx.fill();ctx.strokeStyle=STEEL_E;ctx.lineWidth=0.8;ctx.stroke();ctx.strokeStyle=GOLD;ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(-10,8);ctx.bezierCurveTo(-4,11,4,11,10,8);ctx.stroke();const helmG=ctx.createRadialGradient(-4,-12,2,0,-10,18);helmG.addColorStop(0,STEEL2);helmG.addColorStop(0.35,STEEL);helmG.addColorStop(0.75,STEEL_D);helmG.addColorStop(1,STEEL_E);ctx.fillStyle=helmG;ctx.beginPath();ctx.moveTo(-11,-6);ctx.bezierCurveTo(-14,-8,-15,-16,-13,-22);ctx.bezierCurveTo(-11,-28,-5,-32,0,-32);ctx.bezierCurveTo(5,-32,11,-28,13,-22);ctx.bezierCurveTo(15,-16,14,-8,11,-6);ctx.lineTo(-11,-6);ctx.closePath();ctx.fill();ctx.strokeStyle=STEEL_E;ctx.lineWidth=0.8;ctx.stroke();const visG=ctx.createLinearGradient(-10,-6,10,8);visG.addColorStop(0,STEEL_D);visG.addColorStop(0.5,STEEL);visG.addColorStop(1,STEEL_D);ctx.fillStyle=visG;ctx.beginPath();ctx.moveTo(-10,-6);ctx.bezierCurveTo(-12,-3,-11,3,-10,8);ctx.bezierCurveTo(-5,11,5,11,10,8);ctx.bezierCurveTo(11,3,12,-3,10,-6);ctx.closePath();ctx.fill();ctx.strokeStyle=STEEL_E;ctx.lineWidth=0.8;ctx.stroke();ctx.fillStyle=VISOR_SH;ctx.beginPath();ctx.rect(-9,-4.5,18,4.5);ctx.fill();ctx.fillStyle=VISOR;ctx.beginPath();ctx.rect(-9,-4.5,18,3);ctx.fill();ctx.fillStyle='rgba(80,120,180,0.15)';ctx.beginPath();ctx.rect(-9,-4.5,18,1.5);ctx.fill();for(let i=0;i<5;i++){ctx.fillStyle=VISOR_SH;ctx.beginPath();ctx.ellipse(-4+i*2,4,0.9,1.2,0,0,Math.PI*2);ctx.fill();}const combG=ctx.createLinearGradient(-2,-32,2,-32);combG.addColorStop(0,STEEL_D);combG.addColorStop(0.5,STEEL2);combG.addColorStop(1,STEEL_D);ctx.fillStyle=combG;ctx.beginPath();ctx.moveTo(-2.5,-31);ctx.bezierCurveTo(-2.5,-28,2.5,-28,2.5,-31);ctx.lineTo(2,-8);ctx.lineTo(-2,-8);ctx.closePath();ctx.fill();ctx.strokeStyle=STEEL_D;ctx.lineWidth=0.6;ctx.stroke();ctx.strokeStyle=GOLD;ctx.lineWidth=2;ctx.lineCap='round';ctx.beginPath();ctx.moveTo(-11,-6);ctx.bezierCurveTo(-13,-8,-14,-16,-12,-22);ctx.stroke();ctx.beginPath();ctx.moveTo(11,-6);ctx.bezierCurveTo(13,-8,14,-16,12,-22);ctx.stroke();ctx.beginPath();ctx.moveTo(-10,-6);ctx.lineTo(10,-6);ctx.stroke();ctx.beginPath();ctx.moveTo(-10,8);ctx.bezierCurveTo(-5,11,5,11,10,8);ctx.stroke();ctx.strokeStyle=GOLD;ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(-13,-22);ctx.bezierCurveTo(-12,-28,-5,-32,0,-32);ctx.stroke();ctx.beginPath();ctx.moveTo(13,-22);ctx.bezierCurveTo(12,-28,5,-32,0,-32);ctx.stroke();ctx.save();ctx.lineCap='round';ctx.strokeStyle=PLUME;ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(0,-32);ctx.bezierCurveTo(-5,-36,-5,-42,0,-41);ctx.bezierCurveTo(5,-42,5,-36,0,-35);ctx.stroke();ctx.strokeStyle=PLUME2;ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(0,-32);ctx.bezierCurveTo(-3,-36,-3,-41,0,-40);ctx.stroke();ctx.restore();ctx.restore();}
+}
+
 // ── Draw warriors ────────────────────────────────────
 function drawWarrior(w, now){
   if(w.dead&&w.deathTimer<=0)return;
@@ -1559,6 +1616,7 @@ function drawWarrior(w, now){
   else if(w.class==='fan_warrior')drawFanWarrior(0,0,1,facing,state,now);
   else if(w.class==='dark_mage')drawDarkMage(0,0,0.82,facing,state,now);
   else if(w.class==='pirate')drawPirate(0,0,1,facing,state,now);
+  else if(w.class==='knight')drawKnight(0,0,1,facing,state,now);
   else drawSpearman(0,0,1,facing,state,now);
   if(flash){ctx.globalAlpha=(w.flashTimer/600)*0.55;ctx.fillStyle='#FFFFFF';ctx.beginPath();ctx.ellipse(0,-25,18,30,0,0,Math.PI*2);ctx.fill();ctx.globalAlpha=alpha;}
   ctx.restore();ctx.shadowBlur=0;
