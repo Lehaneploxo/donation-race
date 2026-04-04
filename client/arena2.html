@@ -38,6 +38,7 @@
 <button id="addBotBtn" class="ui-btn" title="Add bot">🤖</button>
 <button id="ratingBtn" class="ui-btn" title="Show rating">📊</button>
 <div id="statusBadge">⏳ Connecting…</div>
+<div id="ratingOverlay" style="position:fixed;bottom:60px;left:50%;transform:translateX(-50%);z-index:200;pointer-events:none;display:none;background:rgba(0,0,0,0.75);border:2px solid #00CCFF;border-radius:12px;padding:10px 22px;font-size:18px;font-weight:bold;color:#00EEFF;text-shadow:0 0 10px #00CCFF;white-space:nowrap;font-family:Arial,sans-serif;"></div>
 <div id="kingOverlay">
   <div class="_ke">⚔️ &nbsp; ARENA BATTLE &nbsp; ⚔️</div>
   <div class="_kt">👑 &nbsp; KING OF THE ARENA &nbsp; 👑</div>
@@ -1780,7 +1781,7 @@ function wsConnect(username){
     if(d.type==='arena_gift'||d.type==='arena_member'||d.type==='arena_like'){if(topKillers.length>0&&d.username&&d.username.toLowerCase()===(topKillers[0].username||'').toLowerCase()&&Date.now()-_lastKingArrival>60000){_lastKingArrival=Date.now();triggerKingArrival(topKillers[0].username);}}
     if(d.type==='arena_team'){const ex=warriors.find(w=>w.username===d.username&&!w.dead);if(ex)ex.team=d.team;else teamRegistry.set(d.username,d.team);resetActivity(d.username);}
     if(d.type==='top_killers'){const prevTop=(topKillers[0]?.username||'').toLowerCase();topKillers=d.data||[];const newTop=topKillers[0]?.username;if(newTop&&newTop.toLowerCase()!==prevTop&&Date.now()-_lastKingArrival>30000){_lastKingArrival=Date.now();triggerKingArrival(newTop);}}
-    if(d.type==='arena_rating'){ratingLabel=d.rank?`📊 @${d.username} — #${d.rank} место · ${d.kills} убийств`:`📊 @${d.username} — не в рейтинге`;ratingLabelTimer=4000;}
+    if(d.type==='arena_rating'){_showRating(d.rank?`📊 @${d.username} — #${d.rank} место · ${d.kills} убийств`:`📊 @${d.username} — не в рейтинге`);}
     if(d.type==='arena_cheat'){const _lu=d.username.toLowerCase();let w=warriors.find(w=>!w.dead&&w.username.toLowerCase()===_lu);if(!w)w=warriors.find(w=>w.username.toLowerCase().includes(_lu));if(w){w.dead=false;w.deathTimer=0;w.maxHp+=d.hp;w.hp+=d.hp;w.damage+=d.damage;w.coins=Math.ceil(w.maxHp/10);const sp=arenaToScreen(w.ax,w.ay);spawnDmgNum(sp.x,sp.y-60,'+'+d.hp,'#FFD700');spawnDmgNum(sp.x,sp.y-85,'⚔️+'+d.damage,'#FF8800');eventLabel='⚡ POWER!';eventLabelTimer=3500;playVictory();}}
     if(d.type==='arena_bot'){const addBot=()=>{if(warriors.filter(w=>!w.dead).length>=MAX_WARRIORS)return;const bw=makeWarrior(getBotName(),1);bw.isBot=true;warriors.push(bw);playSpawn();spawnSpawnFX(bw);};if(d.count==='max'){while(warriors.filter(w=>!w.dead).length<MAX_WARRIORS)addBot();}else addBot();}
     if(d.type==='init'||d.type==='status'){if(d.topKillers)topKillers=d.topKillers;const _m=d.tiktokMode||d.mode;if(_m==='tiktok')setStatus('live','🔴 LIVE @'+(d.username||username));else if(_m==='demo')setStatus('demo','🟡 DEMO MODE');else setStatus('connecting','⏳ @'+username+'…');}
@@ -1829,11 +1830,17 @@ function triggerKingArrival(name){
 document.getElementById('fsBtn').addEventListener('click',()=>{if(document.fullscreenElement)document.exitFullscreen&&document.exitFullscreen();else document.documentElement.requestFullscreen&&document.documentElement.requestFullscreen().then(()=>{if(screen.orientation&&screen.orientation.lock)screen.orientation.lock('portrait').catch(()=>{});}).catch(()=>{});});
 document.getElementById('backBtn').addEventListener('click',()=>{location.href='/';});
 document.getElementById('addBotBtn').addEventListener('click',()=>{if(warriors.filter(w=>!w.dead).length>=MAX_WARRIORS)return;const name=getBotName();const w=makeWarrior(name,1);w.isBot=true;warriors.push(w);playSpawn();spawnSpawnFX(w);});
+let _ratingHideTimer=null;
+function _showRating(text){
+  const el=document.getElementById('ratingOverlay');
+  el.textContent=text;el.style.display='block';
+  if(_ratingHideTimer)clearTimeout(_ratingHideTimer);
+  _ratingHideTimer=setTimeout(()=>{el.style.display='none';},4000);
+}
 document.getElementById('ratingBtn').addEventListener('click',()=>{
   const top=topKillers[0];
   const username=top?top.username:(warriors.filter(w=>!w.dead&&!w.isBot)[0]?.username||'test');
-  // Show immediately local (test display), also request from server
-  ratingLabel=`📊 @${username} — тест рейтинга`;ratingLabelTimer=4000;
+  _showRating(`📊 @${username} — запрос рейтинга…`);
   if(_ws&&_ws.readyState===1)_ws.send(JSON.stringify({type:'request_rating',username}));
 });
 </script>
