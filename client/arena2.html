@@ -1691,14 +1691,16 @@ function drawWarrior(w, now){
   const isKing=topKillers.length>0&&w.username.toLowerCase()===topKillers[0].username.toLowerCase();
   if(isGlow||isKing){ctx.shadowColor=isKing?'#FFD700':'#AAFFAA';ctx.shadowBlur=isKing?22:14;}
   ctx.save();ctx.translate(sx+hitOff,sy+idleBob);ctx.scale(totalSc,totalSc);
-  if(isKing)drawDarkKing(0,0,1,facing,state,now);
-  else if(w.class==='conan')drawConan(0,0,1,facing,state,now);
-  else if(w.class==='terminator')drawTerminator(0,0,1,facing,state,now);
-  else if(w.class==='fan_warrior')drawFanWarrior(0,0,1,facing,state,now);
-  else if(w.class==='dark_mage')drawDarkMage(0,0,0.82,facing,state,now);
-  else if(w.class==='pirate')drawPirate(0,0,1,facing,state,now);
-  else if(w.class==='knight')drawKnight(0,0,1,facing,state,now);
-  else drawSpearman(0,0,1,facing,state,now);
+  try{
+    if(isKing)drawDarkKing(0,0,1,facing,state,now);
+    else if(w.class==='conan')drawConan(0,0,1,facing,state,now);
+    else if(w.class==='terminator')drawTerminator(0,0,1,facing,state,now);
+    else if(w.class==='fan_warrior')drawFanWarrior(0,0,1,facing,state,now);
+    else if(w.class==='dark_mage')drawDarkMage(0,0,0.82,facing,state,now);
+    else if(w.class==='pirate')drawPirate(0,0,1,facing,state,now);
+    else if(w.class==='knight')drawKnight(0,0,1,facing,state,now);
+    else drawSpearman(0,0,1,facing,state,now);
+  }catch(e){console.error('drawWarrior error:',e);}
   if(flash){ctx.globalAlpha=(w.flashTimer/600)*0.55;ctx.fillStyle='#FFFFFF';ctx.beginPath();ctx.ellipse(0,-25,18,30,0,0,Math.PI*2);ctx.fill();ctx.globalAlpha=alpha;}
   ctx.restore();ctx.shadowBlur=0;
   _drawLabels(sx,sy+idleBob-105,w);
