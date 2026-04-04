@@ -101,6 +101,7 @@ let warriors=[], particles=[], meteors=[], dmgNums=[];
 let uidSeq=0, totalLikes=0, armageddon=null;
 let eventLabel='', eventLabelTimer=0;
 let ratingLabel='', ratingLabelTimer=0;
+let _dbgGifts=0,_dbgLikes=0;
 let victoryState=null, botSpawnTimer=20000;
 let topKillers=[], teamRegistry=new Map();
 let nextKillsTarget=20, lastT=0, gameTime=0.38;
@@ -779,6 +780,8 @@ function drawHUD(t) {
   }
   ctx.font = '10px Arial'; ctx.fillStyle = 'rgba(255,255,255,0.12)';
   ctx.textAlign = 'center'; ctx.fillText('all-time kills', 450, T + TH - 7);
+  ctx.fillStyle='rgba(0,255,100,0.6)';ctx.font='11px Arial';ctx.textAlign='left';
+  ctx.fillText(`gifts:${_dbgGifts} likes:${_dbgLikes} warriors:${warriors.filter(w=>!w.dead).length}`,8,T+TH-4);
 }
 
 // ── Terminator ───────────────────────────────────────
@@ -1769,8 +1772,8 @@ function wsConnect(username){
   _ws=new WebSocket(`${proto}//${location.host}?username=${encodeURIComponent(username)}`);
   _ws.onopen=()=>setStatus('connecting','⏳ @'+username+'…');
   _ws.onmessage=(e)=>{try{const d=JSON.parse(e.data);
-    if(d.type==='arena_gift'){addWarrior(d.username,d.coins);resetActivity(d.username);if(topKillers.length>0&&d.username.toLowerCase()===topKillers[0].username.toLowerCase()&&Date.now()-_lastKingArrival>60000){_lastKingArrival=Date.now();triggerKingArrival(topKillers[0].username);}}
-    if(d.type==='arena_like'){totalLikes+=d.likes||0;if(totalLikes>=1000){totalLikes-=1000;triggerArmageddon();}resetActivity(d.username);}
+    if(d.type==='arena_gift'){_dbgGifts++;addWarrior(d.username,d.coins);resetActivity(d.username);if(topKillers.length>0&&d.username.toLowerCase()===topKillers[0].username.toLowerCase()&&Date.now()-_lastKingArrival>60000){_lastKingArrival=Date.now();triggerKingArrival(topKillers[0].username);}}
+    if(d.type==='arena_like'){_dbgLikes++;totalLikes+=d.likes||0;if(totalLikes>=1000){totalLikes-=1000;triggerArmageddon();}resetActivity(d.username);}
     if(d.type==='arena_member'){helpWarrior(d.username);resetActivity(d.username);if(topKillers.length>0&&d.username.toLowerCase()===topKillers[0].username.toLowerCase()&&Date.now()-_lastKingArrival>60000){_lastKingArrival=Date.now();triggerKingArrival(topKillers[0].username);}}
     if(d.type==='arena_team'){const ex=warriors.find(w=>w.username===d.username&&!w.dead);if(ex)ex.team=d.team;else teamRegistry.set(d.username,d.team);resetActivity(d.username);}
     if(d.type==='top_killers'){const prevTop=(topKillers[0]?.username||'').toLowerCase();topKillers=d.data||[];const newTop=topKillers[0]?.username;if(newTop&&newTop.toLowerCase()!==prevTop&&Date.now()-_lastKingArrival>30000){_lastKingArrival=Date.now();triggerKingArrival(newTop);}}
