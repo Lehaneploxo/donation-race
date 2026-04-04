@@ -1830,8 +1830,9 @@ document.getElementById('backBtn').addEventListener('click',()=>{location.href='
 document.getElementById('addBotBtn').addEventListener('click',()=>{if(warriors.filter(w=>!w.dead).length>=MAX_WARRIORS)return;const name=getBotName();const w=makeWarrior(name,1);w.isBot=true;warriors.push(w);playSpawn();spawnSpawnFX(w);});
 document.getElementById('ratingBtn').addEventListener('click',()=>{
   const top=topKillers[0];
-  const username=top?top.username:(warriors.filter(w=>!w.dead&&!w.isBot)[0]?.username||'');
-  if(!username)return;
+  const username=top?top.username:(warriors.filter(w=>!w.dead&&!w.isBot)[0]?.username||'test');
+  // Show immediately local (test display), also request from server
+  ratingLabel=`📊 @${username} — тест рейтинга`;ratingLabelTimer=4000;
   if(_ws&&_ws.readyState===1)_ws.send(JSON.stringify({type:'request_rating',username}));
 });
 </script>
