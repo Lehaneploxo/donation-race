@@ -286,7 +286,9 @@ class Room {
             .then(rank => {
               this.broadcast({ type: 'arena_rating', username: data.username, rank: rank ? rank.rank : null, kills: rank ? rank.total_kills : 0 });
             })
-            .catch(() => {});
+            .catch(() => {
+              this.broadcast({ type: 'arena_rating', username: data.username, rank: null, kills: 0 });
+            });
         }
 
         // Race game: GO command
@@ -417,6 +419,15 @@ wss.on('connection', (ws, req) => {
             room.broadcast({ type: 'top_killers', data: top });
           })
           .catch(e => console.error('[DB] kill error:', e.message));
+      }
+      if (msg.type === 'request_rating' && msg.username) {
+        db.getUserRank(msg.username)
+          .then(rank => {
+            room.broadcast({ type: 'arena_rating', username: msg.username, rank: rank ? rank.rank : null, kills: rank ? rank.total_kills : 0 });
+          })
+          .catch(() => {
+            room.broadcast({ type: 'arena_rating', username: msg.username, rank: null, kills: 0 });
+          });
       }
     } catch(e) {}
   });

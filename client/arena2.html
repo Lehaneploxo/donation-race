@@ -13,6 +13,7 @@
     #fsBtn   { top: calc(50% + 36px); right: 10px; }
     #backBtn { top: calc(50% - 13px); right: 10px; }
     #addBotBtn { top: calc(50% + 85px); right: 10px; }
+    #ratingBtn { top: calc(50% + 134px); right: 10px; }
     #statusBadge { position: fixed; bottom: 52px; left: 50%; transform: translateX(-50%); font-size: 13px; padding: 4px 13px; border-radius: 8px; border: 2px solid #555; background: rgba(0,0,0,0.78); color: #AAA; white-space: nowrap; z-index: 100; display: none; }
     #statusBadge.live  { color: #00FF88; border-color: #00FF88; }
     #statusBadge.demo  { color: #FF9900; border-color: #FF9900; }
@@ -35,6 +36,7 @@
 <button id="fsBtn"    class="ui-btn" title="Fullscreen">⛶</button>
 <button id="backBtn"  class="ui-btn" title="Back">⌂</button>
 <button id="addBotBtn" class="ui-btn" title="Add bot">🤖</button>
+<button id="ratingBtn" class="ui-btn" title="Show rating">📊</button>
 <div id="statusBadge">⏳ Connecting…</div>
 <div id="kingOverlay">
   <div class="_ke">⚔️ &nbsp; ARENA BATTLE &nbsp; ⚔️</div>
@@ -1826,6 +1828,12 @@ function triggerKingArrival(name){
 document.getElementById('fsBtn').addEventListener('click',()=>{if(document.fullscreenElement)document.exitFullscreen&&document.exitFullscreen();else document.documentElement.requestFullscreen&&document.documentElement.requestFullscreen().then(()=>{if(screen.orientation&&screen.orientation.lock)screen.orientation.lock('portrait').catch(()=>{});}).catch(()=>{});});
 document.getElementById('backBtn').addEventListener('click',()=>{location.href='/';});
 document.getElementById('addBotBtn').addEventListener('click',()=>{if(warriors.filter(w=>!w.dead).length>=MAX_WARRIORS)return;const name=getBotName();const w=makeWarrior(name,1);w.isBot=true;warriors.push(w);playSpawn();spawnSpawnFX(w);});
+document.getElementById('ratingBtn').addEventListener('click',()=>{
+  const top=topKillers[0];
+  const username=top?top.username:(warriors.filter(w=>!w.dead&&!w.isBot)[0]?.username||'');
+  if(!username)return;
+  if(_ws&&_ws.readyState===1)_ws.send(JSON.stringify({type:'request_rating',username}));
+});
 </script>
 </body>
 </html>
