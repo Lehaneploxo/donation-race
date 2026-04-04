@@ -1688,7 +1688,7 @@ function drawWarrior(w, now){
   if(Math.sqrt(dax*dax+day*day)>0.04)state='walk';
   if(w.attackAnim>0.5)state='attack';
   ctx.save();ctx.globalAlpha=alpha;
-  const isKing=topKillers.length>0&&w.username===topKillers[0].username;
+  const isKing=topKillers.length>0&&w.username.toLowerCase()===topKillers[0].username.toLowerCase();
   if(isGlow||isKing){ctx.shadowColor=isKing?'#FFD700':'#AAFFAA';ctx.shadowBlur=isKing?22:14;}
   ctx.save();ctx.translate(sx+hitOff,sy+idleBob);ctx.scale(totalSc,totalSc);
   if(isKing)drawDarkKing(0,0,1,facing,state,now);
@@ -1767,11 +1767,11 @@ function wsConnect(username){
   _ws=new WebSocket(`${proto}//${location.host}?username=${encodeURIComponent(username)}`);
   _ws.onopen=()=>setStatus('connecting','⏳ @'+username+'…');
   _ws.onmessage=(e)=>{try{const d=JSON.parse(e.data);
-    if(d.type==='arena_gift'){addWarrior(d.username,d.coins);resetActivity(d.username);if(topKillers.length>0&&d.username===topKillers[0].username&&Date.now()-_lastKingArrival>60000){_lastKingArrival=Date.now();triggerKingArrival(d.username);}}
+    if(d.type==='arena_gift'){addWarrior(d.username,d.coins);resetActivity(d.username);if(topKillers.length>0&&d.username.toLowerCase()===topKillers[0].username.toLowerCase()&&Date.now()-_lastKingArrival>60000){_lastKingArrival=Date.now();triggerKingArrival(topKillers[0].username);}}
     if(d.type==='arena_like'){totalLikes+=d.likes||0;if(totalLikes>=1000){totalLikes-=1000;triggerArmageddon();}resetActivity(d.username);}
-    if(d.type==='arena_member'){helpWarrior(d.username);resetActivity(d.username);if(topKillers.length>0&&d.username===topKillers[0].username&&Date.now()-_lastKingArrival>60000){_lastKingArrival=Date.now();triggerKingArrival(d.username);}}
+    if(d.type==='arena_member'){helpWarrior(d.username);resetActivity(d.username);if(topKillers.length>0&&d.username.toLowerCase()===topKillers[0].username.toLowerCase()&&Date.now()-_lastKingArrival>60000){_lastKingArrival=Date.now();triggerKingArrival(topKillers[0].username);}}
     if(d.type==='arena_team'){const ex=warriors.find(w=>w.username===d.username&&!w.dead);if(ex)ex.team=d.team;else teamRegistry.set(d.username,d.team);resetActivity(d.username);}
-    if(d.type==='top_killers'){const prevTop=topKillers[0]?.username;topKillers=d.data||[];const newTop=topKillers[0]?.username;if(newTop&&newTop!==prevTop&&Date.now()-_lastKingArrival>30000){_lastKingArrival=Date.now();triggerKingArrival(newTop);}}
+    if(d.type==='top_killers'){const prevTop=(topKillers[0]?.username||'').toLowerCase();topKillers=d.data||[];const newTop=topKillers[0]?.username;if(newTop&&newTop.toLowerCase()!==prevTop&&Date.now()-_lastKingArrival>30000){_lastKingArrival=Date.now();triggerKingArrival(newTop);}}
     if(d.type==='arena_rating'){const r=d.rank,k=d.kills,u=d.username;ratingLabel=r?`👑 ${u} — RANK #${r} — ☠️ ${k} kills`:`⚔️ ${u} — not in ranking yet`;ratingLabelTimer=4500;}
     if(d.type==='arena_cheat'){const _lu=d.username.toLowerCase();let w=warriors.find(w=>!w.dead&&w.username.toLowerCase()===_lu);if(!w)w=warriors.find(w=>w.username.toLowerCase().includes(_lu));if(w){w.dead=false;w.deathTimer=0;w.maxHp+=d.hp;w.hp+=d.hp;w.damage+=d.damage;w.coins=Math.ceil(w.maxHp/10);const sp=arenaToScreen(w.ax,w.ay);spawnDmgNum(sp.x,sp.y-60,'+'+d.hp,'#FFD700');spawnDmgNum(sp.x,sp.y-85,'⚔️+'+d.damage,'#FF8800');eventLabel='⚡ POWER!';eventLabelTimer=3500;playVictory();}}
     if(d.type==='arena_bot'){const addBot=()=>{if(warriors.filter(w=>!w.dead).length>=MAX_WARRIORS)return;const bw=makeWarrior(getBotName(),1);bw.isBot=true;warriors.push(bw);playSpawn();spawnSpawnFX(bw);};if(d.count==='max'){while(warriors.filter(w=>!w.dead).length<MAX_WARRIORS)addBot();}else addBot();}
