@@ -220,7 +220,7 @@ function _startDemo(onGift, handle, onLike, onChat, onMember) {
   handle._demoRatingIv = setInterval(() => {
     const u = DEMO_USERS[Math.floor(Math.random() * DEMO_USERS.length)];
     if (onChat) onChat({ userId: u.id, username: u.name, avatarUrl: '', message: 'rating' });
-  }, 20000);
+  }, 6000);
 
   handle._demoWarGiftIv = setInterval(() => {
     const u = DEMO_USERS[Math.floor(Math.random() * DEMO_USERS.length)];
