@@ -1281,7 +1281,7 @@ function drawPirate(cx,cy,sc,fac,state,now){
     bodyLean=d2r(6);
     headTilt=s2*2.5;
     legLA=d2r(s2*32); legRA=d2r(-s2*32);
-    kneeLB=d2r(Math.abs(s2)*18); kneeRB=kneeLB;
+    kneeLB=s2<0?d2r(-s2*18):0; kneeRB=s2>0?d2r(s2*18):0;
     armSwL=d2r(14+s2*18);
     armSwR=d2r(-32-s2*16);
     elbBL=d2r(44+Math.abs(s2)*10); elbBR=d2r(20);
@@ -1330,7 +1330,7 @@ function drawPirate(cx,cy,sc,fac,state,now){
   {
     const hx=hipSep*0.6,hy=hipY;
     const tA=legRA,knee=limbEnd(hx,hy,tA,thighL);
-    const sA=tA+Math.PI/2+kneeRB,ankle=limbEnd(knee.x,knee.y,sA,shinL);
+    const sA=tA+kneeRB,ankle=limbEnd(knee.x,knee.y,sA,shinL);
     capsule(hx,hy,knee.x,knee.y,6,COAT_D,'#220808',0.8);
     capsule(knee.x,knee.y,ankle.x,ankle.y,5.5,BOOT,BOOT2,0.8);
     ctx.fillStyle=BOOT;ctx.beginPath();ctx.ellipse(ankle.x+4,ankle.y+3,9,4,d2r(-8),0,Math.PI*2);ctx.fill();
@@ -1390,7 +1390,7 @@ function drawPirate(cx,cy,sc,fac,state,now){
   {
     const hx=-hipSep*0.6,hy=hipY;
     const tA=legLA,knee=limbEnd(hx,hy,tA,thighL);
-    const sA=tA+Math.PI/2+kneeLB,ankle=limbEnd(knee.x,knee.y,sA,shinL);
+    const sA=tA-kneeLB,ankle=limbEnd(knee.x,knee.y,sA,shinL);
     capsule(hx,hy,knee.x,knee.y,6.5,COAT,'#330a0a',0.7);
     capsule(knee.x,knee.y,ankle.x,ankle.y,6,BOOT,BOOT2,0.8);
     ctx.fillStyle=BOOT;ctx.beginPath();ctx.ellipse(ankle.x+5,ankle.y+3,10,4.5,d2r(-8),0,Math.PI*2);ctx.fill();
@@ -1556,8 +1556,8 @@ function drawKnight(cx,cy,sc,fac,state,now){
   } else if(state==='walk'){
     const s2=Math.sin(t*2.4);
     bodyBob=Math.abs(s2)*-3;bodyLean=d2r(5);headTilt=s2*1.5;
-    legLA=d2r(s2*30);legRA=d2r(s2*30);
-    kneeLB=d2r(Math.abs(s2)*14);kneeRB=kneeLB;
+    legLA=d2r(s2*30);legRA=d2r(-s2*30);
+    kneeLB=s2<0?d2r(-s2*14):0;kneeRB=s2>0?d2r(s2*14):0;
     armSwL=d2r(-18-s2*14);armSwR=d2r(-10+s2*16);
     elbBL=d2r(48);elbBR=d2r(12);
     swordAng=d2r(-76+s2*8);shieldBob=s2*3;
@@ -1573,7 +1573,7 @@ function drawKnight(cx,cy,sc,fac,state,now){
   const hipY=16,hipSep=7,thighL=24,shinL=20;
   const shY=-26,shSep=14,uAL=18,lAL=14;
   ctx.fillStyle='rgba(0,0,0,0.38)';ctx.beginPath();ctx.ellipse(0,hipY+44,20,5,0,0,Math.PI*2);ctx.fill();
-  {const hx=hipSep*0.6,hy=hipY;const tA=Math.PI/2-legRA,knee=limbEnd(hx,hy,tA,thighL);const sA=tA+kneeRB,ankle=limbEnd(knee.x,knee.y,sA,shinL);capsule(hx,hy,knee.x,knee.y,7,STEEL_D,STEEL_E,0.8);capsule(knee.x,knee.y,ankle.x,ankle.y,6,STEEL_D,STEEL_E,0.8);ctx.fillStyle=STEEL_D;ctx.beginPath();ctx.arc(knee.x,knee.y,7.5,0,Math.PI*2);ctx.fill();ctx.strokeStyle=STEEL_E;ctx.lineWidth=0.8;ctx.stroke();ctx.fillStyle=STEEL_D;ctx.beginPath();ctx.ellipse(ankle.x+5,ankle.y+3,10,4.5,d2r(-8),0,Math.PI*2);ctx.fill();ctx.strokeStyle=STEEL_E;ctx.lineWidth=0.8;ctx.stroke();}
+  {const hx=hipSep*0.6,hy=hipY;const tA=legRA,knee=limbEnd(hx,hy,tA,thighL);const sA=tA+kneeRB,ankle=limbEnd(knee.x,knee.y,sA,shinL);capsule(hx,hy,knee.x,knee.y,7,STEEL_D,STEEL_E,0.8);capsule(knee.x,knee.y,ankle.x,ankle.y,6,STEEL_D,STEEL_E,0.8);ctx.fillStyle=STEEL_D;ctx.beginPath();ctx.arc(knee.x,knee.y,7.5,0,Math.PI*2);ctx.fill();ctx.strokeStyle=STEEL_E;ctx.lineWidth=0.8;ctx.stroke();ctx.fillStyle=STEEL_D;ctx.beginPath();ctx.ellipse(ankle.x+5,ankle.y+3,10,4.5,d2r(-8),0,Math.PI*2);ctx.fill();ctx.strokeStyle=STEEL_E;ctx.lineWidth=0.8;ctx.stroke();}
   {const shx=-shSep*0.5,shy=shY;const uA=Math.PI/2+armSwL,elbow=limbEnd(shx,shy,uA,uAL);const fA=uA+elbBL,hand=limbEnd(elbow.x,elbow.y,fA,lAL);capsule(shx,shy,elbow.x,elbow.y,7,STEEL_D,STEEL_E,0.8);capsule(elbow.x,elbow.y,hand.x,hand.y,6,STEEL_D,STEEL_E,0.8);_drawShield(hand.x,hand.y+shieldBob,armSwL);}
   ctx.fillStyle='#607080';ctx.beginPath();ctx.moveTo(-10,hipY-4);ctx.lineTo(10,hipY-4);ctx.bezierCurveTo(12,hipY+4,12,hipY+14,10,hipY+18);ctx.bezierCurveTo(5,hipY+22,-5,hipY+22,-10,hipY+18);ctx.bezierCurveTo(-12,hipY+14,-12,hipY+4,-10,hipY-4);ctx.closePath();ctx.fill();ctx.strokeStyle=STEEL_E;ctx.lineWidth=0.7;ctx.stroke();
   const torsoG=ctx.createLinearGradient(-14,shY,14,hipY-4);torsoG.addColorStop(0,STEEL2);torsoG.addColorStop(0.25,STEEL);torsoG.addColorStop(0.65,STEEL_D);torsoG.addColorStop(1,STEEL_E);ctx.fillStyle=torsoG;ctx.beginPath();ctx.moveTo(-12,shY+2);ctx.lineTo(12,shY+2);ctx.bezierCurveTo(15,shY+10,14,hipY-8,12,hipY-4);ctx.lineTo(-12,hipY-4);ctx.bezierCurveTo(-14,hipY-8,-15,shY+10,-12,shY+2);ctx.closePath();ctx.fill();ctx.strokeStyle=STEEL_E;ctx.lineWidth=0.8;ctx.stroke();
@@ -1581,7 +1581,7 @@ function drawKnight(cx,cy,sc,fac,state,now){
   ctx.strokeStyle=STEEL_D;ctx.lineWidth=0.9;for(let i=1;i<4;i++){const ry=shY+4+i*((hipY-4-shY-4)/4);const rw=lerp(11,13,i/4);ctx.beginPath();ctx.moveTo(-rw,ry);ctx.lineTo(rw,ry);ctx.stroke();}
   ctx.strokeStyle=GOLD;ctx.lineWidth=1.8;ctx.lineCap='round';ctx.beginPath();ctx.moveTo(-11,shY+3);ctx.lineTo(-11,hipY-5);ctx.stroke();ctx.beginPath();ctx.moveTo(11,shY+3);ctx.lineTo(11,hipY-5);ctx.stroke();ctx.beginPath();ctx.moveTo(-11,shY+3);ctx.lineTo(11,shY+3);ctx.stroke();
   [[-shSep,shY+2,'left'],[shSep,shY+2,'right']].forEach(([px,py,side])=>{const pG=ctx.createRadialGradient(px+(side==='right'?-3:3),py-3,0,px,py,12);pG.addColorStop(0,STEEL2);pG.addColorStop(0.4,STEEL);pG.addColorStop(1,STEEL_D);ctx.fillStyle=pG;ctx.beginPath();ctx.ellipse(px,py,12,9,d2r(side==='left'?8:-8),0,Math.PI*2);ctx.fill();ctx.strokeStyle=STEEL_E;ctx.lineWidth=0.8;ctx.stroke();ctx.strokeStyle=GOLD;ctx.lineWidth=1.8;ctx.beginPath();ctx.arc(px,py,11,d2r(150),d2r(390));ctx.stroke();ctx.strokeStyle=STEEL2;ctx.lineWidth=1.5;ctx.lineCap='round';ctx.beginPath();ctx.moveTo(px+(side==='left'?2:-2),py-8);ctx.bezierCurveTo(px+(side==='left'?5:-5),py,px+(side==='left'?4:-4),py+4,px,py+8);ctx.stroke();});
-  {const hx=-hipSep*0.6,hy=hipY;const tA=Math.PI/2+legLA,knee=limbEnd(hx,hy,tA,thighL);const sA=tA-kneeLB,ankle=limbEnd(knee.x,knee.y,sA,shinL);capsule(hx,hy,knee.x,knee.y,7.5,STEEL,STEEL_D,0.7);capsule(knee.x,knee.y,ankle.x,ankle.y,7,STEEL,STEEL_D,0.8);ctx.fillStyle=STEEL;ctx.beginPath();ctx.arc(knee.x,knee.y,8,0,Math.PI*2);ctx.fill();ctx.strokeStyle=STEEL_E;ctx.lineWidth=0.8;ctx.stroke();ctx.fillStyle=STEEL2;ctx.beginPath();ctx.arc(knee.x-1.5,knee.y-2,3.5,0,Math.PI*2);ctx.fill();ctx.strokeStyle=GOLD;ctx.lineWidth=1.2;ctx.beginPath();ctx.arc(knee.x,knee.y,8,d2r(160),d2r(380));ctx.stroke();ctx.fillStyle=STEEL;ctx.beginPath();ctx.ellipse(ankle.x+5,ankle.y+3,11,5,d2r(-8),0,Math.PI*2);ctx.fill();ctx.strokeStyle=STEEL_D;ctx.lineWidth=0.8;ctx.stroke();ctx.strokeStyle=GOLD;ctx.lineWidth=1.2;ctx.beginPath();ctx.moveTo(ankle.x-5,ankle.y+1);ctx.lineTo(ankle.x+11,ankle.y+1);ctx.stroke();ctx.strokeStyle=STEEL2;ctx.lineWidth=2;ctx.lineCap='round';ctx.beginPath();ctx.moveTo(lerp(hx,knee.x,0.2)+2,lerp(hy,knee.y,0.2)-1);ctx.lineTo(lerp(hx,knee.x,0.7)+2,lerp(hy,knee.y,0.7)-1);ctx.stroke();}
+  {const hx=-hipSep*0.6,hy=hipY;const tA=legLA,knee=limbEnd(hx,hy,tA,thighL);const sA=tA-kneeLB,ankle=limbEnd(knee.x,knee.y,sA,shinL);capsule(hx,hy,knee.x,knee.y,7.5,STEEL,STEEL_D,0.7);capsule(knee.x,knee.y,ankle.x,ankle.y,7,STEEL,STEEL_D,0.8);ctx.fillStyle=STEEL;ctx.beginPath();ctx.arc(knee.x,knee.y,8,0,Math.PI*2);ctx.fill();ctx.strokeStyle=STEEL_E;ctx.lineWidth=0.8;ctx.stroke();ctx.fillStyle=STEEL2;ctx.beginPath();ctx.arc(knee.x-1.5,knee.y-2,3.5,0,Math.PI*2);ctx.fill();ctx.strokeStyle=GOLD;ctx.lineWidth=1.2;ctx.beginPath();ctx.arc(knee.x,knee.y,8,d2r(160),d2r(380));ctx.stroke();ctx.fillStyle=STEEL;ctx.beginPath();ctx.ellipse(ankle.x+5,ankle.y+3,11,5,d2r(-8),0,Math.PI*2);ctx.fill();ctx.strokeStyle=STEEL_D;ctx.lineWidth=0.8;ctx.stroke();ctx.strokeStyle=GOLD;ctx.lineWidth=1.2;ctx.beginPath();ctx.moveTo(ankle.x-5,ankle.y+1);ctx.lineTo(ankle.x+11,ankle.y+1);ctx.stroke();ctx.strokeStyle=STEEL2;ctx.lineWidth=2;ctx.lineCap='round';ctx.beginPath();ctx.moveTo(lerp(hx,knee.x,0.2)+2,lerp(hy,knee.y,0.2)-1);ctx.lineTo(lerp(hx,knee.x,0.7)+2,lerp(hy,knee.y,0.7)-1);ctx.stroke();}
   {const shx=shSep*0.6,shy=shY;const uA=Math.PI/2+armSwR,elbow=limbEnd(shx,shy,uA,uAL);const fA=uA-elbBR,hand=limbEnd(elbow.x,elbow.y,fA,lAL);capsule(shx,shy,elbow.x,elbow.y,7.5,STEEL,STEEL_E,0.8);capsule(elbow.x,elbow.y,hand.x,hand.y,6.5,STEEL,STEEL_E,0.8);ctx.fillStyle=STEEL;ctx.beginPath();ctx.arc(hand.x,hand.y,7.5,0,Math.PI*2);ctx.fill();ctx.strokeStyle=STEEL_D;ctx.lineWidth=0.7;ctx.stroke();ctx.strokeStyle=GOLD;ctx.lineWidth=1.2;ctx.beginPath();ctx.arc(hand.x,hand.y,7,d2r(160),d2r(380));ctx.stroke();_drawSword(hand.x,hand.y,swordAng);}
   const gorG=ctx.createLinearGradient(-7,shY,-7,-38);gorG.addColorStop(0,STEEL);gorG.addColorStop(0.5,STEEL2);gorG.addColorStop(1,STEEL_D);ctx.fillStyle=gorG;ctx.beginPath();ctx.moveTo(-7,shY+2);ctx.lineTo(7,shY+2);ctx.lineTo(5,-36);ctx.lineTo(-5,-36);ctx.closePath();ctx.fill();ctx.strokeStyle=STEEL_E;ctx.lineWidth=0.7;ctx.stroke();ctx.strokeStyle=GOLD;ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(-6,shY+1);ctx.lineTo(6,shY+1);ctx.stroke();
   _drawHelmet(headTilt);
