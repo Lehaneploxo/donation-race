@@ -1709,7 +1709,6 @@ function drawWarrior(w, now){
   }catch(e){console.error('drawWarrior error:',e);}
   if(flash){ctx.globalAlpha=(w.flashTimer/600)*0.55;ctx.fillStyle='#FFFFFF';ctx.beginPath();ctx.ellipse(0,-25,18,30,0,0,Math.PI*2);ctx.fill();ctx.globalAlpha=alpha;}
   ctx.restore();ctx.shadowBlur=0;
-  const isKing=topKillers.length>0&&w.username.toLowerCase()===topKillers[0].username.toLowerCase();
   const headAnchor=sy+idleBob-(isKing?102:68);
   _drawLabels(sx,headAnchor,w);
   ctx.restore();
