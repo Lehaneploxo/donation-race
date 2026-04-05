@@ -1839,11 +1839,11 @@ function _showRating(html){
 }
 document.getElementById('ratingBtn').addEventListener('click',()=>{
   _showRating('<span style="color:#00EEFF;font-size:15px;font-weight:bold;">📊 Загрузка рейтинга…</span>');
-  fetch('/top?limit=5').then(r=>r.json()).then(d=>{
-    if(!d.ok||!d.top||!d.top.length){_showRating('<span style="color:#FF8888;font-size:14px;">📊 Рейтинг пуст</span>');return;}
-    const medals=['🥇','🥈','🥉','4️⃣','5️⃣'];
-    let rows=d.top.map((p,i)=>`<tr><td style="padding:2px 8px 2px 0;color:${i===0?'#FFD700':i===1?'#C0C0C0':i===2?'#CD7F32':'#AAA'}">${medals[i]}</td><td style="padding:2px 8px;color:#fff;font-weight:bold;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">@${p.username}</td><td style="padding:2px 0;color:#FF6644;font-weight:bold;">☠️${p.total_kills}</td></tr>`).join('');
-    _showRating(`<div style="color:#00CCFF;font-size:13px;font-weight:bold;letter-spacing:1px;margin-bottom:6px;">⚔️ ТОП УБИЙЦ ⚔️</div><table style="border-collapse:collapse;font-size:14px;">${rows}</table>`);
+  fetch('/top?limit=20').then(r=>r.json()).then(d=>{
+    if(!d.ok||!d.top||d.top.length<=5){_showRating('<span style="color:#FF8888;font-size:14px;">📊 Меньше 6 игроков</span>');return;}
+    const list=d.top.slice(5,20);
+    let rows=list.map((p,i)=>`<tr><td style="padding:1px 6px 1px 0;color:#AAA;font-size:12px;">#${i+6}</td><td style="padding:1px 8px;color:#fff;font-size:13px;font-weight:bold;max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">@${p.username}</td><td style="padding:1px 0;color:#FF6644;font-size:13px;">☠️${p.total_kills}</td></tr>`).join('');
+    _showRating(`<div style="color:#00CCFF;font-size:12px;font-weight:bold;letter-spacing:1px;margin-bottom:5px;">📊 МЕСТА 6–${Math.min(20,d.top.length)}</div><table style="border-collapse:collapse;">${rows}</table>`);
   }).catch(()=>_showRating('<span style="color:#FF8888;font-size:14px;">❌ Ошибка загрузки</span>'));
 });
 </script>
