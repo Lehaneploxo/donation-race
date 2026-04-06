@@ -2831,34 +2831,24 @@ function playKingSound(){
   try{
     const ctx=getACtx();
     const _doPlay=()=>{
-    const t=ctx.currentTime;
-    const ns=ctx.createBufferSource(),nf=ctx.createBiquadFilter(),ng=ctx.createGain();
-    nf.type='lowpass';nf.frequency.value=180;ng.gain.setValueAtTime(1,t);ng.gain.exponentialRampToValueAtTime(0.001,t+0.55);
-    ns.buffer=_noise(ctx,0.6);ns.connect(nf);nf.connect(ng);ng.connect(ctx.destination);ns.start(t);ns.stop(t+0.6);
-    const bo=ctx.createOscillator(),bg=ctx.createGain();
-    bo.type='sine';bo.frequency.setValueAtTime(65,t);bo.frequency.exponentialRampToValueAtTime(28,t+0.7);
-    bg.gain.setValueAtTime(0.65,t);bg.gain.exponentialRampToValueAtTime(0.001,t+0.8);
-    bo.connect(bg);bg.connect(ctx.destination);bo.start(t);bo.stop(t+0.85);
-    const sw=ctx.createOscillator(),swf=ctx.createBiquadFilter(),swg=ctx.createGain();
-    sw.type='sawtooth';sw.frequency.setValueAtTime(80,t+0.05);sw.frequency.exponentialRampToValueAtTime(1400,t+0.7);
-    swf.type='bandpass';swf.Q.value=4;swf.frequency.setValueAtTime(200,t+0.05);swf.frequency.exponentialRampToValueAtTime(2000,t+0.7);
-    swg.gain.setValueAtTime(0,t+0.05);swg.gain.linearRampToValueAtTime(0.2,t+0.3);swg.gain.exponentialRampToValueAtTime(0.001,t+0.78);
-    sw.connect(swf);swf.connect(swg);swg.connect(ctx.destination);sw.start(t+0.05);sw.stop(t+0.82);
-    [523,659,784,1047].forEach((freq,i)=>{
-      const o=ctx.createOscillator(),g=ctx.createGain();o.type='triangle';o.frequency.value=freq;
-      const d=t+0.5+i*0.06;g.gain.setValueAtTime(0,d);g.gain.linearRampToValueAtTime(0.28-i*0.045,d+0.09);
-      g.gain.setValueAtTime(0.28-i*0.045,d+0.3);g.gain.exponentialRampToValueAtTime(0.001,d+2.8);
-      o.connect(g);g.connect(ctx.destination);o.start(d);o.stop(d+3);
-    });
-    const bl=ctx.createOscillator(),blg=ctx.createGain();
-    bl.type='sine';bl.frequency.value=1318;blg.gain.setValueAtTime(0.42,t+0.56);blg.gain.exponentialRampToValueAtTime(0.001,t+3.5);
-    bl.connect(blg);blg.connect(ctx.destination);bl.start(t+0.56);bl.stop(t+3.6);
-    const bl2=ctx.createOscillator(),bl2g=ctx.createGain();
-    bl2.type='sine';bl2.frequency.value=2637;bl2g.gain.setValueAtTime(0.18,t+0.58);bl2g.gain.exponentialRampToValueAtTime(0.001,t+1.8);
-    bl2.connect(bl2g);bl2g.connect(ctx.destination);bl2.start(t+0.58);bl2.stop(t+2);
-    const rm=ctx.createOscillator(),rmg=ctx.createGain();
-    rm.type='sawtooth';rm.frequency.value=40;rmg.gain.setValueAtTime(0,t);rmg.gain.linearRampToValueAtTime(0.12,t+0.4);rmg.gain.linearRampToValueAtTime(0,t+2.5);
-    rm.connect(rmg);rmg.connect(ctx.destination);rm.start(t);rm.stop(t+2.6);
+      const t=ctx.currentTime;
+      // Торжественный фанфар: до-ми-соль-до (восходящий) + финальный долгий аккорд
+      const fanfare=[
+        {f:523,start:0,   dur:0.18},
+        {f:659,start:0.18,dur:0.18},
+        {f:784,start:0.36,dur:0.18},
+        {f:1047,start:0.54,dur:0.55},
+        {f:784,start:0.54,dur:0.55},
+        {f:523,start:0.54,dur:0.55},
+      ];
+      fanfare.forEach(({f,start,dur})=>{
+        const o=ctx.createOscillator(),g=ctx.createGain();
+        o.type='triangle';o.frequency.value=f;
+        g.gain.setValueAtTime(0.35,t+start);
+        g.gain.exponentialRampToValueAtTime(0.001,t+start+dur);
+        o.connect(g);g.connect(ctx.destination);
+        o.start(t+start);o.stop(t+start+dur+0.05);
+      });
     };
     if(ctx.state==='suspended'){ctx.resume().then(_doPlay).catch(()=>{});}else{_doPlay();}
   }catch(e){}
