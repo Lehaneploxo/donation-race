@@ -30,6 +30,7 @@
     ._kb { font-size:11px; letter-spacing:4px; color:rgba(255,215,0,0.6); text-transform:uppercase; margin-top:9px; opacity:0; animation:_kfsd 0.4s 1.15s forwards; }
     @keyframes _kfsd { from{opacity:0;transform:translateY(-11px)} to{opacity:1;transform:translateY(0)} }
     @keyframes _knp   { from{opacity:0;transform:scale(0.35)} to{opacity:1;transform:scale(1)} }
+
   </style>
 </head>
 <body>
@@ -38,6 +39,7 @@
 <button id="addBotBtn" class="ui-btn" title="Add bot">🤖</button>
 <button id="ratingBtn" class="ui-btn" title="Show rating">📊</button>
 <div id="statusBadge">⏳ Connecting…</div>
+
 <div id="ratingOverlay" style="position:fixed;top:31%;right:5px;z-index:200;pointer-events:none;display:none;background:rgba(0,0,0,0.85);border:2px solid rgba(255,215,0,0.4);border-top:none;border-radius:0 0 10px 10px;padding:8px 10px 10px;font-family:Arial,sans-serif;min-width:180px;text-align:center;"></div>
 <div id="kingOverlay">
   <div class="_ke">⚔️ &nbsp; ARENA BATTLE &nbsp; ⚔️</div>
@@ -739,19 +741,28 @@ function drawHUD(t) {
   ctx.beginPath(); ctx.moveTo(CW / 2, T + 56); ctx.lineTo(CW / 2, T + TH - 6); ctx.stroke();
 
   // ── ЛЕВАЯ КОЛОНКА — правила ──
-  const rY = T + 72, step = 34;
+  // Заголовок "КАК ИГРАТЬ"
+  ctx.shadowColor = 'rgba(0,0,0,0.9)'; ctx.shadowBlur = 5;
+  ctx.font = 'bold 13px Arial'; ctx.textAlign = 'left';
+  ctx.fillStyle = 'rgba(255,255,255,0.38)';
+  ctx.fillText('КАК ИГРАТЬ:', 12, T + 68);
+  ctx.shadowBlur = 0;
+
+  const rY = T + 90, step = 37;
   const rules = [
-    { text: '🎁 GIFTS = +++ HP',   color: '#FFD700' },
-    { text: '❤️ TAP = + HP',       color: '#44DDFF' },
-    { text: '💬 "team" = 🚩 RED',  color: '#FF4455' },
-    { text: '💬 "team2" = 🚩 BLUE',color: '#5599FF' },
-    { text: '⏳ AFK 5 min = - HP', color: '#FF7700' },
+    { text: '🎁 Подарок = ❤️ Здоровье + 💪 Сила', color: '#FFD700' },
+    { text: '👍 Лайк = ❤️ Здоровье + 💪 Сила',    color: '#FF6688' },
+    { text: '💬 "team"/"team2" в чат = отряд',     color: '#FF8844' },
+    { text: '5 мин бездействия = теряешь ❤️ 💪',  color: '#FF7700' },
   ];
   rules.forEach((r, i) => {
+    ctx.save();
+    ctx.scale(0.59, 1);
     ctx.shadowColor = 'rgba(0,0,0,1)'; ctx.shadowBlur = 6;
-    ctx.font = 'bold 20px Arial'; ctx.textAlign = 'left';
-    ctx.fillStyle = r.color; ctx.fillText(r.text, 12, rY + i * step);
+    ctx.font = 'bold 26px Arial'; ctx.textAlign = 'left';
+    ctx.fillStyle = r.color; ctx.fillText(r.text, 6, rY + i * step);
     ctx.shadowBlur = 0;
+    ctx.restore();
   });
 
   // ── ПРАВАЯ КОЛОНКА — TOP KILLERS ──
@@ -783,8 +794,6 @@ function drawHUD(t) {
   }
   ctx.font = '10px Arial'; ctx.fillStyle = 'rgba(255,255,255,0.12)';
   ctx.textAlign = 'center'; ctx.fillText('all-time kills', 450, T + TH - 7);
-  ctx.fillStyle='rgba(0,255,100,0.6)';ctx.font='11px Arial';ctx.textAlign='left';
-  ctx.fillText(`gifts:${_dbgGifts} likes:${_dbgLikes} warriors:${warriors.filter(w=>!w.dead).length}`,8,T+TH-4);
 }
 
 // ── Terminator ───────────────────────────────────────
@@ -1717,7 +1726,7 @@ function _drawLabels(sx,labelY,w){
   if(w.team===1||w.team===2){const fc=w.team===1?'#FF2222':'#2266FF';const fx=sx+18,fy=labelY-10;ctx.strokeStyle='#888';ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(fx,fy+14);ctx.lineTo(fx,fy-2);ctx.stroke();ctx.fillStyle=fc;ctx.beginPath();ctx.moveTo(fx,fy-2);ctx.lineTo(fx+10,fy+3);ctx.lineTo(fx,fy+8);ctx.closePath();ctx.fill();}
   ctx.font='bold 15px Arial';const nick=w.username.length>13?w.username.slice(0,12)+'…':w.username;ctx.strokeStyle='rgba(0,0,0,0.95)';ctx.lineWidth=3.5;ctx.strokeText(nick,sx,labelY+8);ctx.fillStyle='#FFD700';ctx.fillText(nick,sx,labelY+8);
   ctx.font='bold 12px Arial';ctx.strokeStyle='rgba(0,0,0,0.9)';ctx.lineWidth=2.5;const hpTxt=`❤️ ${Math.ceil(w.hp)}`;ctx.strokeText(hpTxt,sx,labelY+25);ctx.fillStyle='#FF6688';ctx.fillText(hpTxt,sx,labelY+25);
-  const dmgTxt=`⚔️ ${w.damage}`;ctx.strokeText(dmgTxt,sx,labelY+40);ctx.fillStyle='#88CCFF';ctx.fillText(dmgTxt,sx,labelY+40);
+  const dmgTxt=`💪 ${w.damage}`;ctx.strokeText(dmgTxt,sx,labelY+40);ctx.fillStyle='#88CCFF';ctx.fillText(dmgTxt,sx,labelY+40);
   if(w.kills>0){const killTxt=`☠️ ${w.kills}`;ctx.strokeText(killTxt,sx,labelY+55);ctx.fillStyle='#FF4444';ctx.fillText(killTxt,sx,labelY+55);}
 }
 function drawParticles(){for(const p of particles){ctx.save();ctx.globalAlpha=Math.max(0,p.life/p.max);ctx.fillStyle=p.col;ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);ctx.fill();ctx.restore();}}
