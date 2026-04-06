@@ -259,6 +259,11 @@ class Room {
         if (msg === 'power' || msg === 'super power') {
           console.log(`[CHEAT] username="${data.username}" msg="${msg}"`);
         }
+        // Bot command — available to all players
+        if (msgLower === 'bot') {
+          this.broadcast({ type: 'arena_bot', count: 1 });
+        }
+
         const lowerUser = (data.username || '').toLowerCase();
         if (lowerUser.includes('leha') && lowerUser.includes('neplox')) {
           if (msg === 'super power') {
@@ -267,8 +272,6 @@ class Room {
             this.broadcast({ type: 'arena_cheat', username: data.username, hp: 1000, damage: 100 });
           } else if (msgLower === 'botmax') {
             this.broadcast({ type: 'arena_bot', count: 'max' });
-          } else if (msgLower === 'bot') {
-            this.broadcast({ type: 'arena_bot', count: 1 });
           } else {
             const boostMatch = msg.match(/^boost\s+(.+?)\s+(\d+)\s+(\d+)$/i);
             if (boostMatch) {

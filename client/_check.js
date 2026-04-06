@@ -2829,7 +2829,9 @@ document.getElementById('addBotBtn').addEventListener('click',()=>{
 
 function playKingSound(){
   try{
-    const ctx=getACtx(),t=ctx.currentTime;
+    const ctx=getACtx();
+    const _doPlay=()=>{
+    const t=ctx.currentTime;
     const ns=ctx.createBufferSource(),nf=ctx.createBiquadFilter(),ng=ctx.createGain();
     nf.type='lowpass';nf.frequency.value=180;ng.gain.setValueAtTime(1,t);ng.gain.exponentialRampToValueAtTime(0.001,t+0.55);
     ns.buffer=_noise(ctx,0.6);ns.connect(nf);nf.connect(ng);ng.connect(ctx.destination);ns.start(t);ns.stop(t+0.6);
@@ -2857,6 +2859,8 @@ function playKingSound(){
     const rm=ctx.createOscillator(),rmg=ctx.createGain();
     rm.type='sawtooth';rm.frequency.value=40;rmg.gain.setValueAtTime(0,t);rmg.gain.linearRampToValueAtTime(0.12,t+0.4);rmg.gain.linearRampToValueAtTime(0,t+2.5);
     rm.connect(rmg);rmg.connect(ctx.destination);rm.start(t);rm.stop(t+2.6);
+    };
+    if(ctx.state==='suspended'){ctx.resume().then(_doPlay).catch(()=>{});}else{_doPlay();}
   }catch(e){}
 }
 
