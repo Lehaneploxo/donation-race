@@ -1831,7 +1831,7 @@ function drawCossack(cx,cy,s,fac,state,t){
   ctx.save(); ctx.scale(1,0.15);
   const shad=ctx.createRadialGradient(0,0,4,0,0,30);
   shad.addColorStop(0,'rgba(0,0,0,0.5)'); shad.addColorStop(1,'rgba(0,0,0,0)');
-  ctx.fillStyle=shad; ctx.beginPath(); ctx.ellipse(0,0,30,30,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle=shad; ctx.beginPath(); ctx.ellipse(0,0,30,30,0,0,Math.PI*2); ctx.fill();
   ctx.restore();
   {
     const rH={x:hX*0.55,y:hipY};
