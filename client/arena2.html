@@ -99,12 +99,17 @@ function playVictory(){try{const ctx=getACtx();[523,659,784,1047].forEach((f,i)=
 function playFootstep(){if(!_ok('step',260))return;try{const ctx=getACtx(),t=ctx.currentTime,s=ctx.createBufferSource(),g=ctx.createGain(),f=ctx.createBiquadFilter();f.type='bandpass';f.frequency.value=180+Math.random()*80;f.Q.value=1.2;s.buffer=_noise(ctx,0.07);s.connect(f);f.connect(g);g.connect(ctx.destination);g.gain.setValueAtTime(0.07,t);g.gain.exponentialRampToValueAtTime(0.001,t+0.07);s.start(t);}catch(e){}}
 function playWhoosh(){if(!_ok('whoosh',400))return;try{const ctx=getACtx(),t=ctx.currentTime,o=ctx.createOscillator(),g=ctx.createGain();o.type='sine';o.frequency.setValueAtTime(520,t);o.frequency.exponentialRampToValueAtTime(220,t+0.18);g.gain.setValueAtTime(0.12,t);g.gain.exponentialRampToValueAtTime(0.001,t+0.2);o.connect(g);g.connect(ctx.destination);o.start(t);o.stop(t+0.22);}catch(e){}}
 function playKill(){if(!_ok('kill',300))return;try{const ctx=getACtx();[440,554,659].forEach((f,i)=>{const t=ctx.currentTime+i*0.07,o=ctx.createOscillator(),g=ctx.createGain();o.type='triangle';o.frequency.value=f;g.gain.setValueAtTime(0.2,t);g.gain.exponentialRampToValueAtTime(0.001,t+0.2);o.connect(g);g.connect(ctx.destination);o.start(t);o.stop(t+0.22);});}catch(e){}}
+function playPickupSpawn(){try{const ctx=getACtx();[1047,1319,1568].forEach((f,i)=>{const t=ctx.currentTime+i*0.07,o=ctx.createOscillator(),g=ctx.createGain();o.type='triangle';o.frequency.value=f;g.gain.setValueAtTime(0.13,t);g.gain.exponentialRampToValueAtTime(0.001,t+0.2);o.connect(g);g.connect(ctx.destination);o.start(t);o.stop(t+0.22);});}catch(e){}}
+function playPickupHeart(){try{const ctx=getACtx();[0,0.2].forEach(delay=>{const t=ctx.currentTime+delay,o=ctx.createOscillator(),g=ctx.createGain();o.type='sine';o.frequency.setValueAtTime(130,t);o.frequency.exponentialRampToValueAtTime(60,t+0.13);g.gain.setValueAtTime(0.38,t);g.gain.exponentialRampToValueAtTime(0.001,t+0.16);o.connect(g);g.connect(ctx.destination);o.start(t);o.stop(t+0.2);});}catch(e){}}
+function playPickupPower(){try{const ctx=getACtx(),t=ctx.currentTime;const o=ctx.createOscillator(),g=ctx.createGain();o.type='sawtooth';o.frequency.setValueAtTime(180,t);o.frequency.exponentialRampToValueAtTime(900,t+0.22);g.gain.setValueAtTime(0.22,t);g.gain.exponentialRampToValueAtTime(0.001,t+0.25);o.connect(g);g.connect(ctx.destination);o.start(t);o.stop(t+0.28);const o2=ctx.createOscillator(),g2=ctx.createGain();o2.type='square';o2.frequency.setValueAtTime(240,t+0.18);o2.frequency.exponentialRampToValueAtTime(80,t+0.38);g2.gain.setValueAtTime(0.32,t+0.18);g2.gain.exponentialRampToValueAtTime(0.001,t+0.42);o2.connect(g2);g2.connect(ctx.destination);o2.start(t+0.18);o2.stop(t+0.45);}catch(e){}}
+function playPickupBomb(){try{const ctx=getACtx(),t=ctx.currentTime;const s=ctx.createBufferSource(),g=ctx.createGain(),f=ctx.createBiquadFilter();f.type='lowpass';f.frequency.value=900;s.buffer=_noise(ctx,0.55);s.connect(f);f.connect(g);g.connect(ctx.destination);g.gain.setValueAtTime(0.65,t);g.gain.exponentialRampToValueAtTime(0.001,t+0.55);s.start(t);const o=ctx.createOscillator(),g2=ctx.createGain();o.type='sine';o.frequency.setValueAtTime(90,t);o.frequency.exponentialRampToValueAtTime(22,t+0.55);g2.gain.setValueAtTime(0.55,t);g2.gain.exponentialRampToValueAtTime(0.001,t+0.6);o.connect(g2);g2.connect(ctx.destination);o.start(t);o.stop(t+0.65);}catch(e){}}
 
 // ── Game State ───────────────────────────────────────
 const MAX_WARRIORS = 20;
 let warriors=[], particles=[], meteors=[], dmgNums=[];
 let uidSeq=0, totalLikes=0, armageddon=null;
 let eventLabel='', eventLabelTimer=0;
+let pickups=[], pickupSpawnTimer=12000, nextPickupId=0;
 let ratingLabel='', ratingLabelTimer=0;
 let _dbgGifts=0,_dbgLikes=0;
 let victoryState=null, botSpawnTimer=20000;
@@ -183,7 +188,7 @@ function startNewRound(){
   const prev=victoryState?.warrior||null;
   if(prev)nextKillsTarget=prev.kills+20;
   const survivors=warriors.filter(w=>!w.dead);
-  warriors=[];particles=[];dmgNums=[];meteors=[];armageddon=null;victoryState=null;
+  warriors=[];particles=[];dmgNums=[];meteors=[];armageddon=null;victoryState=null;pickups=[];pickupSpawnTimer=12000;
   for(const w of survivors){const pos=rndArenaPos();w.ax=pos.ax;w.ay=pos.ay;w.tax=pos.ax;w.tay=pos.ay;w.walkTimer=0;w.bumpCooldown=2000;w.dead=false;w.deathTimer=0;w.floatY=0;w.floatVY=0;w.flashTimer=0;w.glowTimer=400;warriors.push(w);spawnSpawnFX(w);}
   eventLabel='⚔️ NEW ROUND!';eventLabelTimer=2500;
 }
@@ -1737,6 +1742,87 @@ function drawTornado(now){if(!armageddon)return;const tx=armageddon.tornadoX,ty=
 function drawEventLabel(){const a=Math.min(1,eventLabelTimer/600);ctx.save();ctx.globalAlpha=a;ctx.font='bold 46px Arial Black';ctx.textAlign='center';ctx.shadowColor='#FF4400';ctx.shadowBlur=28;ctx.strokeStyle='#000';ctx.lineWidth=5;ctx.strokeText(eventLabel,CW/2,CH/2-20);ctx.fillStyle='#FF8800';ctx.fillText(eventLabel,CW/2,CH/2-20);ctx.shadowBlur=0;ctx.restore();}
 function drawRatingLabel(){if(!ratingLabel||ratingLabelTimer<=0)return;const a=Math.min(1,ratingLabelTimer/500);ctx.save();ctx.globalAlpha=a;ctx.font='bold 24px Arial';ctx.textAlign='center';const tw=ctx.measureText(ratingLabel).width;ctx.fillStyle='rgba(0,0,0,0.6)';ctx.beginPath();if(ctx.roundRect)ctx.roundRect(CW/2-tw/2-18,CH-210,tw+36,48,10);else ctx.rect(CW/2-tw/2-18,CH-210,tw+36,48);ctx.fill();ctx.shadowColor='#00CCFF';ctx.shadowBlur=14;ctx.strokeStyle='#003366';ctx.lineWidth=3;ctx.strokeText(ratingLabel,CW/2,CH-176);ctx.fillStyle='#00EEFF';ctx.fillText(ratingLabel,CW/2,CH-176);ctx.shadowBlur=0;ctx.restore();}
 
+// ── Pickups ───────────────────────────────────────────
+function updatePickups(dt){
+  if(!victoryState){
+    pickupSpawnTimer-=dt;
+    if(pickupSpawnTimer<=0&&pickups.length<3){
+      pickupSpawnTimer=15000+Math.random()*10000;
+      const ax=(Math.random()*2-1)*0.82,ay=(Math.random()*2-1)*0.82;
+      const r=Math.random();
+      const type=r<0.375?'heart':r<0.75?'power':'bomb';
+      pickups.push({id:++nextPickupId,ax,ay,type,life:12000,maxLife:12000});
+      playPickupSpawn();
+    }
+  }
+  for(const p of pickups)p.life-=dt;
+  for(const p of pickups){
+    if(p.life<=0)continue;
+    const ps=arenaToScreen(p.ax,p.ay);
+    for(const w of warriors){
+      if(w.dead)continue;
+      const ws=arenaToScreen(w.ax,w.ay);
+      const dx=ws.x-ps.x,dy=ws.y-ps.y;
+      if(dx*dx+dy*dy<55*55){
+        if(p.type==='heart'){
+          w.hp=Math.min(w.maxHp,w.hp+100);
+          spawnDmgNum(ws.x,ws.y-75,'+100 ❤️','#FF6699');
+          for(let i=0;i<14;i++)particles.push({x:ws.x,y:ws.y-20,vx:(Math.random()-0.5)*100,vy:-Math.random()*100-20,life:650,max:650,r:3+Math.random()*5,col:rndFrom(['#FF4488','#FF88BB','#FFCCDD','#FF2266'])});
+          playPickupHeart();
+        }else if(p.type==='power'){
+          w.damage+=15;
+          spawnDmgNum(ws.x,ws.y-75,'+15 💪','#FFAA00');
+          for(let i=0;i<14;i++)particles.push({x:ws.x,y:ws.y-20,vx:(Math.random()-0.5)*120,vy:-Math.random()*110-20,life:600,max:600,r:3+Math.random()*5,col:rndFrom(['#FFD700','#FF8800','#FFFF44','#FF6600'])});
+          playPickupPower();
+        }else if(p.type==='bomb'){
+          w.hp=Math.max(0,w.hp-100);w.damage=Math.max(1,w.damage-20);w.flashTimer=500;
+          spawnDmgNum(ws.x,ws.y-75,'-100 💣','#FF2200');
+          for(let i=0;i<22;i++)particles.push({x:ws.x,y:ws.y,vx:(Math.random()-0.5)*180,vy:(Math.random()-0.5)*150-30,life:850,max:850,r:4+Math.random()*8,col:rndFrom(['#FF3300','#FF8800','#FFDD00','#FF6600','#FFFFFF'])});
+          playPickupBomb();
+          if(w.hp<=0){w.dead=true;w.deathTimer=700;spawnDeathFX(w);playRemove();checkVictory();}
+        }
+        p.life=0;break;
+      }
+    }
+  }
+  pickups=pickups.filter(p=>p.life>0);
+}
+function drawPickups(now){
+  for(const p of pickups){
+    const sp=arenaToScreen(p.ax,p.ay);
+    const x=sp.x,y=sp.y;
+    const warning=p.life<3000;
+    if(warning&&Math.floor(now/280)%2===0)continue;
+    const pulse=0.85+0.15*Math.sin(now*(warning?0.018:0.006));
+    const colMap={heart:'#FF4488',power:'#FF9900',bomb:'#FF3300'};
+    const col=colMap[p.type];
+    ctx.save();
+    // ground glow
+    ctx.globalAlpha=0.3*pulse;
+    const glow=ctx.createRadialGradient(x,y,0,x,y,44);
+    glow.addColorStop(0,col);glow.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.fillStyle=glow;ctx.beginPath();ctx.arc(x,y,44,0,Math.PI*2);ctx.fill();
+    // outer ring
+    ctx.globalAlpha=0.65*pulse;
+    ctx.strokeStyle=col;ctx.lineWidth=2.5;
+    ctx.beginPath();ctx.arc(x,y,24*pulse,0,Math.PI*2);ctx.stroke();
+    // inner fill
+    ctx.globalAlpha=0.18*pulse;
+    ctx.fillStyle=col;ctx.beginPath();ctx.arc(x,y,24*pulse,0,Math.PI*2);ctx.fill();
+    // icon
+    ctx.globalAlpha=1;
+    const iconSize=Math.round(26*pulse);
+    ctx.font=`${iconSize}px Arial`;ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText({heart:'❤️',power:'💪',bomb:'💣'}[p.type],x,y-3);
+    // value text
+    ctx.font='bold 12px Arial Black';ctx.textBaseline='alphabetic';
+    const val={heart:'+100',power:'+15',bomb:'-100'}[p.type];
+    ctx.strokeStyle='rgba(0,0,0,0.95)';ctx.lineWidth=3.5;ctx.strokeText(val,x,y+20);
+    ctx.fillStyle=col;ctx.fillText(val,x,y+20);
+    ctx.restore();
+  }
+}
+
 // ── MAIN LOOP ──────────────────────────────────────────
 function frame(now) {
   requestAnimationFrame(frame);
@@ -1749,6 +1835,7 @@ function frame(now) {
   updateVictory(dt);
   updateBots(dt);
   updateIdleDrain(dt);
+  updatePickups(dt);
   if(eventLabelTimer>0)eventLabelTimer-=dt;
   if(ratingLabelTimer>0)ratingLabelTimer-=dt;
 
@@ -1765,6 +1852,7 @@ function frame(now) {
   drawMeteors();
   if(armageddon?.type==='tornado')drawTornado(now);
   drawParticles();
+  drawPickups(now);
   const sorted=[...warriors].sort((a,b)=>a.ay-b.ay);
   for(const w of sorted)drawWarrior(w,now);
   drawDmgNums();
