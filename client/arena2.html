@@ -127,9 +127,9 @@ const PLAY_CX=300, PLAY_CY=640, PLAY_RX=285, PLAY_RY=330;
 function rndArenaPos(){return{ax:(Math.random()*2-1)*0.96,ay:(Math.random()*2-1)*0.96};}
 function arenaToScreen(ax,ay){return{x:PLAY_CX+ax*PLAY_RX, y:PLAY_CY+ay*PLAY_RY};}
 function getWarriorScale(coins){return 1.3+Math.min(1.1,Math.log10(Math.max(1,coins))*0.38);}
-function makeWarrior(username,coins){
+function makeWarrior(username,coins,isBot=false){
   const pos=rndArenaPos(),tgt=rndArenaPos();
-  return{id:++uidSeq,username,coins,hp:coins*10,maxHp:coins*10,damage:coins,
+  return{id:++uidSeq,username,coins,hp:coins*10+(isBot?0:500),maxHp:coins*10,damage:coins,
     class:username.includes('Metsuki Sutemi')?'samurai':username.includes('Leha Neploxo')?'cossack':['spearman','conan','terminator','fan_warrior','dark_mage','pirate','knight'][Math.floor(Math.random()*7)],
     ax:pos.ax,ay:pos.ay,tax:tgt.ax,tay:tgt.ay,
     walkTimer:Math.random()*2000,walkDelay:2000+Math.random()*2500,
@@ -248,7 +248,7 @@ function updateBots(dt){
   if(realPlayers>=2){botSpawnTimer=20000;return;}
   botSpawnTimer-=dt;if(botSpawnTimer>0)return;
   botSpawnTimer=20000;const count=1+Math.floor(Math.random()*2);
-  for(let i=0;i<count;i++){if(warriors.filter(w=>!w.dead).length>=MAX_WARRIORS)break;const name=getBotName();const w=makeWarrior(name,1);w.isBot=true;warriors.push(w);playSpawn();spawnSpawnFX(w);}
+  for(let i=0;i<count;i++){if(warriors.filter(w=>!w.dead).length>=MAX_WARRIORS)break;const name=getBotName();const w=makeWarrior(name,1,true);w.isBot=true;warriors.push(w);playSpawn();spawnSpawnFX(w);}
 }
 function updateIdleDrain(dt){
   const now=Date.now();
@@ -2202,7 +2202,7 @@ function wsConnect(username){
     if(d.type==='top_killers'){const prevTop=(topKillers[0]?.username||'').toLowerCase();topKillers=d.data||[];const newTop=topKillers[0]?.username;if(newTop&&newTop.toLowerCase()!==prevTop&&Date.now()-_lastKingArrival>30000){_lastKingArrival=Date.now();triggerKingArrival(newTop);}}
     if(d.type==='arena_rating'){_showRating(d.rank?`<span style="color:#00EEFF;font-size:16px;font-weight:bold;">📊 @${d.username}<br><span style="color:#FFD700">#${d.rank} место · ☠️${d.kills} убийств</span></span>`:`<span style="color:#AAA;font-size:15px;">📊 @${d.username}<br>не в рейтинге</span>`);}
     if(d.type==='arena_cheat'){const _lu=d.username.toLowerCase();let w=warriors.find(w=>!w.dead&&w.username.toLowerCase()===_lu);if(!w)w=warriors.find(w=>w.username.toLowerCase().includes(_lu));if(w){w.dead=false;w.deathTimer=0;w.maxHp+=d.hp;w.hp+=d.hp;w.damage+=d.damage;w.coins=Math.ceil(w.maxHp/10);const sp=arenaToScreen(w.ax,w.ay);spawnDmgNum(sp.x,sp.y-60,'+'+d.hp,'#FFD700');spawnDmgNum(sp.x,sp.y-85,'⚔️+'+d.damage,'#FF8800');eventLabel='⚡ POWER!';eventLabelTimer=3500;playVictory();}}
-    if(d.type==='arena_bot'){const addBot=()=>{if(warriors.filter(w=>!w.dead).length>=MAX_WARRIORS)return;const bw=makeWarrior(getBotName(),1);bw.isBot=true;warriors.push(bw);playSpawn();spawnSpawnFX(bw);};if(d.count==='max'){while(warriors.filter(w=>!w.dead).length<MAX_WARRIORS)addBot();}else addBot();}
+    if(d.type==='arena_bot'){const addBot=()=>{if(warriors.filter(w=>!w.dead).length>=MAX_WARRIORS)return;const bw=makeWarrior(getBotName(),1,true);bw.isBot=true;warriors.push(bw);playSpawn();spawnSpawnFX(bw);};if(d.count==='max'){while(warriors.filter(w=>!w.dead).length<MAX_WARRIORS)addBot();}else addBot();}
     if(d.type==='init'||d.type==='status'){if(d.topKillers)topKillers=d.topKillers;const _m=d.tiktokMode||d.mode;if(_m==='tiktok')setStatus('live','🔴 LIVE @'+(d.username||username));else if(_m==='demo')setStatus('demo','🟡 DEMO MODE');else setStatus('connecting','⏳ @'+username+'…');}
   }catch(e){console.error('[arena2 ws error]',e);}};
   _ws.onclose=()=>{setStatus('error','❌ Disconnected…');setTimeout(()=>wsConnect(_wsUser),3000);};
@@ -2248,7 +2248,7 @@ function triggerKingArrival(name){
 
 document.getElementById('fsBtn').addEventListener('click',()=>{if(document.fullscreenElement)document.exitFullscreen&&document.exitFullscreen();else document.documentElement.requestFullscreen&&document.documentElement.requestFullscreen().then(()=>{if(screen.orientation&&screen.orientation.lock)screen.orientation.lock('portrait').catch(()=>{});}).catch(()=>{});});
 document.getElementById('backBtn').addEventListener('click',()=>{location.href='/';});
-document.getElementById('addBotBtn').addEventListener('click',()=>{if(warriors.filter(w=>!w.dead).length>=MAX_WARRIORS)return;const name=getBotName();const w=makeWarrior(name,1);w.isBot=true;warriors.push(w);playSpawn();spawnSpawnFX(w);});
+document.getElementById('addBotBtn').addEventListener('click',()=>{if(warriors.filter(w=>!w.dead).length>=MAX_WARRIORS)return;const name=getBotName();const w=makeWarrior(name,1,true);w.isBot=true;warriors.push(w);playSpawn();spawnSpawnFX(w);});
 let _ratingHideTimer=null;
 function _showRating(html){
   const el=document.getElementById('ratingOverlay');
