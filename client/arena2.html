@@ -152,7 +152,7 @@ function helpWarrior(username){
   const w=warriors.find(w=>w.username===username&&!w.dead);
   if(!w){addWarrior(username,1);return;}
   if(w.isBot)return;
-  w.coins+=1;w.maxHp+=10;w.hp=Math.min(w.hp+10,w.maxHp);w.damage+=1;w.flashTimer=350;w.glowTimer=600;spawnUpgradeFX(w);playHelp();
+  w.coins+=1;w.maxHp=w.coins*10+500;w.hp=Math.min(w.hp+10,w.maxHp);w.damage+=1;w.flashTimer=350;w.glowTimer=600;spawnUpgradeFX(w);playHelp();
 }
 function resetActivity(username){const w=warriors.find(w=>w.username===username&&!w.dead);if(w){w.lastActivityTime=Date.now();w.idleDrainAcc=0;}}
 function getBotName(){const available=BOT_NAMES.filter(n=>!warriors.find(w=>w.username===n));if(!available.length){usedBotNames=[];return BOT_NAMES[Math.floor(Math.random()*BOT_NAMES.length)];}return available[Math.floor(Math.random()*available.length)];}
