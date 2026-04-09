@@ -129,7 +129,8 @@ function arenaToScreen(ax,ay){return{x:PLAY_CX+ax*PLAY_RX, y:PLAY_CY+ay*PLAY_RY}
 function getWarriorScale(coins){return 1.3+Math.min(1.1,Math.log10(Math.max(1,coins))*0.38);}
 function makeWarrior(username,coins,isBot=false){
   const pos=rndArenaPos(),tgt=rndArenaPos();
-  return{id:++uidSeq,username,coins,hp:500,maxHp:coins*10+500,damage:coins,
+  const _hp=isBot?coins*10:500, _maxHp=isBot?coins*10:coins*10+500;
+  return{id:++uidSeq,username,coins,hp:_hp,maxHp:_maxHp,damage:coins,
     class:username.includes('Metsuki Sutemi')?'samurai':username.includes('Leha Neploxo')?'cossack':['spearman','conan','terminator','fan_warrior','dark_mage','pirate','knight'][Math.floor(Math.random()*7)],
     ax:pos.ax,ay:pos.ay,tax:tgt.ax,tay:tgt.ay,
     walkTimer:Math.random()*2000,walkDelay:2000+Math.random()*2500,
@@ -246,6 +247,8 @@ function updateBots(dt){
   if(victoryState)return;
   const realPlayers=warriors.filter(w=>!w.dead&&!w.isBot).length;
   if(realPlayers>=2){botSpawnTimer=20000;return;}
+  const aliveBots=warriors.filter(w=>!w.dead&&w.isBot).length;
+  if(aliveBots>=2){botSpawnTimer=20000;return;}
   botSpawnTimer-=dt;if(botSpawnTimer>0)return;
   botSpawnTimer=20000;const count=1+Math.floor(Math.random()*2);
   for(let i=0;i<count;i++){if(warriors.filter(w=>!w.dead).length>=MAX_WARRIORS)break;const name=getBotName();const w=makeWarrior(name,1,true);w.isBot=true;warriors.push(w);playSpawn();spawnSpawnFX(w);}
