@@ -56,9 +56,10 @@ function connectToTikTok(username, onGift, onStatus, onMember, onLike, onChat) {
     connection = new WebcastPushConnection(username, {
       sessionId: SESSION_ID,
       fetchRoomInfoOnConnect: false,
+      enableRequestPolling: true,
+      requestOptions: { timeout: 15000 },
       signProviderOptions: {
-        signProviderHost: `http://localhost:${PORT}`,
-        enabled: true,
+        host: `http://localhost:${PORT}/`,
       },
     });
 
