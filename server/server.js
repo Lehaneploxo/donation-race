@@ -80,6 +80,7 @@ app.get('/status', (req, res) => {
       username: key,
       clients: room.clients.size,
       mode: room.connection?._tiktokMode || 'unknown',
+      lastError: room.connection?._lastError || null,
     });
   });
   res.json({ ok: true, rooms: roomList });

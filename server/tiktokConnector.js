@@ -155,7 +155,9 @@ function connectToTikTok(username, onGift, onStatus, onMember, onLike, onChat) {
         notify({ connected: true, mode: 'tiktok', message: `Подключён к @${username}` });
       })
       .catch((err) => {
-        console.error(`[TikTok][${username}] ❌ Ошибка подключения: ${err.message || err}`);
+        const errMsg = err.message || String(err);
+        console.error(`[TikTok][${username}] ❌ Ошибка подключения: ${errMsg}`);
+        handle._lastError = errMsg;
         connection = null;
         handle._tiktokMode = 'demo';
         if (!handle._demoStarted) {
