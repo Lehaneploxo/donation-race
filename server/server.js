@@ -81,6 +81,8 @@ app.get('/status', (req, res) => {
       clients: room.clients.size,
       mode: room.connection?._tiktokMode || 'unknown',
       lastError: room.connection?._lastError || null,
+      gifts: room._giftCount,
+      lastGift: room._lastGift,
     });
   });
   res.json({ ok: true, rooms: roomList });
@@ -109,6 +111,8 @@ class Room {
     this._lastEventThreshold = 0;
     this._totalCoins = 0;
     this._raceEnded  = false;
+    this._giftCount  = 0;
+    this._lastGift   = null;
     this._connect();
   }
 
@@ -150,6 +154,8 @@ class Room {
         }
 
         // Arena game: any gift spawns/upgrades warrior with coin value
+        this._giftCount++;
+        this._lastGift = { username: data.username, coins: data.coins, gift: data.giftName, t: new Date().toISOString() };
         this.broadcast({ type: 'arena_gift', username: data.username, coins: data.coins, giftName: data.giftName });
         this.broadcast({ type: 'arena_member', username: data.username });
 
