@@ -73,6 +73,18 @@ app.get('/webcast/sign_url', (req, res) => {
   });
 });
 
+app.get('/status', (req, res) => {
+  const roomList = [];
+  rooms.forEach((room, key) => {
+    roomList.push({
+      username: key,
+      clients: room.clients.size,
+      mode: room.connection?._tiktokMode || 'unknown',
+    });
+  });
+  res.json({ ok: true, rooms: roomList });
+});
+
 app.get('/top', async (req, res) => {
   try {
     const limit = parseInt(req.query.limit) || 100;
