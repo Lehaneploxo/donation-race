@@ -149,7 +149,9 @@ function connectToTikTok(username, onGift, onStatus, onMember, onLike, onChat) {
     });
 
     connection.on('error', (err) => {
-      console.error(`[TikTok][${username}] ❌ ${err.message || err}`);
+      const info = err && (err.info || err.message || JSON.stringify(err));
+      const exc  = err && err.exception ? String(err.exception.message || err.exception) : '';
+      console.error(`[TikTok][${username}] ❌ ${info}${exc ? ' | ' + exc : ''}`);
     });
 
     // Логируем ВСЕ события чтобы понять что приходит
