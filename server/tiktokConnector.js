@@ -11,6 +11,7 @@ const DEMO_USERS = [
 
 const SESSION_ID   = process.env.TIKTOK_SESSION_ID || '';
 const TIKTOOL_KEY  = process.env.TIKTOOL_API_KEY || '';
+const TARGET_IDC   = process.env.TIKTOK_TARGET_IDC || 'alisg';
 const PORT         = process.env.PORT || 3000;
 
 function connectToTikTok(username, onGift, onStatus, onMember, onLike, onChat) {
@@ -63,6 +64,7 @@ function connectToTikTok(username, onGift, onStatus, onMember, onLike, onChat) {
       fetchRoomInfoOnConnect: false,
       enableRequestPolling: true,
       requestOptions: { timeout: 15000 },
+      requestHeaders: { Cookie: `tt-target-idc=${TARGET_IDC}; sessionid=${SESSION_ID}` },
       signProviderOptions: signOpts,
     });
 
