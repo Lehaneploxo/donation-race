@@ -9,8 +9,9 @@ const DEMO_USERS = [
   { id: 'd11', name: 'SpeedRunner' },  { id: 'd12', name: 'GoldRush' },
 ];
 
-const SESSION_ID = process.env.TIKTOK_SESSION_ID || '';
-const PORT       = process.env.PORT || 3000;
+const SESSION_ID   = process.env.TIKTOK_SESSION_ID || '';
+const TIKTOOL_KEY  = process.env.TIKTOOL_API_KEY || '';
+const PORT         = process.env.PORT || 3000;
 
 function connectToTikTok(username, onGift, onStatus, onMember, onLike, onChat) {
   const notify = onStatus || (() => {});
@@ -53,14 +54,16 @@ function connectToTikTok(username, onGift, onStatus, onMember, onLike, onChat) {
 
     console.log(`[TikTok][${username}] Попытка подключения…`);
 
+    const signOpts = TIKTOOL_KEY
+      ? { host: 'https://tik.tools/', params: { apiKey: TIKTOOL_KEY } }
+      : { host: `http://localhost:${PORT}/` };
+
     connection = new WebcastPushConnection(username, {
       sessionId: SESSION_ID,
       fetchRoomInfoOnConnect: false,
       enableRequestPolling: true,
       requestOptions: { timeout: 15000 },
-      signProviderOptions: {
-        host: `http://localhost:${PORT}/`,
-      },
+      signProviderOptions: signOpts,
     });
 
     connection.on('gift', (data) => {
