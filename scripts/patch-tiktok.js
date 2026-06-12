@@ -12,7 +12,7 @@ let code = fs.readFileSync(file, 'utf8');
 
 const from = `  if (!webcastResponse.cursor) {
     if (isInitial) {
-      throw new Error('Missing cursor in initial fetch response.');
+      throw new InvalidResponseError('Missing cursor in initial fetch response.');
     } else {
       _classPrivateMethodGet(this, _handleError, _handleError2).call(this, null, 'Missing cursor in fetch response.');
     }

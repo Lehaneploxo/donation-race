@@ -160,6 +160,15 @@ function connectToTikTok(username, onGift, onStatus, onMember, onLike, onChat) {
         handle._lastError = errMsg;
         connection = null;
         handle._tiktokMode = 'demo';
+
+        // "Missing cursor" — TikTok вернул ответ но без cursor.
+        // Это временная проблема API, пробуем снова через 15 сек.
+        if (errMsg.includes('Missing cursor')) {
+          console.log(`[TikTok][${username}] 🔄 cursor error — retry в 15с`);
+          if (!handle._stopped) scheduleRetry(15000);
+          return;
+        }
+
         if (!handle._demoStarted) {
           handle._demoStarted = true;
           notify({ connected: false, mode: 'demo', message: `@${username} не в эфире, жду…` });
