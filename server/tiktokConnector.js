@@ -62,14 +62,27 @@ function connectToTikTok(username, onGift, onStatus, onMember, onLike, onChat) {
     connection = new WebcastPushConnection(username, {
       sessionId: SESSION_ID,
       fetchRoomInfoOnConnect: false,
-      processInitialData: false,
+      processInitialData: true,
       enableRequestPolling: true,
       requestOptions: { timeout: 15000 },
       requestHeaders: { Cookie: `tt-target-idc=${TARGET_IDC}; sessionid=${SESSION_ID}` },
       signProviderOptions: signOpts,
     });
 
+    // Skip events older than 45 seconds (TikTok buffers historical events on connect)
+    function isFresh(data) {
+      const evMs = parseInt(data.createTime || data.timestamp || 0);
+      if (!evMs) return true; // no timestamp → pass through
+      const ageMs = Date.now() - evMs;
+      if (ageMs > 45000) {
+        console.log(`[TikTok] skip stale event age=${Math.round(ageMs/1000)}s`);
+        return false;
+      }
+      return true;
+    }
+
     connection.on('gift', (data) => {
+      if (!isFresh(data)) return;
       const coins = Math.max(1, Math.floor(data.diamondCount || 1));
       onGift({
         userId:    String(data.userId || data.uniqueId || 'u'),
@@ -82,6 +95,7 @@ function connectToTikTok(username, onGift, onStatus, onMember, onLike, onChat) {
 
     connection.on('like', (data) => {
       if (!onLike) return;
+      if (!isFresh(data)) return;
       onLike({
         userId:    String(data.userId || data.uniqueId || 'u'),
         username:  data.nickname || data.uniqueId || 'Unknown',
@@ -92,8 +106,7 @@ function connectToTikTok(username, onGift, onStatus, onMember, onLike, onChat) {
 
     connection.on('chat', (data) => {
       if (!onChat) return;
-      const msg = (data.comment || '').trim().toLowerCase();
-      // Pass all messages (civilization needs any keyword like "man")
+      if (!isFresh(data)) return;
       onChat({
         userId:    String(data.userId || data.uniqueId || 'u'),
         username:  data.nickname || data.uniqueId || 'Unknown',
@@ -103,8 +116,8 @@ function connectToTikTok(username, onGift, onStatus, onMember, onLike, onChat) {
     });
 
     connection.on('member', (data) => {
-      console.log(`[TikTok] member raw: ${JSON.stringify(data).slice(0,200)}`);
       if (!onMember) return;
+      if (!isFresh(data)) return;
       onMember({
         userId:    String(data.userId || data.uniqueId || 'u'),
         username:  data.nickname || data.uniqueId || 'Unknown',
@@ -114,6 +127,7 @@ function connectToTikTok(username, onGift, onStatus, onMember, onLike, onChat) {
 
     connection.on('follow', (data) => {
       if (!onMember) return;
+      if (!isFresh(data)) return;
       onMember({
         userId:    String(data.userId || data.uniqueId || 'u'),
         username:  data.nickname || data.uniqueId || 'Unknown',
