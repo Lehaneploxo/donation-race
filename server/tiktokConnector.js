@@ -62,6 +62,7 @@ function connectToTikTok(username, onGift, onStatus, onMember, onLike, onChat) {
     connection = new WebcastPushConnection(username, {
       sessionId: SESSION_ID,
       fetchRoomInfoOnConnect: false,
+      processInitialData: false,
       enableRequestPolling: true,
       requestOptions: { timeout: 15000 },
       requestHeaders: { Cookie: `tt-target-idc=${TARGET_IDC}; sessionid=${SESSION_ID}` },
