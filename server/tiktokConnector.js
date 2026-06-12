@@ -183,12 +183,13 @@ function connectToTikTok(username, onGift, onStatus, onMember, onLike, onChat) {
 }
 
 function _stopDemo(handle) {
-  if (!handle._demoStarted) return;
   const keys = ['_demoInterval','_demoTornadoIv','_demoGoIv','_demoWarIv',
                  '_demoWarGiftIv','_demoArenaGiftIv','_demoArenaHelpIv','_demoMemberIv','_demoRatingIv'];
-  keys.forEach(k => { clearInterval(handle[k]); handle[k] = null; });
-  handle._demoStarted = false;
-  console.log('[TikTok] Демо остановлен — подключён к стриму');
+  keys.forEach(k => { if (handle[k]) { clearInterval(handle[k]); handle[k] = null; } });
+  if (handle._demoStarted) {
+    handle._demoStarted = false;
+    console.log('[TikTok] Демо остановлен — подключён к стриму');
+  }
 }
 
 function _startDemo(onGift, handle, onLike, onChat, onMember) {
