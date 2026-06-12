@@ -123,14 +123,11 @@ function connectToTikTok(username, onGift, onStatus, onMember, onLike, onChat) {
     });
 
     connection.on('disconnected', () => {
-      console.log(`[TikTok][${username}] Отключился`);
+      console.log(`[TikTok][${username}] Отключился — retry через 30с`);
       connection = null;
-      handle._tiktokMode = 'demo';
-      notify({ connected: false, mode: 'demo', message: `@${username} вышел из эфира` });
-      if (!handle._demoStarted) {
-        handle._demoStarted = true;
-        _startDemo(onGift, handle, onLike, onChat, onMember);
-      }
+      handle._tiktokMode = 'connecting';
+      _stopDemo(handle);
+      notify({ connected: false, mode: 'connecting', message: `@${username} переподключение…` });
       if (!handle._stopped) scheduleRetry(30000);
     });
 
@@ -169,11 +166,8 @@ function connectToTikTok(username, onGift, onStatus, onMember, onLike, onChat) {
           return;
         }
 
-        if (!handle._demoStarted) {
-          handle._demoStarted = true;
-          notify({ connected: false, mode: 'demo', message: `@${username} не в эфире, жду…` });
-          _startDemo(onGift, handle, onLike, onChat, onMember);
-        }
+        _stopDemo(handle);
+        notify({ connected: false, mode: 'connecting', message: `@${username} не в эфире, жду…` });
         if (!handle._stopped) scheduleRetry(60000);
       });
   }
