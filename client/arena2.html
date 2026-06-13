@@ -2213,13 +2213,13 @@ function wsConnect(username){
   _ws=new WebSocket(`${proto}//${location.host}?username=${encodeURIComponent(username)}`);
   _ws.onopen=()=>setStatus('connecting','⏳ @'+username+'…');
   _ws.onmessage=(e)=>{try{const d=JSON.parse(e.data);
-    if(d.type==='arena_gift'){_dbgGifts++;console.log('[arena2] gift from',d.username,'coins=',d.coins);addWarrior(d.username,d.coins);resetActivity(d.username);}
+    if(d.type==='arena_gift'){_dbgGifts++;console.log('[arena2] gift from',d.username,'coins=',d.coins);addWarrior(d.username,d.coins);resetActivity(d.username);if(window._voice)window._voice.gift(d.username);}
     if(d.type==='arena_like'){_dbgLikes++;totalLikes+=d.likes||0;if(totalLikes>=1000){totalLikes-=1000;triggerArmageddon();}resetActivity(d.username);}
-    if(d.type==='arena_member'){_dbgMembers++;helpWarrior(d.username);resetActivity(d.username);}
+    if(d.type==='arena_member'){_dbgMembers++;helpWarrior(d.username);resetActivity(d.username);if(window._voice)window._voice.member(d.username);}
     if(d.type==='chat'){_dbgChats++;}
-    if(d.type==='arena_gift'||d.type==='arena_member'||d.type==='arena_like'){if(topKillers.length>0&&d.username&&d.username.toLowerCase()===(topKillers[0].username||'').toLowerCase()&&Date.now()-_lastKingArrival>60000){_lastKingArrival=Date.now();triggerKingArrival(topKillers[0].username);}}
+    if(d.type==='arena_gift'||d.type==='arena_member'||d.type==='arena_like'){if(topKillers.length>0&&d.username&&d.username.toLowerCase()===(topKillers[0].username||'').toLowerCase()&&Date.now()-_lastKingArrival>60000){_lastKingArrival=Date.now();triggerKingArrival(topKillers[0].username);if(window._voice)window._voice.king(topKillers[0].username);}}
     if(d.type==='arena_team'){const ex=warriors.find(w=>w.username===d.username&&!w.dead);if(ex)ex.team=d.team;else teamRegistry.set(d.username,d.team);resetActivity(d.username);}
-    if(d.type==='top_killers'){const prevTop=(topKillers[0]?.username||'').toLowerCase();topKillers=d.data||[];const newTop=topKillers[0]?.username;if(newTop&&newTop.toLowerCase()!==prevTop&&Date.now()-_lastKingArrival>30000){_lastKingArrival=Date.now();triggerKingArrival(newTop);}}
+    if(d.type==='top_killers'){const prevTop=(topKillers[0]?.username||'').toLowerCase();topKillers=d.data||[];const newTop=topKillers[0]?.username;if(newTop&&newTop.toLowerCase()!==prevTop&&Date.now()-_lastKingArrival>30000){_lastKingArrival=Date.now();triggerKingArrival(newTop);if(window._voice)window._voice.newLeader(newTop);}}
     if(d.type==='arena_rating'){_showRating(d.rank?`<span style="color:#00EEFF;font-size:16px;font-weight:bold;">📊 @${d.username}<br><span style="color:#FFD700">#${d.rank} место · ☠️${d.kills} убийств</span></span>`:`<span style="color:#AAA;font-size:15px;">📊 @${d.username}<br>не в рейтинге</span>`);}
     if(d.type==='arena_cheat'){const _lu=d.username.toLowerCase();let w=warriors.find(w=>!w.dead&&w.username.toLowerCase()===_lu);if(!w)w=warriors.find(w=>w.username.toLowerCase().includes(_lu));if(w){w.dead=false;w.deathTimer=0;w.maxHp+=d.hp;w.hp+=d.hp;w.damage+=d.damage;w.coins=Math.ceil(w.maxHp/10);const sp=arenaToScreen(w.ax,w.ay);spawnDmgNum(sp.x,sp.y-60,'+'+d.hp,'#FFD700');spawnDmgNum(sp.x,sp.y-85,'⚔️+'+d.damage,'#FF8800');eventLabel='⚡ POWER!';eventLabelTimer=3500;playVictory();}}
     if(d.type==='arena_bot'){const addBot=()=>{if(warriors.filter(w=>!w.dead).length>=MAX_WARRIORS)return;const bw=makeWarrior(getBotName(),1,true);bw.isBot=true;warriors.push(bw);playSpawn();spawnSpawnFX(bw);};if(d.count==='max'){while(warriors.filter(w=>!w.dead).length<MAX_WARRIORS)addBot();}else addBot();}
@@ -2281,26 +2281,88 @@ function _showRating(html){
 }
 // ── Voice Announcer ───────────────────────────────────
 (function(){
-  const PHRASES = [
+  function filterNick(n){return(n||'').replace(/[^a-zA-Zа-яА-ЯёЁ]/g,'').trim();}
+  function rnd(arr){return arr[Math.floor(Math.random()*arr.length)];}
+  function tpl(s,nick){return s.replace('[НИК]',nick);}
+
+  const RULES=[
     'Ставь лайки — твоё здоровье и сила растут!',
     'Кидай подарки — чем дороже подарок, тем больше энергия и сила!',
     'Пиши в чате team или team два — и вступай в союз! Синие против Красных!'
   ];
-  let idx = 0, started = false;
-  function speak(){
-    window.speechSynthesis.cancel();
-    const u = new SpeechSynthesisUtterance(PHRASES[idx]);
-    u.lang = 'ru-RU'; u.rate = 0.88; u.volume = 1;
-    u.onend = () => {
-      idx++;
-      if(idx < PHRASES.length){ setTimeout(speak, 1200); }
-      else { idx = 0; setTimeout(speak, 30000); }
-    };
+  const GIFT=[
+    '[НИК] бросил в бой всё что имел! Его воин рвётся к трону!',
+    '[НИК] не шутит! Монеты брошены — битва начата!',
+    'Внимание на арену! [НИК] только что усилил своего бойца!',
+    '[НИК] вложил всё в победу! Посмотрим на что способен этот воин!',
+    'Опасный боец на арене! [НИК] явно метит в короли!'
+  ];
+  const KING=[
+    'Внимание! Король Арены [НИК] в эфире! Всем встать и отдать честь!',
+    '[НИК] наблюдает за боем! Король смотрит — сражайтесь достойно!',
+    'Сам Король [НИК] почтил нас своим присутствием! Трепещите!'
+  ];
+  const LEADER=[
+    '[НИК] захватывает трон! Кто осмелится его остановить?!',
+    'Новый претендент на корону — [НИК]! Арена в огне!',
+    '[НИК] рвётся к власти! Враги бегут!'
+  ];
+  const MEMBER=[
+    '[НИК] вошёл в эфир! Брось подарок — и в бой!',
+    '[НИК] на месте! Твой воин ждёт приказа!'
+  ];
+
+  let queue=[],speaking=false,rulesIdx=0,rulesTimer=null,lastMember=0,started=false;
+
+  function speakText(text,onDone){
+    const u=new SpeechSynthesisUtterance(text);
+    u.lang='ru-RU';u.rate=0.88;u.volume=1;
+    u.onend=u.onerror=onDone;
     window.speechSynthesis.speak(u);
   }
-  function start(){ if(started) return; started = true; speak(); }
-  document.addEventListener('click', start, {once:true});
-  document.addEventListener('touchstart', start, {once:true});
+
+  function speakNext(){
+    if(speaking||queue.length===0){if(!speaking)scheduleRules();return;}
+    clearTimeout(rulesTimer);
+    speaking=true;
+    speakText(queue.shift(),()=>{speaking=false;setTimeout(speakNext,800);});
+  }
+
+  function enqueue(text,urgent){
+    if(urgent){window.speechSynthesis.cancel();speaking=false;queue.unshift(text);}
+    else queue.push(text);
+    clearTimeout(rulesTimer);
+    speakNext();
+  }
+
+  function scheduleRules(){
+    clearTimeout(rulesTimer);
+    rulesTimer=setTimeout(()=>{
+      if(speaking||queue.length>0)return;
+      speaking=true;
+      const text=RULES[rulesIdx];
+      rulesIdx=(rulesIdx+1)%RULES.length;
+      speakText(text,()=>{
+        speaking=false;
+        setTimeout(()=>{queue.length>0?speakNext():scheduleRules();},1200);
+      });
+    },30000);
+  }
+
+  window._voice={
+    gift:function(nick){const n=filterNick(nick);if(!n)return;enqueue(tpl(rnd(GIFT),n),true);},
+    king:function(nick){const n=filterNick(nick);if(!n)return;enqueue(tpl(rnd(KING),n),false);},
+    newLeader:function(nick){const n=filterNick(nick);if(!n)return;enqueue(tpl(rnd(LEADER),n),false);},
+    member:function(nick){
+      const n=filterNick(nick);if(!n)return;
+      const now=Date.now();if(now-lastMember<30000)return;
+      lastMember=now;enqueue(tpl(rnd(MEMBER),n),false);
+    }
+  };
+
+  function start(){if(started)return;started=true;scheduleRules();}
+  document.addEventListener('click',start,{once:true});
+  document.addEventListener('touchstart',start,{once:true});
 })();
 
 document.getElementById('ratingBtn').addEventListener('click',()=>{
