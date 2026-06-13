@@ -1,4 +1,4 @@
-const { WebcastPushConnection } = require('tiktok-live-connector');
+const { WebcastPushConnection, signatureProvider } = require('tiktok-live-connector');
 
 const DEMO_USERS = [
   { id: 'd1', name: 'SuperFan_Anya' }, { id: 'd2', name: 'TikTokKing99' },
@@ -9,8 +9,22 @@ const DEMO_USERS = [
   { id: 'd11', name: 'SpeedRunner' },  { id: 'd12', name: 'GoldRush' },
 ];
 
-const SESSION_ID = process.env.TIKTOK_SESSION_ID || '';
-const PORT       = process.env.PORT || 3000;
+const SESSION_ID  = process.env.TIKTOK_SESSION_ID || '';
+const PORT        = process.env.PORT || 3000;
+
+// Направляем подпись через наш локальный сервер (не зависим от eulerstream)
+// Это правильный способ настройки — через signatureProvider.config, не через опции
+signatureProvider.config.signProviderHost         = `http://localhost:${PORT}/`;
+signatureProvider.config.signProviderFallbackHosts = [];
+if (SESSION_ID) {
+  // Если есть sessionId — подпись не нужна, TikTok примет запрос и без неё
+  signatureProvider.config.enabled = false;
+  console.log('[TikTok] sessionId найден — подпись отключена (не нужна)');
+} else {
+  signatureProvider.config.enabled = true;
+  console.log('[TikTok] sessionId НЕ задан — используем локальный sign-сервер');
+  console.log('[TikTok] Совет: задайте TIKTOK_SESSION_ID для надёжной работы');
+}
 
 function connectToTikTok(username, onGift, onStatus, onMember, onLike, onChat) {
   const notify = onStatus || (() => {});
@@ -51,22 +65,19 @@ function connectToTikTok(username, onGift, onStatus, onMember, onLike, onChat) {
     if (handle._stopped) return;
     if (connection) { try { connection.disconnect(); } catch(e) {} connection = null; }
 
-    console.log(`[TikTok][${username}] Попытка подключения…`);
+    console.log(`[TikTok][${username}] Попытка подключения… sessionId=${SESSION_ID ? 'есть' : 'НЕТ'}`);
 
-    // Используем ту же конфигурацию что работала в апреле 2026
     connection = new WebcastPushConnection(username, {
-      sessionId: SESSION_ID,
+      sessionId:              SESSION_ID || undefined,
       fetchRoomInfoOnConnect: false,
-      signProviderOptions: {
-        signProviderHost: `http://localhost:${PORT}`,
-        enabled: true,
-      },
+      enableRequestPolling:   true,
+      processInitialData:     false,   // не обрабатываем буфер — только живые события
     });
 
     connection.on('gift', (data) => {
       const nick  = data.nickname || data.uniqueId || 'Unknown';
       const coins = Math.max(1, Math.floor(data.diamondCount || 1));
-      console.log(`[TikTok] 🎁 gift: ${nick} coins=${coins} gift="${data.giftName||''}"`);
+      console.log(`[TikTok] 🎁 ${nick} gift="${data.giftName||''}" coins=${coins}`);
       onGift({
         userId:    String(data.userId || data.uniqueId || 'u'),
         username:  nick,
@@ -79,7 +90,7 @@ function connectToTikTok(username, onGift, onStatus, onMember, onLike, onChat) {
     connection.on('like', (data) => {
       if (!onLike) return;
       const nick = data.nickname || data.uniqueId || 'Unknown';
-      console.log(`[TikTok] ❤️ like: ${nick} count=${data.likeCount||1}`);
+      console.log(`[TikTok] ❤️ ${nick} likes=${data.likeCount||1}`);
       onLike({
         userId:    String(data.userId || data.uniqueId || 'u'),
         username:  nick,
@@ -91,7 +102,7 @@ function connectToTikTok(username, onGift, onStatus, onMember, onLike, onChat) {
     connection.on('chat', (data) => {
       if (!onChat) return;
       const nick = data.nickname || data.uniqueId || 'Unknown';
-      console.log(`[TikTok] 💬 chat: ${nick}: "${data.comment||''}"`);
+      console.log(`[TikTok] 💬 ${nick}: "${data.comment||''}"`);
       onChat({
         userId:    String(data.userId || data.uniqueId || 'u'),
         username:  nick,
@@ -103,7 +114,7 @@ function connectToTikTok(username, onGift, onStatus, onMember, onLike, onChat) {
     connection.on('member', (data) => {
       if (!onMember) return;
       const nick = data.nickname || data.uniqueId || 'Unknown';
-      console.log(`[TikTok] 👤 member joined: ${nick}`);
+      console.log(`[TikTok] 👤 ${nick} joined`);
       onMember({
         userId:    String(data.userId || data.uniqueId || 'u'),
         username:  nick,
@@ -114,7 +125,7 @@ function connectToTikTok(username, onGift, onStatus, onMember, onLike, onChat) {
     connection.on('follow', (data) => {
       if (!onMember) return;
       const nick = data.nickname || data.uniqueId || 'Unknown';
-      console.log(`[TikTok] ➕ follow: ${nick}`);
+      console.log(`[TikTok] ➕ ${nick} followed`);
       onMember({
         userId:    String(data.userId || data.uniqueId || 'u'),
         username:  nick,
@@ -148,7 +159,7 @@ function connectToTikTok(username, onGift, onStatus, onMember, onLike, onChat) {
       })
       .catch((err) => {
         const errMsg = err.message || String(err);
-        console.error(`[TikTok][${username}] ❌ Ошибка подключения: ${errMsg}`);
+        console.error(`[TikTok][${username}] ❌ Ошибка: ${errMsg}`);
         handle._lastError = errMsg;
         connection = null;
         handle._tiktokMode = 'demo';
