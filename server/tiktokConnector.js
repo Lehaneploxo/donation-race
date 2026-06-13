@@ -1,4 +1,4 @@
-const { WebcastPushConnection, signatureProvider } = require('tiktok-live-connector');
+const { WebcastPushConnection } = require('tiktok-live-connector');
 
 const DEMO_USERS = [
   { id: 'd1', name: 'SuperFan_Anya' }, { id: 'd2', name: 'TikTokKing99' },
@@ -9,21 +9,12 @@ const DEMO_USERS = [
   { id: 'd11', name: 'SpeedRunner' },  { id: 'd12', name: 'GoldRush' },
 ];
 
-const SESSION_ID  = process.env.TIKTOK_SESSION_ID || '';
-const PORT        = process.env.PORT || 3000;
+const SESSION_ID = process.env.TIKTOK_SESSION_ID || '';
 
-// Направляем подпись через наш локальный сервер (не зависим от eulerstream)
-// Это правильный способ настройки — через signatureProvider.config, не через опции
-signatureProvider.config.signProviderHost         = `http://localhost:${PORT}/`;
-signatureProvider.config.signProviderFallbackHosts = [];
 if (SESSION_ID) {
-  // Если есть sessionId — подпись не нужна, TikTok примет запрос и без неё
-  signatureProvider.config.enabled = false;
-  console.log('[TikTok] sessionId найден — подпись отключена (не нужна)');
+  console.log('[TikTok] sessionId найден — используем для polling');
 } else {
-  signatureProvider.config.enabled = true;
-  console.log('[TikTok] sessionId НЕ задан — используем локальный sign-сервер');
-  console.log('[TikTok] Совет: задайте TIKTOK_SESSION_ID для надёжной работы');
+  console.log('[TikTok] sessionId НЕ задан — только WebSocket (может не работать)');
 }
 
 function connectToTikTok(username, onGift, onStatus, onMember, onLike, onChat) {
