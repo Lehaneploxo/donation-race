@@ -1,11 +1,8 @@
-const { WebcastPushConnection, signatureProvider } = require('tiktok-live-connector');
+const { WebcastPushConnection } = require('tiktok-live-connector');
 
-signatureProvider.signEvents.on('signSuccess', d => {
-  console.log(`[TikTok-sign] ✅ OK host=${d.signHost} msToken=${d.cookieJar&&d.cookieJar.getCookieByName('msToken')?'set':'missing'}`);
-});
-signatureProvider.signEvents.on('signError', d => {
-  console.log(`[TikTok-sign] ❌ FAIL host=${d.signHost} err=${d.error&&d.error.message}`);
-});
+const SIGN_API_KEY = process.env.SIGN_API_KEY || '';
+if (SIGN_API_KEY) console.log('[TikTok-sign] SIGN_API_KEY задан — eulerstream подпись включена');
+else              console.log('[TikTok-sign] SIGN_API_KEY НЕ задан — eulerstream без ключа (free tier)');
 
 const DEMO_USERS = [
   { id: 'd1', name: 'SuperFan_Anya' }, { id: 'd2', name: 'TikTokKing99' },
@@ -75,7 +72,7 @@ function connectToTikTok(username, onGift, onStatus, onMember, onLike, onChat) {
       fetchRoomInfoOnConnect: false,
       enableRequestPolling:   true,
       processInitialData:     false,
-      requestHeaders:         cookieHeader ? { Cookie: cookieHeader } : {},
+      webClientHeaders:       cookieHeader ? { Cookie: cookieHeader } : {},
     });
 
     connection.on('gift', (data) => {
