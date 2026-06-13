@@ -1,4 +1,11 @@
-const { WebcastPushConnection } = require('tiktok-live-connector');
+const { WebcastPushConnection, signatureProvider } = require('tiktok-live-connector');
+
+signatureProvider.signEvents.on('signSuccess', d => {
+  console.log(`[TikTok-sign] ✅ OK host=${d.signHost} msToken=${d.cookieJar&&d.cookieJar.getCookieByName('msToken')?'set':'missing'}`);
+});
+signatureProvider.signEvents.on('signError', d => {
+  console.log(`[TikTok-sign] ❌ FAIL host=${d.signHost} err=${d.error&&d.error.message}`);
+});
 
 const DEMO_USERS = [
   { id: 'd1', name: 'SuperFan_Anya' }, { id: 'd2', name: 'TikTokKing99' },
