@@ -17,12 +17,12 @@ const DEMO_USERS = [
 ];
 
 const SESSION_ID = process.env.TIKTOK_SESSION_ID || '';
+const MS_TOKEN   = process.env.TIKTOK_MS_TOKEN   || '';
 
-if (SESSION_ID) {
-  console.log('[TikTok] sessionId найден — используем для polling');
-} else {
-  console.log('[TikTok] sessionId НЕ задан — только WebSocket (может не работать)');
-}
+if (SESSION_ID) console.log('[TikTok] sessionId найден');
+else            console.log('[TikTok] sessionId НЕ задан');
+if (MS_TOKEN)   console.log('[TikTok] msToken найден — подпись не нужна');
+else            console.log('[TikTok] msToken НЕ задан — нужен eulerstream');
 
 function connectToTikTok(username, onGift, onStatus, onMember, onLike, onChat) {
   const notify = onStatus || (() => {});
@@ -65,11 +65,17 @@ function connectToTikTok(username, onGift, onStatus, onMember, onLike, onChat) {
 
     console.log(`[TikTok][${username}] Попытка подключения… sessionId=${SESSION_ID ? 'есть' : 'НЕТ'}`);
 
+    const cookieHeader = [
+      SESSION_ID ? `sessionid=${SESSION_ID}; sessionid_ss=${SESSION_ID}; sid_tt=${SESSION_ID}` : '',
+      MS_TOKEN   ? `msToken=${MS_TOKEN}` : '',
+    ].filter(Boolean).join('; ');
+
     connection = new WebcastPushConnection(username, {
       sessionId:              SESSION_ID || undefined,
       fetchRoomInfoOnConnect: false,
       enableRequestPolling:   true,
-      processInitialData:     false,   // не обрабатываем буфер — только живые события
+      processInitialData:     false,
+      requestHeaders:         cookieHeader ? { Cookie: cookieHeader } : {},
     });
 
     connection.on('gift', (data) => {
