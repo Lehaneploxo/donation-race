@@ -68,7 +68,6 @@ function connectToTikTok(username, onGift, onStatus, onMember, onLike, onChat) {
     ].filter(Boolean).join('; ');
 
     connection = new WebcastPushConnection(username, {
-      sessionId:              SESSION_ID || undefined,
       fetchRoomInfoOnConnect: false,
       enableRequestPolling:   true,
       processInitialData:     false,
