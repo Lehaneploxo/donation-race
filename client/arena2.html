@@ -2279,6 +2279,30 @@ function _showRating(html){
   if(_ratingHideTimer)clearTimeout(_ratingHideTimer);
   _ratingHideTimer=setTimeout(()=>{el.style.display='none';},6000);
 }
+// ── Voice Announcer ───────────────────────────────────
+(function(){
+  const PHRASES = [
+    'Ставь лайки — твоё здоровье и сила растут!',
+    'Кидай подарки — чем дороже подарок, тем больше энергия и сила!',
+    'Пиши в чате team или team два — и вступай в союз! Синие против Красных!'
+  ];
+  let idx = 0, started = false;
+  function speak(){
+    window.speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(PHRASES[idx]);
+    u.lang = 'ru-RU'; u.rate = 0.88; u.volume = 1;
+    u.onend = () => {
+      idx++;
+      if(idx < PHRASES.length){ setTimeout(speak, 1200); }
+      else { idx = 0; setTimeout(speak, 30000); }
+    };
+    window.speechSynthesis.speak(u);
+  }
+  function start(){ if(started) return; started = true; speak(); }
+  document.addEventListener('click', start, {once:true});
+  document.addEventListener('touchstart', start, {once:true});
+})();
+
 document.getElementById('ratingBtn').addEventListener('click',()=>{
   _showRating('<span style="color:#00EEFF;font-size:15px;font-weight:bold;">📊 Загрузка рейтинга…</span>');
   fetch('/top?limit=20').then(r=>r.json()).then(d=>{
