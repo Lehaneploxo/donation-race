@@ -88,6 +88,30 @@ app.get('/status', (req, res) => {
   res.json({ ok: true, rooms: roomList });
 });
 
+// Ручной тест: /test-event?username=TestUser&type=gift&coins=10
+app.get('/test-event', (req, res) => {
+  const username = req.query.username || 'TestUser';
+  const type     = req.query.type     || 'member';
+  const coins    = parseInt(req.query.coins) || 10;
+  const roomKey  = (req.query.room || Array.from(rooms.keys())[0] || '').toLowerCase();
+  const room     = rooms.get(roomKey);
+  if (!room) {
+    return res.json({ ok: false, error: 'Нет активных комнат. Открой игру сначала.', rooms: Array.from(rooms.keys()) });
+  }
+  if (type === 'gift') {
+    room.broadcast({ type: 'arena_gift', username, coins });
+    room.broadcast({ type: 'arena_member', username });
+  } else if (type === 'like') {
+    room.broadcast({ type: 'arena_like', likes: 50, username });
+    room.broadcast({ type: 'arena_member', username });
+  } else {
+    room.broadcast({ type: 'arena_member', username });
+    room.broadcast({ type: 'arena_join', username });
+  }
+  console.log(`[TEST-EVENT] type=${type} username=${username} coins=${coins} room=${roomKey}`);
+  res.json({ ok: true, type, username, coins, room: roomKey });
+});
+
 app.get('/top', async (req, res) => {
   try {
     const limit = parseInt(req.query.limit) || 100;
@@ -256,7 +280,7 @@ class Room {
         const msgLower = msg.toLowerCase();
 
         // Civilization game: broadcast raw chat so client can react to keywords
-        this.broadcast({ type: 'chat', uniqueId: data.uniqueId, username: data.username, comment: msg });
+        this.broadcast({ type: 'chat', uniqueId: data.userId, username: data.username, comment: msg });
 
         // War game: broadcast team command to all clients
         if (msg === 'blue' || msg === 'red') {

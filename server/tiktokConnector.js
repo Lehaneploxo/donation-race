@@ -9,10 +9,8 @@ const DEMO_USERS = [
   { id: 'd11', name: 'SpeedRunner' },  { id: 'd12', name: 'GoldRush' },
 ];
 
-const SESSION_ID   = process.env.TIKTOK_SESSION_ID || '';
-const TIKTOOL_KEY  = process.env.TIKTOOL_API_KEY || '';
-const TARGET_IDC   = process.env.TIKTOK_TARGET_IDC || 'alisg';
-const PORT         = process.env.PORT || 3000;
+const SESSION_ID = process.env.TIKTOK_SESSION_ID || '';
+const PORT       = process.env.PORT || 3000;
 
 function connectToTikTok(username, onGift, onStatus, onMember, onLike, onChat) {
   const notify = onStatus || (() => {});
@@ -55,38 +53,23 @@ function connectToTikTok(username, onGift, onStatus, onMember, onLike, onChat) {
 
     console.log(`[TikTok][${username}] Попытка подключения…`);
 
-    const signOpts = TIKTOOL_KEY
-      ? { host: 'https://tik.tools/', params: { apiKey: TIKTOOL_KEY } }
-      : { host: `http://localhost:${PORT}/` };
-
+    // Используем ту же конфигурацию что работала в апреле 2026
     connection = new WebcastPushConnection(username, {
       sessionId: SESSION_ID,
       fetchRoomInfoOnConnect: false,
-      processInitialData: true,
-      enableRequestPolling: true,
-      requestOptions: { timeout: 15000 },
-      requestHeaders: { Cookie: `tt-target-idc=${TARGET_IDC}; sessionid=${SESSION_ID}` },
-      signProviderOptions: signOpts,
+      signProviderOptions: {
+        signProviderHost: `http://localhost:${PORT}`,
+        enabled: true,
+      },
     });
 
-    // Skip events older than 45 seconds (TikTok buffers historical events on connect)
-    function isFresh(data) {
-      const evMs = parseInt(data.createTime || data.timestamp || 0);
-      if (!evMs) return true; // no timestamp → pass through
-      const ageMs = Date.now() - evMs;
-      if (ageMs > 45000) {
-        console.log(`[TikTok] skip stale event age=${Math.round(ageMs/1000)}s`);
-        return false;
-      }
-      return true;
-    }
-
     connection.on('gift', (data) => {
-      if (!isFresh(data)) return;
+      const nick  = data.nickname || data.uniqueId || 'Unknown';
       const coins = Math.max(1, Math.floor(data.diamondCount || 1));
+      console.log(`[TikTok] 🎁 gift: ${nick} coins=${coins} gift="${data.giftName||''}"`);
       onGift({
         userId:    String(data.userId || data.uniqueId || 'u'),
-        username:  data.nickname || data.uniqueId || 'Unknown',
+        username:  nick,
         avatarUrl: data.profilePictureUrl || '',
         giftName:  data.giftName || '',
         coins,
@@ -95,10 +78,11 @@ function connectToTikTok(username, onGift, onStatus, onMember, onLike, onChat) {
 
     connection.on('like', (data) => {
       if (!onLike) return;
-      if (!isFresh(data)) return;
+      const nick = data.nickname || data.uniqueId || 'Unknown';
+      console.log(`[TikTok] ❤️ like: ${nick} count=${data.likeCount||1}`);
       onLike({
         userId:    String(data.userId || data.uniqueId || 'u'),
-        username:  data.nickname || data.uniqueId || 'Unknown',
+        username:  nick,
         avatarUrl: data.profilePictureUrl || '',
         likes:     data.likeCount || 1,
       });
@@ -106,10 +90,11 @@ function connectToTikTok(username, onGift, onStatus, onMember, onLike, onChat) {
 
     connection.on('chat', (data) => {
       if (!onChat) return;
-      if (!isFresh(data)) return;
+      const nick = data.nickname || data.uniqueId || 'Unknown';
+      console.log(`[TikTok] 💬 chat: ${nick}: "${data.comment||''}"`);
       onChat({
         userId:    String(data.userId || data.uniqueId || 'u'),
-        username:  data.nickname || data.uniqueId || 'Unknown',
+        username:  nick,
         avatarUrl: data.profilePictureUrl || '',
         message:   data.comment || '',
       });
@@ -117,51 +102,42 @@ function connectToTikTok(username, onGift, onStatus, onMember, onLike, onChat) {
 
     connection.on('member', (data) => {
       if (!onMember) return;
-      if (!isFresh(data)) return;
+      const nick = data.nickname || data.uniqueId || 'Unknown';
+      console.log(`[TikTok] 👤 member joined: ${nick}`);
       onMember({
         userId:    String(data.userId || data.uniqueId || 'u'),
-        username:  data.nickname || data.uniqueId || 'Unknown',
+        username:  nick,
         avatarUrl: data.profilePictureUrl || '',
       });
     });
 
     connection.on('follow', (data) => {
       if (!onMember) return;
-      if (!isFresh(data)) return;
+      const nick = data.nickname || data.uniqueId || 'Unknown';
+      console.log(`[TikTok] ➕ follow: ${nick}`);
       onMember({
         userId:    String(data.userId || data.uniqueId || 'u'),
-        username:  data.nickname || data.uniqueId || 'Unknown',
+        username:  nick,
         avatarUrl: data.profilePictureUrl || '',
       });
-    });
-
-    connection.on('gift', (data) => {
-      console.log(`[TikTok] gift raw: ${JSON.stringify(data).slice(0,200)}`);
     });
 
     connection.on('disconnected', () => {
       console.log(`[TikTok][${username}] Отключился — retry через 30с`);
       connection = null;
-      handle._tiktokMode = 'connecting';
-      _stopDemo(handle);
-      notify({ connected: false, mode: 'connecting', message: `@${username} переподключение…` });
+      handle._tiktokMode = 'demo';
+      notify({ connected: false, mode: 'demo', message: `@${username} вышел из эфира` });
+      if (!handle._demoStarted) {
+        handle._demoStarted = true;
+        _startDemo(onGift, handle, onLike, onChat, onMember);
+      }
       if (!handle._stopped) scheduleRetry(30000);
     });
 
     connection.on('error', (err) => {
-      const info = err && (err.info || err.message || JSON.stringify(err));
-      const exc  = err && err.exception ? String(err.exception.message || err.exception) : '';
-      console.error(`[TikTok][${username}] ❌ ${info}${exc ? ' | ' + exc : ''}`);
+      const msg = err && (err.info || err.message || String(err));
+      console.error(`[TikTok][${username}] ❌ ${msg}`);
     });
-
-    // Логируем ВСЕ события чтобы понять что приходит
-    const _origEmit = connection.emit.bind(connection);
-    connection.emit = function(event, ...args) {
-      if (!['connected','disconnected','error','rawData'].includes(event)) {
-        console.log(`[TikTok] event="${event}" data=${JSON.stringify(args[0]||{}).slice(0,150)}`);
-      }
-      return _origEmit(event, ...args);
-    };
 
     connection.connect()
       .then(() => {
@@ -176,17 +152,11 @@ function connectToTikTok(username, onGift, onStatus, onMember, onLike, onChat) {
         handle._lastError = errMsg;
         connection = null;
         handle._tiktokMode = 'demo';
-
-        // "Missing cursor" — TikTok вернул ответ но без cursor.
-        // Это временная проблема API, пробуем снова через 15 сек.
-        if (errMsg.includes('Missing cursor')) {
-          console.log(`[TikTok][${username}] 🔄 cursor error — retry в 15с`);
-          if (!handle._stopped) scheduleRetry(15000);
-          return;
+        if (!handle._demoStarted) {
+          handle._demoStarted = true;
+          notify({ connected: false, mode: 'demo', message: `@${username} не в эфире, жду…` });
+          _startDemo(onGift, handle, onLike, onChat, onMember);
         }
-
-        _stopDemo(handle);
-        notify({ connected: false, mode: 'connecting', message: `@${username} не в эфире, жду…` });
         if (!handle._stopped) scheduleRetry(60000);
       });
   }

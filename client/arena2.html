@@ -111,7 +111,7 @@ let uidSeq=0, totalLikes=0, armageddon=null;
 let eventLabel='', eventLabelTimer=0;
 let pickups=[], pickupSpawnTimer=12000, nextPickupId=0;
 let ratingLabel='', ratingLabelTimer=0;
-let _dbgGifts=0,_dbgLikes=0;
+let _dbgGifts=0,_dbgLikes=0,_dbgMembers=0,_dbgChats=0,_dbgShowDebug=false;
 let victoryState=null, botSpawnTimer=20000;
 let topKillers=[], teamRegistry=new Map();
 let nextKillsTarget=20, lastT=0, gameTime=0.38;
@@ -161,7 +161,7 @@ function getBotName(){const available=BOT_NAMES.filter(n=>!warriors.find(w=>w.us
 // ── Armageddon ───────────────────────────────────────
 function triggerArmageddon(){
   const type=rndFrom(['meteor','tornado','flood']);
-  armageddon={type,timer:5000,dmgAcc:0,tornadoX:AX+(Math.random()-0.5)*320,tornadoY:AY+(Math.random()-0.5)*180,tornadoAngle:0,floodLevel:0,rainDrops:[]};
+  armageddon={type,timer:5000,dmgAcc:0,tornadoX:PLAY_CX+(Math.random()-0.5)*320,tornadoY:PLAY_CY+(Math.random()-0.5)*180,tornadoAngle:0,floodLevel:0,rainDrops:[]};
   eventLabel={meteor:'☄️ METEOR RAIN!',tornado:'🌪️ TORNADO!',flood:'🌊 FLOOD!'}[type];
   eventLabelTimer=5500;playArmageddon();
 }
@@ -2066,6 +2066,21 @@ function drawFlood(){if(!armageddon)return;const lvl=armageddon.floodLevel,water
 function drawTornado(now){if(!armageddon)return;const tx=armageddon.tornadoX,ty=armageddon.tornadoY,ang=armageddon.tornadoAngle;ctx.save();ctx.globalAlpha=0.7;const fg=ctx.createLinearGradient(tx,ty-140,tx,ty+20);fg.addColorStop(0,'rgba(160,160,255,0)');fg.addColorStop(0.5,'rgba(130,120,240,0.35)');fg.addColorStop(1,'rgba(100,90,220,0.55)');ctx.fillStyle=fg;ctx.beginPath();ctx.moveTo(tx-5,ty-140);ctx.lineTo(tx+5,ty-140);ctx.lineTo(tx+44,ty+18);ctx.lineTo(tx-44,ty+18);ctx.closePath();ctx.fill();for(let i=0;i<5;i++){const r=12+i*16,ra=ang+i*0.55,y2=ty-15-i*24;ctx.save();ctx.translate(tx,y2);ctx.rotate(ra);ctx.strokeStyle=`rgba(180,170,255,${0.6-i*0.1})`;ctx.lineWidth=3-i*0.4;ctx.beginPath();ctx.ellipse(0,0,r,r*0.35,0,0,Math.PI*2);ctx.stroke();ctx.restore();}ctx.restore();}
 function drawEventLabel(){const a=Math.min(1,eventLabelTimer/600);ctx.save();ctx.globalAlpha=a;ctx.font='bold 46px Arial Black';ctx.textAlign='center';ctx.shadowColor='#FF4400';ctx.shadowBlur=28;ctx.strokeStyle='#000';ctx.lineWidth=5;ctx.strokeText(eventLabel,CW/2,CH/2-20);ctx.fillStyle='#FF8800';ctx.fillText(eventLabel,CW/2,CH/2-20);ctx.shadowBlur=0;ctx.restore();}
 function drawRatingLabel(){if(!ratingLabel||ratingLabelTimer<=0)return;const a=Math.min(1,ratingLabelTimer/500);ctx.save();ctx.globalAlpha=a;ctx.font='bold 24px Arial';ctx.textAlign='center';const tw=ctx.measureText(ratingLabel).width;ctx.fillStyle='rgba(0,0,0,0.6)';ctx.beginPath();if(ctx.roundRect)ctx.roundRect(CW/2-tw/2-18,CH-210,tw+36,48,10);else ctx.rect(CW/2-tw/2-18,CH-210,tw+36,48);ctx.fill();ctx.shadowColor='#00CCFF';ctx.shadowBlur=14;ctx.strokeStyle='#003366';ctx.lineWidth=3;ctx.strokeText(ratingLabel,CW/2,CH-176);ctx.fillStyle='#00EEFF';ctx.fillText(ratingLabel,CW/2,CH-176);ctx.shadowBlur=0;ctx.restore();}
+function drawDebugOverlay(){
+  const lines=[
+    'D = скрыть дебаг',
+    `WS: ${_ws?['CONNECTING','OPEN','CLOSING','CLOSED'][_ws.readyState]:'нет'}`,
+    `TikTok user: ${_wsUser||'не задан'}`,
+    `Gifts: ${_dbgGifts}  Likes: ${_dbgLikes}`,
+    `Members: ${_dbgMembers}  Chats: ${_dbgChats}`,
+    `Warriors: ${warriors.filter(w=>!w.dead).length} (bots: ${warriors.filter(w=>!w.dead&&w.isBot).length})`,
+  ];
+  ctx.save();ctx.font='13px monospace';ctx.textAlign='left';
+  ctx.fillStyle='rgba(0,0,0,0.75)';ctx.fillRect(8,240,250,lines.length*18+12);
+  ctx.fillStyle='#00FF88';
+  lines.forEach((l,i)=>ctx.fillText(l,14,258+i*18));
+  ctx.restore();
+}
 
 // ── Pickups ───────────────────────────────────────────
 function updatePickups(dt){
@@ -2185,6 +2200,7 @@ function frame(now) {
   drawHUD(now);
   if(eventLabelTimer>0)drawEventLabel();
   if(ratingLabelTimer>0)drawRatingLabel();
+  if(_dbgShowDebug)drawDebugOverlay();
 }
 requestAnimationFrame(frame);
 
@@ -2197,9 +2213,10 @@ function wsConnect(username){
   _ws=new WebSocket(`${proto}//${location.host}?username=${encodeURIComponent(username)}`);
   _ws.onopen=()=>setStatus('connecting','⏳ @'+username+'…');
   _ws.onmessage=(e)=>{try{const d=JSON.parse(e.data);
-    if(d.type==='arena_gift'){_dbgGifts++;addWarrior(d.username,d.coins);resetActivity(d.username);}
+    if(d.type==='arena_gift'){_dbgGifts++;console.log('[arena2] gift from',d.username,'coins=',d.coins);addWarrior(d.username,d.coins);resetActivity(d.username);}
     if(d.type==='arena_like'){_dbgLikes++;totalLikes+=d.likes||0;if(totalLikes>=1000){totalLikes-=1000;triggerArmageddon();}resetActivity(d.username);}
-    if(d.type==='arena_member'){helpWarrior(d.username);resetActivity(d.username);}
+    if(d.type==='arena_member'){_dbgMembers++;helpWarrior(d.username);resetActivity(d.username);}
+    if(d.type==='chat'){_dbgChats++;}
     if(d.type==='arena_gift'||d.type==='arena_member'||d.type==='arena_like'){if(topKillers.length>0&&d.username&&d.username.toLowerCase()===(topKillers[0].username||'').toLowerCase()&&Date.now()-_lastKingArrival>60000){_lastKingArrival=Date.now();triggerKingArrival(topKillers[0].username);}}
     if(d.type==='arena_team'){const ex=warriors.find(w=>w.username===d.username&&!w.dead);if(ex)ex.team=d.team;else teamRegistry.set(d.username,d.team);resetActivity(d.username);}
     if(d.type==='top_killers'){const prevTop=(topKillers[0]?.username||'').toLowerCase();topKillers=d.data||[];const newTop=topKillers[0]?.username;if(newTop&&newTop.toLowerCase()!==prevTop&&Date.now()-_lastKingArrival>30000){_lastKingArrival=Date.now();triggerKingArrival(newTop);}}
@@ -2224,6 +2241,9 @@ function triggerKingArrival(name){
   if(_kingHideTimer)clearTimeout(_kingHideTimer);
   _kingHideTimer=setTimeout(()=>{ov.classList.remove('show');ov.classList.add('hiding');setTimeout(()=>{ov.classList.remove('hiding');ov.style.display='none';},500);},5500);
 }
+
+// ── Debug toggle ─────────────────────────────────────
+document.addEventListener('keydown',e=>{if(e.key==='d'||e.key==='D')_dbgShowDebug=!_dbgShowDebug;});
 
 // ── Init ──────────────────────────────────────────────
 (function init(){
