@@ -2283,19 +2283,35 @@ function _showRating(html){
 (function(){
   function filterNick(n){return(n||'').replace(/[^a-zA-Zа-яА-ЯёЁ]/g,'').trim();}
   function rnd(arr){return arr[Math.floor(Math.random()*arr.length)];}
-  function tpl(s,nick){return s.replace('[НИК]',nick);}
+  function tpl(s,nick){return s.replace(/\[НИК\]/g,nick);}
 
   const RULES=[
     'Ставь лайки — твоё здоровье и сила растут!',
     'Кидай подарки — чем дороже подарок, тем больше энергия и сила!',
     'Пиши в чате team или team два — и вступай в союз! Синие против Красных!'
   ];
+  const FILLER=[
+    'Что-то тихо на арене... Воины заснули что ли?',
+    'Боец без подарка — это просто человек в пижаме. Исправь это.',
+    'Тишина... Это перед бурей или просто никого нет?',
+    'Не слышу звона монет! Казна пустая — армия слабая!',
+    'Ваш воин смотрит на вас. Он разочарован.',
+    'Арена ждёт героя. Может это ты?',
+    'Наш диктор зевает. Подарок — и он проснётся!'
+  ];
   const GIFT=[
     '[НИК] бросил в бой всё что имел! Его воин рвётся к трону!',
     '[НИК] не шутит! Монеты брошены — битва начата!',
     'Внимание на арену! [НИК] только что усилил своего бойца!',
     '[НИК] вложил всё в победу! Посмотрим на что способен этот воин!',
-    'Опасный боец на арене! [НИК] явно метит в короли!'
+    'Опасный боец на арене! [НИК] явно метит в короли!',
+    '[НИК] решил что деньги — это просто цифры! Цифры в огонь, воин в бой!',
+    'Мама [НИК]а не знает что он сейчас делает... зато арена знает!',
+    '[НИК] вложил всё! Теперь отступать некуда — только победа!',
+    'Экономисты плачут. [НИК] смеётся. Его боец растёт!',
+    '[НИК] — не зритель, [НИК] — спонсор войны! Уважение!',
+    'Это не подарок — это объявление войны! [НИК] серьёзно настроен!',
+    '[НИК] только что купил себе место в истории арены!'
   ];
   const KING=[
     'Внимание! Король Арены [НИК] в эфире! Всем встать и отдать честь!',
@@ -2305,18 +2321,33 @@ function _showRating(html){
   const LEADER=[
     '[НИК] захватывает трон! Кто осмелится его остановить?!',
     'Новый претендент на корону — [НИК]! Арена в огне!',
-    '[НИК] рвётся к власти! Враги бегут!'
+    '[НИК] рвётся к власти! Враги бегут!',
+    'СТОП! Кто это?! [НИК] только что захватил трон! Кто остановит этого монстра?!',
+    '[НИК] вышел на первое место! Армия в панике! Срочно кидайте подарки!',
+    'Новый тиран арены — [НИК]! История запомнит этот момент!'
   ];
   const MEMBER=[
     '[НИК] вошёл в эфир! Брось подарок — и в бой!',
     '[НИК] на месте! Твой воин ждёт приказа!'
   ];
 
-  let queue=[],speaking=false,rulesIdx=0,rulesTimer=null,lastMember=0,lastMember_nicks={},started=false;
+  let queue=[],speaking=false,quietPool=[],rulesTimer=null,lastMember=0,lastMember_nicks={},started=false;
+  let _cachedVoice=null;
+
+  function getVoice(){
+    if(_cachedVoice)return _cachedVoice;
+    const voices=window.speechSynthesis.getVoices();
+    _cachedVoice=voices.find(v=>/pavel/i.test(v.name))
+      ||voices.find(v=>/ru/i.test(v.lang)&&/male/i.test(v.name))
+      ||voices.find(v=>/ru[-_]/i.test(v.lang))
+      ||null;
+    return _cachedVoice;
+  }
 
   function speakText(text,onDone){
     const u=new SpeechSynthesisUtterance(text);
-    u.lang='ru-RU';u.rate=0.88;u.volume=1;
+    u.lang='ru-RU';u.rate=1.15;u.volume=1;
+    const v=getVoice();if(v)u.voice=v;
     u.onend=u.onerror=onDone;
     window.speechSynthesis.speak(u);
   }
@@ -2335,18 +2366,21 @@ function _showRating(html){
     speakNext();
   }
 
+  function nextQuietPhrase(){
+    if(quietPool.length===0)quietPool=[...RULES,...FILLER].sort(()=>Math.random()-0.5);
+    return quietPool.shift();
+  }
+
   function scheduleRules(){
     clearTimeout(rulesTimer);
     rulesTimer=setTimeout(()=>{
       if(speaking||queue.length>0)return;
       speaking=true;
-      const text=RULES[rulesIdx];
-      rulesIdx=(rulesIdx+1)%RULES.length;
-      speakText(text,()=>{
+      speakText(nextQuietPhrase(),()=>{
         speaking=false;
         setTimeout(()=>{queue.length>0?speakNext():scheduleRules();},1200);
       });
-    },30000);
+    },10000);
   }
 
   window._voice={
@@ -2362,6 +2396,8 @@ function _showRating(html){
       enqueue(tpl(rnd(MEMBER),n),false);
     }
   };
+
+  window.speechSynthesis.onvoiceschanged=()=>{_cachedVoice=null;getVoice();};
 
   function start(){if(started)return;started=true;scheduleRules();}
   document.addEventListener('click',start,{once:true});
