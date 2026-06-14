@@ -718,6 +718,12 @@ function _drawBush(x,y,r,seed){
 // ── HUD PANEL (как в первой части) ───────────────────────
 function drawHUD(t) {
   const T = 88, TH = 220;
+  // Creator
+  ctx.shadowColor = 'rgba(255,215,0,0.4)'; ctx.shadowBlur = 8;
+  ctx.font = 'bold 21px Arial'; ctx.textAlign = 'center';
+  ctx.fillStyle = 'rgba(255,215,0,0.55)';
+  ctx.fillText('🎮 creator: Leha Neploxo', CW / 2, T - 8);
+  ctx.shadowBlur = 0;
   // Фон
   const bg = ctx.createLinearGradient(0, T, 0, T + TH);
   bg.addColorStop(0, 'rgba(10,5,30,0.97)'); bg.addColorStop(1, 'rgba(5,2,15,0.97)');

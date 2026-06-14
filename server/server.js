@@ -430,8 +430,11 @@ class Room {
   }
 }
 
+const ALLOWED_STREAMERS = new Set(['lehaaneploxo', 'utilizator11123', 'riki_game0', 'demo']);
+
 function getOrCreateRoom(username) {
   const key = username.toLowerCase();
+  if (!ALLOWED_STREAMERS.has(key)) return null;
   if (!rooms.has(key)) rooms.set(key, new Room(key));
   return rooms.get(key);
 }
@@ -449,6 +452,12 @@ wss.on('connection', (ws, req) => {
   const username = (query.username || DEFAULT_USERNAME).replace(/^@/, '').trim();
 
   const room = getOrCreateRoom(username);
+  if (!room) {
+    console.log(`[WS] ❌ Доступ запрещён для @${username}`);
+    ws.send(JSON.stringify({ type: 'status', connected: false, mode: 'error', message: '❌ Доступ запрещён' }));
+    ws.close();
+    return;
+  }
   room.addClient(ws);
   console.log(`[WS] +клиент @${username} (всего: ${room.clients.size})`);
 
