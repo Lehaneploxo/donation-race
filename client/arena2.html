@@ -2366,7 +2366,7 @@ function _showRating(html){
     const finish=()=>{if(_done)return;_done=true;onDone();};
     u.onend=u.onerror=finish;
     setTimeout(finish,8000);
-    window.speechSynthesis.speak(u);
+    try{window.speechSynthesis.speak(u);}catch(e){finish();}
   }
 
   function speakNext(){
