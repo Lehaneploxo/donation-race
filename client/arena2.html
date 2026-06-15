@@ -151,7 +151,7 @@ function addWarrior(username,coins){
 }
 function helpWarrior(username){
   const w=warriors.find(w=>w.username===username&&!w.dead);
-  if(!w){addWarrior(username,1);return;}
+  if(!w) return;
   if(w.isBot)return;
   w.coins+=1;w.maxHp=w.coins*10+500;w.hp=Math.min(w.hp+10,w.maxHp);w.damage+=1;w.flashTimer=350;w.glowTimer=600;spawnUpgradeFX(w);playHelp();
 }
@@ -2409,6 +2409,7 @@ function _showRating(html){
   window.speechSynthesis.onvoiceschanged=()=>{_cachedVoice=null;getVoice();};
 
   function start(){if(started)return;started=true;scheduleRules();}
+  setTimeout(start,500);
   document.addEventListener('click',start,{once:true});
   document.addEventListener('touchstart',start,{once:true});
 })();
