@@ -717,6 +717,7 @@ function _drawBush(x,y,r,seed){
 
 // ── HUD PANEL (как в первой части) ───────────────────────
 function drawHUD(t) {
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
   const T = 88, TH = 220;
   // Creator
   ctx.shadowColor = 'rgba(255,215,0,0.4)'; ctx.shadowBlur = 8;
@@ -803,6 +804,8 @@ function drawHUD(t) {
     ctx.fillStyle = i === 0 ? '#FFE566' : '#CCCCCC';
     ctx.fillText(p ? p.username : '—', i === 0 ? 342 : 338, y);
     ctx.textAlign = 'right'; ctx.fillStyle = '#FF6666';
+    ctx.strokeStyle = 'rgba(0,0,0,0.9)'; ctx.lineWidth = 3;
+    if (p) ctx.strokeText('☠️ ' + p.total_kills, 590, y);
     ctx.fillText(p ? '☠️ ' + p.total_kills : '', 590, y);
     ctx.shadowBlur = 0;
   }
