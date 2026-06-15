@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>⚔️ Arena Battle 2</title>
+  <title>⚔️ Arena Battle 2 v3</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     html, body { width: 100vw; height: 100vh; background: #000; overflow: hidden; font-family: 'Arial Black', Arial, sans-serif; }
@@ -2290,6 +2290,7 @@ function _showRating(html){
 }
 // ── Voice Announcer ───────────────────────────────────
 (function(){
+  if(!window.speechSynthesis){window._voice={gift:()=>{},king:()=>{},newLeader:()=>{},member:()=>{}};return;}
   function filterNick(n){return(n||'').replace(/[^a-zA-Zа-яА-ЯёЁ]/g,'').trim();}
   function rnd(arr){return arr[Math.floor(Math.random()*arr.length)];}
   function tpl(s,nick){return s.replace(/\[НИК\]/g,nick);}
@@ -2357,7 +2358,10 @@ function _showRating(html){
     const u=new SpeechSynthesisUtterance(text);
     u.lang='ru-RU';u.rate=1.15;u.volume=1;
     const v=getVoice();if(v)u.voice=v;
-    u.onend=u.onerror=onDone;
+    let _done=false;
+    const finish=()=>{if(_done)return;_done=true;onDone();};
+    u.onend=u.onerror=finish;
+    setTimeout(finish,8000);
     window.speechSynthesis.speak(u);
   }
 
@@ -2409,7 +2413,6 @@ function _showRating(html){
   window.speechSynthesis.onvoiceschanged=()=>{_cachedVoice=null;getVoice();};
 
   function start(){if(started)return;started=true;scheduleRules();}
-  setTimeout(start,500);
   document.addEventListener('click',start,{once:true});
   document.addEventListener('touchstart',start,{once:true});
 })();
