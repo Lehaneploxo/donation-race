@@ -41,35 +41,14 @@ app.use(express.static(path.join(__dirname, '../client'), {
   }
 }));
 
-app.get('/', (req, res) => {
-  res.setHeader('Cache-Control', 'no-store');
-  res.sendFile(path.join(__dirname, '../client/launcher.html'));
-});
+const NO_CACHE = { etag: false, lastModified: false };
 
-app.get('/game', (req, res) => {
-  res.setHeader('Cache-Control', 'no-store');
-  res.sendFile(path.join(__dirname, '../client/index.html'));
-});
-
-app.get('/war', (req, res) => {
-  res.setHeader('Cache-Control', 'no-store');
-  res.sendFile(path.join(__dirname, '../client/war.html'));
-});
-
-app.get('/arena', (req, res) => {
-  res.setHeader('Cache-Control', 'no-store');
-  res.sendFile(path.join(__dirname, '../client/arena.html'));
-});
-
-app.get('/arena2', (req, res) => {
-  res.setHeader('Cache-Control', 'no-store');
-  res.sendFile(path.join(__dirname, '../client/arena2.html'));
-});
-
-app.get('/civilization', (req, res) => {
-  res.setHeader('Cache-Control', 'no-store');
-  res.sendFile(path.join(__dirname, '../client/civilization.html'));
-});
+app.get('/',           (req, res) => res.sendFile(path.join(__dirname, '../client/launcher.html'),    NO_CACHE));
+app.get('/game',       (req, res) => res.sendFile(path.join(__dirname, '../client/index.html'),       NO_CACHE));
+app.get('/war',        (req, res) => res.sendFile(path.join(__dirname, '../client/war.html'),         NO_CACHE));
+app.get('/arena',      (req, res) => res.sendFile(path.join(__dirname, '../client/arena.html'),       NO_CACHE));
+app.get('/arena2',     (req, res) => res.sendFile(path.join(__dirname, '../client/arena2.html'),      NO_CACHE));
+app.get('/civilization',(req, res) => res.sendFile(path.join(__dirname, '../client/civilization.html'),NO_CACHE));
 
 // Локальный no-op сервис подписи — возвращает URL без изменений
 // Библиотека tiktok-live-connector использует его вместо eulerstream
