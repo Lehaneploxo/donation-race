@@ -17,8 +17,6 @@
     #backBtn { top: calc(50% - 13px); right: 10px; }
     #addBotBtn { top: calc(50% + 85px); right: 10px; }
     #ratingBtn { top: calc(50% + 134px); right: 10px; }
-    #voiceBtn  { top: calc(50% + 183px); right: 10px; }
-    #voiceBtn.active { color: #00FF88; border-color: #00FF88; }
     #statusBadge { position: fixed; bottom: 52px; left: 50%; transform: translateX(-50%); font-size: 13px; padding: 4px 13px; border-radius: 8px; border: 2px solid #555; background: rgba(0,0,0,0.78); color: #AAA; white-space: nowrap; z-index: 100; display: none; }
     #statusBadge.live  { color: #00FF88; border-color: #00FF88; }
     #statusBadge.demo  { color: #FF9900; border-color: #FF9900; }
@@ -43,7 +41,6 @@
 <button id="backBtn"  class="ui-btn" title="Back">⌂</button>
 <button id="addBotBtn" class="ui-btn" title="Add bot">🤖</button>
 <button id="ratingBtn" class="ui-btn" title="Show rating">📊</button>
-<button id="voiceBtn"  class="ui-btn" title="Включить голос">🔊</button>
 <div id="statusBadge">⏳ Connecting…</div>
 
 <div id="ratingOverlay" style="position:fixed;top:31%;right:5px;z-index:200;pointer-events:none;display:none;background:rgba(0,0,0,0.85);border:2px solid rgba(255,215,0,0.4);border-top:none;border-radius:0 0 10px 10px;padding:8px 10px 10px;font-family:Arial,sans-serif;min-width:180px;text-align:center;"></div>
@@ -2420,6 +2417,7 @@ function _showRating(html){
 
   function start(){if(started)return;started=true;scheduleRules();}
   window._voiceStart=start;
+  start();
   document.addEventListener('click',start,{once:true});
   document.addEventListener('touchstart',start,{once:true});
 })();
@@ -2432,10 +2430,6 @@ document.getElementById('ratingBtn').addEventListener('click',()=>{
     let rows=list.map((p,i)=>`<tr><td style="padding:1px 6px 1px 0;color:#AAA;font-size:12px;">#${i+6}</td><td style="padding:1px 8px;color:#fff;font-size:13px;font-weight:bold;max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">@${p.username}</td><td style="padding:1px 0;color:#FF6644;font-size:13px;">☠️${p.total_kills}</td></tr>`).join('');
     _showRating(`<div style="color:#00CCFF;font-size:12px;font-weight:bold;letter-spacing:1px;margin-bottom:5px;">📊 МЕСТА 6–${Math.min(20,d.top.length)}</div><table style="border-collapse:collapse;">${rows}</table>`);
   }).catch(()=>_showRating('<span style="color:#FF8888;font-size:14px;">❌ Ошибка загрузки</span>'));
-});
-document.getElementById('voiceBtn').addEventListener('click',()=>{
-  if(window._voiceStart)window._voiceStart();
-  document.getElementById('voiceBtn').classList.add('active');
 });
 </script>
 </body>
