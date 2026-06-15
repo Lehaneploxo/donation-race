@@ -42,13 +42,24 @@ app.use(express.static(path.join(__dirname, '../client'), {
 }));
 
 const NO_CACHE = { etag: false, lastModified: false };
+const DEPLOY_VER = Date.now();
 
-app.get('/',           (req, res) => res.sendFile(path.join(__dirname, '../client/launcher.html'),    NO_CACHE));
-app.get('/game',       (req, res) => res.sendFile(path.join(__dirname, '../client/index.html'),       NO_CACHE));
-app.get('/war',        (req, res) => res.sendFile(path.join(__dirname, '../client/war.html'),         NO_CACHE));
-app.get('/arena',      (req, res) => res.sendFile(path.join(__dirname, '../client/arena.html'),       NO_CACHE));
-app.get('/arena2',     (req, res) => res.sendFile(path.join(__dirname, '../client/arena2.html'),      NO_CACHE));
-app.get('/civilization',(req, res) => res.sendFile(path.join(__dirname, '../client/civilization.html'),NO_CACHE));
+function serveHtml(file) {
+  return (req, res) => {
+    if (!req.query._v) {
+      const sep = req.url.includes('?') ? '&' : '?';
+      return res.redirect(302, req.url + sep + '_v=' + DEPLOY_VER);
+    }
+    res.sendFile(path.join(__dirname, '../client', file), NO_CACHE);
+  };
+}
+
+app.get('/',            serveHtml('launcher.html'));
+app.get('/game',        serveHtml('index.html'));
+app.get('/war',         serveHtml('war.html'));
+app.get('/arena',       serveHtml('arena.html'));
+app.get('/arena2',      serveHtml('arena2.html'));
+app.get('/civilization',serveHtml('civilization.html'));
 
 // Локальный no-op сервис подписи — возвращает URL без изменений
 // Библиотека tiktok-live-connector использует его вместо eulerstream
