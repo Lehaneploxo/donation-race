@@ -2302,7 +2302,8 @@ function _showRating(html){
   const RULES=[
     'Ставь лайки — твоё здоровье и сила растут!',
     'Кидай подарки — чем дороже подарок, тем больше энергия и сила!',
-    'Пиши в чате team или team два — и вступай в союз! Синие против Красных!'
+    'Пиши в чате team или team два — и вступай в союз! Синие против Красных!',
+    'Не знаешь как играть? Правила игры написаны в шапке профиля — заходи, читай, побеждай!'
   ];
   const FILLER=[
     'Что-то тихо на арене... Воины заснули что ли?',
@@ -2311,7 +2312,11 @@ function _showRating(html){
     'Не слышу звона монет! Казна пустая — армия слабая!',
     'Ваш воин смотрит на вас. Он разочарован.',
     'Арена ждёт героя. Может это ты?',
-    'Наш диктор зевает. Подарок — и он проснётся!'
+    'Наш диктор зевает. Подарок — и он проснётся!',
+    'Арена такая тихая... даже тараканы разбежались.',
+    'Воины устали ждать. Лайк — это уже что-то!',
+    'Наш стример смотрит на вас. Нет, серьёзно, прямо сейчас смотрит.',
+    'Три секунды тишины. Четыре. Пять. Окей, это уже неловко.'
   ];
   const GIFT=[
     '[НИК] бросил в бой всё что имел! Его воин рвётся к трону!',
@@ -2325,7 +2330,10 @@ function _showRating(html){
     'Экономисты плачут. [НИК] смеётся. Его боец растёт!',
     '[НИК] — не зритель, [НИК] — спонсор войны! Уважение!',
     'Это не подарок — это объявление войны! [НИК] серьёзно настроен!',
-    '[НИК] только что купил себе место в истории арены!'
+    '[НИК] только что купил себе место в истории арены!',
+    '[НИК] — это не человек, это явление природы! Боец растёт!',
+    'Казначей арены в шоке. [НИК] снова сделал это!',
+    '[НИК] пришёл не смотреть — [НИК] пришёл побеждать!'
   ];
   const KING=[
     'Внимание! Король Арены [НИК] в эфире! Всем встать и отдать честь!',
@@ -2342,7 +2350,9 @@ function _showRating(html){
   ];
   const MEMBER=[
     '[НИК] вошёл в эфир! Брось подарок — и в бой!',
-    '[НИК] на месте! Твой воин ждёт приказа!'
+    '[НИК] на месте! Твой воин ждёт приказа!',
+    'О! [НИК] в деле! Добро пожаловать в самый безумный бой тиктока!',
+    '[НИК] зашёл — арена вздрогнула. Это знак!'
   ];
 
   let queue=[],speaking=false,quietPool=[],rulesTimer=null,lastMember=0,lastMember_nicks={},started=false;
@@ -2354,8 +2364,17 @@ function _showRating(html){
     _cachedVoice=voices.find(v=>/pavel/i.test(v.name))
       ||voices.find(v=>/ru/i.test(v.lang)&&/male/i.test(v.name))
       ||voices.find(v=>/ru[-_]/i.test(v.lang))
+      ||voices.find(v=>/ru/i.test(v.lang))
+      ||voices.find(v=>v.default)
+      ||voices[0]
       ||null;
     return _cachedVoice;
+  }
+
+  let _speechUnlocked=false;
+  function _unlockSpeech(){
+    if(_speechUnlocked)return;_speechUnlocked=true;
+    try{const s=new SpeechSynthesisUtterance('');s.volume=0;window.speechSynthesis.speak(s);}catch(e){}
   }
 
   function speakText(text,onDone){
@@ -2406,6 +2425,7 @@ function _showRating(html){
     newLeader:function(nick){const n=filterNick(nick);if(!n)return;enqueue(tpl(rnd(LEADER),n),false);},
     member:function(nick){
       const n=filterNick(nick);if(!n)return;
+      if(warriors.length>=10)return;
       const now=Date.now();
       if(now-lastMember<120000)return;
       if((lastMember_nicks[n]||0)>now-300000)return;
@@ -2416,11 +2436,11 @@ function _showRating(html){
 
   window.speechSynthesis.onvoiceschanged=()=>{_cachedVoice=null;getVoice();};
 
-  function start(){if(started)return;started=true;scheduleRules();}
+  function start(){if(started)return;started=true;_unlockSpeech();scheduleRules();}
   window._voiceStart=start;
   start();
-  document.addEventListener('click',start,{once:true});
-  document.addEventListener('touchstart',start,{once:true});
+  document.addEventListener('click',_unlockSpeech,{once:true});
+  document.addEventListener('touchstart',_unlockSpeech,{once:true});
 })();
 
 document.getElementById('ratingBtn').addEventListener('click',()=>{
