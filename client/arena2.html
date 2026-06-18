@@ -146,7 +146,10 @@ function makeWarrior(username,coins,isBot=false){
 function addWarrior(username,coins){
   coins=Math.max(1,Math.floor(coins));
   const ex=warriors.find(w=>w.username===username&&!w.dead);
-  if(ex){if(ex.isBot)return;ex.coins+=coins;ex.maxHp=ex.coins*10;ex.hp=Math.min(ex.hp+coins*10,ex.maxHp);ex.damage+=coins;ex.flashTimer=600;ex.glowTimer=800;spawnUpgradeFX(ex);return;}
+  if(ex){if(ex.isBot)return;ex.coins+=coins;ex.maxHp=ex.coins*10+500;ex.hp=Math.min(ex.hp+coins*10,ex.maxHp);ex.damage+=coins;ex.flashTimer=600;ex.glowTimer=800;spawnUpgradeFX(ex);return;}
+  // If warrior is dead, revive and credit gift
+  const dead=warriors.find(w=>w.username===username&&w.dead);
+  if(dead){dead.dead=false;dead.deathTimer=0;dead.coins+=coins;dead.maxHp=dead.coins*10+500;dead.hp=Math.min(dead.hp+coins*10,dead.maxHp);dead.damage+=coins;dead.flashTimer=600;dead.glowTimer=800;spawnUpgradeFX(dead);return;}
   if(warriors.filter(w=>!w.dead).length>=MAX_WARRIORS){const weakest=warriors.filter(w=>!w.dead).sort((a,b)=>a.coins-b.coins)[0];weakest.dead=true;weakest.deathTimer=600;spawnDeathFX(weakest);playRemove();}
   const w=makeWarrior(username,coins);
   if(teamRegistry.has(username)){w.team=teamRegistry.get(username);teamRegistry.delete(username);}
