@@ -73,12 +73,11 @@ function connectToTikTok(username, onGift, onStatus, onMember, onLike, onChat) {
     });
 
     connection.on('gift', (data) => {
-      // Skip intermediate combo events — wait for the final one (repeatEnd: true)
-      if (data.repeatEnd === false) return;
-      const nick   = data.nickname || data.uniqueId || 'Unknown';
-      const repeat = Math.max(1, data.repeatCount || 1);
-      const coins  = Math.max(1, Math.floor((data.diamondCount || 1) * repeat));
-      console.log(`[TikTok] 🎁 ${nick} gift="${data.giftName||''}" x${repeat} coins=${coins}`);
+      const nick  = data.nickname || data.uniqueId || 'Unknown';
+      // Each event = 1 gift in the combo. Credit it immediately (no delay).
+      // diamondCount is the cost of ONE gift, repeatCount tracks total sent so far.
+      const coins = Math.max(1, Math.floor(data.diamondCount || 1));
+      console.log(`[TikTok] 🎁 ${nick} gift="${data.giftName||''}" repeatEnd=${data.repeatEnd} coins=${coins}`);
       onGift({
         userId:    String(data.userId || data.uniqueId || 'u'),
         username:  nick,
