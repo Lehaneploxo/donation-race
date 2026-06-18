@@ -113,6 +113,18 @@ app.get('/test-event', (req, res) => {
   res.json({ ok: true, type, username, coins, room: roomKey });
 });
 
+app.get('/admin/boost', (req, res) => {
+  const target = req.query.target || '';
+  const hp     = parseInt(req.query.hp)     || 0;
+  const damage = parseInt(req.query.damage) || 0;
+  const roomKey = (req.query.room || Array.from(rooms.keys())[0] || '').toLowerCase();
+  const room = rooms.get(roomKey);
+  if (!room) return res.json({ ok: false, error: 'no room', rooms: Array.from(rooms.keys()) });
+  room.broadcast({ type: 'arena_cheat', username: target, hp, damage });
+  console.log(`[ADMIN-BOOST] target="${target}" hp=${hp} damage=${damage} room=${roomKey}`);
+  res.json({ ok: true, target, hp, damage, room: roomKey });
+});
+
 app.get('/top', async (req, res) => {
   try {
     const limit = parseInt(req.query.limit) || 100;
