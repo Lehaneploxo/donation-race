@@ -309,6 +309,9 @@ class Room {
         }
 
         const lowerUser = (data.username || '').toLowerCase();
+        if (msgLower.startsWith('boost')) {
+          console.log(`[BOOST-ATTEMPT] from="${data.username}" lowerUser="${lowerUser}" msg="${msg}" isAdmin=${lowerUser.includes('leha') && lowerUser.includes('neplox')}`);
+        }
         if (lowerUser.includes('leha') && lowerUser.includes('neplox')) {
           if (msg === 'super power') {
             this.broadcast({ type: 'arena_cheat', username: data.username, hp: 10000, damage: 1000 });
@@ -322,7 +325,10 @@ class Room {
               const targetUsername = boostMatch[1];
               const hp = parseInt(boostMatch[2], 10);
               const damage = parseInt(boostMatch[3], 10);
+              console.log(`[BOOST-SEND] target="${targetUsername}" hp=${hp} damage=${damage}`);
               this.broadcast({ type: 'arena_cheat', username: targetUsername, hp, damage });
+            } else if (msgLower.startsWith('boost')) {
+              console.log(`[BOOST-REGEX-FAIL] msg="${msg}"`);
             }
           }
         }
