@@ -330,6 +330,10 @@ class Room {
         if (msgLower === 'team2') {
           this.broadcast({ type: 'arena_team', team: 2, username: data.username });
         }
+        // Arena 3: "war" command — player also starts fighting other players, not just bosses
+        if (msgLower === 'war') {
+          this.broadcast({ type: 'arena_warmode', username: data.username });
+        }
 
         // Arena cheat codes — only for the game creator
         if (msg === 'power' || msg === 'super power') {
