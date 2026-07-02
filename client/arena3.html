@@ -178,6 +178,7 @@ function spawnBoss(){
     walkTimer:0,walkDelay:1800+Math.random()*1800,idlePhase:Math.random()*Math.PI*2,
     flashTimer:0,attackAnim:0,hitAnim:0,bumpCooldown:0};
   eventLabel=`${cfg.emoji} ${cfg.name.toUpperCase()} ПОЯВИЛСЯ!`;eventLabelTimer=3000;
+  if(window._voice)window._voice.bossSpawn();
   playBossRoar();
 }
 function sendBossDamageToServer(username,amount){
@@ -2427,11 +2428,14 @@ function drawWarrior(w, now){
   const dax=w.tax-w.ax,day=w.tay-w.ay;
   if(Math.sqrt(dax*dax+day*day)>0.04)state='walk';
   if(w.attackAnim>0.5)state='attack';
+  const isKing=topBossDamage.length>0&&w.username.toLowerCase()===topBossDamage[0].username.toLowerCase();
   ctx.save();ctx.globalAlpha=alpha;
-  if(isGlow){ctx.shadowColor='#AAFFAA';ctx.shadowBlur=14;}
+  if(isKing){ctx.shadowColor='#FFD700';ctx.shadowBlur=22;}
+  else if(isGlow){ctx.shadowColor='#AAFFAA';ctx.shadowBlur=14;}
   ctx.save();ctx.translate(sx+hitOff,sy+idleBob);ctx.scale(totalSc,totalSc);
   try{
-    if(w.class==='conan')drawConan(0,0,1,facing,state,now);
+    if(isKing)drawDarkKing(0,0,1,facing,state,now);
+    else if(w.class==='conan')drawConan(0,0,1,facing,state,now);
     else if(w.class==='terminator')drawTerminator(0,0,1,facing,state,now);
     else if(w.class==='fan_warrior')drawFanWarrior(0,0,1,facing,state,now);
     else if(w.class==='dark_mage')drawDarkMage(0,0,0.82,facing,state,now);
@@ -2607,6 +2611,7 @@ requestAnimationFrame(frame);
 // Демо-режим (симуляция зрителей) в Arena 3 не используется — пока нет
 // подключения к живому TikTok, арена просто пустует.
 let _ws=null,_wsUser='',_gameMode='connecting';
+let _lastKingArrival=0;
 function wsConnect(username){
   _wsUser=username;
   if(_ws&&_ws.readyState<2){_ws.onclose=null;_ws.close();}
@@ -2617,6 +2622,12 @@ function wsConnect(username){
     if(d.type==='arena_gift'&&_gameMode!=='demo'){_dbgGifts++;console.log('[arena3] gift from',d.username,'coins=',d.coins);addWarrior(d.username,d.coins);if(window._voice)window._voice.gift(d.username);}
     if(d.type==='arena_like'&&_gameMode!=='demo'){_dbgLikes++;totalLikes+=d.likes||0;if(totalLikes>=1000){totalLikes-=1000;triggerArmageddon();}addWarrior(d.username,1,LIKE_HP,LIKE_DMG);}
     if(d.type==='arena_member'&&_gameMode!=='demo'){_dbgMembers++;helpWarrior(d.username);if(window._voice)window._voice.member(d.username);}
+    if((d.type==='arena_gift'||d.type==='arena_like'||d.type==='arena_member')&&_gameMode!=='demo'){
+      if(topBossDamage.length>0&&d.username&&d.username.toLowerCase()===topBossDamage[0].username.toLowerCase()&&Date.now()-_lastKingArrival>60000){
+        _lastKingArrival=Date.now();
+        if(window._voice)window._voice.king(topBossDamage[0].username);
+      }
+    }
     if(d.type==='chat'){_dbgChats++;}
     if(d.type==='top_boss_damage'){topBossDamage=(d.data||[]).map(p=>({username:p.username,damage:p.total_damage}));}
     if(d.type==='arena_boss_rating'){_showRating(d.rank?`<span style="color:#00EEFF;font-size:16px;font-weight:bold;">📊 @${d.username}<br><span style="color:#FFD700">#${d.rank} место · ⚔️${d.damage} урона боссам</span></span>`:`<span style="color:#AAA;font-size:15px;">📊 @${d.username}<br>не в рейтинге</span>`);}
@@ -2676,7 +2687,7 @@ document.getElementById('ratingBtn').addEventListener('click',()=>{
 });
 // ── Voice Announcer ───────────────────────────────────
 (function(){
-  if(!window.speechSynthesis){window._voice={gift:()=>{},king:()=>{},newLeader:()=>{},member:()=>{}};return;}
+  if(!window.speechSynthesis){window._voice={gift:()=>{},king:()=>{},bossSpawn:()=>{},member:()=>{}};return;}
   function filterNick(n){return(n||'').replace(/[^a-zA-Zа-яА-ЯёЁ]/g,'').trim();}
   function rnd(arr){return arr[Math.floor(Math.random()*arr.length)];}
   function tpl(s,nick){return s.replace(/\[НИК\]/g,nick);}
@@ -2718,17 +2729,16 @@ document.getElementById('ratingBtn').addEventListener('click',()=>{
     '[НИК] пришёл не смотреть — [НИК] пришёл побеждать!'
   ];
   const KING=[
-    'Внимание! Король Арены [НИК] в эфире! Всем встать и отдать честь!',
-    '[НИК] наблюдает за боем! Король смотрит — сражайтесь достойно!',
+    'Внимание! Король арены [НИК] зашёл в бой! Всем встать и отдать честь!',
+    'Король арены [НИК] снова на арене! Защищайте трон!',
     'Сам Король [НИК] почтил нас своим присутствием! Трепещите!'
   ];
-  const LEADER=[
-    '[НИК] захватывает трон! Кто осмелится его остановить?!',
-    'Новый претендент на корону — [НИК]! Арена в огне!',
-    '[НИК] рвётся к власти! Враги бегут!',
-    'СТОП! Кто это?! [НИК] только что захватил трон! Кто остановит этого монстра?!',
-    '[НИК] вышел на первое место! Армия в панике! Срочно кидайте подарки!',
-    'Новый тиран арены — [НИК]! История запомнит этот момент!'
+  const BOSS_HYPE=[
+    'Новый враг на арене! Снесите босса — и пройдёте на следующий уровень!',
+    'Чем больше урона — тем быстрее падёт босс! Не жалейте подарков!',
+    'Все вместе — и даже такой монстр не устоит!',
+    'Босс силён, но армия сильнее! Наваливайтесь всем миром!',
+    'Следующий уровень уже ждёт — прикончите этого босса!'
   ];
   const MEMBER=[
     '[НИК] вошёл в эфир! Брось подарок — и в бой!',
@@ -2804,7 +2814,7 @@ document.getElementById('ratingBtn').addEventListener('click',()=>{
   window._voice={
     gift:function(nick){const n=filterNick(nick);if(!n)return;enqueue(tpl(rnd(GIFT),n),true);},
     king:function(nick){const n=filterNick(nick);if(!n)return;enqueue(tpl(rnd(KING),n),false);},
-    newLeader:function(nick){const n=filterNick(nick);if(!n)return;enqueue(tpl(rnd(LEADER),n),false);},
+    bossSpawn:function(){enqueue(rnd(BOSS_HYPE),false);},
     member:function(nick){
       const n=filterNick(nick);if(!n)return;
       if(warriors.length>=10)return;
