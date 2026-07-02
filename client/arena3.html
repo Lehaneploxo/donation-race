@@ -51,14 +51,22 @@ const SKY_H = 190;
 // важно для слабых телефонов. Ключ включает siteId, чтобы разные функции-персонажи
 // с одинаковой геометрией никогда не путали друг у друга цвета.
 const _gradCache=new Map();
+const _GRAD_CACHE_MAX=300; // жёсткий предел — без него градиенты с "плавающими" координатами
+// (свечение оружия при взмахе и т.п.) никогда не повторяются и копятся в памяти без остановки,
+// со временем вешая вкладку у всех, у кого она открыта.
 function cGrad(siteId,args,populate){
   const key=siteId+'|'+args.join(',');
-  let g=_gradCache.get(key);
-  if(!g){
-    g=args.length===4?ctx.createLinearGradient(...args):ctx.createRadialGradient(...args);
-    populate(g);
-    _gradCache.set(key,g);
+  if(_gradCache.has(key)){
+    const g=_gradCache.get(key);
+    _gradCache.delete(key);_gradCache.set(key,g); // "потрогали" — переносим в конец (недавно использованные)
+    return g;
   }
+  if(_gradCache.size>=_GRAD_CACHE_MAX){
+    _gradCache.delete(_gradCache.keys().next().value); // вытесняем самый старый/давно не используемый
+  }
+  const g=args.length===4?ctx.createLinearGradient(...args):ctx.createRadialGradient(...args);
+  populate(g);
+  _gradCache.set(key,g);
   return g;
 }
 function d2r(d) { return d * Math.PI / 180; }
