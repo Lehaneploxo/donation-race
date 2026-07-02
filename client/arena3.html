@@ -59,7 +59,14 @@ function trackPerf(dt){
   if(dt>28)_perfSlowFrames++; // дольше 28мс = устройство не держит стабильные ~35+ fps
   if(_perfSamples>=90){ // ~2-3 секунды наблюдения
     _perfChecked=true;
-    if(_perfSlowFrames/_perfSamples>0.35)_lowPerfMode=true;
+    if(_perfSlowFrames/_perfSamples>0.35){
+      _lowPerfMode=true;
+      // Снижение лимита само по себе только тормозит РОСТ — уже вышедших на арену
+      // бойцов сверх нового лимита нужно убрать сразу, а не ждать пока они сами умрут.
+      const cap=effMaxWarriors();
+      const alive=warriors.filter(w=>!w.dead).sort((a,b)=>a.coins-b.coins);
+      for(let i=0;i<alive.length-cap;i++){alive[i].dead=true;alive[i].deathTimer=600;spawnDeathFX(alive[i]);}
+    }
   }
 }
 
