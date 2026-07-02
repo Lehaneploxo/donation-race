@@ -102,6 +102,7 @@ const BOSS_LEVELS=[
   {name:'Голем',  emoji:'🗿', hp:5500,  dmg:50,  scale:1.31},
   {name:'Демон',  emoji:'😈', hp:10000, dmg:100, scale:1.47},
   {name:'Дракон', emoji:'🐉', hp:20000, dmg:250, scale:2.94},
+  {name:'Гидра',  emoji:'🐍', hp:35000, dmg:500, scale:2.94, fem:true},
 ];
 // Волна = N одинаковых боссов одновременно. Круг = проход по всем 5 типам.
 // Круг 1 — по одному боссу, круг 2 — по двое, круг 3 — по трое и т.д.
@@ -184,7 +185,7 @@ function spawnBossWave(){
       walkTimer:Math.random()*1000,walkDelay:1800+Math.random()*1800,idlePhase:Math.random()*Math.PI*2,
       flashTimer:0,attackAnim:0,hitAnim:0,bumpCooldown:0});
   }
-  eventLabel=count>1?`${cfg.emoji} ${cfg.name.toUpperCase()} ×${count} ПОЯВИЛИСЬ!`:`${cfg.emoji} ${cfg.name.toUpperCase()} ПОЯВИЛСЯ!`;
+  eventLabel=count>1?`${cfg.emoji} ${cfg.name.toUpperCase()} ×${count} ПОЯВИЛИСЬ!`:`${cfg.emoji} ${cfg.name.toUpperCase()} ${cfg.fem?'ПОЯВИЛАСЬ':'ПОЯВИЛСЯ'}!`;
   eventLabelTimer=3000;
   if(window._voice)window._voice.bossSpawn();
   playBossRoar();
@@ -2688,8 +2689,99 @@ function drawDragonBoss(cx,cy,s,facing,state,t){
 
   ctx.restore();
 }
+// ── Draw Hydra Boss (Level 6) ─────────────────────────
+function drawHydraBoss(cx,cy,s,facing,state,t){
+  const PI=Math.PI;
+  const SCALE='#3D2B56',SCALE_DARK='#1F1530',SCALE_LIT='#5C3D82',BELLY='#8FBF8F';
+  const FANG='#EEE8D0',EYE='#00FF88',VENOM='#33FF66';
+  const headR=10,torsoH=26,torsoW=15;
+  const neckLen=34;
+  const hipY=6,shoulderY=-torsoH;
+  const sX=torsoW,hX=torsoW*0.95;
+
+  let bodyBob=0,bodyLean=0,coilPhase=0;
+  let neckSway=[0,0,0],lungeHead=-1,lungeT=0;
+
+  if(state==='idle'){
+    const slow=t*0.0013;
+    bodyBob=Math.sin(slow)*3;
+    coilPhase=slow;
+    neckSway=[Math.sin(slow*0.6)*6,Math.sin(slow*0.6+2.1)*6,Math.sin(slow*0.6+4.2)*6];
+  } else if(state==='walk'){
+    const cycle=t*0.003,sc=Math.sin(cycle);
+    bodyBob=Math.abs(sc)*3-1.2; bodyLean=sc*5; coilPhase=t*0.003;
+    neckSway=[sc*10,Math.sin(cycle+2.1)*10,Math.sin(cycle+4.2)*10];
+  } else if(state==='attack'){
+    const p=(t%900)/900;
+    lungeHead=Math.floor(t/900)%3;
+    if(p<0.35){const tp=easeInOut(p/0.35);lungeT=lerp(0,1,tp);bodyLean=lerp(0,-6,tp);}
+    else if(p<0.55){lungeT=1;bodyLean=-6;}
+    else{const tp=easeInOut((p-0.55)/0.45);lungeT=lerp(1,0,tp);bodyLean=lerp(-6,0,tp);}
+    neckSway=[0,0,0];neckSway[lungeHead]=0;
+  }
+
+  ctx.save();
+  ctx.translate(cx,cy+bodyBob*s);
+  ctx.scale(facing,1);
+  ctx.rotate(d2r(bodyLean));
+  ctx.scale(s,s);
+
+  // Shadow
+  ctx.save();ctx.scale(1,0.15);
+  const shad=ctx.createRadialGradient(0,0,5,0,0,32);
+  shad.addColorStop(0,'rgba(0,0,0,0.55)');shad.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.fillStyle=shad;ctx.beginPath();ctx.ellipse(0,0,32,32,0,0,PI*2);ctx.fill();
+  ctx.restore();
+
+  // Coiled serpent tail/base (no legs)
+  {ctx.strokeStyle=SCALE_DARK;ctx.lineWidth=15;ctx.lineCap='round';
+  ctx.beginPath();
+  for(let i=0;i<=20;i++){const a=coilPhase+i*0.5,r=6+i*1.3,x=Math.cos(a)*r*0.5,y=hipY+8+i*1.6;if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);}
+  ctx.stroke();
+  ctx.strokeStyle=SCALE;ctx.lineWidth=10;
+  ctx.beginPath();
+  for(let i=0;i<=20;i++){const a=coilPhase+i*0.5,r=6+i*1.3,x=Math.cos(a)*r*0.5,y=hipY+8+i*1.6;if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);}
+  ctx.stroke();}
+
+  // Torso
+  {ctx.beginPath();ctx.moveTo(-sX,shoulderY);ctx.lineTo(sX,shoulderY);ctx.bezierCurveTo(sX+3,shoulderY+torsoH*0.5,hX+2,hipY-4,hX,hipY);ctx.lineTo(-hX,hipY);ctx.bezierCurveTo(-hX-2,hipY-4,-sX-3,shoulderY+torsoH*0.5,-sX,shoulderY);ctx.closePath();
+  const tg=ctx.createLinearGradient(-sX,shoulderY,sX,shoulderY);tg.addColorStop(0,SCALE_DARK);tg.addColorStop(0.4,SCALE);tg.addColorStop(0.7,SCALE_LIT);tg.addColorStop(1,SCALE_DARK);ctx.fillStyle=tg;ctx.fill();ctx.strokeStyle='#100a1a';ctx.lineWidth=1;ctx.stroke();
+  ctx.fillStyle=BELLY;for(let i=0;i<3;i++){const py=shoulderY+8+i*6,pw=(sX*0.45)*(1-i*0.1);ctx.beginPath();ctx.ellipse(0,py,pw,3,0,0,PI*2);ctx.fill();}}
+
+  // Three necks + heads, fanned out
+  const heads=[{ox:-sX*0.5,baseAng:-28},{ox:0,baseAng:0},{ox:sX*0.5,baseAng:28}];
+  heads.forEach((hd,i)=>{
+    const sway=neckSway[i]||0;
+    const isLunging=lungeHead===i;
+    const ang=d2r(hd.baseAng+sway)+(isLunging?d2r(-lungeT*22):0);
+    const extend=isLunging?lungeT*14:0;
+    ctx.save();ctx.translate(hd.ox,shoulderY+2);ctx.rotate(ang);
+    capsule(0,0,0,-(neckLen+extend),5.4,SCALE,'#100a1a',0.7);
+    ctx.save();ctx.translate(0,-(neckLen+extend)-headR+2);
+    // horns
+    ctx.strokeStyle=SCALE_DARK;ctx.lineWidth=2.4;ctx.lineCap='round';
+    ctx.beginPath();ctx.moveTo(-4,-3);ctx.quadraticCurveTo(-9,-9,-7,-16);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(4,-3);ctx.quadraticCurveTo(9,-9,7,-16);ctx.stroke();
+    // head
+    ctx.beginPath();ctx.ellipse(0,0,headR*0.8,headR*0.95,0,0,PI*2);
+    const hg=ctx.createRadialGradient(-2,-2,1,0,0,headR*1.1);hg.addColorStop(0,SCALE_LIT);hg.addColorStop(0.55,SCALE);hg.addColorStop(1,SCALE_DARK);
+    ctx.fillStyle=hg;ctx.fill();ctx.strokeStyle='#100a1a';ctx.lineWidth=0.7;ctx.stroke();
+    // glowing eyes
+    [-1,1].forEach(side=>{ctx.save();ctx.shadowColor=EYE;ctx.shadowBlur=7;ctx.fillStyle=EYE;ctx.beginPath();ctx.ellipse(side*3.6,-1.5,1.8,2.2,0,0,PI*2);ctx.fill();ctx.restore();});
+    // fangs / jaw
+    ctx.fillStyle=FANG;ctx.beginPath();ctx.moveTo(-3.5,5);ctx.lineTo(-2,9);ctx.lineTo(-0.8,5.5);ctx.closePath();ctx.fill();
+    ctx.beginPath();ctx.moveTo(3.5,5);ctx.lineTo(2,9);ctx.lineTo(0.8,5.5);ctx.closePath();ctx.fill();
+    // venom drip on lunge
+    if(isLunging&&lungeT>0.5){ctx.save();ctx.globalAlpha=(lungeT-0.5)*2;ctx.fillStyle=VENOM;ctx.shadowColor=VENOM;ctx.shadowBlur=6;ctx.beginPath();ctx.arc(0,10,2.2,0,PI*2);ctx.fill();ctx.restore();}
+    ctx.restore();
+    ctx.restore();
+  });
+
+  ctx.restore();
+}
 function drawBoss(b,cx,cy,s,facing,state,now){
-  if(b.name==='Дракон')drawDragonBoss(cx,cy,s,facing,state,now);
+  if(b.name==='Гидра')drawHydraBoss(cx,cy,s,facing,state,now);
+  else if(b.name==='Дракон')drawDragonBoss(cx,cy,s,facing,state,now);
   else if(b.name==='Демон')drawDemonBoss(cx,cy,s,facing,state,now);
   else if(b.name==='Зомби')drawZombieBoss(cx,cy,s,facing,state,now);
   else if(b.name==='Голем')drawGolemBoss(cx,cy,s,facing,state,now);
