@@ -24,7 +24,32 @@ async function init() {
       total_kills INTEGER NOT NULL DEFAULT 0
     )
   `);
-  console.log('[DB] Таблица kills готова');
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS boss_damage (
+      username TEXT PRIMARY KEY,
+      total_damage INTEGER NOT NULL DEFAULT 0
+    )
+  `);
+  console.log('[DB] Таблицы kills и boss_damage готовы');
+}
+
+async function addBossDamage(username, amount) {
+  if (!pool || !username || !amount) return;
+  await pool.query(`
+    INSERT INTO boss_damage (username, total_damage)
+    VALUES ($1, $2)
+    ON CONFLICT (username)
+    DO UPDATE SET total_damage = boss_damage.total_damage + $2
+  `, [username, Math.floor(amount)]);
+}
+
+async function getTopBossDamage(limit = 10) {
+  if (!pool) return [];
+  const res = await pool.query(
+    'SELECT username, total_damage FROM boss_damage ORDER BY total_damage DESC LIMIT $1',
+    [limit]
+  );
+  return res.rows;
 }
 
 async function addKill(username) {
@@ -59,4 +84,4 @@ async function getUserRank(username) {
 
 function isConnected() { return pool !== null; }
 
-module.exports = { init, addKill, getTopKillers, getUserRank, isConnected };
+module.exports = { init, addKill, getTopKillers, getUserRank, addBossDamage, getTopBossDamage, isConnected };

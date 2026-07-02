@@ -296,6 +296,22 @@
     <div class="status-msg" id="arena2Status">⏳ Открываю игру…</div>
   </div>
 
+  <!-- ── ARENA BATTLE 3 ── -->
+  <div class="game-panel panel-arena" style="border-left:1px solid rgba(180,80,255,0.3)">
+    <div class="panel-title" style="color:#CC66FF;text-shadow:0 0 18px #9900FF">⚔️ ARENA 3 ⚔️</div>
+    <div class="panel-sub">Донаты · лайки · пиши "help" в чате</div>
+
+    <input class="nick-input" id="arena3Input" type="text"
+           placeholder="@your_username"
+           autocomplete="off" autocorrect="off" spellcheck="false">
+
+    <div class="error-msg" id="arena3Error">Введи никнейм TikTok</div>
+
+    <button class="btn-start" id="arena3Start" style="background:linear-gradient(90deg,#440088,#9900FF);color:#fff;box-shadow:0 4px 20px rgba(180,80,255,0.4)">⚔️ START ARENA 3</button>
+
+    <div class="status-msg" id="arena3Status">⏳ Открываю игру…</div>
+  </div>
+
 </div>
 
 <div class="stripe"></div>
@@ -307,13 +323,14 @@
   document.getElementById('warInput').value    = saved;
   document.getElementById('arenaInput').value  = saved;
   document.getElementById('arena2Input').value = saved;
+  document.getElementById('arena3Input').value = saved;
   document.getElementById('civInput').value    = saved;
 
   // Sync all inputs when typing
-  ['raceInput','warInput','arenaInput','arena2Input','civInput'].forEach(id => {
+  ['raceInput','warInput','arenaInput','arena2Input','arena3Input','civInput'].forEach(id => {
     document.getElementById(id).addEventListener('input', function() {
       if (this.value.startsWith('@')) this.value = this.value.slice(1);
-      ['raceInput','warInput','arenaInput','arena2Input','civInput'].forEach(oid => {
+      ['raceInput','warInput','arenaInput','arena2Input','arena3Input','civInput'].forEach(oid => {
         if (oid !== id) document.getElementById(oid).value = this.value;
       });
     });
@@ -373,6 +390,13 @@
     handleClick('arena2Input','arena2Error','arena2Status','arena2Start','/arena2'));
   document.getElementById('arena2Input').addEventListener('keydown', e => {
     if (e.key === 'Enter') document.getElementById('arena2Start').click();
+  });
+
+  // Arena 3
+  document.getElementById('arena3Start').addEventListener('click', () =>
+    handleClick('arena3Input','arena3Error','arena3Status','arena3Start','/arena3'));
+  document.getElementById('arena3Input').addEventListener('keydown', e => {
+    if (e.key === 'Enter') document.getElementById('arena3Start').click();
   });
 </script>
 

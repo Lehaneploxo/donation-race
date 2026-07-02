@@ -59,6 +59,7 @@ app.get('/game',        serveHtml('index.html'));
 app.get('/war',         serveHtml('war.html'));
 app.get('/arena',       serveHtml('arena.html'));
 app.get('/arena2',      serveHtml('arena2.html'));
+app.get('/arena3',      serveHtml('arena3.html'));
 app.get('/civilization',serveHtml('civilization.html'));
 
 // Локальный no-op сервис подписи — возвращает URL без изменений
@@ -129,6 +130,16 @@ app.get('/top', async (req, res) => {
   try {
     const limit = parseInt(req.query.limit) || 100;
     const top = await db.getTopKillers(limit);
+    res.json({ ok: true, count: top.length, top });
+  } catch(e) {
+    res.json({ ok: false, error: e.message });
+  }
+});
+
+app.get('/top-boss-damage', async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 100;
+    const top = await db.getTopBossDamage(limit);
     res.json({ ok: true, count: top.length, top });
   } catch(e) {
     res.json({ ok: false, error: e.message });
@@ -422,7 +433,7 @@ class Room {
   removeClient(ws) {
     this.clients.delete(ws);
     // Останавливаем TikTok-подключение когда уходит последний зритель
-    if (this.clients.size === 0 && this.connection) {
+    if (this.clients.size === 0 && typeof this.connection?.stop === 'function') {
       this.connection.stop();
     }
   }
@@ -493,6 +504,14 @@ wss.on('connection', (ws, req) => {
             room.broadcast({ type: 'top_killers', data: top });
           })
           .catch(e => console.error('[DB] kill error:', e.message));
+      }
+      if (msg.type === 'boss_damage' && msg.username && msg.amount) {
+        db.addBossDamage(msg.username, msg.amount)
+          .then(() => db.getTopBossDamage(5))
+          .then(top => {
+            room.broadcast({ type: 'top_boss_damage', data: top });
+          })
+          .catch(e => console.error('[DB] boss_damage error:', e.message));
       }
       if (msg.type === 'request_rating' && msg.username) {
         db.getUserRank(msg.username)
