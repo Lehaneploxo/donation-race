@@ -43,6 +43,26 @@ const ctx = cvs.getContext('2d');
 // ── Constants ────────────────────────────────────────
 const SKY_H = 190;
 
+// ── Adaptive perf mode ────────────────────────────────
+// shadowBlur — самая дорогая операция Canvas 2D именно на слабых мобильных GPU
+// (разница между топовым и слабым телефоном по ней намного больше, чем по обычным
+// fill/stroke). Меряем реальный FPS первые ~2 секунды; если устройство не тянет —
+// на весь остаток сессии отключаем свечения. На мощных телефонах ничего не меняется.
+let _lowPerfMode=false,_perfSamples=0,_perfSlowFrames=0,_perfChecked=false;
+function applyGlow(color,blur){
+  if(_lowPerfMode)return;
+  ctx.shadowColor=color;ctx.shadowBlur=blur;
+}
+function trackPerf(dt){
+  if(_perfChecked)return;
+  _perfSamples++;
+  if(dt>28)_perfSlowFrames++; // дольше 28мс = устройство не держит стабильные ~35+ fps
+  if(_perfSamples>=90){ // ~2-3 секунды наблюдения
+    _perfChecked=true;
+    if(_perfSlowFrames/_perfSamples>0.35)_lowPerfMode=true;
+  }
+}
+
 // ── Character helpers ─────────────────────────────────
 // Градиенты у персонажей заданы в локальных координатах (после translate/scale),
 // поэтому для одного и того же места в коде и тех же аргументов результат всегда
@@ -810,7 +830,7 @@ function drawHUD(t) {
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   const T = 88, TH = 220;
   // Creator
-  ctx.shadowColor = 'rgba(255,215,0,0.4)'; ctx.shadowBlur = 8;
+  applyGlow('rgba(255,215,0,0.4)',8);
   ctx.font = 'bold 21px Arial'; ctx.textAlign = 'center';
   ctx.fillStyle = 'rgba(255,215,0,0.55)';
   ctx.fillText('🎮 creator: Leha Neploxo', CW / 2, T - 8);
@@ -824,7 +844,7 @@ function drawHUD(t) {
   ctx.strokeRect(2, T + 2, CW - 4, TH - 4);
 
   // Заголовок
-  ctx.shadowColor = '#FFD700'; ctx.shadowBlur = 16;
+  applyGlow('#FFD700',16);
   ctx.font = 'bold 28px Arial Black'; ctx.textAlign = 'center';
   ctx.strokeStyle = 'rgba(0,0,0,0.9)'; ctx.lineWidth = 4;
   ctx.strokeText('⚔️ ARENA BATTLE 3 ⚔️', CW / 2, T + 42, CW - 20);
@@ -847,7 +867,7 @@ function drawHUD(t) {
 
   // ── ЛЕВАЯ КОЛОНКА — правила ──
   // Заголовок "КАК ИГРАТЬ"
-  ctx.shadowColor = 'rgba(0,0,0,0.9)'; ctx.shadowBlur = 5;
+  applyGlow('rgba(0,0,0,0.9)',5);
   ctx.font = 'bold 13px Arial'; ctx.textAlign = 'left';
   ctx.fillStyle = 'rgba(255,255,255,0.38)';
   ctx.fillText('КАК ИГРАТЬ:', 12, T + 68);
@@ -864,7 +884,7 @@ function drawHUD(t) {
   rules.forEach((r, i) => {
     ctx.save();
     ctx.scale(0.59, 1);
-    ctx.shadowColor = 'rgba(0,0,0,1)'; ctx.shadowBlur = 6;
+    applyGlow('rgba(0,0,0,1)',6);
     ctx.font = 'bold 26px Arial'; ctx.textAlign = 'left';
     ctx.fillStyle = r.color; ctx.fillText(r.text, 6, rY + i * step);
     ctx.shadowBlur = 0;
@@ -872,7 +892,7 @@ function drawHUD(t) {
   });
 
   // ── ПРАВАЯ КОЛОНКА — TOP DAMAGE (урон боссу) ──
-  ctx.shadowColor = '#FF3333'; ctx.shadowBlur = 10;
+  applyGlow('#FF3333',10);
   ctx.font = 'bold 14px Arial Black'; ctx.textAlign = 'center';
   ctx.strokeStyle = 'rgba(0,0,0,0.9)'; ctx.lineWidth = 3;
   ctx.strokeText('⚔️ ТОП УРОН БОССУ ⚔️', 449, T + 66, 280);
@@ -888,7 +908,7 @@ function drawHUD(t) {
     const y = tY + i * tStep;
     const p = topBossDamage[i];
     if (i === 0) { ctx.fillStyle = 'rgba(255,215,0,0.07)'; ctx.fillRect(306, y - 18, 288, tStep); }
-    ctx.shadowColor = 'rgba(0,0,0,0.9)'; ctx.shadowBlur = 4;
+    applyGlow('rgba(0,0,0,0.9)',4);
     ctx.font = i === 0 ? 'bold 13px Arial Black' : 'bold 13px Arial';
     ctx.textAlign = 'left'; ctx.fillStyle = rankColors[i];
     ctx.fillText(ranks[i], 312, y);
@@ -2230,7 +2250,7 @@ function drawSkeletonBoss(cx,cy,s,facing,state,t){
   ctx.fillStyle=hg;ctx.fill();ctx.strokeStyle='#4a4536';ctx.lineWidth=0.8;ctx.stroke();
   [-1,1].forEach(side=>{const ex=side*4.6;
     ctx.beginPath();ctx.ellipse(ex,-2,3.4,4,0,0,PI*2);ctx.fillStyle=SOCKET;ctx.fill();
-    ctx.save();ctx.shadowColor=GLOW;ctx.shadowBlur=8;ctx.fillStyle=GLOW;ctx.beginPath();ctx.arc(ex,-1,1.6,0,PI*2);ctx.fill();ctx.restore();
+    ctx.save();applyGlow(GLOW,8);ctx.fillStyle=GLOW;ctx.beginPath();ctx.arc(ex,-1,1.6,0,PI*2);ctx.fill();ctx.restore();
   });
   ctx.fillStyle=SOCKET;ctx.beginPath();ctx.moveTo(-1.6,2.5);ctx.lineTo(1.6,2.5);ctx.lineTo(0,6);ctx.closePath();ctx.fill();
   ctx.strokeStyle=BONE_DARK;ctx.lineWidth=1;
@@ -2347,7 +2367,7 @@ function drawZombieBoss(cx,cy,s,facing,state,t){
   // glowing sunken eyes
   [-1,1].forEach(side=>{const ex=side*4.4;
     ctx.beginPath();ctx.ellipse(ex,-2,3,3.6,0,0,PI*2);ctx.fillStyle='#151f0c';ctx.fill();
-    ctx.save();ctx.shadowColor=GLOW;ctx.shadowBlur=7;ctx.fillStyle=GLOW;ctx.beginPath();ctx.arc(ex,-1,1.4,0,PI*2);ctx.fill();ctx.restore();
+    ctx.save();applyGlow(GLOW,7);ctx.fillStyle=GLOW;ctx.beginPath();ctx.arc(ex,-1,1.4,0,PI*2);ctx.fill();ctx.restore();
   });
   // jagged jaw, half-open
   ctx.fillStyle=SKIN_DARK;ctx.beginPath();ctx.moveTo(-5,6);ctx.quadraticCurveTo(0,11,5,6);ctx.quadraticCurveTo(0,9,-5,6);ctx.closePath();ctx.fill();
@@ -2423,7 +2443,7 @@ function drawGolemBoss(cx,cy,s,facing,state,t){
   {ctx.beginPath();ctx.moveTo(-sX,shoulderY);ctx.lineTo(sX,shoulderY);ctx.bezierCurveTo(sX+3,shoulderY+torsoH*0.5,hX+2,hipY-3,hX,hipY);ctx.lineTo(-hX,hipY);ctx.bezierCurveTo(-hX-2,hipY-3,-sX-3,shoulderY+torsoH*0.5,-sX,shoulderY);ctx.closePath();
   const tg=cGrad('g76',[-sX,shoulderY,sX,shoulderY],tg=>{tg.addColorStop(0,STONE_DARK);tg.addColorStop(0.4,STONE);tg.addColorStop(0.7,STONE_LIT);tg.addColorStop(1,STONE_DARK);});ctx.fillStyle=tg;ctx.fill();ctx.strokeStyle='#2c2820';ctx.lineWidth=1;ctx.stroke();
   // glowing rune cracks
-  ctx.save();ctx.shadowColor=CRACK_GLOW;ctx.shadowBlur=6;ctx.strokeStyle=CRACK;ctx.lineWidth=1.6;ctx.lineCap='round';
+  ctx.save();applyGlow(CRACK_GLOW,6);ctx.strokeStyle=CRACK;ctx.lineWidth=1.6;ctx.lineCap='round';
   ctx.beginPath();ctx.moveTo(-4,shoulderY+5);ctx.lineTo(-2,shoulderY+13);ctx.lineTo(-6,shoulderY+20);ctx.stroke();
   ctx.beginPath();ctx.moveTo(4,shoulderY+8);ctx.lineTo(7,shoulderY+16);ctx.stroke();
   ctx.restore();
@@ -2455,10 +2475,10 @@ function drawGolemBoss(cx,cy,s,facing,state,t){
   ctx.fillStyle=hg;ctx.fill();ctx.strokeStyle='#2c2820';ctx.lineWidth=1;ctx.stroke();
   // glowing eyes
   [-1,1].forEach(side=>{const ex=side*4.8;
-    ctx.save();ctx.shadowColor=CRACK_GLOW;ctx.shadowBlur=9;ctx.fillStyle=CRACK;ctx.beginPath();ctx.rect(ex-2,-2,4,2.4);ctx.fill();ctx.restore();
+    ctx.save();applyGlow(CRACK_GLOW,9);ctx.fillStyle=CRACK;ctx.beginPath();ctx.rect(ex-2,-2,4,2.4);ctx.fill();ctx.restore();
   });
   // crack across face
-  ctx.save();ctx.shadowColor=CRACK_GLOW;ctx.shadowBlur=5;ctx.strokeStyle=CRACK;ctx.lineWidth=1.3;
+  ctx.save();applyGlow(CRACK_GLOW,5);ctx.strokeStyle=CRACK;ctx.lineWidth=1.3;
   ctx.beginPath();ctx.moveTo(-6,3);ctx.lineTo(-1,6);ctx.lineTo(2,9);ctx.stroke();
   ctx.restore();
   ctx.restore();
@@ -2592,7 +2612,7 @@ function drawDemonBoss(cx,cy,s,facing,state,t){
   ctx.fillStyle=hg;ctx.fill();ctx.strokeStyle='#1a0505';ctx.lineWidth=0.8;ctx.stroke();
   // glowing eyes
   [-1,1].forEach(side=>{const ex=side*4.6;
-    ctx.save();ctx.shadowColor=FIRE_GLOW;ctx.shadowBlur=9;ctx.fillStyle=FIRE;ctx.beginPath();ctx.ellipse(ex,-2,2.6,3.2,0,0,PI*2);ctx.fill();ctx.restore();
+    ctx.save();applyGlow(FIRE_GLOW,9);ctx.fillStyle=FIRE;ctx.beginPath();ctx.ellipse(ex,-2,2.6,3.2,0,0,PI*2);ctx.fill();ctx.restore();
   });
   // snarling mouth
   ctx.strokeStyle='#1a0505';ctx.lineWidth=1.2;ctx.beginPath();ctx.moveTo(-5,6);ctx.quadraticCurveTo(0,10,5,6);ctx.stroke();
@@ -2729,7 +2749,7 @@ function drawDragonBoss(cx,cy,s,facing,state,t){
   ctx.beginPath();ctx.ellipse(0,10,headR*0.55,headR*0.4,0,0,PI*2);ctx.fillStyle=SCALE_DARK;ctx.fill();
   // eyes
   [-1,1].forEach(side=>{const ex=side*5.2;
-    ctx.save();ctx.shadowColor=FIRE_LIT;ctx.shadowBlur=8;ctx.fillStyle=FIRE;ctx.beginPath();ctx.ellipse(ex,-3,2.6,2,0,0,PI*2);ctx.fill();ctx.restore();
+    ctx.save();applyGlow(FIRE_LIT,8);ctx.fillStyle=FIRE;ctx.beginPath();ctx.ellipse(ex,-3,2.6,2,0,0,PI*2);ctx.fill();ctx.restore();
   });
   // fire breath
   if(breathT>0.05){
@@ -2823,12 +2843,12 @@ function drawHydraBoss(cx,cy,s,facing,state,t){
     const hg=cGrad('g84',[-2,-2,1,0,0,headR*1.1],hg=>{hg.addColorStop(0,SCALE_LIT);hg.addColorStop(0.55,SCALE);hg.addColorStop(1,SCALE_DARK);});
     ctx.fillStyle=hg;ctx.fill();ctx.strokeStyle='#100a1a';ctx.lineWidth=0.7;ctx.stroke();
     // glowing eyes
-    [-1,1].forEach(side=>{ctx.save();ctx.shadowColor=EYE;ctx.shadowBlur=7;ctx.fillStyle=EYE;ctx.beginPath();ctx.ellipse(side*3.6,-1.5,1.8,2.2,0,0,PI*2);ctx.fill();ctx.restore();});
+    [-1,1].forEach(side=>{ctx.save();applyGlow(EYE,7);ctx.fillStyle=EYE;ctx.beginPath();ctx.ellipse(side*3.6,-1.5,1.8,2.2,0,0,PI*2);ctx.fill();ctx.restore();});
     // fangs / jaw
     ctx.fillStyle=FANG;ctx.beginPath();ctx.moveTo(-3.5,5);ctx.lineTo(-2,9);ctx.lineTo(-0.8,5.5);ctx.closePath();ctx.fill();
     ctx.beginPath();ctx.moveTo(3.5,5);ctx.lineTo(2,9);ctx.lineTo(0.8,5.5);ctx.closePath();ctx.fill();
     // venom drip on lunge
-    if(isLunging&&lungeT>0.5){ctx.save();ctx.globalAlpha=(lungeT-0.5)*2;ctx.fillStyle=VENOM;ctx.shadowColor=VENOM;ctx.shadowBlur=6;ctx.beginPath();ctx.arc(0,10,2.2,0,PI*2);ctx.fill();ctx.restore();}
+    if(isLunging&&lungeT>0.5){ctx.save();ctx.globalAlpha=(lungeT-0.5)*2;ctx.fillStyle=VENOM;applyGlow(VENOM,6);ctx.beginPath();ctx.arc(0,10,2.2,0,PI*2);ctx.fill();ctx.restore();}
     ctx.restore();
     ctx.restore();
   });
@@ -2854,7 +2874,7 @@ function drawBossHPBar(){
   if(alive.length===0)return;
   const cfg=alive[0];
   let by=330; // с отступом от нижнего края HUD-панели (T+TH=308), не прилипает
-  ctx.save();ctx.shadowColor='rgba(0,0,0,0.9)';ctx.shadowBlur=4;
+  ctx.save();applyGlow('rgba(0,0,0,0.9)',4);
   ctx.fillStyle='#FFD700';ctx.font='bold 13px Arial';ctx.textAlign='center';
   ctx.fillText(`${cfg.emoji} ${cfg.name} · Круг ${bossRound} · 💪 ${cfg.dmg} · живы ${alive.length}/${bosses.length}`,CW/2,by);
   ctx.restore();
@@ -2902,8 +2922,7 @@ function drawWarrior(w, now){
   if(w.attackAnim>0.5)state='attack';
   const isKing=topBossDamage.length>0&&w.username.toLowerCase()===topBossDamage[0].username.toLowerCase();
   ctx.save();ctx.globalAlpha=alpha;
-  if(isKing){ctx.shadowColor='#FFD700';ctx.shadowBlur=22;}
-  else if(isGlow){ctx.shadowColor='#AAFFAA';ctx.shadowBlur=14;}
+  if(isGlow){applyGlow('#AAFFAA',14);}
   ctx.save();ctx.translate(sx+hitOff,sy+idleBob);ctx.scale(totalSc,totalSc);
   try{
     if(isKing)drawDarkKing(0,0,1,facing,state,now);
@@ -2933,7 +2952,7 @@ function drawDmgNums(){ctx.save();for(const d of dmgNums){ctx.globalAlpha=d.life
 function drawMeteors(){for(const m of meteors){const a=Math.min(1,m.life/400);for(let i=1;i<m.trail.length;i++){const t0=m.trail[i-1],t1=m.trail[i];ctx.save();ctx.globalAlpha=a*(i/m.trail.length)*0.5;ctx.strokeStyle='#FF7700';ctx.lineWidth=m.r*(i/m.trail.length)*1.3;ctx.lineCap='round';ctx.beginPath();ctx.moveTo(t0.x,t0.y);ctx.lineTo(t1.x,t1.y);ctx.stroke();ctx.restore();}ctx.save();ctx.globalAlpha=a;const g=cGrad('g85',[m.x,m.y,0,m.x,m.y,m.r],g=>{g.addColorStop(0,'#FFF');g.addColorStop(0.35,'#FFEE00');g.addColorStop(0.7,'#FF4400');g.addColorStop(1,'#660000');});ctx.fillStyle=g;ctx.beginPath();ctx.arc(m.x,m.y,m.r,0,Math.PI*2);ctx.fill();ctx.restore();}}
 function drawFlood(){if(!armageddon)return;const lvl=armageddon.floodLevel,waterY=CH-lvl*(CH-SKY_H);ctx.save();ctx.rect(0,SKY_H,CW,CH-SKY_H);ctx.clip();const wg=cGrad('g86',[0,waterY,0,CH],wg=>{wg.addColorStop(0,'rgba(30,90,220,0.55)');wg.addColorStop(1,'rgba(10,50,160,0.75)');});ctx.fillStyle=wg;ctx.beginPath();ctx.moveTo(0,waterY);for(let x=0;x<=CW;x+=5)ctx.lineTo(x,waterY+Math.sin(x/28+Date.now()/380)*5);ctx.lineTo(CW,CH);ctx.lineTo(0,CH);ctx.closePath();ctx.fill();ctx.restore();ctx.strokeStyle='rgba(120,170,255,0.45)';ctx.lineWidth=1.2;for(const rd of armageddon.rainDrops){ctx.globalAlpha=rd.life/800*0.6;ctx.beginPath();ctx.moveTo(rd.x,rd.y);ctx.lineTo(rd.x-2,rd.y+11);ctx.stroke();}ctx.globalAlpha=1;}
 function drawTornado(now){if(!armageddon)return;const tx=armageddon.tornadoX,ty=armageddon.tornadoY,ang=armageddon.tornadoAngle;ctx.save();ctx.globalAlpha=0.7;const fg=cGrad('g87',[tx,ty-140,tx,ty+20],fg=>{fg.addColorStop(0,'rgba(160,160,255,0)');fg.addColorStop(0.5,'rgba(130,120,240,0.35)');fg.addColorStop(1,'rgba(100,90,220,0.55)');});ctx.fillStyle=fg;ctx.beginPath();ctx.moveTo(tx-5,ty-140);ctx.lineTo(tx+5,ty-140);ctx.lineTo(tx+44,ty+18);ctx.lineTo(tx-44,ty+18);ctx.closePath();ctx.fill();for(let i=0;i<5;i++){const r=12+i*16,ra=ang+i*0.55,y2=ty-15-i*24;ctx.save();ctx.translate(tx,y2);ctx.rotate(ra);ctx.strokeStyle=`rgba(180,170,255,${0.6-i*0.1})`;ctx.lineWidth=3-i*0.4;ctx.beginPath();ctx.ellipse(0,0,r,r*0.35,0,0,Math.PI*2);ctx.stroke();ctx.restore();}ctx.restore();}
-function drawEventLabel(){const a=Math.min(1,eventLabelTimer/600);ctx.save();ctx.globalAlpha=a;ctx.font='bold 46px Arial Black';ctx.textAlign='center';ctx.shadowColor='#FF4400';ctx.shadowBlur=28;ctx.strokeStyle='#000';ctx.lineWidth=5;ctx.strokeText(eventLabel,CW/2,CH/2-20);ctx.fillStyle='#FF8800';ctx.fillText(eventLabel,CW/2,CH/2-20);ctx.shadowBlur=0;ctx.restore();}
+function drawEventLabel(){const a=Math.min(1,eventLabelTimer/600);ctx.save();ctx.globalAlpha=a;ctx.font='bold 46px Arial Black';ctx.textAlign='center';applyGlow('#FF4400',28);ctx.strokeStyle='#000';ctx.lineWidth=5;ctx.strokeText(eventLabel,CW/2,CH/2-20);ctx.fillStyle='#FF8800';ctx.fillText(eventLabel,CW/2,CH/2-20);ctx.shadowBlur=0;ctx.restore();}
 function drawDebugOverlay(){
   const lines=[
     'D = скрыть дебаг',
@@ -3033,6 +3052,7 @@ function drawPickups(now){
 function frame(now) {
   requestAnimationFrame(frame);
   const dt=Math.min(now-(lastT||now),100); lastT=now;
+  trackPerf(dt);
   gameTime=(gameTime+dt/90000)%1;
   updateWarriors(dt);
   updateBossVictory(dt);
