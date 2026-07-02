@@ -2705,23 +2705,34 @@ function drawBossHPBar(){
   const alive=bosses.filter(b=>!b.dead);
   if(alive.length===0)return;
   const cfg=alive[0];
-  const bw=520,bh=24,bx=(CW-bw)/2;
-  let by=308;
+  let by=330; // с отступом от нижнего края HUD-панели (T+TH=308), не прилипает
   ctx.save();ctx.shadowColor='rgba(0,0,0,0.9)';ctx.shadowBlur=4;
   ctx.fillStyle='#FFD700';ctx.font='bold 13px Arial';ctx.textAlign='center';
   ctx.fillText(`${cfg.emoji} ${cfg.name} · Круг ${bossRound} · 💪 ${cfg.dmg} · живы ${alive.length}/${bosses.length}`,CW/2,by);
   ctx.restore();
-  by+=8;
-  for(const b of alive){
-    by+=bh+5;
-    ctx.fillStyle='rgba(0,0,0,0.8)';ctx.beginPath();if(ctx.roundRect)ctx.roundRect(bx,by,bw,bh,7);else ctx.rect(bx,by,bw,bh);ctx.fill();
+  by+=10;
+
+  // Когда боссов много — полоски мельче и в два столбца, чтобы не закрывать арену
+  const cols=alive.length>3?2:1;
+  const totalW=520,gap=6;
+  const colW=cols===2?(totalW-gap)/2:totalW;
+  const bx0=(CW-totalW)/2;
+  const bh=alive.length>6?15:alive.length>3?18:24;
+  const fontSz=bh>=22?11:9;
+
+  for(let i=0;i<alive.length;i++){
+    const b=alive[i];
+    const col=i%cols,row=Math.floor(i/cols);
+    const bx=bx0+col*(colW+gap);
+    const y=by+row*(bh+4);
+    ctx.fillStyle='rgba(0,0,0,0.8)';ctx.beginPath();if(ctx.roundRect)ctx.roundRect(bx,y,colW,bh,6);else ctx.rect(bx,y,colW,bh);ctx.fill();
     const ratio=Math.max(0,b.hp/b.maxHp);
-    const hg=ctx.createLinearGradient(bx,0,bx+bw*ratio,0);
+    const hg=ctx.createLinearGradient(bx,0,bx+colW*ratio,0);
     hg.addColorStop(0,'#3a0000');hg.addColorStop(0.5,'#8B0000');hg.addColorStop(1,'#FF3300');
-    ctx.fillStyle=hg;ctx.beginPath();if(ctx.roundRect)ctx.roundRect(bx,by,bw*ratio,bh,7);else ctx.rect(bx,by,bw*ratio,bh);ctx.fill();
-    ctx.strokeStyle='rgba(255,80,80,0.6)';ctx.lineWidth=1.5;ctx.beginPath();if(ctx.roundRect)ctx.roundRect(bx,by,bw,bh,7);else ctx.rect(bx,by,bw,bh);ctx.stroke();
-    ctx.fillStyle='#FFF';ctx.font='bold 11px Arial';ctx.textAlign='center';
-    ctx.fillText(`⚡ ${Math.round(b.hp)} / ${b.maxHp}`,CW/2,by+bh-7);
+    ctx.fillStyle=hg;ctx.beginPath();if(ctx.roundRect)ctx.roundRect(bx,y,colW*ratio,bh,6);else ctx.rect(bx,y,colW*ratio,bh);ctx.fill();
+    ctx.strokeStyle='rgba(255,80,80,0.6)';ctx.lineWidth=1.2;ctx.beginPath();if(ctx.roundRect)ctx.roundRect(bx,y,colW,bh,6);else ctx.rect(bx,y,colW,bh);ctx.stroke();
+    ctx.fillStyle='#FFF';ctx.font=`bold ${fontSz}px Arial`;ctx.textAlign='center';
+    ctx.fillText(`⚡ ${Math.round(b.hp)}/${b.maxHp}`,bx+colW/2,y+bh-(bh>=22?7:5));
   }
 }
 
@@ -3023,7 +3034,17 @@ document.getElementById('ratingBtn').addEventListener('click',()=>{
     'Арена такая тихая... даже тараканы разбежались.',
     'Воины устали ждать. Лайк — это уже что-то!',
     'Наш стример смотрит на вас. Нет, серьёзно, прямо сейчас смотрит.',
-    'Три секунды тишины. Четыре. Пять. Окей, это уже неловко.'
+    'Три секунды тишины. Четыре. Пять. Окей, это уже неловко.',
+    'Твой воин стоит на арене в носках. Без брони. Без славы. Спаси его донатом!',
+    'Учёные доказали: зрители с донатом живут счастливее. Ладно, это я придумал. Но всё равно донать!',
+    'Дракон уже потирает лапы в предвкушении. А твой воин ещё даже не родился!',
+    'Если бы тишина в чате была монетами, мы бы озолотились. Но она не монеты.',
+    'Кто-то смотрит стрим уже двадцать минут и ни разу не лайкнул. Мы всё видим. Всё.',
+    'Лайк ничего не стоит, а воину даёт реальную силу. Это буквально бесплатный апгрейд!',
+    'Наш диктор питается донатами. Без них он грустнеет. Как сейчас, например.',
+    'Секретный способ стать легендой арены: донатить. Больше секретов нет, всё просто.',
+    'У босса отличный аппетит. У тебя — отличный шанс испортить ему обед!',
+    'Каждая минута без подарка — это минута, когда босс побеждает морально.'
   ];
   const GIFT=[
     '[НИК] бросил в бой всё что имел! Его воин рвётся к трону!',
