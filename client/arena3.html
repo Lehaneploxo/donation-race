@@ -232,14 +232,16 @@ function updateWarriors(dt){
     w.walkTimer+=dt;w.walkPhase+=dt*0.0045;w.idlePhase+=dt*0.003;
     w.attackAnim=Math.max(0,w.attackAnim-dt/280);w.hitAnim=Math.max(0,w.hitAnim-dt/220);
     if(w.bumpCooldown>0)w.bumpCooldown=Math.max(0,w.bumpCooldown-dt);
+    // Случайное блуждание по арене (как PvP во второй части) — бой запускается
+    // просто по факту сближения с боссом, а не целенаправленным преследованием.
+    const spd=0.18*dt/1000;
+    const dax=w.tax-w.ax,day=w.tay-w.ay,dist=Math.sqrt(dax*dax+day*day);
+    if(dist>0.025){w.ax+=dax/dist*spd;w.ay+=day/dist*spd;playFootstep();}
+    if(dist<0.04||w.walkTimer>w.walkDelay){w.walkTimer=0;w.walkDelay=2000+Math.random()*2500;const p=rndArenaPos();w.tax=p.ax;w.tay=p.ay;}
     const sp=arenaToScreen(w.ax,w.ay),bossPos=arenaToScreen(boss.ax,boss.ay);
     const dx=sp.x-bossPos.x,dy=sp.y-bossPos.y;
     const distToBoss=Math.sqrt(dx*dx+dy*dy);
-    if(distToBoss>WARRIOR_ATTACK_RANGE){
-      const spd=0.20*dt/1000;
-      const dax=boss.ax-w.ax,day=boss.ay-w.ay,dist=Math.sqrt(dax*dax+day*day);
-      if(dist>0.03){w.ax+=dax/dist*spd;w.ay+=day/dist*spd;playFootstep();}
-    } else if(w.bumpCooldown<=0&&boss.bumpCooldown<=0){
+    if(distToBoss<=WARRIOR_ATTACK_RANGE&&w.bumpCooldown<=0&&boss.bumpCooldown<=0){
       const wDmg=Math.max(1,w.damage);
       const bDmg=boss.dmg; // фиксированный урон босса — не уменьшается от ударов
       boss.hp=Math.max(0,boss.hp-wDmg);
@@ -2603,7 +2605,9 @@ function frame(now) {
 requestAnimationFrame(frame);
 
 // ── WebSocket ─────────────────────────────────────────
-let _ws=null,_wsUser='';
+// Демо-режим (симуляция зрителей) в Arena 3 не используется — пока нет
+// подключения к живому TikTok, арена просто пустует.
+let _ws=null,_wsUser='',_gameMode='connecting';
 function wsConnect(username){
   _wsUser=username;
   if(_ws&&_ws.readyState<2){_ws.onclose=null;_ws.close();}
@@ -2611,13 +2615,13 @@ function wsConnect(username){
   _ws=new WebSocket(`${proto}//${location.host}?username=${encodeURIComponent(username)}`);
   _ws.onopen=()=>setStatus('connecting','⏳ @'+username+'…');
   _ws.onmessage=(e)=>{try{const d=JSON.parse(e.data);
-    if(d.type==='arena_gift'){_dbgGifts++;console.log('[arena3] gift from',d.username,'coins=',d.coins);addWarrior(d.username,d.coins);resetActivity(d.username);if(window._voice)window._voice.gift(d.username);}
-    if(d.type==='arena_like'){_dbgLikes++;totalLikes+=d.likes||0;if(totalLikes>=1000){totalLikes-=1000;triggerArmageddon();}addWarrior(d.username,1);resetActivity(d.username);}
-    if(d.type==='arena_member'){_dbgMembers++;helpWarrior(d.username);resetActivity(d.username);if(window._voice)window._voice.member(d.username);}
+    if(d.type==='arena_gift'&&_gameMode!=='demo'){_dbgGifts++;console.log('[arena3] gift from',d.username,'coins=',d.coins);addWarrior(d.username,d.coins);resetActivity(d.username);if(window._voice)window._voice.gift(d.username);}
+    if(d.type==='arena_like'&&_gameMode!=='demo'){_dbgLikes++;totalLikes+=d.likes||0;if(totalLikes>=1000){totalLikes-=1000;triggerArmageddon();}addWarrior(d.username,1);resetActivity(d.username);}
+    if(d.type==='arena_member'&&_gameMode!=='demo'){_dbgMembers++;helpWarrior(d.username);resetActivity(d.username);if(window._voice)window._voice.member(d.username);}
     if(d.type==='chat'){_dbgChats++;}
     if(d.type==='top_boss_damage'){topBossDamage=(d.data||[]).map(p=>({username:p.username,damage:p.total_damage}));}
-    if(d.type==='arena_cheat'){const _norm=s=>s.toLowerCase().replace(/[\s\-_–—]/g,'');const _lu=d.username.toLowerCase();const _luN=_norm(d.username);let w=warriors.find(w=>!w.dead&&w.username.toLowerCase()===_lu);if(!w)w=warriors.find(w=>!w.dead&&w.username.toLowerCase().includes(_lu));if(!w)w=warriors.find(w=>!w.dead&&_norm(w.username).includes(_luN));if(!w)w=warriors.find(w=>_norm(w.username).includes(_luN));if(w){w.dead=false;w.deathTimer=0;w.maxHp+=d.hp;w.hp+=d.hp;w.damage+=d.damage;w.coins=Math.ceil(w.maxHp/10);const sp=arenaToScreen(w.ax,w.ay);spawnDmgNum(sp.x,sp.y-60,'+'+d.hp,'#FFD700');spawnDmgNum(sp.x,sp.y-85,'⚔️+'+d.damage,'#FF8800');eventLabel='⚡ POWER!';eventLabelTimer=3500;playVictory();}}
-    if(d.type==='init'||d.type==='status'){const _m=d.tiktokMode||d.mode;if(_m==='tiktok')setStatus('live','🔴 LIVE @'+(d.username||username));else if(_m==='demo')setStatus('demo','🟡 DEMO MODE');else setStatus('connecting','⏳ @'+username+'…');}
+    if(d.type==='arena_cheat'&&_gameMode!=='demo'){const _norm=s=>s.toLowerCase().replace(/[\s\-_–—]/g,'');const _lu=d.username.toLowerCase();const _luN=_norm(d.username);let w=warriors.find(w=>!w.dead&&w.username.toLowerCase()===_lu);if(!w)w=warriors.find(w=>!w.dead&&w.username.toLowerCase().includes(_lu));if(!w)w=warriors.find(w=>!w.dead&&_norm(w.username).includes(_luN));if(!w)w=warriors.find(w=>_norm(w.username).includes(_luN));if(w){w.dead=false;w.deathTimer=0;w.maxHp+=d.hp;w.hp+=d.hp;w.damage+=d.damage;w.coins=Math.ceil(w.maxHp/10);const sp=arenaToScreen(w.ax,w.ay);spawnDmgNum(sp.x,sp.y-60,'+'+d.hp,'#FFD700');spawnDmgNum(sp.x,sp.y-85,'⚔️+'+d.damage,'#FF8800');eventLabel='⚡ POWER!';eventLabelTimer=3500;playVictory();}}
+    if(d.type==='init'||d.type==='status'){const _m=d.tiktokMode||d.mode;_gameMode=_m||'connecting';if(_m==='tiktok')setStatus('live','🔴 LIVE @'+(d.username||username));else if(_m==='demo')setStatus('demo','🟡 Ожидание эфира…');else setStatus('connecting','⏳ @'+username+'…');}
   }catch(e){console.error('[arena3 ws error]',e);}};
   _ws.onclose=()=>{setStatus('error','❌ Disconnected…');setTimeout(()=>wsConnect(_wsUser),3000);};
   _ws.onerror=()=>{};
