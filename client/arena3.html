@@ -266,7 +266,7 @@ function updateParticles(dt){for(const p of particles){p.x+=p.vx*dt/1000;p.y+=p.
 function updateDmgNums(dt){for(const d of dmgNums){d.y+=d.vy*dt/1000;d.vy*=0.94;d.life-=dt;}dmgNums=dmgNums.filter(d=>d.life>0);}
 function updateIdleDrain(dt){
   const now=Date.now();
-  for(const w of warriors){if(w.dead||w.isBot)continue;if(now-w.lastActivityTime<300000)continue;w.idleDrainAcc+=dt;if(w.idleDrainAcc>=1000){w.idleDrainAcc-=1000;w.hp=Math.max(0,w.hp-1);w.damage=Math.max(1,w.damage-1);w.coins=Math.max(1,w.coins-1);w.maxHp=w.coins*10;const sp=arenaToScreen(w.ax,w.ay);spawnDmgNum(sp.x,sp.y-55,-1,'#888888');if(w.hp<=0){w.dead=true;w.deathTimer=700;spawnDeathFX(w);playRemove();}}}
+  for(const w of warriors){if(w.dead)continue;if(now-w.lastActivityTime<300000)continue;w.idleDrainAcc+=dt;if(w.idleDrainAcc>=1000){w.idleDrainAcc-=1000;w.hp=Math.max(0,w.hp-1);w.damage=Math.max(1,w.damage-1);w.coins=Math.max(1,w.coins-1);w.maxHp=w.coins*10;const sp=arenaToScreen(w.ax,w.ay);spawnDmgNum(sp.x,sp.y-55,-1,'#888888');if(w.hp<=0){w.dead=true;w.deathTimer=700;spawnDeathFX(w);playRemove();}}}
 }
 
 function drawSpearman(cx,cy,s,facing,state,t){
@@ -2463,7 +2463,7 @@ function drawDebugOverlay(){
     `TikTok user: ${_wsUser||'не задан'}`,
     `Gifts: ${_dbgGifts}  Likes: ${_dbgLikes}`,
     `Members: ${_dbgMembers}  Chats: ${_dbgChats}`,
-    `Warriors: ${warriors.filter(w=>!w.dead).length} (bots: ${warriors.filter(w=>!w.dead&&w.isBot).length})`,
+    `Warriors: ${warriors.filter(w=>!w.dead).length}`,
   ];
   ctx.save();ctx.font='13px monospace';ctx.textAlign='left';
   ctx.fillStyle='rgba(0,0,0,0.75)';ctx.fillRect(8,240,250,lines.length*18+12);
