@@ -2445,7 +2445,6 @@ function _drawLabels(sx,labelY,w){
   ctx.font='bold 15px Arial';const nick=w.username.length>13?w.username.slice(0,12)+'…':w.username;ctx.strokeStyle='rgba(0,0,0,0.95)';ctx.lineWidth=3.5;ctx.strokeText(nick,sx,labelY+8);ctx.fillStyle='#FFD700';ctx.fillText(nick,sx,labelY+8);
   ctx.font='bold 12px Arial';ctx.strokeStyle='rgba(0,0,0,0.9)';ctx.lineWidth=2.5;const hpTxt=`❤️ ${Math.ceil(w.hp)}`;ctx.strokeText(hpTxt,sx,labelY+25);ctx.fillStyle='#FF6688';ctx.fillText(hpTxt,sx,labelY+25);
   const dmgTxt=`💪 ${w.damage}`;ctx.strokeText(dmgTxt,sx,labelY+40);ctx.fillStyle='#88CCFF';ctx.fillText(dmgTxt,sx,labelY+40);
-  if(w.bossDamage>0){const bdTxt=`⚔️ ${w.bossDamage}`;ctx.strokeText(bdTxt,sx,labelY+55);ctx.fillStyle='#FF4444';ctx.fillText(bdTxt,sx,labelY+55);}
 }
 function drawParticles(){for(const p of particles){ctx.save();ctx.globalAlpha=Math.max(0,p.life/p.max);ctx.fillStyle=p.col;ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);ctx.fill();ctx.restore();}}
 function drawDmgNums(){ctx.save();for(const d of dmgNums){ctx.globalAlpha=d.life/d.max;ctx.font='bold 22px Arial Black';ctx.textAlign='center';ctx.strokeStyle='rgba(0,0,0,0.9)';ctx.lineWidth=4;ctx.strokeText(d.val,d.x,d.y);ctx.fillStyle=d.col;ctx.fillText(d.val,d.x,d.y);}ctx.globalAlpha=1;ctx.restore();}
