@@ -101,6 +101,7 @@ const BOSS_LEVELS=[
   {name:'Зомби',  emoji:'🧟', hp:2500,  dmg:30,  scale:1.05},
   {name:'Голем',  emoji:'🗿', hp:5500,  dmg:50,  scale:1.31},
   {name:'Демон',  emoji:'😈', hp:10000, dmg:100, scale:1.47},
+  {name:'Дракон', emoji:'🐉', hp:20000, dmg:250, scale:2.94},
 ];
 let boss=null, bossLevel=0, bossVictory=null;
 let topBossDamage=[];
@@ -2526,8 +2527,152 @@ function drawDemonBoss(cx,cy,s,facing,state,t){
 
   ctx.restore();
 }
+// ── Draw Dragon Boss (Level 5) ────────────────────────
+function drawDragonBoss(cx,cy,s,facing,state,t){
+  const PI=Math.PI;
+  const SCALE='#1B5E3A',SCALE_DARK='#0D3320',SCALE_LIT='#2E8B57',BELLY='#D4AF37';
+  const HORN='#3A2A1A',CLAW='#160A08',FIRE='#FF6600',FIRE_LIT='#FFCC33';
+  const headR=15,neckLen=26,torsoH=30,torsoW=15;
+  const uArmLen=18,lArmLen=16,uLegLen=24,lLegLen=22;
+  const hipY=0,shoulderY=-torsoH,neckBotY=-torsoH-2;
+  const sX=torsoW,hX=torsoW*0.8;
+
+  let bodyBob=0,bodyLean=0,neckBend=0,wingFlap=0,tailSwish=0;
+  let legLAngle=0,legRAngle=0,kneeLBend=0,kneeRBend=0;
+  let armLAngle=d2r(-60),armRAngle=d2r(-60);
+  let breathT=0;
+
+  if(state==='idle'){
+    const slow=t*0.0014;
+    bodyBob=Math.sin(slow)*3;
+    neckBend=Math.sin(slow*0.5)*4;
+    wingFlap=0.1+Math.sin(slow*0.7)*0.12;
+    tailSwish=Math.sin(slow*0.35)*12;
+    armLAngle=d2r(-60+Math.sin(slow*0.6)*5);armRAngle=d2r(-60+Math.sin(slow*0.6+1)*5);
+  } else if(state==='walk'){
+    const cycle=t*0.0032,sc=Math.sin(cycle);
+    bodyBob=Math.abs(sc)*4-1.5; bodyLean=6; neckBend=sc*5;
+    legLAngle=d2r(sc*26); legRAngle=d2r(-sc*26);
+    kneeLBend=sc>0?0:d2r(-sc*20); kneeRBend=sc<0?0:d2r(sc*20);
+    wingFlap=0.25+Math.abs(sc)*0.25;
+    tailSwish=-sc*20;
+  } else if(state==='attack'){
+    const p=(t%1000)/1000;
+    if(p<0.3){const tp=easeInOut(p/0.3);neckBend=lerp(0,-18,tp);bodyLean=lerp(0,-8,tp);wingFlap=lerp(0.1,0.5,tp);}
+    else if(p<0.75){const tp=(p-0.3)/0.45;neckBend=lerp(-18,10,easeInOut(Math.min(1,tp*1.3)));bodyLean=lerp(-8,4,tp);breathT=Math.sin(tp*PI);}
+    else{const tp=easeInOut((p-0.75)/0.25);neckBend=lerp(10,0,tp);bodyLean=lerp(4,0,tp);wingFlap=lerp(0.5,0.1,tp);}
+  }
+
+  ctx.save();
+  ctx.translate(cx,cy+bodyBob*s);
+  ctx.scale(facing,1);
+  ctx.rotate(d2r(bodyLean));
+  ctx.scale(s,s);
+
+  // Shadow
+  ctx.save();ctx.scale(1,0.15);
+  const shad=ctx.createRadialGradient(0,0,5,0,0,32);
+  shad.addColorStop(0,'rgba(0,0,0,0.55)');shad.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.fillStyle=shad;ctx.beginPath();ctx.ellipse(0,0,32,32,0,0,PI*2);ctx.fill();
+  ctx.restore();
+
+  // Tail with spikes
+  {const tx=Math.sin(d2r(tailSwish))*30,ty=10;
+  ctx.strokeStyle=SCALE_DARK;ctx.lineWidth=7;ctx.lineCap='round';
+  ctx.beginPath();ctx.moveTo(0,hipY+2);ctx.quadraticCurveTo(tx*0.5,hipY+22,tx,hipY+36);ctx.stroke();
+  for(let i=1;i<=3;i++){const fx=tx*(i/4),fy=hipY+2+34*(i/4);
+    ctx.fillStyle=HORN;ctx.beginPath();ctx.moveTo(fx-3,fy);ctx.lineTo(fx,fy-9);ctx.lineTo(fx+3,fy);ctx.closePath();ctx.fill();}
+  ctx.fillStyle=CLAW;ctx.beginPath();ctx.moveTo(tx-6,hipY+36);ctx.lineTo(tx,hipY+48);ctx.lineTo(tx+6,hipY+36);ctx.closePath();ctx.fill();}
+
+  // Wings
+  [-1,1].forEach(side=>{
+    ctx.save();ctx.translate(side*sX*0.35,shoulderY+2);ctx.rotate(side*(0.25+wingFlap));
+    ctx.beginPath();ctx.moveTo(0,0);
+    ctx.quadraticCurveTo(side*38,-26-wingFlap*26,side*60,-10-wingFlap*20);
+    ctx.quadraticCurveTo(side*46,6,side*38,22);
+    ctx.quadraticCurveTo(side*18,12,0,16);
+    ctx.closePath();
+    const wg=ctx.createLinearGradient(0,0,side*60,0);
+    wg.addColorStop(0,SCALE_DARK);wg.addColorStop(1,'#08200f');
+    ctx.fillStyle=wg;ctx.fill();
+    ctx.strokeStyle=SCALE_LIT;ctx.lineWidth=1.2;ctx.globalAlpha=0.6;ctx.stroke();ctx.globalAlpha=1;
+    ctx.restore();
+  });
+
+  // Back leg
+  {const hip={x:hX*0.6,y:hipY},knee=limbEnd(hip.x,hip.y,legRAngle,uLegLen);
+  const foot=limbEnd(knee.x,knee.y,legRAngle+kneeRBend,lLegLen);
+  capsule(hip.x,hip.y,knee.x,knee.y,6.5,SCALE_DARK,'#081f10',0.6);
+  capsule(knee.x,knee.y,foot.x,foot.y,5.4,SCALE_DARK,'#081f10',0.6);
+  for(let i=-1;i<=1;i++){const ct=limbEnd(foot.x+5,foot.y,i*0.5,7);ctx.strokeStyle=CLAW;ctx.lineWidth=2.4;ctx.lineCap='round';ctx.beginPath();ctx.moveTo(foot.x+5,foot.y);ctx.lineTo(ct.x,ct.y+3);ctx.stroke();}}
+
+  // Back arm
+  {const sh={x:sX*0.6,y:shoulderY},elbow=limbEnd(sh.x,sh.y,armRAngle,uArmLen);
+  const hand=limbEnd(elbow.x,elbow.y,armRAngle,lArmLen);
+  capsule(sh.x,sh.y,elbow.x,elbow.y,5.6,SCALE_DARK,'#081f10',0.6);
+  capsule(elbow.x,elbow.y,hand.x,hand.y,4.6,SCALE_DARK,'#081f10',0.6);
+  ctx.beginPath();ctx.arc(hand.x,hand.y,5,0,PI*2);ctx.fillStyle=CLAW;ctx.fill();}
+
+  // Torso with belly plates
+  {ctx.beginPath();ctx.moveTo(-sX,shoulderY);ctx.lineTo(sX,shoulderY);ctx.bezierCurveTo(sX+3,shoulderY+torsoH*0.5,hX+2,hipY-4,hX,hipY);ctx.lineTo(-hX,hipY);ctx.bezierCurveTo(-hX-2,hipY-4,-sX-3,shoulderY+torsoH*0.5,-sX,shoulderY);ctx.closePath();
+  const tg=ctx.createLinearGradient(-sX,shoulderY,sX,shoulderY);tg.addColorStop(0,SCALE_DARK);tg.addColorStop(0.4,SCALE);tg.addColorStop(0.7,SCALE_LIT);tg.addColorStop(1,SCALE_DARK);ctx.fillStyle=tg;ctx.fill();ctx.strokeStyle='#08200f';ctx.lineWidth=1;ctx.stroke();
+  ctx.fillStyle=BELLY;for(let i=0;i<4;i++){const py=shoulderY+8+i*6,pw=(sX*0.5)*(1-i*0.1);ctx.beginPath();ctx.ellipse(0,py,pw,3.2,0,0,PI*2);ctx.fill();}
+  // back spikes
+  ctx.fillStyle=HORN;for(let i=0;i<3;i++){const py=shoulderY+3+i*8;ctx.beginPath();ctx.moveTo(-3,py);ctx.lineTo(0,py-9);ctx.lineTo(3,py);ctx.closePath();ctx.fill();}}
+
+  // Front leg
+  {const hip={x:-hX*0.6,y:hipY},knee=limbEnd(hip.x,hip.y,legLAngle,uLegLen);
+  const foot=limbEnd(knee.x,knee.y,legLAngle-kneeLBend,lLegLen);
+  capsule(hip.x,hip.y,knee.x,knee.y,7,SCALE,'#081f10',0.6);
+  capsule(knee.x,knee.y,foot.x,foot.y,5.8,SCALE,'#081f10',0.6);
+  ctx.beginPath();ctx.arc(knee.x,knee.y,6,0,PI*2);ctx.fillStyle=SCALE_LIT;ctx.fill();
+  for(let i=-1;i<=1;i++){const ct=limbEnd(foot.x+5,foot.y,i*0.5,8);ctx.strokeStyle=CLAW;ctx.lineWidth=2.6;ctx.lineCap='round';ctx.beginPath();ctx.moveTo(foot.x+5,foot.y);ctx.lineTo(ct.x,ct.y+3);ctx.stroke();}}
+
+  // Front arm
+  {const sh={x:-sX*0.6,y:shoulderY},elbow=limbEnd(sh.x,sh.y,armLAngle,uArmLen);
+  const hand=limbEnd(elbow.x,elbow.y,armLAngle,lArmLen);
+  capsule(sh.x,sh.y,elbow.x,elbow.y,6,SCALE,'#081f10',0.6);
+  capsule(elbow.x,elbow.y,hand.x,hand.y,5,SCALE,'#081f10',0.6);
+  ctx.beginPath();ctx.arc(elbow.x,elbow.y,5.4,0,PI*2);ctx.fillStyle=SCALE_LIT;ctx.fill();
+  ctx.beginPath();ctx.arc(hand.x,hand.y,5.4,0,PI*2);ctx.fillStyle=CLAW;ctx.fill();}
+
+  // Long neck
+  ctx.save();ctx.translate(0,shoulderY-2);ctx.rotate(d2r(neckBend));
+  capsule(0,0,0,-neckLen,7,SCALE,'#08200f',0.8);
+  ctx.fillStyle=BELLY;ctx.beginPath();ctx.ellipse(0,-neckLen*0.5,2.6,neckLen*0.4,0,0,PI*2);ctx.fill();
+
+  // Head
+  ctx.save();ctx.translate(0,-neckLen-headR+3);
+  // horns
+  ctx.strokeStyle=HORN;ctx.lineWidth=3.6;ctx.lineCap='round';
+  ctx.beginPath();ctx.moveTo(-6,-3);ctx.quadraticCurveTo(-16,-10,-14,-22);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(6,-3);ctx.quadraticCurveTo(16,-10,14,-22);ctx.stroke();
+  // snout
+  ctx.beginPath();ctx.ellipse(0,2,headR*0.9,headR*0.72,0,0,PI*2);
+  const hg=ctx.createRadialGradient(-3,-3,2,0,0,headR*1.2);hg.addColorStop(0,SCALE_LIT);hg.addColorStop(0.55,SCALE);hg.addColorStop(1,SCALE_DARK);
+  ctx.fillStyle=hg;ctx.fill();ctx.strokeStyle='#08200f';ctx.lineWidth=0.8;ctx.stroke();
+  ctx.beginPath();ctx.ellipse(0,10,headR*0.55,headR*0.4,0,0,PI*2);ctx.fillStyle=SCALE_DARK;ctx.fill();
+  // eyes
+  [-1,1].forEach(side=>{const ex=side*5.2;
+    ctx.save();ctx.shadowColor=FIRE_LIT;ctx.shadowBlur=8;ctx.fillStyle=FIRE;ctx.beginPath();ctx.ellipse(ex,-3,2.6,2,0,0,PI*2);ctx.fill();ctx.restore();
+  });
+  // fire breath
+  if(breathT>0.05){
+    ctx.save();ctx.globalAlpha=breathT;
+    const bg=ctx.createLinearGradient(0,10,0,10+70*breathT);
+    bg.addColorStop(0,FIRE_LIT);bg.addColorStop(0.5,FIRE);bg.addColorStop(1,'rgba(255,60,0,0)');
+    ctx.fillStyle=bg;
+    ctx.beginPath();ctx.moveTo(-6,10);ctx.lineTo(6,10);ctx.lineTo(16*breathT,10+70*breathT);ctx.lineTo(-16*breathT,10+70*breathT);ctx.closePath();ctx.fill();
+    ctx.restore();
+  }
+  ctx.restore();
+  ctx.restore();
+
+  ctx.restore();
+}
 function drawBoss(cx,cy,s,facing,state,now){
-  if(boss.name==='Демон')drawDemonBoss(cx,cy,s,facing,state,now);
+  if(boss.name==='Дракон')drawDragonBoss(cx,cy,s,facing,state,now);
+  else if(boss.name==='Демон')drawDemonBoss(cx,cy,s,facing,state,now);
   else if(boss.name==='Зомби')drawZombieBoss(cx,cy,s,facing,state,now);
   else if(boss.name==='Голем')drawGolemBoss(cx,cy,s,facing,state,now);
   else drawSkeletonBoss(cx,cy,s,facing,state,now);
