@@ -105,6 +105,10 @@ let boss=null, bossLevel=0, bossVictory=null;
 let topBossDamage=[];
 
 // ── Warrior Management ───────────────────────────────
+// Монета донат/подарка и монета-эквивалент лайка дают разную прибавку —
+// никакого стартового бонуса "+500" при появлении больше нет.
+const COIN_HP=100, COIN_DMG=10;
+const LIKE_HP=10, LIKE_DMG=1;
 function rndFrom(arr){return arr[Math.floor(Math.random()*arr.length)];}
 // Зона движения: весь экран от низа HUD до дна канваса
 // ax: -1..1 → x: 300 ± 285  (20..580)
@@ -113,10 +117,10 @@ const PLAY_CX=300, PLAY_CY=640, PLAY_RX=285, PLAY_RY=330;
 function rndArenaPos(){return{ax:(Math.random()*2-1)*0.96,ay:(Math.random()*2-1)*0.96};}
 function arenaToScreen(ax,ay){return{x:PLAY_CX+ax*PLAY_RX, y:PLAY_CY+ay*PLAY_RY};}
 function getWarriorScale(coins){return 1.3+Math.min(1.1,Math.log10(Math.max(1,coins))*0.38);}
-function makeWarrior(username,coins){
+function makeWarrior(username,coins,hpPerCoin,dmgPerCoin){
   const pos=rndArenaPos(),tgt=rndArenaPos();
-  const _hp=coins*10+500;
-  return{id:++uidSeq,username,coins,hp:_hp,maxHp:_hp,damage:Math.max(1,coins),
+  const _hp=coins*hpPerCoin;
+  return{id:++uidSeq,username,coins,hp:_hp,maxHp:_hp,damage:Math.max(1,coins*dmgPerCoin),
     class:username.includes('Metsuki Sutemi')?'samurai':username.includes('Leha Neploxo')?'cossack':['spearman','conan','terminator','fan_warrior','dark_mage','pirate','knight'][Math.floor(Math.random()*7)],
     ax:pos.ax,ay:pos.ay,tax:tgt.ax,tay:tgt.ay,
     walkTimer:Math.random()*2000,walkDelay:2000+Math.random()*2500,
@@ -125,21 +129,22 @@ function makeWarrior(username,coins){
     floatY:0,floatVY:0,attackAnim:0,hitAnim:0,
     bumpCooldown:2000,bossDamage:0};
 }
-function addWarrior(username,coins){
+function addWarrior(username,coins,hpPerCoin=COIN_HP,dmgPerCoin=COIN_DMG){
   coins=Math.max(1,Math.floor(coins));
+  const hpGain=coins*hpPerCoin,dmgGain=coins*dmgPerCoin;
   const ex=warriors.find(w=>w.username===username&&!w.dead);
-  if(ex){ex.coins+=coins;ex.maxHp=ex.coins*10+500;ex.hp=Math.min(ex.hp+coins*10,ex.maxHp);ex.damage+=coins;ex.flashTimer=600;ex.glowTimer=800;spawnUpgradeFX(ex);return;}
+  if(ex){ex.coins+=coins;ex.maxHp+=hpGain;ex.hp=Math.min(ex.hp+hpGain,ex.maxHp);ex.damage+=dmgGain;ex.flashTimer=600;ex.glowTimer=800;spawnUpgradeFX(ex);return;}
   // If warrior is dead, revive and credit gift
   const dead=warriors.find(w=>w.username===username&&w.dead);
-  if(dead){dead.dead=false;dead.deathTimer=0;dead.coins+=coins;dead.maxHp=dead.coins*10+500;dead.hp=Math.min(dead.hp+coins*10,dead.maxHp);dead.damage+=coins;dead.flashTimer=600;dead.glowTimer=800;spawnUpgradeFX(dead);return;}
+  if(dead){dead.dead=false;dead.deathTimer=0;dead.coins+=coins;dead.maxHp+=hpGain;dead.hp=Math.min(dead.hp+hpGain,dead.maxHp);dead.damage+=dmgGain;dead.flashTimer=600;dead.glowTimer=800;spawnUpgradeFX(dead);return;}
   if(warriors.filter(w=>!w.dead).length>=MAX_WARRIORS){const weakest=warriors.filter(w=>!w.dead).sort((a,b)=>a.coins-b.coins)[0];weakest.dead=true;weakest.deathTimer=600;spawnDeathFX(weakest);playRemove();}
-  const w=makeWarrior(username,coins);
+  const w=makeWarrior(username,coins,hpPerCoin,dmgPerCoin);
   warriors.push(w);playSpawn();spawnSpawnFX(w);
 }
 function helpWarrior(username){
   const w=warriors.find(w=>w.username===username&&!w.dead);
   if(!w) return;
-  w.coins+=1;w.maxHp=w.coins*10+500;w.hp=Math.min(w.hp+10,w.maxHp);w.damage+=1;w.flashTimer=350;w.glowTimer=600;spawnUpgradeFX(w);playHelp();
+  w.coins+=1;w.maxHp+=10;w.hp=Math.min(w.hp+10,w.maxHp);w.damage+=1;w.flashTimer=350;w.glowTimer=600;spawnUpgradeFX(w);playHelp();
 }
 
 // ── Armageddon ───────────────────────────────────────
@@ -2610,7 +2615,7 @@ function wsConnect(username){
   _ws.onopen=()=>setStatus('connecting','⏳ @'+username+'…');
   _ws.onmessage=(e)=>{try{const d=JSON.parse(e.data);
     if(d.type==='arena_gift'&&_gameMode!=='demo'){_dbgGifts++;console.log('[arena3] gift from',d.username,'coins=',d.coins);addWarrior(d.username,d.coins);if(window._voice)window._voice.gift(d.username);}
-    if(d.type==='arena_like'&&_gameMode!=='demo'){_dbgLikes++;totalLikes+=d.likes||0;if(totalLikes>=1000){totalLikes-=1000;triggerArmageddon();}addWarrior(d.username,1);}
+    if(d.type==='arena_like'&&_gameMode!=='demo'){_dbgLikes++;totalLikes+=d.likes||0;if(totalLikes>=1000){totalLikes-=1000;triggerArmageddon();}addWarrior(d.username,1,LIKE_HP,LIKE_DMG);}
     if(d.type==='arena_member'&&_gameMode!=='demo'){_dbgMembers++;helpWarrior(d.username);if(window._voice)window._voice.member(d.username);}
     if(d.type==='chat'){_dbgChats++;}
     if(d.type==='top_boss_damage'){topBossDamage=(d.data||[]).map(p=>({username:p.username,damage:p.total_damage}));}
