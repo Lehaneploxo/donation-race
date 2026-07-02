@@ -15,8 +15,7 @@
     .ui-btn { position: fixed; z-index: 99999; width: 26px; height: 26px; font-size: 12px; background: rgba(0,0,0,0.55); color: rgba(255,255,255,0.55); border: 1px solid rgba(255,255,255,0.2); border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
     #fsBtn   { top: calc(50% + 36px); right: 10px; }
     #backBtn { top: calc(50% - 13px); right: 10px; }
-    #addBotBtn { top: calc(50% + 85px); right: 10px; }
-    #ratingBtn { top: calc(50% + 134px); right: 10px; }
+    #ratingBtn { top: calc(50% + 85px); right: 10px; }
     #statusBadge { position: fixed; bottom: 52px; left: 50%; transform: translateX(-50%); font-size: 13px; padding: 4px 13px; border-radius: 8px; border: 2px solid #555; background: rgba(0,0,0,0.78); color: #AAA; white-space: nowrap; z-index: 100; display: none; }
     #statusBadge.live  { color: #00FF88; border-color: #00FF88; }
     #statusBadge.demo  { color: #FF9900; border-color: #FF9900; }
@@ -27,7 +26,6 @@
 <body>
 <button id="fsBtn"    class="ui-btn" title="Fullscreen">⛶</button>
 <button id="backBtn"  class="ui-btn" title="Back">⌂</button>
-<button id="addBotBtn" class="ui-btn" title="Add warrior">🤖</button>
 <button id="ratingBtn" class="ui-btn" title="Show rating">📊</button>
 <div id="statusBadge">⏳ Connecting…</div>
 
@@ -82,7 +80,6 @@ function playVictory(){try{const ctx=getACtx();[523,659,784,1047].forEach((f,i)=
 function playFootstep(){if(!_ok('step',260))return;try{const ctx=getACtx(),t=ctx.currentTime,s=ctx.createBufferSource(),g=ctx.createGain(),f=ctx.createBiquadFilter();f.type='bandpass';f.frequency.value=180+Math.random()*80;f.Q.value=1.2;s.buffer=_noise(ctx,0.07);s.connect(f);f.connect(g);g.connect(ctx.destination);g.gain.setValueAtTime(0.07,t);g.gain.exponentialRampToValueAtTime(0.001,t+0.07);s.start(t);}catch(e){}}
 function playWhoosh(){if(!_ok('whoosh',400))return;try{const ctx=getACtx(),t=ctx.currentTime,o=ctx.createOscillator(),g=ctx.createGain();o.type='sine';o.frequency.setValueAtTime(520,t);o.frequency.exponentialRampToValueAtTime(220,t+0.18);g.gain.setValueAtTime(0.12,t);g.gain.exponentialRampToValueAtTime(0.001,t+0.2);o.connect(g);g.connect(ctx.destination);o.start(t);o.stop(t+0.22);}catch(e){}}
 function playBossRoar(){try{const ctx=getACtx(),t=ctx.currentTime,o=ctx.createOscillator(),g=ctx.createGain();o.type='sawtooth';o.frequency.setValueAtTime(80,t);o.frequency.exponentialRampToValueAtTime(40,t+0.8);g.gain.setValueAtTime(0.5,t);g.gain.exponentialRampToValueAtTime(0.001,t+1.0);o.connect(g);g.connect(ctx.destination);o.start(t);o.stop(t+1.1);}catch(e){}}
-function playBossAttack(){if(!_ok('bossatk',400))return;try{const ctx=getACtx(),t=ctx.currentTime,s=ctx.createBufferSource(),g=ctx.createGain(),f=ctx.createBiquadFilter();f.type='lowpass';f.frequency.value=600;s.buffer=_noise(ctx,0.35);s.connect(f);f.connect(g);g.connect(ctx.destination);g.gain.setValueAtTime(0.55,t);g.gain.exponentialRampToValueAtTime(0.001,t+0.38);s.start(t);}catch(e){}}
 function playPickupSpawn(){try{const ctx=getACtx();[1047,1319,1568].forEach((f,i)=>{const t=ctx.currentTime+i*0.07,o=ctx.createOscillator(),g=ctx.createGain();o.type='triangle';o.frequency.value=f;g.gain.setValueAtTime(0.13,t);g.gain.exponentialRampToValueAtTime(0.001,t+0.2);o.connect(g);g.connect(ctx.destination);o.start(t);o.stop(t+0.22);});}catch(e){}}
 function playPickupHeart(){try{const ctx=getACtx();[0,0.2].forEach(delay=>{const t=ctx.currentTime+delay,o=ctx.createOscillator(),g=ctx.createGain();o.type='sine';o.frequency.setValueAtTime(130,t);o.frequency.exponentialRampToValueAtTime(60,t+0.13);g.gain.setValueAtTime(0.38,t);g.gain.exponentialRampToValueAtTime(0.001,t+0.16);o.connect(g);g.connect(ctx.destination);o.start(t);o.stop(t+0.2);});}catch(e){}}
 function playPickupPower(){try{const ctx=getACtx(),t=ctx.currentTime;const o=ctx.createOscillator(),g=ctx.createGain();o.type='sawtooth';o.frequency.setValueAtTime(180,t);o.frequency.exponentialRampToValueAtTime(900,t+0.22);g.gain.setValueAtTime(0.22,t);g.gain.exponentialRampToValueAtTime(0.001,t+0.25);o.connect(g);g.connect(ctx.destination);o.start(t);o.stop(t+0.28);const o2=ctx.createOscillator(),g2=ctx.createGain();o2.type='square';o2.frequency.setValueAtTime(240,t+0.18);o2.frequency.exponentialRampToValueAtTime(80,t+0.38);g2.gain.setValueAtTime(0.32,t+0.18);g2.gain.exponentialRampToValueAtTime(0.001,t+0.42);o2.connect(g2);g2.connect(ctx.destination);o2.start(t+0.18);o2.stop(t+0.45);}catch(e){}}
@@ -98,16 +95,14 @@ let _dbgGifts=0,_dbgLikes=0,_dbgMembers=0,_dbgChats=0,_dbgShowDebug=false;
 let lastT=0, gameTime=0.38;
 
 // ── Boss ─────────────────────────────────────────────
-const BOSS_AX=0, BOSS_AY=-0.55;
-const BOSS_ATTACK_RANGE=140, WARRIOR_ATTACK_RANGE=100;
+const WARRIOR_ATTACK_RANGE=100;
 const BOSS_LEVELS=[
-  {name:'Скелет', emoji:'💀', hp:1000, dmg:10, interval:2200, scale:1.05},
-  {name:'Зомби',  emoji:'🧟', hp:2500, dmg:30, interval:2200, scale:1.05},
-  {name:'Голем',  emoji:'🗿', hp:5500, dmg:50, interval:2200, scale:1.31},
+  {name:'Скелет', emoji:'💀', hp:1000, dmg:10, scale:1.05},
+  {name:'Зомби',  emoji:'🧟', hp:2500, dmg:30, scale:1.05},
+  {name:'Голем',  emoji:'🗿', hp:5500, dmg:50, scale:1.31},
 ];
 let boss=null, bossLevel=0, bossVictory=null;
 let topBossDamage=[];
-let bossAtkFX=[];
 
 // ── Warrior Management ───────────────────────────────
 function rndFrom(arr){return arr[Math.floor(Math.random()*arr.length)];}
@@ -118,10 +113,10 @@ const PLAY_CX=300, PLAY_CY=640, PLAY_RX=285, PLAY_RY=330;
 function rndArenaPos(){return{ax:(Math.random()*2-1)*0.96,ay:(Math.random()*2-1)*0.96};}
 function arenaToScreen(ax,ay){return{x:PLAY_CX+ax*PLAY_RX, y:PLAY_CY+ay*PLAY_RY};}
 function getWarriorScale(coins){return 1.3+Math.min(1.1,Math.log10(Math.max(1,coins))*0.38);}
-function makeWarrior(username,coins,isBot=false){
+function makeWarrior(username,coins){
   const pos=rndArenaPos(),tgt=rndArenaPos();
-  const _hp=isBot?coins*10:coins*10+500, _maxHp=isBot?coins*10:coins*10+500;
-  return{id:++uidSeq,username,coins,hp:_hp,maxHp:_maxHp,damage:Math.max(1,coins),
+  const _hp=coins*10+500;
+  return{id:++uidSeq,username,coins,hp:_hp,maxHp:_hp,damage:Math.max(1,coins),
     class:username.includes('Metsuki Sutemi')?'samurai':username.includes('Leha Neploxo')?'cossack':['spearman','conan','terminator','fan_warrior','dark_mage','pirate','knight'][Math.floor(Math.random()*7)],
     ax:pos.ax,ay:pos.ay,tax:tgt.ax,tay:tgt.ay,
     walkTimer:Math.random()*2000,walkDelay:2000+Math.random()*2500,
@@ -129,12 +124,12 @@ function makeWarrior(username,coins,isBot=false){
     dead:false,deathTimer:0,flashTimer:0,glowTimer:0,
     floatY:0,floatVY:0,attackAnim:0,hitAnim:0,
     bumpCooldown:2000,bossDamage:0,
-    lastActivityTime:Date.now(),idleDrainAcc:0,isBot:false};
+    lastActivityTime:Date.now(),idleDrainAcc:0};
 }
 function addWarrior(username,coins){
   coins=Math.max(1,Math.floor(coins));
   const ex=warriors.find(w=>w.username===username&&!w.dead);
-  if(ex){if(ex.isBot)return;ex.coins+=coins;ex.maxHp=ex.coins*10+500;ex.hp=Math.min(ex.hp+coins*10,ex.maxHp);ex.damage+=coins;ex.flashTimer=600;ex.glowTimer=800;spawnUpgradeFX(ex);return;}
+  if(ex){ex.coins+=coins;ex.maxHp=ex.coins*10+500;ex.hp=Math.min(ex.hp+coins*10,ex.maxHp);ex.damage+=coins;ex.flashTimer=600;ex.glowTimer=800;spawnUpgradeFX(ex);return;}
   // If warrior is dead, revive and credit gift
   const dead=warriors.find(w=>w.username===username&&w.dead);
   if(dead){dead.dead=false;dead.deathTimer=0;dead.coins+=coins;dead.maxHp=dead.coins*10+500;dead.hp=Math.min(dead.hp+coins*10,dead.maxHp);dead.damage+=coins;dead.flashTimer=600;dead.glowTimer=800;spawnUpgradeFX(dead);return;}
@@ -145,11 +140,9 @@ function addWarrior(username,coins){
 function helpWarrior(username){
   const w=warriors.find(w=>w.username===username&&!w.dead);
   if(!w) return;
-  if(w.isBot)return;
   w.coins+=1;w.maxHp=w.coins*10+500;w.hp=Math.min(w.hp+10,w.maxHp);w.damage+=1;w.flashTimer=350;w.glowTimer=600;spawnUpgradeFX(w);playHelp();
 }
 function resetActivity(username){const w=warriors.find(w=>w.username===username&&!w.dead);if(w){w.lastActivityTime=Date.now();w.idleDrainAcc=0;}}
-function getBotName(){let name;do{name='test_'+Math.floor(Math.random()*100000);}while(warriors.find(w=>w.username===name));return name;}
 
 // ── Armageddon ───────────────────────────────────────
 function triggerArmageddon(){
@@ -176,7 +169,11 @@ function updateArmageddon(dt){
 function spawnBoss(){
   bossLevel++;
   const cfg=BOSS_LEVELS[(bossLevel-1)%BOSS_LEVELS.length];
-  boss={...cfg,hp:cfg.hp,maxHp:cfg.hp,level:bossLevel,attackTimer:cfg.interval,flashTimer:0,attackAnim:0};
+  const pos=rndArenaPos();
+  boss={...cfg,hp:cfg.hp,maxHp:cfg.hp,level:bossLevel,
+    ax:pos.ax*0.6,ay:pos.ay*0.6,tax:pos.ax*0.6,tay:pos.ay*0.6,
+    walkTimer:0,walkDelay:1800+Math.random()*1800,idlePhase:Math.random()*Math.PI*2,
+    flashTimer:0,attackAnim:0,hitAnim:0,bumpCooldown:0};
   eventLabel=`${cfg.emoji} ${cfg.name.toUpperCase()} ПОЯВИЛСЯ!`;eventLabelTimer=3000;
   playBossRoar();
 }
@@ -206,69 +203,64 @@ function spawnDeathFX(w){const s=arenaToScreen(w.ax,w.ay);for(let i=0;i<22;i++)p
 function spawnUpgradeFX(w){const s=arenaToScreen(w.ax,w.ay);for(let i=0;i<10;i++)particles.push({x:s.x,y:s.y,vx:(Math.random()-0.5)*90,vy:-Math.random()*100-10,life:600,max:600,r:2+Math.random()*4,col:rndFrom(['#FFD700','#AAFFAA','#FFF'])});}
 function spawnHitFX(w){const s=arenaToScreen(w.ax,w.ay);for(let i=0;i<8;i++)particles.push({x:s.x,y:s.y-20,vx:(Math.random()-0.5)*110,vy:-Math.random()*90-10,life:450,max:450,r:2+Math.random()*4,col:rndFrom(['#FF2222','#FF6600','#FFAA00'])});}
 function spawnBossHitFX(bx,by){for(let i=0;i<12;i++)particles.push({x:bx+(Math.random()-0.5)*50,y:by+(Math.random()-0.5)*50,vx:(Math.random()-0.5)*140,vy:(Math.random()-0.5)*140-30,life:500,max:500,r:3+Math.random()*5,col:rndFrom(['#FF3333','#FF8800','#FFDD00','#FFF'])});}
-function spawnBossAttackFX(bx,by,range){bossAtkFX.push({x:bx,y:by,r:0,maxR:range,life:400,max:400});}
 
 // ── Update ───────────────────────────────────────────
+// Босс двигается по арене так же, как воины, и дерётся с ними при столкновении —
+// та же механика "ударил-отошёл", что и PvP во второй части.
 function updateWarriors(dt){
   if(!boss||bossVictory){
     for(const w of warriors)if(w.dead)w.deathTimer-=dt;
     warriors=warriors.filter(w=>!w.dead||w.deathTimer>0);
     return;
   }
-  const bossPos=arenaToScreen(BOSS_AX,BOSS_AY);
+  boss.flashTimer=Math.max(0,boss.flashTimer-dt);
+  boss.attackAnim=Math.max(0,boss.attackAnim-dt/300);
+  boss.hitAnim=Math.max(0,boss.hitAnim-dt/260);
+  if(boss.bumpCooldown>0)boss.bumpCooldown=Math.max(0,boss.bumpCooldown-dt);
+  boss.walkTimer+=dt;boss.idlePhase+=dt*0.003;
+  {
+    const spd=0.10*dt/1000;
+    const dax=boss.tax-boss.ax,day=boss.tay-boss.ay,dist=Math.sqrt(dax*dax+day*day);
+    if(dist>0.03){boss.ax+=dax/dist*spd;boss.ay+=day/dist*spd;}
+    if(dist<0.05||boss.walkTimer>boss.walkDelay){boss.walkTimer=0;boss.walkDelay=2500+Math.random()*2500;const p=rndArenaPos();boss.tax=p.ax*0.75;boss.tay=p.ay*0.75;}
+  }
+  boss.ax=Math.max(-0.9,Math.min(0.9,boss.ax));boss.ay=Math.max(-0.9,Math.min(0.9,boss.ay));
+
   for(const w of warriors){
     if(w.dead){w.deathTimer-=dt;continue;}
     w.flashTimer=Math.max(0,w.flashTimer-dt);w.glowTimer=Math.max(0,w.glowTimer-dt);
     w.walkTimer+=dt;w.walkPhase+=dt*0.0045;w.idlePhase+=dt*0.003;
     w.attackAnim=Math.max(0,w.attackAnim-dt/280);w.hitAnim=Math.max(0,w.hitAnim-dt/220);
     if(w.bumpCooldown>0)w.bumpCooldown=Math.max(0,w.bumpCooldown-dt);
-    const sp=arenaToScreen(w.ax,w.ay);
+    const sp=arenaToScreen(w.ax,w.ay),bossPos=arenaToScreen(boss.ax,boss.ay);
     const dx=sp.x-bossPos.x,dy=sp.y-bossPos.y;
     const distToBoss=Math.sqrt(dx*dx+dy*dy);
     if(distToBoss>WARRIOR_ATTACK_RANGE){
       const spd=0.20*dt/1000;
-      const dax=BOSS_AX-w.ax,day=BOSS_AY-w.ay,dist=Math.sqrt(dax*dax+day*day);
+      const dax=boss.ax-w.ax,day=boss.ay-w.ay,dist=Math.sqrt(dax*dax+day*day);
       if(dist>0.03){w.ax+=dax/dist*spd;w.ay+=day/dist*spd;playFootstep();}
-    } else if(w.bumpCooldown<=0){
-      const dmg=Math.max(1,w.damage);
-      boss.hp=Math.max(0,boss.hp-dmg);
-      boss.flashTimer=200;w.attackAnim=1;w.bumpCooldown=1100;
-      spawnDmgNum(bossPos.x+(Math.random()-0.5)*60,bossPos.y-70-Math.random()*30,-dmg,'#FF3333');
+    } else if(w.bumpCooldown<=0&&boss.bumpCooldown<=0){
+      const wDmg=Math.max(1,w.damage);
+      const bDmg=boss.dmg; // фиксированный урон босса — не уменьшается от ударов
+      boss.hp=Math.max(0,boss.hp-wDmg);
+      w.hp=Math.max(0,w.hp-bDmg);
+      boss.flashTimer=200;boss.attackAnim=1;boss.hitAnim=1;boss.bumpCooldown=900;
+      w.attackAnim=1;w.hitAnim=1;w.flashTimer=400;w.bumpCooldown=1300;
+      spawnDmgNum(bossPos.x+(Math.random()-0.5)*60,bossPos.y-70-Math.random()*30,-wDmg,'#FF3333');
+      spawnDmgNum(sp.x,sp.y-65,-bDmg,'#FF6600');
       spawnBossHitFX(bossPos.x,bossPos.y-30);
+      spawnHitFX(w);
       playHit();playWhoosh();
-      w.bossDamage=(w.bossDamage||0)+dmg;
-      if(!w.isBot)sendBossDamageToServer(w.username,dmg);
-      if(boss.hp<=0)bossDefeated();
+      w.bossDamage=(w.bossDamage||0)+wDmg;
+      sendBossDamageToServer(w.username,wDmg);
+      const pw=rndArenaPos();w.tax=pw.ax;w.tay=pw.ay;w.walkTimer=0;
+      const pb=rndArenaPos();boss.tax=pb.ax*0.75;boss.tay=pb.ay*0.75;boss.walkTimer=0;
+      if(w.hp<=0){w.hp=0;w.dead=true;w.deathTimer=700;spawnDeathFX(w);playRemove();}
+      if(boss.hp<=0){bossDefeated();return;}
     }
     w.ax=Math.max(-0.97,Math.min(0.97,w.ax));w.ay=Math.max(-0.97,Math.min(0.97,w.ay));
   }
   warriors=warriors.filter(w=>!w.dead||w.deathTimer>0);
-}
-function updateBoss(dt){
-  if(!boss||bossVictory)return;
-  boss.flashTimer=Math.max(0,boss.flashTimer-dt);
-  boss.attackAnim=Math.max(0,boss.attackAnim-dt/300);
-  boss.attackTimer-=dt;
-  if(boss.attackTimer<=0){
-    boss.attackTimer=boss.interval;boss.attackAnim=1;
-    const bossPos=arenaToScreen(BOSS_AX,BOSS_AY);
-    spawnBossAttackFX(bossPos.x,bossPos.y,BOSS_ATTACK_RANGE);
-    playBossAttack();
-    const alive=warriors.filter(w=>!w.dead);
-    const target=alive[Math.floor(Math.random()*alive.length)];
-    if(target){
-      const dmg=boss.dmg; // фиксированный урон босса — не уменьшается от ударов
-      target.hp=Math.max(0,target.hp-dmg);target.flashTimer=500;target.hitAnim=1;
-      const sp=arenaToScreen(target.ax,target.ay);
-      spawnDmgNum(sp.x,sp.y-65,-dmg,'#FF6600');
-      spawnHitFX(target);
-      if(target.hp<=0){target.hp=0;target.dead=true;target.deathTimer=700;spawnDeathFX(target);playRemove();}
-    }
-  }
-}
-function updateBossAtkFX(dt){
-  for(const f of bossAtkFX){f.r+=f.maxR*(dt/f.max)*2.5;f.life-=dt;}
-  bossAtkFX=bossAtkFX.filter(f=>f.life>0);
 }
 function updateParticles(dt){for(const p of particles){p.x+=p.vx*dt/1000;p.y+=p.vy*dt/1000;p.vy+=220*dt/1000;p.life-=dt;}particles=particles.filter(p=>p.life>0);if(particles.length>140)particles.splice(0,particles.length-140);}
 function updateDmgNums(dt){for(const d of dmgNums){d.y+=d.vy*dt/1000;d.vy*=0.94;d.life-=dt;}dmgNums=dmgNums.filter(d=>d.life>0);}
@@ -2415,14 +2407,6 @@ function drawBossHPBar(){
   ctx.fillStyle='#FFF';ctx.font='bold 13px Arial';ctx.textAlign='center';
   ctx.fillText(`${boss.emoji} ${boss.name} · Уровень ${boss.level}  ⚡ ${Math.round(boss.hp)} / ${boss.maxHp}`,CW/2,by+bh-8);
 }
-function drawBossAtkFX(){
-  for(const f of bossAtkFX){
-    const a=f.life/f.max;
-    ctx.save();ctx.globalAlpha=a*0.5;ctx.strokeStyle='#FF4400';ctx.lineWidth=3;
-    ctx.beginPath();ctx.arc(f.x,f.y,f.r,0,Math.PI*2);ctx.stroke();
-    ctx.restore();
-  }
-}
 
 // ── Draw warriors ────────────────────────────────────
 function drawWarrior(w, now){
@@ -2573,8 +2557,6 @@ function frame(now) {
   const dt=Math.min(now-(lastT||now),100); lastT=now;
   gameTime=(gameTime+dt/90000)%1;
   updateWarriors(dt);
-  updateBoss(dt);
-  updateBossAtkFX(dt);
   updateBossVictory(dt);
   updateParticles(dt);
   updateDmgNums(dt);
@@ -2597,14 +2579,20 @@ function frame(now) {
   if(armageddon?.type==='tornado')drawTornado(now);
   drawParticles();
   drawPickups(now);
-  const sorted=[...warriors].sort((a,b)=>a.ay-b.ay);
-  if(boss){
-    const bsp=arenaToScreen(BOSS_AX,BOSS_AY);
-    const bState=boss.attackAnim>0.5?'attack':'idle';
-    drawBoss(bsp.x,bsp.y,boss.scale,1,bState,now);
-    drawBossAtkFX();
+  const sorted=[...warriors];
+  if(boss)sorted.push({__boss:true,ay:boss.ay});
+  sorted.sort((a,b)=>a.ay-b.ay);
+  for(const item of sorted){
+    if(item.__boss){
+      const bsp=arenaToScreen(boss.ax,boss.ay);
+      const facing=boss.ax<boss.tax?1:-1;
+      const dax=boss.tax-boss.ax,day=boss.tay-boss.ay;
+      let bState='idle';
+      if(Math.sqrt(dax*dax+day*day)>0.04)bState='walk';
+      if(boss.attackAnim>0.5)bState='attack';
+      drawBoss(bsp.x,bsp.y,boss.scale,facing,bState,now);
+    } else drawWarrior(item,now);
   }
-  for(const w of sorted)drawWarrior(w,now);
   drawDmgNums();
 
   drawHUD(now);
@@ -2629,7 +2617,6 @@ function wsConnect(username){
     if(d.type==='chat'){_dbgChats++;}
     if(d.type==='top_boss_damage'){topBossDamage=(d.data||[]).map(p=>({username:p.username,damage:p.total_damage}));}
     if(d.type==='arena_cheat'){const _norm=s=>s.toLowerCase().replace(/[\s\-_–—]/g,'');const _lu=d.username.toLowerCase();const _luN=_norm(d.username);let w=warriors.find(w=>!w.dead&&w.username.toLowerCase()===_lu);if(!w)w=warriors.find(w=>!w.dead&&w.username.toLowerCase().includes(_lu));if(!w)w=warriors.find(w=>!w.dead&&_norm(w.username).includes(_luN));if(!w)w=warriors.find(w=>_norm(w.username).includes(_luN));if(w){w.dead=false;w.deathTimer=0;w.maxHp+=d.hp;w.hp+=d.hp;w.damage+=d.damage;w.coins=Math.ceil(w.maxHp/10);const sp=arenaToScreen(w.ax,w.ay);spawnDmgNum(sp.x,sp.y-60,'+'+d.hp,'#FFD700');spawnDmgNum(sp.x,sp.y-85,'⚔️+'+d.damage,'#FF8800');eventLabel='⚡ POWER!';eventLabelTimer=3500;playVictory();}}
-    if(d.type==='arena_bot'){const addBot=()=>{if(warriors.filter(w=>!w.dead).length>=MAX_WARRIORS)return;const bw=makeWarrior(getBotName(),1,true);bw.isBot=true;warriors.push(bw);playSpawn();spawnSpawnFX(bw);};if(d.count==='max'){while(warriors.filter(w=>!w.dead).length<MAX_WARRIORS)addBot();}else addBot();}
     if(d.type==='init'||d.type==='status'){const _m=d.tiktokMode||d.mode;if(_m==='tiktok')setStatus('live','🔴 LIVE @'+(d.username||username));else if(_m==='demo')setStatus('demo','🟡 DEMO MODE');else setStatus('connecting','⏳ @'+username+'…');}
   }catch(e){console.error('[arena3 ws error]',e);}};
   _ws.onclose=()=>{setStatus('error','❌ Disconnected…');setTimeout(()=>wsConnect(_wsUser),3000);};
@@ -2667,8 +2654,6 @@ document.addEventListener('keydown',e=>{if(e.key==='d'||e.key==='D')_dbgShowDebu
 
 document.getElementById('fsBtn').addEventListener('click',()=>{if(document.fullscreenElement)document.exitFullscreen&&document.exitFullscreen();else document.documentElement.requestFullscreen&&document.documentElement.requestFullscreen().then(()=>{if(screen.orientation&&screen.orientation.lock)screen.orientation.lock('portrait').catch(()=>{});}).catch(()=>{});});
 document.getElementById('backBtn').addEventListener('click',()=>{location.href='/';});
-document.getElementById('addBotBtn').addEventListener('click',()=>{if(warriors.filter(w=>!w.dead).length>=MAX_WARRIORS)return;const name=getBotName();const w=makeWarrior(name,1,true);w.isBot=true;warriors.push(w);playSpawn();spawnSpawnFX(w);});
-
 let _ratingHideTimer=null;
 function _showRating(html){
   const el=document.getElementById('ratingOverlay');
