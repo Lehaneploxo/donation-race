@@ -246,6 +246,7 @@ function updateWarriors(dt){
       const bDmg=boss.dmg; // фиксированный урон босса — не уменьшается от ударов
       boss.hp=Math.max(0,boss.hp-wDmg);
       w.hp=Math.max(0,w.hp-bDmg);
+      w.damage=Math.max(1,w.damage-Math.floor(w.damage*0.3)); // удар босса срезает 30% силы игрока
       boss.flashTimer=200;boss.attackAnim=1;boss.hitAnim=1;boss.bumpCooldown=900;
       w.attackAnim=1;w.hitAnim=1;w.flashTimer=400;w.bumpCooldown=1300;
       spawnDmgNum(bossPos.x+(Math.random()-0.5)*60,bossPos.y-70-Math.random()*30,-wDmg,'#FF3333');
