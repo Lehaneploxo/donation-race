@@ -374,6 +374,14 @@ class Room {
             .catch(() => {
               this.broadcast({ type: 'arena_rating', username: data.username, rank: null, kills: 0 });
             });
+          // Arena 3: same command, but ranked by total boss damage instead of kills
+          db.getUserBossDamageRank(data.username)
+            .then(rank => {
+              this.broadcast({ type: 'arena_boss_rating', username: data.username, rank: rank ? rank.rank : null, damage: rank ? rank.total_damage : 0 });
+            })
+            .catch(() => {
+              this.broadcast({ type: 'arena_boss_rating', username: data.username, rank: null, damage: 0 });
+            });
         }
 
         // Race game: GO command

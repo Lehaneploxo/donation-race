@@ -57,6 +57,17 @@ async function resetBossDamage() {
   await pool.query('DELETE FROM boss_damage');
 }
 
+async function getUserBossDamageRank(username) {
+  if (!pool || !username) return null;
+  const res = await pool.query(`
+    SELECT username, total_damage,
+           RANK() OVER (ORDER BY total_damage DESC) AS rank
+    FROM boss_damage
+  `);
+  const row = res.rows.find(r => r.username.toLowerCase() === username.toLowerCase());
+  return row ? { rank: Number(row.rank), total_damage: Number(row.total_damage) } : null;
+}
+
 async function addKill(username) {
   if (!pool || !username) return;
   await pool.query(`
@@ -89,4 +100,4 @@ async function getUserRank(username) {
 
 function isConnected() { return pool !== null; }
 
-module.exports = { init, addKill, getTopKillers, getUserRank, addBossDamage, getTopBossDamage, resetBossDamage, isConnected };
+module.exports = { init, addKill, getTopKillers, getUserRank, addBossDamage, getTopBossDamage, resetBossDamage, getUserBossDamageRank, isConnected };

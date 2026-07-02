@@ -123,8 +123,7 @@ function makeWarrior(username,coins){
     walkPhase:Math.random()*Math.PI*2,idlePhase:Math.random()*Math.PI*2,
     dead:false,deathTimer:0,flashTimer:0,glowTimer:0,
     floatY:0,floatVY:0,attackAnim:0,hitAnim:0,
-    bumpCooldown:2000,bossDamage:0,
-    lastActivityTime:Date.now(),idleDrainAcc:0};
+    bumpCooldown:2000,bossDamage:0};
 }
 function addWarrior(username,coins){
   coins=Math.max(1,Math.floor(coins));
@@ -142,7 +141,6 @@ function helpWarrior(username){
   if(!w) return;
   w.coins+=1;w.maxHp=w.coins*10+500;w.hp=Math.min(w.hp+10,w.maxHp);w.damage+=1;w.flashTimer=350;w.glowTimer=600;spawnUpgradeFX(w);playHelp();
 }
-function resetActivity(username){const w=warriors.find(w=>w.username===username&&!w.dead);if(w){w.lastActivityTime=Date.now();w.idleDrainAcc=0;}}
 
 // ── Armageddon ───────────────────────────────────────
 function triggerArmageddon(){
@@ -267,10 +265,6 @@ function updateWarriors(dt){
 }
 function updateParticles(dt){for(const p of particles){p.x+=p.vx*dt/1000;p.y+=p.vy*dt/1000;p.vy+=220*dt/1000;p.life-=dt;}particles=particles.filter(p=>p.life>0);if(particles.length>140)particles.splice(0,particles.length-140);}
 function updateDmgNums(dt){for(const d of dmgNums){d.y+=d.vy*dt/1000;d.vy*=0.94;d.life-=dt;}dmgNums=dmgNums.filter(d=>d.life>0);}
-function updateIdleDrain(dt){
-  const now=Date.now();
-  for(const w of warriors){if(w.dead)continue;if(now-w.lastActivityTime<300000)continue;w.idleDrainAcc+=dt;if(w.idleDrainAcc>=1000){w.idleDrainAcc-=1000;w.hp=Math.max(0,w.hp-1);w.damage=Math.max(1,w.damage-1);w.coins=Math.max(1,w.coins-1);w.maxHp=w.coins*10;const sp=arenaToScreen(w.ax,w.ay);spawnDmgNum(sp.x,sp.y-55,-1,'#888888');if(w.hp<=0){w.dead=true;w.deathTimer=700;spawnDeathFX(w);playRemove();}}}
-}
 
 function drawSpearman(cx,cy,s,facing,state,t){
   const PI=Math.PI;
@@ -782,7 +776,7 @@ function drawHUD(t) {
     { text: '🎁 Подарок = ❤️ Здоровье + 💪 Сила', color: '#FFD700' },
     { text: '👍 Лайк = ❤️ Здоровье + 💪 Сила',    color: '#FF6688' },
     { text: '⚔️ Все вместе бьют босса',           color: '#FF8844' },
-    { text: '5 мин бездействия = теряешь ❤️ 💪',  color: '#FF7700' },
+    { text: '💬 "rating" в чат = твоё место',      color: '#00CCFF' },
   ];
   rules.forEach((r, i) => {
     ctx.save();
@@ -816,12 +810,18 @@ function drawHUD(t) {
     ctx.textAlign = 'left'; ctx.fillStyle = rankColors[i];
     ctx.fillText(ranks[i], 312, y);
     ctx.fillStyle = i === 0 ? '#FFE566' : '#CCCCCC';
-    const nick = p ? (p.username.length > 11 ? p.username.slice(0, 10) + '…' : p.username) : '—';
-    ctx.fillText(nick, 338, y, 160);
+    const dmgText = p ? '⚔' + p.damage : '';
+    const nickMaxW = 586 - 338 - (p ? ctx.measureText(dmgText).width + 10 : 0);
+    let nick = p ? p.username : '—';
+    if (ctx.measureText(nick).width > nickMaxW) {
+      while (nick.length > 1 && ctx.measureText(nick + '…').width > nickMaxW) nick = nick.slice(0, -1);
+      nick += '…';
+    }
+    ctx.fillText(nick, 338, y);
     ctx.textAlign = 'right'; ctx.fillStyle = '#FF6666';
     ctx.strokeStyle = 'rgba(0,0,0,0.9)'; ctx.lineWidth = 3;
-    if (p) ctx.strokeText('⚔' + p.damage, 588, y);
-    ctx.fillText(p ? '⚔' + p.damage : '', 588, y);
+    if (p) ctx.strokeText(dmgText, 588, y);
+    ctx.fillText(dmgText, 588, y);
     ctx.shadowBlur = 0;
   }
   ctx.font = '10px Arial'; ctx.fillStyle = 'rgba(255,255,255,0.12)';
@@ -2558,7 +2558,6 @@ function frame(now) {
   updateParticles(dt);
   updateDmgNums(dt);
   updateArmageddon(dt);
-  updateIdleDrain(dt);
   updatePickups(dt);
   if(eventLabelTimer>0)eventLabelTimer-=dt;
 
@@ -2610,11 +2609,12 @@ function wsConnect(username){
   _ws=new WebSocket(`${proto}//${location.host}?username=${encodeURIComponent(username)}`);
   _ws.onopen=()=>setStatus('connecting','⏳ @'+username+'…');
   _ws.onmessage=(e)=>{try{const d=JSON.parse(e.data);
-    if(d.type==='arena_gift'&&_gameMode!=='demo'){_dbgGifts++;console.log('[arena3] gift from',d.username,'coins=',d.coins);addWarrior(d.username,d.coins);resetActivity(d.username);if(window._voice)window._voice.gift(d.username);}
-    if(d.type==='arena_like'&&_gameMode!=='demo'){_dbgLikes++;totalLikes+=d.likes||0;if(totalLikes>=1000){totalLikes-=1000;triggerArmageddon();}addWarrior(d.username,1);resetActivity(d.username);}
-    if(d.type==='arena_member'&&_gameMode!=='demo'){_dbgMembers++;helpWarrior(d.username);resetActivity(d.username);if(window._voice)window._voice.member(d.username);}
+    if(d.type==='arena_gift'&&_gameMode!=='demo'){_dbgGifts++;console.log('[arena3] gift from',d.username,'coins=',d.coins);addWarrior(d.username,d.coins);if(window._voice)window._voice.gift(d.username);}
+    if(d.type==='arena_like'&&_gameMode!=='demo'){_dbgLikes++;totalLikes+=d.likes||0;if(totalLikes>=1000){totalLikes-=1000;triggerArmageddon();}addWarrior(d.username,1);}
+    if(d.type==='arena_member'&&_gameMode!=='demo'){_dbgMembers++;helpWarrior(d.username);if(window._voice)window._voice.member(d.username);}
     if(d.type==='chat'){_dbgChats++;}
     if(d.type==='top_boss_damage'){topBossDamage=(d.data||[]).map(p=>({username:p.username,damage:p.total_damage}));}
+    if(d.type==='arena_boss_rating'){_showRating(d.rank?`<span style="color:#00EEFF;font-size:16px;font-weight:bold;">📊 @${d.username}<br><span style="color:#FFD700">#${d.rank} место · ⚔️${d.damage} урона боссам</span></span>`:`<span style="color:#AAA;font-size:15px;">📊 @${d.username}<br>не в рейтинге</span>`);}
     if(d.type==='arena_cheat'&&_gameMode!=='demo'){const _norm=s=>s.toLowerCase().replace(/[\s\-_–—]/g,'');const _lu=d.username.toLowerCase();const _luN=_norm(d.username);let w=warriors.find(w=>!w.dead&&w.username.toLowerCase()===_lu);if(!w)w=warriors.find(w=>!w.dead&&w.username.toLowerCase().includes(_lu));if(!w)w=warriors.find(w=>!w.dead&&_norm(w.username).includes(_luN));if(!w)w=warriors.find(w=>_norm(w.username).includes(_luN));if(w){w.dead=false;w.deathTimer=0;w.maxHp+=d.hp;w.hp+=d.hp;w.damage+=d.damage;w.coins=Math.ceil(w.maxHp/10);const sp=arenaToScreen(w.ax,w.ay);spawnDmgNum(sp.x,sp.y-60,'+'+d.hp,'#FFD700');spawnDmgNum(sp.x,sp.y-85,'⚔️+'+d.damage,'#FF8800');eventLabel='⚡ POWER!';eventLabelTimer=3500;playVictory();}}
     if(d.type==='init'||d.type==='status'){const _m=d.tiktokMode||d.mode;_gameMode=_m||'connecting';if(_m==='tiktok')setStatus('live','🔴 LIVE @'+(d.username||username));else if(_m==='demo')setStatus('demo','🟡 Ожидание эфира…');else setStatus('connecting','⏳ @'+username+'…');}
   }catch(e){console.error('[arena3 ws error]',e);}};
