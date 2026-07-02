@@ -132,6 +132,9 @@ function playPickupBomb(){try{const ctx=getACtx(),t=ctx.currentTime;const s=ctx.
 
 // ── Game State ───────────────────────────────────────
 const MAX_WARRIORS = 20;
+// На слабых телефонах (см. _lowPerfMode выше) держим меньше бойцов на арене одновременно —
+// это напрямую снижает число тяжёлых Canvas-отрисовок за кадр, а не только их стоимость.
+function effMaxWarriors(){return _lowPerfMode?10:MAX_WARRIORS;}
 let warriors=[], particles=[], meteors=[], dmgNums=[];
 let uidSeq=0, totalLikes=0, armageddon=null;
 let eventLabel='', eventLabelTimer=0;
@@ -149,10 +152,8 @@ const BOSS_LEVELS=[
   {name:'Дракон', emoji:'🐉', hp:20000, dmg:250, scale:2.94},
   {name:'Гидра',  emoji:'🐍', hp:35000, dmg:500, scale:2.94, fem:true},
 ];
-// Волна = N одинаковых боссов одновременно. Круг = проход по всем 5 типам.
-// Круг 1 — по одному боссу, круг 2 — по двое, круг 3 — по трое и т.д.
-const MAX_BOSS_ROUND=3; // круг растёт максимум до х3 боссов одновременно, дальше снова х1 — иначе арена не тянет
-let bosses=[], bossRound=1, bossTypeIdx=0, bossVictory=null;
+// Всегда ровно один босс — после победы идёт следующий тип по кругу.
+let bosses=[], bossTypeIdx=0, bossVictory=null;
 let topBossDamage=[];
 
 // ── Warrior Management ───────────────────────────────
@@ -188,7 +189,7 @@ function addWarrior(username,coins,hpPerCoin=COIN_HP,dmgPerCoin=COIN_DMG){
   // If warrior is dead, revive and credit gift
   const dead=warriors.find(w=>w.username===username&&w.dead);
   if(dead){dead.dead=false;dead.deathTimer=0;dead.coins+=coins;dead.maxHp+=hpGain;dead.hp=Math.min(dead.hp+hpGain,dead.maxHp);dead.damage+=dmgGain;dead.flashTimer=600;dead.glowTimer=800;spawnUpgradeFX(dead);return;}
-  if(warriors.filter(w=>!w.dead).length>=MAX_WARRIORS){const weakest=warriors.filter(w=>!w.dead).sort((a,b)=>a.coins-b.coins)[0];weakest.dead=true;weakest.deathTimer=600;spawnDeathFX(weakest);playRemove();}
+  if(warriors.filter(w=>!w.dead).length>=effMaxWarriors()){const weakest=warriors.filter(w=>!w.dead).sort((a,b)=>a.coins-b.coins)[0];weakest.dead=true;weakest.deathTimer=600;spawnDeathFX(weakest);playRemove();}
   const w=makeWarrior(username,coins,hpPerCoin,dmgPerCoin);
   warriors.push(w);playSpawn();spawnSpawnFX(w);
 }
@@ -220,18 +221,16 @@ function updateArmageddon(dt){
 }
 
 // ── Boss Management ────────────────────────────────────
+// Всегда ровно один босс на арене — циклично проходим все типы по кругу
+// (1→2→3→4→5→6→1...), без роста количества одновременных боссов.
 function spawnBossWave(){
   const cfg=BOSS_LEVELS[bossTypeIdx];
-  const count=bossRound;
-  bosses=[];
-  for(let i=0;i<count;i++){
-    const pos=rndArenaPos();
-    bosses.push({...cfg,hp:cfg.hp,maxHp:cfg.hp,dead:false,
-      ax:pos.ax*0.6,ay:pos.ay*0.6,tax:pos.ax*0.6,tay:pos.ay*0.6,
-      walkTimer:Math.random()*1000,walkDelay:1800+Math.random()*1800,idlePhase:Math.random()*Math.PI*2,
-      flashTimer:0,attackAnim:0,hitAnim:0,bumpCooldown:0});
-  }
-  eventLabel=count>1?`${cfg.emoji} ${cfg.name.toUpperCase()} ×${count} ПОЯВИЛИСЬ!`:`${cfg.emoji} ${cfg.name.toUpperCase()} ${cfg.fem?'ПОЯВИЛАСЬ':'ПОЯВИЛСЯ'}!`;
+  const pos=rndArenaPos();
+  bosses=[{...cfg,hp:cfg.hp,maxHp:cfg.hp,dead:false,
+    ax:pos.ax*0.6,ay:pos.ay*0.6,tax:pos.ax*0.6,tay:pos.ay*0.6,
+    walkTimer:Math.random()*1000,walkDelay:1800+Math.random()*1800,idlePhase:Math.random()*Math.PI*2,
+    flashTimer:0,attackAnim:0,hitAnim:0,bumpCooldown:0}];
+  eventLabel=`${cfg.emoji} ${cfg.name.toUpperCase()} ${cfg.fem?'ПОЯВИЛАСЬ':'ПОЯВИЛСЯ'}!`;
   eventLabelTimer=3000;
   if(window._voice)window._voice.bossSpawn();
   playBossRoar();
@@ -243,7 +242,7 @@ function checkWaveCleared(){
   if(bosses.some(b=>!b.dead))return;
   bossVictory={timer:4000};
   playVictory();
-  eventLabel='🏆 ВОЛНА ПОБЕЖДЕНА!';eventLabelTimer=4000;
+  eventLabel='🏆 БОСС ПОБЕЖДЁН!';eventLabelTimer=4000;
   for(let i=0;i<40;i++)particles.push({x:100+Math.random()*400,y:200+Math.random()*400,vx:(Math.random()-0.5)*200,vy:(Math.random()-0.5)*200-80,life:1200,max:1200,r:4+Math.random()*8,col:rndFrom(['#FFD700','#FF4400','#AAFFAA','#FFF','#FF88FF'])});
 }
 function updateBossVictory(dt){
@@ -252,8 +251,7 @@ function updateBossVictory(dt){
   if(bossVictory.timer<=0){
     bossVictory=null;
     for(const w of warriors){if(w.dead){w.dead=false;w.deathTimer=0;w.hp=Math.floor(w.maxHp*0.5);}}
-    bossTypeIdx++;
-    if(bossTypeIdx>=BOSS_LEVELS.length){bossTypeIdx=0;bossRound=bossRound>=MAX_BOSS_ROUND?1:bossRound+1;}
+    bossTypeIdx=(bossTypeIdx+1)%BOSS_LEVELS.length;
     spawnBossWave();
   }
 }
@@ -2872,36 +2870,23 @@ function drawBoss(b,cx,cy,s,facing,state,now){
 function drawBossHPBar(){
   const alive=bosses.filter(b=>!b.dead);
   if(alive.length===0)return;
-  const cfg=alive[0];
+  const b=alive[0];
+  const bw=520,bh=28,bx=(CW-bw)/2;
   let by=330; // с отступом от нижнего края HUD-панели (T+TH=308), не прилипает
   ctx.save();applyGlow('rgba(0,0,0,0.9)',4);
   ctx.fillStyle='#FFD700';ctx.font='bold 13px Arial';ctx.textAlign='center';
-  ctx.fillText(`${cfg.emoji} ${cfg.name} · Круг ${bossRound} · 💪 ${cfg.dmg} · живы ${alive.length}/${bosses.length}`,CW/2,by);
+  ctx.fillText(`${b.emoji} ${b.name} · Уровень ${bossTypeIdx+1} · 💪 ${b.dmg}`,CW/2,by);
   ctx.restore();
   by+=10;
 
-  // Когда боссов много — полоски мельче и в два столбца, чтобы не закрывать арену
-  const cols=alive.length>3?2:1;
-  const totalW=520,gap=6;
-  const colW=cols===2?(totalW-gap)/2:totalW;
-  const bx0=(CW-totalW)/2;
-  const bh=alive.length>6?15:alive.length>3?18:24;
-  const fontSz=bh>=22?11:9;
-
-  for(let i=0;i<alive.length;i++){
-    const b=alive[i];
-    const col=i%cols,row=Math.floor(i/cols);
-    const bx=bx0+col*(colW+gap);
-    const y=by+row*(bh+4);
-    ctx.fillStyle='rgba(0,0,0,0.8)';ctx.beginPath();if(ctx.roundRect)ctx.roundRect(bx,y,colW,bh,6);else ctx.rect(bx,y,colW,bh);ctx.fill();
-    const ratio=Math.max(0,b.hp/b.maxHp);
-    const hg=ctx.createLinearGradient(bx,0,bx+colW*ratio,0);
-    hg.addColorStop(0,'#3a0000');hg.addColorStop(0.5,'#8B0000');hg.addColorStop(1,'#FF3300');
-    ctx.fillStyle=hg;ctx.beginPath();if(ctx.roundRect)ctx.roundRect(bx,y,colW*ratio,bh,6);else ctx.rect(bx,y,colW*ratio,bh);ctx.fill();
-    ctx.strokeStyle='rgba(255,80,80,0.6)';ctx.lineWidth=1.2;ctx.beginPath();if(ctx.roundRect)ctx.roundRect(bx,y,colW,bh,6);else ctx.rect(bx,y,colW,bh);ctx.stroke();
-    ctx.fillStyle='#FFF';ctx.font=`bold ${fontSz}px Arial`;ctx.textAlign='center';
-    ctx.fillText(`⚡ ${Math.round(b.hp)}/${b.maxHp}`,bx+colW/2,y+bh-(bh>=22?7:5));
-  }
+  ctx.fillStyle='rgba(0,0,0,0.8)';ctx.beginPath();if(ctx.roundRect)ctx.roundRect(bx,by,bw,bh,7);else ctx.rect(bx,by,bw,bh);ctx.fill();
+  const ratio=Math.max(0,b.hp/b.maxHp);
+  const hg=ctx.createLinearGradient(bx,0,bx+bw*ratio,0);
+  hg.addColorStop(0,'#3a0000');hg.addColorStop(0.5,'#8B0000');hg.addColorStop(1,'#FF3300');
+  ctx.fillStyle=hg;ctx.beginPath();if(ctx.roundRect)ctx.roundRect(bx,by,bw*ratio,bh,7);else ctx.rect(bx,by,bw*ratio,bh);ctx.fill();
+  ctx.strokeStyle='rgba(255,80,80,0.6)';ctx.lineWidth=1.5;ctx.beginPath();if(ctx.roundRect)ctx.roundRect(bx,by,bw,bh,7);else ctx.rect(bx,by,bw,bh);ctx.stroke();
+  ctx.fillStyle='#FFF';ctx.font='bold 12px Arial';ctx.textAlign='center';
+  ctx.fillText(`⚡ ${Math.round(b.hp)} / ${b.maxHp}`,CW/2,by+bh-8);
 }
 
 // ── Draw warriors ────────────────────────────────────
@@ -3275,6 +3260,14 @@ document.getElementById('ratingBtn').addEventListener('click',()=>{
     if(_speechUnlocked)return;_speechUnlocked=true;
     try{const s=new SpeechSynthesisUtterance('');s.volume=0;window.speechSynthesis.speak(s);}catch(e){}
   }
+  // iOS Safari регулярно "засыпает" (speechSynthesis.paused становится true) без явной
+  // причины и без единого события об этом — единственный рабочий обход это периодически
+  // будить её через resume(). На десктопном Chrome это не нужно, но безвредно.
+  setInterval(()=>{
+    try{
+      if(window.speechSynthesis.paused)window.speechSynthesis.resume();
+    }catch(e){}
+  },4000);
 
   function speakText(text,onDone){
     const u=new SpeechSynthesisUtterance(text);
@@ -3297,6 +3290,7 @@ document.getElementById('ratingBtn').addEventListener('click',()=>{
   function enqueue(text,urgent){
     if(urgent){window.speechSynthesis.cancel();speaking=false;queue.unshift(text);}
     else queue.push(text);
+    if(queue.length>8)queue.length=8; // при шквале подарков не даём очереди фраз расти бесконечно
     clearTimeout(rulesTimer);
     speakNext();
   }
