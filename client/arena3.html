@@ -744,7 +744,8 @@ function _drawGrassBlades(t,GY,df){
   const gc=isNight()?'rgba(20,40,14,0.7)':isDuskDawn()?'rgba(60,90,30,0.6)':'rgba(55,110,25,0.55)';
   const gc2=isNight()?'rgba(30,55,18,0.5)':isDuskDawn()?'rgba(80,115,40,0.5)':'rgba(80,150,35,0.5)';
   const sd=[17,31,53,79,97,113,131,149,167,191,211,233];
-  for(let i=0;i<320;i++){
+  const bladeCount=_lowPerfMode?50:150; // фон рисуется каждый кадр вне зависимости от числа игроков
+  for(let i=0;i<bladeCount;i++){
     const bx=((i*sd[i%12]+i*23)%596)+2;
     const by2=GY+30+((i*sd[(i+3)%12]+i*17)%(CH-GY-40));
     const h=4+((i*7)%9);const sw=Math.sin(t*0.0014*(0.8+i%3*0.2)+i*0.5)*2.5;
@@ -803,20 +804,26 @@ function drawTrees(){
 }
 function _drawTree(x,y,trunkH,trunkW,foliageR,seed,variant,df){
   const nf=df;
+  // Деревья стоят на фиксированных местах и рисуются каждый кадр вне зависимости от
+  // количества игроков — кэшируем их градиенты по позиции + "ведру" дневного цикла
+  // (округляем df до 0.05), это ~20 вариантов вместо пересоздания все 60 раз в секунду.
+  const dfBucket=Math.round(nf*20);
   ctx.fillStyle=_rgba(0,0,0,0.15*nf);ctx.beginPath();ctx.ellipse(x+trunkH*0.3,y+4,trunkW*2.5,trunkW*0.8,0.2,0,Math.PI*2);ctx.fill();
-  const tg=ctx.createLinearGradient(x-trunkW,0,x+trunkW,0);
   const tb1=Math.round(lerp(30,70,nf)),tb2=Math.round(lerp(18,42,nf)),tb3=Math.round(lerp(12,28,nf));
-  tg.addColorStop(0,_rgb(tb3-4,tb2-8,tb3-10));tg.addColorStop(0.3,_rgb(tb1,tb1-8,tb1-16));tg.addColorStop(0.7,_rgb(tb1-6,tb1-14,tb1-22));tg.addColorStop(1,_rgb(tb3,tb2-4,tb3-6));
+  const tg=cGrad('tree_trunk_'+x+'_'+y+'_'+dfBucket,[x-trunkW,0,x+trunkW,0],tg=>{
+    tg.addColorStop(0,_rgb(tb3-4,tb2-8,tb3-10));tg.addColorStop(0.3,_rgb(tb1,tb1-8,tb1-16));tg.addColorStop(0.7,_rgb(tb1-6,tb1-14,tb1-22));tg.addColorStop(1,_rgb(tb3,tb2-4,tb3-6));
+  });
   ctx.fillStyle=tg;ctx.beginPath();ctx.moveTo(x-trunkW*0.7,y);ctx.bezierCurveTo(x-trunkW*0.8,y-trunkH*0.3,x-trunkW*0.6,y-trunkH*0.6,x+(seed%5-2)*3,y-trunkH);ctx.bezierCurveTo(x+trunkW*0.5+seed%3,y-trunkH*0.7,x+trunkW*0.8,y-trunkH*0.3,x+trunkW*0.7,y);ctx.closePath();ctx.fill();
   const tx=x+(seed%5-2)*4,ty=y-trunkH;
   const foliageBlobs=[{ox:0,oy:0,r:foliageR,l:0},{ox:-foliageR*0.55,oy:foliageR*0.25,r:foliageR*0.72,l:1},{ox:foliageR*0.55,oy:foliageR*0.25,r:foliageR*0.68,l:1},{ox:foliageR*0.25,oy:-foliageR*0.45,r:foliageR*0.62,l:2},{ox:-foliageR*0.3,oy:-foliageR*0.4,r:foliageR*0.58,l:2},{ox:foliageR*0.55,oy:-foliageR*0.3,r:foliageR*0.5,l:2},{ox:-foliageR*0.6,oy:-foliageR*0.1,r:foliageR*0.48,l:2},{ox:0,oy:-foliageR*0.6,r:foliageR*0.55,l:3}];
   const gsets=[[[28,75,14],[38,92,18],[22,60,10],[48,108,22]],[[20,68,16],[30,85,20],[18,55,12],[42,100,24]],[[32,60,10],[40,78,14],[26,50,8],[52,90,18]]][variant%3];
-  foliageBlobs.forEach(({ox,oy,r,l})=>{
+  foliageBlobs.forEach(({ox,oy,r,l},bi)=>{
     const gc=gsets[l%gsets.length];
-    const fg=ctx.createRadialGradient(tx+ox-r*0.25,ty+oy-r*0.25,0,tx+ox,ty+oy,r);
-    fg.addColorStop(0,_rgb(Math.round(gc[0]*nf+gc[0]*0.3*nf),Math.round(gc[1]*nf+gc[1]*0.25*nf),Math.round(gc[2]*nf)));
-    fg.addColorStop(0.5,_rgb(Math.round(gc[0]*nf),Math.round(gc[1]*nf),Math.round(gc[2]*nf)));
-    fg.addColorStop(1,_rgb(Math.round(gc[0]*nf*0.7),Math.round(gc[1]*nf*0.75),Math.round(gc[2]*nf*0.6)));
+    const fg=cGrad('tree_foliage_'+x+'_'+y+'_'+bi+'_'+dfBucket,[tx+ox-r*0.25,ty+oy-r*0.25,0,tx+ox,ty+oy,r],fg=>{
+      fg.addColorStop(0,_rgb(Math.round(gc[0]*nf+gc[0]*0.3*nf),Math.round(gc[1]*nf+gc[1]*0.25*nf),Math.round(gc[2]*nf)));
+      fg.addColorStop(0.5,_rgb(Math.round(gc[0]*nf),Math.round(gc[1]*nf),Math.round(gc[2]*nf)));
+      fg.addColorStop(1,_rgb(Math.round(gc[0]*nf*0.7),Math.round(gc[1]*nf*0.75),Math.round(gc[2]*nf*0.6)));
+    });
     ctx.fillStyle=fg;ctx.beginPath();ctx.arc(tx+ox,ty+oy,r,0,Math.PI*2);ctx.fill();
   });
   ctx.fillStyle=_rgba(Math.round(180*nf),Math.round(230*nf),Math.round(100*nf),0.13*nf);ctx.beginPath();ctx.ellipse(tx-foliageR*0.18,ty-foliageR*0.38,foliageR*0.55,foliageR*0.3,-0.3,0,Math.PI*2);ctx.fill();
