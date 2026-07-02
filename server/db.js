@@ -52,6 +52,11 @@ async function getTopBossDamage(limit = 10) {
   return res.rows;
 }
 
+async function resetBossDamage() {
+  if (!pool) return;
+  await pool.query('DELETE FROM boss_damage');
+}
+
 async function addKill(username) {
   if (!pool || !username) return;
   await pool.query(`
@@ -84,4 +89,4 @@ async function getUserRank(username) {
 
 function isConnected() { return pool !== null; }
 
-module.exports = { init, addKill, getTopKillers, getUserRank, addBossDamage, getTopBossDamage, isConnected };
+module.exports = { init, addKill, getTopKillers, getUserRank, addBossDamage, getTopBossDamage, resetBossDamage, isConnected };

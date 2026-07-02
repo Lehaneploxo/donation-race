@@ -146,6 +146,15 @@ app.get('/top-boss-damage', async (req, res) => {
   }
 });
 
+app.get('/admin/reset-boss-damage', async (req, res) => {
+  try {
+    await db.resetBossDamage();
+    res.json({ ok: true });
+  } catch(e) {
+    res.json({ ok: false, error: e.message });
+  }
+});
+
 // ─── Rooms ───────────────────────────────────────────────────────────────────
 const rooms = new Map();
 

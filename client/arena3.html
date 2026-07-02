@@ -2391,11 +2391,6 @@ function drawBoss(cx,cy,s,facing,state,now){
     ctx.beginPath();ctx.ellipse(0,-25,20,32,0,0,Math.PI*2);ctx.fill();
     ctx.restore();
   }
-  ctx.save();ctx.textAlign='center';
-  ctx.font='bold 15px Arial';const nm=`${boss.emoji} ${boss.name}`;
-  ctx.strokeStyle='rgba(0,0,0,0.95)';ctx.lineWidth=3.5;ctx.strokeText(nm,cx,cy-125);
-  ctx.fillStyle='#DD5555';ctx.fillText(nm,cx,cy-125);
-  ctx.restore();
 }
 function drawBossHPBar(){
   if(!boss)return;
@@ -2407,7 +2402,7 @@ function drawBossHPBar(){
   ctx.fillStyle=hg;ctx.beginPath();if(ctx.roundRect)ctx.roundRect(bx,by,bw*ratio,bh,8);else ctx.rect(bx,by,bw*ratio,bh);ctx.fill();
   ctx.strokeStyle='rgba(255,80,80,0.6)';ctx.lineWidth=2;ctx.beginPath();if(ctx.roundRect)ctx.roundRect(bx,by,bw,bh,8);else ctx.rect(bx,by,bw,bh);ctx.stroke();
   ctx.fillStyle='#FFF';ctx.font='bold 13px Arial';ctx.textAlign='center';
-  ctx.fillText(`${boss.emoji} ${boss.name} · Уровень ${boss.level}  ⚡ ${Math.round(boss.hp)} / ${boss.maxHp}`,CW/2,by+bh-8);
+  ctx.fillText(`${boss.emoji} ${boss.name} · Уровень ${boss.level}  ⚡ ${Math.round(boss.hp)} / ${boss.maxHp}  💪 ${boss.dmg}`,CW/2,by+bh-8);
 }
 
 // ── Draw warriors ────────────────────────────────────
