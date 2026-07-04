@@ -152,12 +152,12 @@ let lastT=0, gameTime=0.38;
 // ── Boss ─────────────────────────────────────────────
 const WARRIOR_ATTACK_RANGE=100;
 const BOSS_LEVELS=[
-  {name:'Скелет', emoji:'💀', hp:1000,  dmg:10,  scale:1.05},
-  {name:'Зомби',  emoji:'🧟', hp:2500,  dmg:30,  scale:1.05},
-  {name:'Голем',  emoji:'🗿', hp:5500,  dmg:50,  scale:1.31},
-  {name:'Демон',  emoji:'😈', hp:10000, dmg:100, scale:1.47},
-  {name:'Дракон', emoji:'🐉', hp:20000, dmg:250, scale:2.94},
-  {name:'Гидра',  emoji:'🐍', hp:35000, dmg:500, scale:2.94, fem:true},
+  {name:'Скелет', emoji:'💀', hp:1000,  dmg:5,  scale:1.05},
+  {name:'Зомби',  emoji:'🧟', hp:2500,  dmg:10,  scale:1.05},
+  {name:'Голем',  emoji:'🗿', hp:5500,  dmg:15,  scale:1.31},
+  {name:'Демон',  emoji:'😈', hp:10000, dmg:20, scale:1.47},
+  {name:'Дракон', emoji:'🐉', hp:20000, dmg:50, scale:2.94},
+  {name:'Гидра',  emoji:'🐍', hp:35000, dmg:75, scale:2.94, fem:true},
 ];
 // Всегда ровно один босс — после победы идёт следующий тип по кругу.
 let bosses=[], bossTypeIdx=0, bossVictory=null;
