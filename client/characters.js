@@ -33,11 +33,32 @@ class Car3D {
     this._wheels     = [];
 
     this._build();
+    this._addDustTrail();
     this.group.scale.setScalar(0.5);  // cars are half-scale
     scene.add(this.group);
 
     // Start off-screen so it slides in
     this.group.position.set(this.targetX, 0, 5);
+  }
+
+  // Пылевой шлейф позади машины — виден только пока едет (opacity от скорости)
+  _addDustTrail() {
+    const COUNT = 18;
+    const geo = new THREE.BufferGeometry();
+    const pos = new Float32Array(COUNT * 3);
+    for (let i = 0; i < COUNT; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const r = 0.25 + Math.random() * 0.85;
+      pos[i * 3]     = Math.cos(a) * r * 0.75;
+      pos[i * 3 + 1] = 0.05 + Math.random() * 0.5;
+      pos[i * 3 + 2] = 1.7 + Math.random() * 1.7; // позади машины (перёд = -Z)
+    }
+    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    this._dustMat = new THREE.PointsMaterial({
+      color: 0xbfae8c, size: 0.42, transparent: true, opacity: 0, sizeAttenuation: true, depthWrite: false,
+    });
+    this._dust = new THREE.Points(geo, this._dustMat);
+    this.group.add(this._dust);
   }
 
   _r(seed) { const x = Math.sin(seed) * 10000; return x - Math.floor(x); }
@@ -340,12 +361,14 @@ class Car3D {
       return;
     }
 
-    // Normal driving — keep orientation locked forward at all times
+    // Normal driving
     this.group.position.z += (this.targetZ - this.group.position.z) * 0.055;
     this.group.position.x += (this.targetX - this.group.position.x) * 0.055;
-    this.group.rotation.x = 0;
     this.group.rotation.y = 0;
-    this.group.rotation.z = 0;
+    // Нос чуть приподнят на скорости + лёгкое покачивание корпуса — иначе на
+    // фиксированном месте почти не видно, что машина реально едет
+    this.group.rotation.x = -0.05 * speedFactor;
+    this.group.rotation.z = Math.sin(this._wheelAngle * 0.6) * 0.02 * speedFactor;
 
     // Spin wheels — scales with actual speed, stops completely when idle
     this._wheelAngle += dt * 0.012 * speedFactor;
@@ -353,6 +376,13 @@ class Car3D {
 
     // Slight body bounce — also fades out to 0 when stopped
     this.group.position.y = Math.abs(Math.sin(this._wheelAngle * 2)) * 0.025 * speedFactor;
+
+    // Пыль из-под колёс — появляется только когда машина реально едет
+    if (this._dustMat) {
+      const targetOpacity = speedFactor > 0.06 ? 0.3 + speedFactor * 0.25 : 0;
+      this._dustMat.opacity += (targetOpacity - this._dustMat.opacity) * 0.08;
+      this._dust.rotation.y += dt * 0.0007 * (0.3 + speedFactor);
+    }
   }
 
   updatePlayer(player) {

@@ -211,26 +211,29 @@ class Room {
         this.broadcast({ type: 'arena_member', username: data.username });
 
         // Race game: 1 монета = 100 метров пробега + 1 очко в рейтинге (всё время, хранится в БД)
-        const raceCoins = Number(data.coins) || 0;
-        const deltaMeters = raceCoins * 100;
-        this._carMeters += deltaMeters;
-        // Движение шлём сразу — не ждём базу данных, иначе донат ощущается с задержкой
-        this.broadcast({
-          type:         'update',
-          deltaMeters:  deltaMeters,
-          totalMeters:  this._carMeters,
-          event:        { type: 'gift', username: data.username, coins: raceCoins }
-        });
-        // Топ донатов пишем и рассылаем отдельно, не чаще раза в 2 сек — не грузим БД и клиент на каждый гифт
-        db.addRaceCoins(data.username, raceCoins)
-          .then(() => {
-            const now = Date.now();
-            if (now - (this._lastTopBroadcast || 0) < 2000) return null;
-            this._lastTopBroadcast = now;
-            return db.getTopRaceDonations(10);
-          })
-          .then(top => { if (top) this.broadcast({ type: 'update', topDonations: top }); })
-          .catch(() => {});
+        // Только реальные донаты из TikTok — демо-боты машину не двигают и в топ не попадают
+        if (this.connection?._tiktokMode === 'tiktok') {
+          const raceCoins = Number(data.coins) || 0;
+          const deltaMeters = raceCoins * 100;
+          this._carMeters += deltaMeters;
+          // Движение шлём сразу — не ждём базу данных, иначе донат ощущается с задержкой
+          this.broadcast({
+            type:         'update',
+            deltaMeters:  deltaMeters,
+            totalMeters:  this._carMeters,
+            event:        { type: 'gift', username: data.username, coins: raceCoins }
+          });
+          // Топ донатов пишем и рассылаем отдельно, не чаще раза в 2 сек — не грузим БД и клиент на каждый гифт
+          db.addRaceCoins(data.username, raceCoins)
+            .then(() => {
+              const now = Date.now();
+              if (now - (this._lastTopBroadcast || 0) < 2000) return null;
+              this._lastTopBroadcast = now;
+              return db.getTopRaceDonations(10);
+            })
+            .then(top => { if (top) this.broadcast({ type: 'update', topDonations: top }); })
+            .catch(() => {});
+        }
       },
       // onStatus — состояние подключения
       (status) => this.broadcast({ type: 'status', ...status }),
@@ -250,14 +253,17 @@ class Room {
         this.broadcast({ type: 'arena_member', username: data.username });
 
         // Race game: 1 лайк = 1 метр пробега (в рейтинг очков не идёт)
-        const deltaMeters = Number(data.likes) || 0;
-        this._carMeters += deltaMeters;
-        this.broadcast({
-          type:         'update',
-          deltaMeters:  deltaMeters,
-          totalMeters:  this._carMeters,
-          event:        { type: 'like', username: data.username, likes: data.likes }
-        });
+        // Только реальные лайки из TikTok — демо-боты машину не двигают
+        if (this.connection?._tiktokMode === 'tiktok') {
+          const deltaMeters = Number(data.likes) || 0;
+          this._carMeters += deltaMeters;
+          this.broadcast({
+            type:         'update',
+            deltaMeters:  deltaMeters,
+            totalMeters:  this._carMeters,
+            event:        { type: 'like', username: data.username, likes: data.likes }
+          });
+        }
       },
       // onChat — GO / blue / red из чата
       (data) => {
