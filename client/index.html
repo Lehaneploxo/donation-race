@@ -161,14 +161,6 @@
       transition: width 0.5s ease;
       box-shadow: 0 0 14px rgba(255,180,0,0.7);
     }
-    #chaosBarInner {
-      height: 100%;
-      background: linear-gradient(90deg, #FF6600 0%, #FF9900 40%, #FFCC00 70%, #FF4488 100%);
-      border-radius: 16px;
-      width: 0%;
-      transition: width 0.4s ease;
-      box-shadow: 0 0 14px rgba(255,100,0,0.7);
-    }
 
     /* Leaderboard */
     #leaderboard {
@@ -241,9 +233,8 @@
     .ui-btn:hover { background: rgba(255,255,255,0.15); }
     #fsBtn    { top: calc(50% + 34px); right: 10px; }
     #musicBtn { top: calc(50% - 12px); right: 10px; }
-    #liteBtn  { top: calc(50% - 58px); right: 10px; }
+    #backBtn  { top: calc(50% - 58px); right: 10px; }
     #musicBtn.on { border-color: #00FF88; color: #00FF88; }
-    #liteBtn.on  { border-color: #FF9900; color: #FF9900; }
 
     /* Event announcement overlay */
     #eventAnnouncement {
@@ -267,7 +258,7 @@
   </style>
 </head>
 <body>
-<button id="liteBtn"  class="ui-btn" title="Lite mode">🐢</button>
+<button id="backBtn"  class="ui-btn" title="Back">⌂</button>
 <button id="musicBtn" class="ui-btn" title="Music">🎵</button>
 <button id="fsBtn"    class="ui-btn" title="Fullscreen">⛶</button>
 <div id="scaleWrapper">
@@ -284,7 +275,7 @@
   </div>
 
   <div id="ui">
-    <!-- Two full-width bars at the top -->
+    <!-- Map progress bar -->
     <div id="topBars">
       <div class="top-bar-row">
         <div class="top-bar-header">
@@ -292,13 +283,6 @@
           <span id="progressPct">0%</span>
         </div>
         <div class="top-bar-track"><div id="progressBarInner"></div></div>
-      </div>
-      <div class="top-bar-row">
-        <div class="top-bar-header">
-          <span>💥 КАТАСТРОФА ЧЕРЕЗ</span>
-          <span id="chaosCount">30 сек</span>
-        </div>
-        <div class="top-bar-track"><div id="chaosBarInner"></div></div>
       </div>
     </div>
 
@@ -427,20 +411,11 @@
       }
     }, { passive: true });
 
-    // Lite mode button
-    var liteBtn = document.getElementById('liteBtn');
-    var params  = new URLSearchParams(window.location.search);
-    var isLite  = params.has('lite');
-    if (isLite) liteBtn.classList.add('on');
-    liteBtn.title = isLite ? '🐢 Лёгкий режим (нажми для полной графики)' : '🐢 Нажми для лёгкого режима';
-    liteBtn.addEventListener('click', function(e) {
+    // Back button — выход в остальные игры
+    var backBtn = document.getElementById('backBtn');
+    backBtn.addEventListener('click', function(e) {
       e.stopPropagation();
-      if (isLite) {
-        params.delete('lite');
-      } else {
-        params.set('lite', '1');
-      }
-      window.location.search = params.toString();
+      window.location.href = '/';
     });
 
     // Music button

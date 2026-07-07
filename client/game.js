@@ -2181,7 +2181,13 @@ function getMtnState(distanceMeters) {
 const WORLD_NAMES = ['🏔️ Горы', '🏖️ Пляж', '🌊 Море', '🏙️ Город', '🌕 Луна'];
 let _lastWorldCycleNum = -1;
 
+let _lastMapUiUpdate = 0;
 function _updateMapProgressUI(progress, worldIdx) {
+  // DOM-запись раз в ~250мс — на каждый кадр (60/сек) это давало заметный лаг
+  const now = Date.now();
+  if (now - _lastMapUiUpdate < 250) return;
+  _lastMapUiUpdate = now;
+
   const pct   = Math.round(Math.max(0, Math.min(1, progress)) * 100);
   const pctEl = document.getElementById('progressPct');
   const barEl = document.getElementById('progressBarInner');
@@ -2355,7 +2361,7 @@ function updateDayNight(nowMs) {
 // Одна машина на всех — стоит на фиксированном месте экрана. "Едет" она только
 // визуально (колёса/скролл фона/звук мотора); реальный прогресс по картам
 // определяется пройденной дистанцией (см. DISTANCE & SPEED ниже).
-const FRONT_Z  = -30;
+const CAR_Z    = -8;  // близко к камере (camera z=18) — машина хорошо видна, не крошечная точка вдали
 const CAR_LANE = 0;
 
 let characters = new Map();  // держит один инстанс 'community' — переиспользуется
@@ -2364,9 +2370,9 @@ let communityCar = null;
 
 function _initCommunityCar() {
   communityCar = new Character3D({ playerId: 'community', username: '' }, 4, scene);
-  communityCar.group.position.set(CAR_LANE, 0, FRONT_Z);
+  communityCar.group.position.set(CAR_LANE, 0, CAR_Z);
   communityCar.targetX = CAR_LANE;
-  communityCar.targetZ = FRONT_Z;
+  communityCar.targetZ = CAR_Z;
   characters.set('community', communityCar);
 }
 _initCommunityCar();
@@ -3040,18 +3046,6 @@ function showEventAnnouncement(text, color) {
   }, 2800);
 }
 
-// ─── DISASTER COUNTDOWN ───────────────────────────────────────────────────────
-// Катастрофы теперь автоматические (раз в AUTO_EVENT_INTERVAL) — бар показывает
-// обратный отсчёт до следующей, а не лайки.
-function updateDisasterCounter() {
-  const elapsed = Date.now() - _lastAutoEvent;
-  const pct     = Math.min(100, (elapsed / AUTO_EVENT_INTERVAL) * 100);
-  const secLeft = Math.max(0, Math.ceil((AUTO_EVENT_INTERVAL - elapsed) / 1000));
-  const barEl   = document.getElementById('chaosBarInner');
-  const countEl = document.getElementById('chaosCount');
-  if (barEl)   barEl.style.width   = pct + '%';
-  if (countEl) countEl.textContent = secLeft + ' сек';
-}
 
 // ─── TSUNAMI ──────────────────────────────────────────────────────────────────
 let _tsunami = null;
@@ -3617,7 +3611,6 @@ let _lastAutoEvent = Date.now();
 const AUTO_EVENT_INTERVAL = 30000; // 30 seconds
 
 function tickAutoEvents() {
-  updateDisasterCounter(); // обратный отсчёт до следующего события — крутится всегда
   if (Date.now() - _lastAutoEvent < AUTO_EVENT_INTERVAL) return;
   // Don't start a new event if one is still running
   if (_nitro || _flood || _ufo || _massCrash || _tornado || _tsunami || _meteorRain) return;

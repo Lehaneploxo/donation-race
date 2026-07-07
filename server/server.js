@@ -214,25 +214,23 @@ class Room {
         const raceCoins = Number(data.coins) || 0;
         const deltaMeters = raceCoins * 100;
         this._carMeters += deltaMeters;
+        // Движение шлём сразу — не ждём базу данных, иначе донат ощущается с задержкой
+        this.broadcast({
+          type:         'update',
+          deltaMeters:  deltaMeters,
+          totalMeters:  this._carMeters,
+          event:        { type: 'gift', username: data.username, coins: raceCoins }
+        });
+        // Топ донатов пишем и рассылаем отдельно, не чаще раза в 2 сек — не грузим БД и клиент на каждый гифт
         db.addRaceCoins(data.username, raceCoins)
-          .then(() => db.getTopRaceDonations(10))
-          .then(top => {
-            this.broadcast({
-              type:         'update',
-              deltaMeters:  deltaMeters,
-              totalMeters:  this._carMeters,
-              topDonations: top,
-              event:        { type: 'gift', username: data.username, coins: raceCoins }
-            });
+          .then(() => {
+            const now = Date.now();
+            if (now - (this._lastTopBroadcast || 0) < 2000) return null;
+            this._lastTopBroadcast = now;
+            return db.getTopRaceDonations(10);
           })
-          .catch(() => {
-            this.broadcast({
-              type:         'update',
-              deltaMeters:  deltaMeters,
-              totalMeters:  this._carMeters,
-              event:        { type: 'gift', username: data.username, coins: raceCoins }
-            });
-          });
+          .then(top => { if (top) this.broadcast({ type: 'update', topDonations: top }); })
+          .catch(() => {});
       },
       // onStatus — состояние подключения
       (status) => this.broadcast({ type: 'status', ...status }),
