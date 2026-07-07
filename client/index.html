@@ -43,51 +43,6 @@
     #title   { display: none; }
     #subtitle { display: none; }
 
-    /* Winner overlay */
-    #winnerOverlay {
-      display: none;
-      position: absolute;
-      top: 0; left: 0; width: 1080px; height: 1920px;
-      background: rgba(0,0,0,0.82);
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      z-index: 500;
-    }
-    #winnerOverlay.show { display: flex; }
-    #winnerTitle {
-      font-size: 72px;
-      font-weight: 900;
-      color: #FFD700;
-      text-shadow: 0 0 30px #FF8800, 0 0 60px #FF4400, 3px 3px 0 #000;
-      letter-spacing: 4px;
-      text-align: center;
-      margin-bottom: 20px;
-      animation: winnerPulse 0.8s ease-in-out infinite alternate;
-    }
-    #winnerName {
-      font-size: 110px;
-      font-weight: 900;
-      color: #FFFFFF;
-      text-shadow: 0 0 40px #FFD700, 0 0 80px #FF8800, 4px 4px 0 #000;
-      letter-spacing: 2px;
-      text-align: center;
-      margin-bottom: 30px;
-      word-break: break-all;
-    }
-    #winnerSub {
-      font-size: 44px;
-      font-weight: bold;
-      color: #00FF88;
-      text-shadow: 0 0 20px #00FF88;
-      text-align: center;
-      letter-spacing: 2px;
-    }
-    @keyframes winnerPulse {
-      from { text-shadow: 0 0 30px #FF8800, 0 0 60px #FF4400, 3px 3px 0 #000; }
-      to   { text-shadow: 0 0 60px #FFD700, 0 0 120px #FF8800, 3px 3px 0 #000; }
-    }
-
     /* Status badge */
     #statusBadge {
       position: absolute;
@@ -110,9 +65,6 @@
     #statusBadge.live  { color: #00FF88; border-color: #00FF88; box-shadow: 0 0 10px rgba(0,255,136,0.35); }
     #statusBadge.demo  { color: #FF9900; border-color: #FF9900; box-shadow: 0 0 10px rgba(255,153,0,0.35); }
     #statusBadge.error { color: #FF4444; border-color: #FF4444; box-shadow: 0 0 10px rgba(255,68,68,0.35); }
-
-    /* Winners / player count — hidden */
-    #playerCount { display: none; }
 
     /* Time of day badge — hidden */
     #timeOfDay { display: none; }
@@ -247,7 +199,7 @@
     .lb-rank.rank-2 { color: #C0C0C0; font-size: 42px; }
     .lb-rank.rank-3 { color: #CD7F32; font-size: 40px; }
     .lb-rank.rank-other { color: #888; font-size: 34px; }
-    .lb-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 34px; font-weight: 700; }
+    .lb-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 34px; font-weight: 700; color: #fff; }
     .lb-pts  { color: #fff; font-weight: 900; font-size: 38px; white-space: nowrap; padding: 0 8px; }
     .lb-icon { display: flex; align-items: center; flex-shrink: 0; }
 
@@ -336,53 +288,45 @@
     <div id="topBars">
       <div class="top-bar-row">
         <div class="top-bar-header">
-          <span>🏁 ФИНИШ</span>
-          <span><span id="progressPct">0</span> / 1000</span>
+          <span>🗺️ КАРТА</span>
+          <span id="progressPct">0%</span>
         </div>
         <div class="top-bar-track"><div id="progressBarInner"></div></div>
       </div>
       <div class="top-bar-row">
         <div class="top-bar-header">
-          <span>❤️ КАТАСТРОФА</span>
-          <span id="chaosCount">0 / 1000</span>
+          <span>💥 КАТАСТРОФА ЧЕРЕЗ</span>
+          <span id="chaosCount">30 сек</span>
         </div>
         <div class="top-bar-track"><div id="chaosBarInner"></div></div>
       </div>
     </div>
 
-    <div id="playerCount">PLAYERS: <span id="playerCountNum">0</span></div>
     <div id="timeOfDay">🌅 MORNING</div>
     <div id="statusBadge" style="display:none">⏳ Connecting…</div>
     <div id="timeSpeedBadge" style="display:none">⚡</div>
 
     <div id="leaderboard">
-      <h3>ТОП 10</h3>
+      <h3>🏆 ТОП ДОНАТОВ</h3>
       <div id="leaderboardList"></div>
     </div>
 
     <div id="infoPanel">
       <div class="info-row">
         <span class="info-icon">❤️</span>
-        <span class="info-desc">100 лайков</span>
-        <span class="info-val">= 1</span>
+        <span class="info-desc">лайк</span>
+        <span class="info-val">= 1м</span>
       </div>
       <div class="info-row">
         <span class="info-icon">🎁</span>
-        <span class="info-desc">подарок</span>
-        <span class="info-val">= 2</span>
+        <span class="info-desc">монета</span>
+        <span class="info-val">= 100м</span>
       </div>
       <div class="info-row">
-        <span class="info-icon">🍩</span>
-        <span class="info-desc">пончик</span>
-        <span class="info-val">= 💥</span>
+        <span class="info-icon">💥</span>
+        <span class="info-desc">катастрофа</span>
+        <span class="info-val">~30с</span>
       </div>
-    </div>
-
-    <!-- Winner overlay -->
-    <div id="winnerOverlay">
-      <div id="winnerTitle">🏆 ПОБЕДИТЕЛЬ! 🏆</div>
-      <div id="winnerName">—</div>
-      <div id="winnerSub">🎉 НОВАЯ ГОНКА ЧЕРЕЗ 10 СЕК 🎉</div>
     </div>
 
     <!-- Event announcement -->
@@ -393,6 +337,7 @@
   <script src="websocket.js?v=20250311_22"></script>
   <script src="leaderboard.js?v=20250311_22"></script>
   <script src="characters.js?v=20250311_22"></script>
+  <script src="voice.js?v=20250311_22"></script>
   <script src="game.js?v=20250311_22"></script>
   <script src="music.js?v=20250311_22"></script>
   <script src="devtools.js?v=20250311_22"></script>

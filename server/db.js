@@ -30,7 +30,13 @@ async function init() {
       total_damage INTEGER NOT NULL DEFAULT 0
     )
   `);
-  console.log('[DB] Таблицы kills и boss_damage готовы');
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS race_donations (
+      username TEXT PRIMARY KEY,
+      total_coins INTEGER NOT NULL DEFAULT 0
+    )
+  `);
+  console.log('[DB] Таблицы kills, boss_damage и race_donations готовы');
 }
 
 async function addBossDamage(username, amount) {
@@ -98,6 +104,25 @@ async function getUserRank(username) {
   return row ? { rank: Number(row.rank), total_kills: Number(row.total_kills) } : null;
 }
 
+async function addRaceCoins(username, coins) {
+  if (!pool || !username || !coins) return;
+  await pool.query(`
+    INSERT INTO race_donations (username, total_coins)
+    VALUES ($1, $2)
+    ON CONFLICT (username)
+    DO UPDATE SET total_coins = race_donations.total_coins + $2
+  `, [username, Math.floor(coins)]);
+}
+
+async function getTopRaceDonations(limit = 10) {
+  if (!pool) return [];
+  const res = await pool.query(
+    'SELECT username, total_coins FROM race_donations ORDER BY total_coins DESC LIMIT $1',
+    [limit]
+  );
+  return res.rows;
+}
+
 function isConnected() { return pool !== null; }
 
-module.exports = { init, addKill, getTopKillers, getUserRank, addBossDamage, getTopBossDamage, resetBossDamage, getUserBossDamageRank, isConnected };
+module.exports = { init, addKill, getTopKillers, getUserRank, addBossDamage, getTopBossDamage, resetBossDamage, getUserBossDamageRank, addRaceCoins, getTopRaceDonations, isConnected };

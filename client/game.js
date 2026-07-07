@@ -658,7 +658,10 @@ scene.add(sandGroundMesh);
 const rng = s => { const x = Math.sin(s) * 10000; return x - Math.floor(x); };
 
 const POOL_SPAN  = 200;
-const SCROLL_SPD = 8.4;
+// Раньше была константой (машины ехали сами по себе). Теперь это скорость
+// единственной общей машины — обновляется каждый кадр из _carSpeedCurrent
+// (game.js, DISTANCE & SPEED), поэтому весь фон замирает вместе с машиной.
+let SCROLL_SPD = 0;
 const pooledObjects = [];
 
 function makeTree(x, z, scale, type) {
@@ -2145,8 +2148,10 @@ function scrollWorld(dt) {
 }
 
 // ─── MOUNTAIN APPROACH CYCLE ─────────────────────────────────────────────────
-// 5-min cycle: mountains grow from tiny → huge → pass through → reset
-const MTN_CYCLE_MS = 5 * 60 * 1000;
+// Раньше карта листалась по реальному времени (5 мин на цикл) вне зависимости
+// от того, едет машина или нет. Теперь — по пройденной дистанции: пока машина
+// стоит (нет донатов), карта тоже стоит.
+const METERS_PER_WORLD = 3000; // метров на одну "карту" (гора/пляж/море/город/луна)
 
 let _worldOverride = -1; // -1 = no override, 0-4 = force that world
 
@@ -2155,19 +2160,49 @@ function _showWorldBadge(text) {
   if (el) { el.textContent = text; el.style.color = '#aaf'; el.style.borderColor = '#aaf'; }
 }
 
-function getMtnState(elapsedMs) {
-  const cycleNum = Math.floor(elapsedMs / MTN_CYCLE_MS);
-  const progress = (elapsedMs % MTN_CYCLE_MS) / MTN_CYCLE_MS; // 0..1, loops
+function getMtnState(distanceMeters) {
+  const cycleNum = Math.floor(distanceMeters / METERS_PER_WORLD);
+  const progress = (distanceMeters % METERS_PER_WORLD) / METERS_PER_WORLD; // 0..1, loops
   const world    = _worldOverride >= 0 ? _worldOverride : cycleNum % 5; // 0=mountains, 1=beach, 2=sea, 3=city, 4=moon
   // 0→88%: approach   88→100%: pass-through transition
   const ap    = Math.min(progress / 0.88, 1.0);
   const eased = ap * ap * (3.0 - 2.0 * ap); // smoothstep — slow start, fast arrival
   return {
     world,
+    cycleNum,
+    progress,
     scale:     0.04 + eased * 1.10,  // tiny dot on horizon → looming huge
     zOffset:   eased * 168,          // group moves -155 → +13 (past camera)
     passPhase: progress > 0.88 ? (progress - 0.88) / 0.12 : 0,
   };
+}
+
+// ─── WORLD / LAP TRANSITIONS ──────────────────────────────────────────────────
+const WORLD_NAMES = ['🏔️ Горы', '🏖️ Пляж', '🌊 Море', '🏙️ Город', '🌕 Луна'];
+let _lastWorldCycleNum = -1;
+
+function _updateMapProgressUI(progress, worldIdx) {
+  const pct   = Math.round(Math.max(0, Math.min(1, progress)) * 100);
+  const pctEl = document.getElementById('progressPct');
+  const barEl = document.getElementById('progressBarInner');
+  if (pctEl) pctEl.textContent = (WORLD_NAMES[worldIdx] || '') + ' ' + pct + '%';
+  if (barEl) barEl.style.width = pct + '%';
+}
+
+function _checkWorldTransition(cycleNum) {
+  if (_lastWorldCycleNum === -1) { _lastWorldCycleNum = cycleNum; return; } // не показываем при первой загрузке
+  if (cycleNum === _lastWorldCycleNum) return;
+  _lastWorldCycleNum = cycleNum;
+
+  const worldName = WORLD_NAMES[((cycleNum % 5) + 5) % 5];
+  showEventAnnouncement(`${worldName}!`, '#66DDFF');
+  if (window.Voice) Voice.newWorld(worldName);
+
+  if (cycleNum > 0 && cycleNum % 5 === 0) {
+    const km = (_carDistanceMeters / 1000).toFixed(1);
+    showEventAnnouncement(`🎉 Круг пройден! Пробег: ${km} км`, '#FFD700');
+    if (window.Voice) Voice.lapComplete(km);
+  }
 }
 
 // ─── DAY/NIGHT UPDATE ─────────────────────────────────────────────────────────
@@ -2213,8 +2248,11 @@ function updateDayNight(nowMs) {
   sunLight.position.set(sp.x * 0.6, sp.y * 0.6 + 4, -80);
 
   // World approach cycle — mountains (world 0) or beach/ocean (world 1)
-  const { world, scale: mtnScale, zOffset: mtnZOff, passPhase } = getMtnState(pd.elapsed);
+  // Управляется пройденной дистанцией машины, не реальным временем.
+  const { world, cycleNum, progress: mapProgress, scale: mtnScale, zOffset: mtnZOff, passPhase } = getMtnState(_carDistanceMeters);
   _currentWorld = world;
+  _checkWorldTransition(cycleNum);
+  _updateMapProgressUI(mapProgress, world);
 
   // Show/hide world-specific objects
   const isMtn   = (world === 0);
@@ -2313,144 +2351,84 @@ function updateDayNight(nowMs) {
   }
 }
 
-// ─── CHARACTER POSITIONING ───────────────────────────────────────────────────
-const FRONT_Z   = -30;
-const BACK_Z    = -4;
-const MIN_GAP   = 5.5;   // longest car (truck) ≈5.4 + clearance
-const EXTRA_GAP = 6;
+// ─── COMMUNITY CAR ────────────────────────────────────────────────────────────
+// Одна машина на всех — стоит на фиксированном месте экрана. "Едет" она только
+// визуально (колёса/скролл фона/звук мотора); реальный прогресс по картам
+// определяется пройденной дистанцией (см. DISTANCE & SPEED ниже).
+const FRONT_Z  = -30;
+const CAR_LANE = 0;
 
-const LANES      = [-1.5, 0, 1.5];   // 3 lanes — car width ≈1.85, gap between sides ≈1.1
-const LANE_ORDER = [1, 0, 2];
+let characters = new Map();  // держит один инстанс 'community' — переиспользуется
+window.characters = characters; // существующие эффекты (торнадо/цунами и т.п.) работают через эту коллекцию
+let communityCar = null;
 
-const playerLanes = new Map();
+function _initCommunityCar() {
+  communityCar = new Character3D({ playerId: 'community', username: '' }, 4, scene);
+  communityCar.group.position.set(CAR_LANE, 0, FRONT_Z);
+  communityCar.targetX = CAR_LANE;
+  communityCar.targetZ = FRONT_Z;
+  characters.set('community', communityCar);
+}
+_initCommunityCar();
 
-function positionCharacters() {
-  if (players.length === 0) return;
+// ─── DISTANCE & SPEED ─────────────────────────────────────────────────────────
+// _carDistanceMeters — серверная истина (общий пробег). Меняется только когда
+// приходит сообщение от сервера — если никто не донатит, сообщений нет, и
+// дистанция (а с ней и текущая карта) просто стоит на месте.
+let _carDistanceMeters = 0;
+// _carSpeedCurrent — чисто визуальная скорость для анимации (колёса/скролл/мотор).
+// Подскакивает при каждой донат-дельте и сама затухает без новых донатов —
+// вот откуда берётся "машина стоит, если никто не кидает".
+let _carSpeedCurrent = 0;
+const SPEED_BOOST_K = 0.006;  // метры дельты → м/с прибавки к скорости
+const SPEED_MAX     = 14;     // потолок скорости
+const SPEED_DECAY   = 0.15;   // доля скорости, остающаяся через 1 секунду простоя
 
-  const rawZ = [];
-  let prevZ  = FRONT_Z;
-
-  players.forEach((player, index) => {
-    if (index === 0) {
-      rawZ.push(FRONT_Z);
-    } else {
-      const coinDiff     = Math.max(0, players[index - 1].distance - player.distance);
-      const leaderCoins  = Math.max(1, players[0].distance);
-      const proportional = Math.sqrt(coinDiff / leaderCoins) * EXTRA_GAP;
-      const z            = prevZ + MIN_GAP + proportional;
-      rawZ.push(z);
-      prevZ = z;
-    }
-  });
-
-  const lastZ   = rawZ[rawZ.length - 1];
-  const maxSpan = BACK_Z - FRONT_Z;
-  const rawSpan = lastZ - FRONT_Z;
-
-  players.forEach((player, index) => {
-    const char = characters.get(player.playerId);
-    if (!char) return;
-    const scaledZ = rawSpan > maxSpan
-      ? FRONT_Z + ((rawZ[index] - FRONT_Z) / rawSpan) * maxSpan
-      : rawZ[index];
-    char.targetZ = scaledZ;
-    if (!playerLanes.has(player.playerId)) {
-      const laneIdx = LANE_ORDER[index % LANE_ORDER.length];
-      playerLanes.set(player.playerId, LANES[laneIdx]); // no random wobble — cars need clean lanes
-    }
-    char.targetX = playerLanes.get(player.playerId);
-  });
+function _boostCarSpeed(deltaMeters) {
+  if (!deltaMeters) return;
+  _carSpeedCurrent = Math.min(SPEED_MAX, _carSpeedCurrent + deltaMeters * SPEED_BOOST_K);
+}
+function _decayCarSpeed(dt) {
+  _carSpeedCurrent *= Math.pow(SPEED_DECAY, dt / 1000);
+  if (_carSpeedCurrent < 0.02) _carSpeedCurrent = 0;
 }
 
-// ─── PLAYERS & WEBSOCKET ─────────────────────────────────────────────────────
-let characters   = new Map();
-window.characters = characters;
-let players      = [];
-let totalPlayers = 0;
+// ─── WEBSOCKET ────────────────────────────────────────────────────────────────
+let _lastTopDonorName = null;
 
 GameWebSocket.on('init', d => {
-  applyUpdate(d.players, d.totalPlayers);
-  updateProgressUI(d.racePoints || 0);
-  if (d.totalLikes !== undefined) updateDisasterCounter(d.totalLikes);
+  _carDistanceMeters = d.totalMeters || 0;
+  if (d.topDonations) {
+    Leaderboard.update(d.topDonations);
+    _lastTopDonorName = d.topDonations[0]?.username || null; // не озвучиваем при первой загрузке
+  }
 });
+
 GameWebSocket.on('update', d => {
-  if (d.event?.type === 'race_end') {
-    applyUpdate(d.players, d.totalPlayers);
-    updateProgressUI(d.racePoints || 0);
-    showWinner(d.event.winner);
-    return;
+  if (d.totalMeters !== undefined) _carDistanceMeters = d.totalMeters;
+  if (d.deltaMeters) _boostCarSpeed(d.deltaMeters);
+  if (d.topDonations) {
+    Leaderboard.update(d.topDonations);
+    const newTop = d.topDonations[0]?.username || null;
+    if (newTop && newTop !== _lastTopDonorName && _lastTopDonorName !== null) {
+      if (window.Voice) Voice.newTopDonor(newTop);
+    }
+    _lastTopDonorName = newTop;
   }
-  if (d.event?.type === 'race_start') {
-    hideWinner();
-    // Сброс машин и счётчиков
-    characters.forEach(c => c.remove());
-    characters.clear();
-    playerLanes.clear();
-    players = [];
-    updateProgressUI(0);
-    return;
+
+  if (d.event?.type === 'gift') {
+    _soundGift(d.event.coins);
+    _showDonationToast(`🎁 @${d.event.username} +${d.event.coins * 100}м`);
+    if (window.Voice) Voice.gift(d.event.username, d.event.coins);
+  } else if (d.event?.type === 'like' && (d.event.likes || 0) >= 20) {
+    _showDonationToast(`❤️ @${d.event.username} +${d.event.likes}м`);
   }
-  applyUpdate(d.players, d.totalPlayers);
-  if (d.event?.type === 'tornado')  spawnTornado(d.event.username || 'Someone');
-  if (d.event?.type === 'tsunami')  spawnTsunami();
-  if (d.event?.type === 'meteor')   spawnMeteors();
-  if (d.event?.type === 'crash')    spawnMassCrash();
-  if (d.racePoints  !== undefined)  updateProgressUI(d.racePoints);
-  if (d.totalLikes  !== undefined)  updateDisasterCounter(d.totalLikes);
 });
 
-function applyUpdate(newPlayers, total) {
-  players      = newPlayers;
-  totalPlayers = total;
-
-  document.getElementById('playerCountNum').textContent = total;
-  Leaderboard.update(players, total);
-
-  const topIds = new Set(players.map(p => p.playerId));
-  characters.forEach((c, id) => {
-    if (!topIds.has(id)) { c.remove(); characters.delete(id); playerLanes.delete(id); }
-  });
-
-  players.forEach((player, index) => {
-    if (!characters.has(player.playerId)) {
-      const c = new Character3D(player, index, scene);
-      c.group.position.set(LANES[index % LANES.length], 0, FRONT_Z + 30);
-      characters.set(player.playerId, c);
-    } else {
-      characters.get(player.playerId).updatePlayer(player);
-    }
-  });
-
-  positionCharacters();
-}
-
-const RACE_GOAL = 1000; // монет до конца гонки
-let   _raceCoins = 0;
-
-function updateProgressUI(coins) {
-  if (coins === undefined) return;
-  _raceCoins = coins;
-  const pct = Math.min((_raceCoins / RACE_GOAL) * 100, 100);
-  document.getElementById('progressPct').textContent      = Math.min(_raceCoins, RACE_GOAL);
-  document.getElementById('progressBarInner').style.width = pct + '%';
-}
-
-function showWinner(username) {
-  const el = document.getElementById('winnerOverlay');
-  const nm = document.getElementById('winnerName');
-  if (!el || !nm) return;
-  nm.textContent = username || '???';
-  el.classList.add('show');
-  // Победный звук
-  _tone(523, 'sine', 0.15, 0.3, 0);
-  _tone(659, 'sine', 0.15, 0.3, 0.15);
-  _tone(784, 'sine', 0.15, 0.3, 0.30);
-  _tone(1047,'sine', 0.4,  0.4, 0.45);
-}
-
-function hideWinner() {
-  const el = document.getElementById('winnerOverlay');
-  if (el) el.classList.remove('show');
+// ─── DONATION TOAST (плавающий текст над машиной) ────────────────────────────
+let _donationToast = null; // { text, until }
+function _showDonationToast(text) {
+  _donationToast = { text, until: performance.now() + 2200 };
 }
 
 // ─── 2D NICKNAME OVERLAY ──────────────────────────────────────────────────────
@@ -2460,40 +2438,28 @@ const _tmpVec    = new THREE.Vector3();
 
 function drawNicknames() {
   nameCtx.clearRect(0, 0, 1080, 1920);
+  if (!_donationToast || performance.now() > _donationToast.until || !communityCar) return;
 
-  // Draw rank number above each car
-  players.forEach((player, index) => {
-    const rank = index + 1;
-    const char = characters.get(player.playerId);
-    if (!char) return;
+  communityCar.group.getWorldPosition(_tmpVec);
+  _tmpVec.y += 2.0;
+  const ndc = _tmpVec.clone().project(camera);
+  if (ndc.z > 1) return;
 
-    char.group.getWorldPosition(_tmpVec);
-    _tmpVec.y += 1.2;
-    const ndc = _tmpVec.clone().project(camera);
-    if (ndc.z > 1) return;
+  const sx = (ndc.x  + 1) / 2 * 1080;
+  const sy = (-ndc.y + 1) / 2 * 1920;
+  const label = _donationToast.text;
 
-    const sx = (ndc.x  + 1) / 2 * 1080;
-    const sy = (-ndc.y + 1) / 2 * 1920;
+  nameCtx.font      = `900 34px Arial Black, Arial`;
+  nameCtx.textAlign = 'center';
+  nameCtx.textBaseline = 'middle';
+  nameCtx.lineJoin  = 'round';
 
-    const dist     = camera.position.distanceTo(_tmpVec);
-    const fontSize = Math.round(Math.max(18, Math.min(48, 800 / dist)));
-    const color    = '#' + SHIRT_COLORS[char.colorIndex % SHIRT_COLORS.length].toString(16).padStart(6, '0');
-    const label    = String(rank);
+  nameCtx.strokeStyle = 'rgba(0,0,0,0.95)';
+  nameCtx.lineWidth   = 8;
+  nameCtx.strokeText(label, sx, sy);
 
-    nameCtx.font      = `900 ${fontSize}px Arial Black, Arial`;
-    nameCtx.textAlign = 'center';
-    nameCtx.textBaseline = 'middle';
-    nameCtx.lineJoin  = 'round';
-
-    // Dark outline
-    nameCtx.strokeStyle = 'rgba(0,0,0,0.95)';
-    nameCtx.lineWidth   = fontSize * 0.35;
-    nameCtx.strokeText(label, sx, sy);
-
-    // Colored fill
-    nameCtx.fillStyle = color;
-    nameCtx.fillText(label, sx, sy);
-  });
+  nameCtx.fillStyle = '#FFD700';
+  nameCtx.fillText(label, sx, sy);
 }
 
 function _pill(ctx, x, y, w, h, r) {
@@ -2880,7 +2846,7 @@ function _noise(dur, ffreq, vol, delay, bpQ) {
 }
 
 // ─── ENGINE SOUND ─────────────────────────────────────────────────────────────
-let _engineOsc = null, _engineGain = null;
+let _engineOsc = null, _engineGain = null, _engineOscNodes = [];
 function _startEngine() {
   if (_engineOsc) return;
   try {
@@ -2891,7 +2857,7 @@ function _startEngine() {
     flt.type = 'lowpass'; flt.frequency.value = 160; flt.Q.value = 0.8;
 
     _engineGain = ctx.createGain();
-    _engineGain.gain.value = 0.038;
+    _engineGain.gain.value = 0.006; // тихий холостой ход — машина стоит, пока никто не донатит
     flt.connect(_engineGain); _engineGain.connect(_out());
 
     // Two slightly detuned triangle oscillators (triangle = much softer than sawtooth)
@@ -2899,6 +2865,7 @@ function _startEngine() {
       const o = ctx.createOscillator();
       o.type = 'triangle'; o.frequency.value = f;
       o.connect(flt); o.start();
+      _engineOscNodes.push({ osc: o, base: f });
     });
 
     // Very gentle tremolo (organic pulsing feel)
@@ -2910,6 +2877,15 @@ function _startEngine() {
 
     _engineOsc = true; // flag: engine running
   } catch(e) {}
+}
+
+// Громкость/тон мотора отражают реальную скорость машины — тихо на холостом
+// ходу, громче и выше по тону когда едет на донатах.
+function _updateEngineSound(speedFactor) {
+  if (!_engineGain) return;
+  const targetGain = 0.006 + speedFactor * 0.05;
+  _engineGain.gain.value += (targetGain - _engineGain.gain.value) * 0.06;
+  _engineOscNodes.forEach(n => { n.osc.frequency.value = n.base + speedFactor * 38; });
 }
 
 function _playAccel() {
@@ -2932,9 +2908,11 @@ function _playAccel() {
 }
 
 let _lastAccelTime = 0;
-function _tickEngineSound(ts) {
+function _tickEngineSound(ts, speedFactor) {
   if (!_engineOsc) _startEngine();
-  if (ts - _lastAccelTime > 5000 + Math.random() * 4000) {
+  _updateEngineSound(speedFactor || 0);
+  // Не рычим двигателем, если машина реально стоит — тишина честнее
+  if (speedFactor > 0.15 && ts - _lastAccelTime > 5000 + Math.random() * 4000) {
     _lastAccelTime = ts;
     _playAccel();
   }
@@ -2993,6 +2971,61 @@ function _soundCrash() {
   _noise(0.5, 350, 0.12, 0.02);
 }
 
+// ─── NITRO: rising turbo whoosh ────────────────────────────────────────────────
+function _soundNitro() {
+  try {
+    const ctx = _getAC(); if (!ctx) return;
+    const osc = ctx.createOscillator(), flt = ctx.createBiquadFilter(), g = ctx.createGain();
+    flt.type = 'lowpass'; flt.frequency.value = 900;
+    osc.connect(flt); flt.connect(g); g.connect(_out());
+    osc.type = 'sawtooth';
+    const t = ctx.currentTime;
+    osc.frequency.setValueAtTime(90, t);
+    osc.frequency.exponentialRampToValueAtTime(520, t + 0.6);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(0.13, t + 0.08);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.7);
+    osc.start(t); osc.stop(t + 0.75);
+  } catch(e) {}
+  _noise(0.6, 700, 0.08, 0.05, 1.2);
+}
+
+// ─── FLOOD: rising water rush ───────────────────────────────────────────────────
+function _soundFlood() {
+  _noise(3.0, 260, 0.16, 0);
+  _noise(2.2, 500, 0.09, 0.2, 2.0);
+  _tone(52, 'sine', 2.5, 0.14, 0);
+}
+
+// ─── UFO: sci-fi hum + descending beam ─────────────────────────────────────────
+function _soundUFO() {
+  try {
+    const ctx = _getAC(); if (!ctx) return;
+    const osc = ctx.createOscillator(), g = ctx.createGain();
+    osc.connect(g); g.connect(_out());
+    osc.type = 'sine';
+    const t = ctx.currentTime;
+    osc.frequency.setValueAtTime(320, t);
+    osc.frequency.linearRampToValueAtTime(210, t + 1.2);
+    osc.frequency.linearRampToValueAtTime(340, t + 2.4);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(0.08, t + 0.2);
+    g.gain.setValueAtTime(0.08, t + 2.0);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 2.5);
+    osc.start(t); osc.stop(t + 2.55);
+  } catch(e) {}
+  _tone(45, 'sine', 2.2, 0.10, 0.1);
+}
+
+// ─── GIFT: coin chime — louder/brighter for bigger gifts ───────────────────────
+function _soundGift(coins) {
+  const big = Math.min(1, (Number(coins) || 1) / 50); // 0..1 по размеру доната
+  _tone(784,  'sine', 0.12, 0.20 + big * 0.15, 0);
+  _tone(988,  'sine', 0.12, 0.18 + big * 0.15, 0.07);
+  _tone(1319, 'sine', 0.22, 0.16 + big * 0.18, 0.14);
+  if (big > 0.5) _tone(1568, 'sine', 0.3, 0.14 + big * 0.16, 0.21);
+}
+
 // ─── EVENT ANNOUNCEMENT ───────────────────────────────────────────────────────
 function showEventAnnouncement(text, color) {
   const el = document.getElementById('eventAnnouncement');
@@ -3007,16 +3040,17 @@ function showEventAnnouncement(text, color) {
   }, 2800);
 }
 
-// ─── DISASTER COUNTER ─────────────────────────────────────────────────────────
-let _clientTotalLikes = 0;
-function updateDisasterCounter(total) {
-  _clientTotalLikes = total || 0;
-  const cur = _clientTotalLikes % 1000;
-  const pct = (cur / 1000) * 100;
+// ─── DISASTER COUNTDOWN ───────────────────────────────────────────────────────
+// Катастрофы теперь автоматические (раз в AUTO_EVENT_INTERVAL) — бар показывает
+// обратный отсчёт до следующей, а не лайки.
+function updateDisasterCounter() {
+  const elapsed = Date.now() - _lastAutoEvent;
+  const pct     = Math.min(100, (elapsed / AUTO_EVENT_INTERVAL) * 100);
+  const secLeft = Math.max(0, Math.ceil((AUTO_EVENT_INTERVAL - elapsed) / 1000));
   const barEl   = document.getElementById('chaosBarInner');
   const countEl = document.getElementById('chaosCount');
   if (barEl)   barEl.style.width   = pct + '%';
-  if (countEl) countEl.textContent = cur + ' / 1000 ❤️';
+  if (countEl) countEl.textContent = secLeft + ' сек';
 }
 
 // ─── TSUNAMI ──────────────────────────────────────────────────────────────────
@@ -3278,6 +3312,7 @@ function spawnNitroBoost() {
   const list = [...characters.values()].filter(c => !c._inTornado && !c._falling);
   if (list.length === 0) return;
   const char = list[Math.floor(Math.random() * list.length)];
+  _soundNitro();
 
   // Exhaust / flame particles group
   const exGroup = new THREE.Group();
@@ -3354,6 +3389,7 @@ let _flood = null;
 
 function spawnFlood() {
   if (_flood) return;
+  _soundFlood();
 
   // Rain particles
   const rainGeo = new THREE.BufferGeometry();
@@ -3451,6 +3487,7 @@ function _buildUFO() {
 
 function spawnUFO() {
   if (_ufo) return;
+  _soundUFO();
   const ufoGroup = _buildUFO();
   ufoGroup.position.set(0, 22, -10);
   scene.add(ufoGroup);
@@ -3575,22 +3612,28 @@ function updateUFO(dt) {
 }
 
 // ─── RANDOM AUTO EVENTS ───────────────────────────────────────────────────────
+// Катастрофы происходят сами, раз в ~30 сек, случайные, без привязки к донатам.
 let _lastAutoEvent = Date.now();
 const AUTO_EVENT_INTERVAL = 30000; // 30 seconds
 
 function tickAutoEvents() {
+  updateDisasterCounter(); // обратный отсчёт до следующего события — крутится всегда
   if (Date.now() - _lastAutoEvent < AUTO_EVENT_INTERVAL) return;
   // Don't start a new event if one is still running
-  if (_nitro || _flood || _ufo || _massCrash) return;
+  if (_nitro || _flood || _ufo || _massCrash || _tornado || _tsunami || _meteorRain) return;
   if (characters.size === 0) return;
 
   _lastAutoEvent = Date.now();
-  const events = ['nitro', 'flood', 'ufo', 'crash'];
+  const events = ['nitro', 'flood', 'ufo', 'crash', 'tornado', 'tsunami', 'meteor'];
   const pick = events[Math.floor(Math.random() * events.length)];
-  if (pick === 'nitro') spawnNitroBoost();
-  else if (pick === 'flood') spawnFlood();
-  else if (pick === 'ufo')   spawnUFO();
-  else                        spawnMassCrash();
+  if      (pick === 'nitro')   spawnNitroBoost();
+  else if (pick === 'flood')   spawnFlood();
+  else if (pick === 'ufo')     spawnUFO();
+  else if (pick === 'tornado') spawnTornado('');
+  else if (pick === 'tsunami') spawnTsunami();
+  else if (pick === 'meteor')  spawnMeteors();
+  else                          spawnMassCrash();
+  if (window.Voice) Voice.disaster(pick);
 }
 
 // ─── MAIN LOOP ────────────────────────────────────────────────────────────────
@@ -3626,17 +3669,21 @@ function gameLoop(ts) {
     playerBoatPool[bi].visible = false;
   }
 
+  _decayCarSpeed(dt);
+  SCROLL_SPD = _carSpeedCurrent;
+  const _speedFactor = SPEED_MAX > 0 ? _carSpeedCurrent / SPEED_MAX : 0;
+
   scrollWorld(dt);
   if (!LITE_MODE) updateDayNight(gameStartMs + scaledElapsedMs);
 
   camera.position.x = -2 + Math.sin(ts * 0.00022) * 0.30;
   camera.position.y =  9 + Math.sin(ts * 0.00017) * 0.18;
   // Look slightly higher as the mountain looms — dramatic approach feel
-  const _ms = getMtnState(scaledElapsedMs);
+  const _ms = getMtnState(_carDistanceMeters);
   camera.lookAt(0, 2 + _ms.scale * 2.8, -16);
 
-  _tickEngineSound(ts);
-  characters.forEach(c => c.update(dt));
+  _tickEngineSound(ts, _speedFactor);
+  characters.forEach(c => c.update(dt, _speedFactor));
   updateTornado(dt);
   updateTsunami(dt);
   updateMeteors(dt);

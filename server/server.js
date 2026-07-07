@@ -4,7 +4,6 @@ const WebSocket = require('ws');
 const path      = require('path');
 const url       = require('url');
 
-const PlayersManager      = require('./playersManager');
 const { connectToTikTok } = require('./tiktokConnector');
 const db                  = require('./db');
 
@@ -155,19 +154,25 @@ app.get('/admin/reset-boss-damage', async (req, res) => {
   }
 });
 
+app.get('/top-race-donations', async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 100;
+    const top = await db.getTopRaceDonations(limit);
+    res.json({ ok: true, count: top.length, top });
+  } catch(e) {
+    res.json({ ok: false, error: e.message });
+  }
+});
+
 // ─── Rooms ───────────────────────────────────────────────────────────────────
 const rooms = new Map();
 
 class Room {
   constructor(username) {
     this.username   = username;
-    this.players    = new PlayersManager();
     this.clients    = new Set();
     this.connection = null;
-    this._totalLikes = 0;
-    this._lastEventThreshold = 0;
-    this._totalCoins = 0;
-    this._raceEnded  = false;
+    this._carMeters  = 0;   // общий пробег машины (метры), сбрасывается только при рестарте сервера
     this._giftCount  = 0;
     this._lastGift   = null;
     this._connect();
@@ -181,18 +186,7 @@ class Room {
         // Always send to civilization regardless of race state
         this.broadcast({ type: 'civ_gift', username: data.username, uniqueId: data.userId, coins: data.coins });
 
-        if (this._raceEnded) return; // не считаем во время перерыва
-        this.players.addCoins(data.userId, data.username, data.avatarUrl, data.coins);
-        this._totalCoins += (Number(data.coins) || 0);
-
         const giftLower = (data.giftName || '').toLowerCase();
-        const isDonut   = giftLower.includes('donut') || giftLower.includes('doughnut');
-        let   eventType = 'donation';
-        if (isDonut) {
-          const chaosTypes = ['tornado', 'tsunami', 'meteor', 'crash'];
-          eventType = chaosTypes[Math.floor(Math.random() * chaosTypes.length)];
-          console.log(`[Donut] ${data.username} → ${eventType}`);
-        }
 
         // War game gift handling
         let warTeam = null, warUnit = null;
@@ -216,63 +210,34 @@ class Room {
         this.broadcast({ type: 'arena_gift', username: data.username, coins: data.coins, giftName: data.giftName });
         this.broadcast({ type: 'arena_member', username: data.username });
 
-        // Проверяем цель — 1000 очков
-        const racePoints = this.players.getTotalPoints();
-        if (racePoints >= 1000 && !this._raceEnded) {
-          this._raceEnded = true;
-          const top = this.players.getTop10();
-          const winner = top[0] || { username: 'Неизвестный' };
-          console.log(`[Race End] Победитель: ${winner.username} | Очки: ${racePoints}`);
-          this.broadcast({
-            type:         'update',
-            players:      top,
-            totalPlayers: this.players.getTotalCount(),
-            racePoints:   racePoints,
-            totalLikes:   this._totalLikes,
-            event:        { type: 'race_end', winner: winner.username }
-          });
-          // Сброс через 10 секунд
-          setTimeout(() => {
-            this._totalCoins         = 0;
-            this._raceEnded          = false;
-            this._lastEventThreshold = 0;
-            this.players.reset();
-            console.log('[Race] Новая гонка началась!');
+        // Race game: 1 монета = 100 метров пробега + 1 очко в рейтинге (всё время, хранится в БД)
+        const raceCoins = Number(data.coins) || 0;
+        const deltaMeters = raceCoins * 100;
+        this._carMeters += deltaMeters;
+        db.addRaceCoins(data.username, raceCoins)
+          .then(() => db.getTopRaceDonations(10))
+          .then(top => {
             this.broadcast({
               type:         'update',
-              players:      this.players.getTop10(),
-              totalPlayers: this.players.getTotalCount(),
-              racePoints:   0,
-              totalLikes:   this._totalLikes,
-              event:        { type: 'race_start' }
+              deltaMeters:  deltaMeters,
+              totalMeters:  this._carMeters,
+              topDonations: top,
+              event:        { type: 'gift', username: data.username, coins: raceCoins }
             });
-          }, 10000);
-          return;
-        }
-
-        this.broadcast({
-          type:         'update',
-          players:      this.players.getTop10(),
-          totalPlayers: this.players.getTotalCount(),
-          racePoints:   this.players.getTotalPoints(),
-          totalLikes:   this._totalLikes,
-          event:        { type: eventType, username: data.username, coins: data.coins }
-        });
+          })
+          .catch(() => {
+            this.broadcast({
+              type:         'update',
+              deltaMeters:  deltaMeters,
+              totalMeters:  this._carMeters,
+              event:        { type: 'gift', username: data.username, coins: raceCoins }
+            });
+          });
       },
       // onStatus — состояние подключения
       (status) => this.broadcast({ type: 'status', ...status }),
       // onMember — зритель зашёл в стрим
       (data) => {
-        const cameBack = this.players.updatePresence(data.userId, data.username, data.avatarUrl);
-        if (cameBack) {
-          this.broadcast({
-            type:         'update',
-            players:      this.players.getTop10(),
-            totalPlayers: this.players.getTotalCount(),
-            racePoints:   this.players.getTotalPoints(),
-            totalLikes:   this._totalLikes
-          });
-        }
         // Arena: viewer joins stream → spawn with 1 coin if slot available
         this.broadcast({ type: 'arena_member', username: data.username });
         this.broadcast({ type: 'arena_join',   username: data.username });
@@ -286,25 +251,14 @@ class Room {
         this.broadcast({ type: 'arena_like', likes: data.likes || 0, username: data.username });
         this.broadcast({ type: 'arena_member', username: data.username });
 
-        if (this._raceEnded) return;
-        this.players.addLikes(data.userId, data.username, data.avatarUrl, data.likes);
-        this._totalLikes += (data.likes || 0);
-        const threshold = Math.floor(this._totalLikes / 1000);
-        let chaosEvent = null;
-        if (threshold > this._lastEventThreshold) {
-          this._lastEventThreshold = threshold;
-          const types = ['tornado', 'tsunami', 'meteor', 'crash'];
-          const picked = types[Math.floor(Math.random() * types.length)];
-          chaosEvent = { type: picked, username: 'Лайк-шторм' };
-          console.log(`[Chaos] ${picked} triggered at ${this._totalLikes} likes`);
-        }
+        // Race game: 1 лайк = 1 метр пробега (в рейтинг очков не идёт)
+        const deltaMeters = Number(data.likes) || 0;
+        this._carMeters += deltaMeters;
         this.broadcast({
           type:         'update',
-          players:      this.players.getTop10(),
-          totalPlayers: this.players.getTotalCount(),
-          racePoints:   this.players.getTotalPoints(),
-          totalLikes:   this._totalLikes,
-          event:        chaosEvent || { type: 'like', username: data.username, likes: data.likes }
+          deltaMeters:  deltaMeters,
+          totalMeters:  this._carMeters,
+          event:        { type: 'like', username: data.username, likes: data.likes }
         });
       },
       // onChat — GO / blue / red из чата
@@ -388,34 +342,8 @@ class Room {
             });
         }
 
-        // Race game: GO command
-        if (msg === 'go' && !this._raceEnded) {
-          this.players.addChatGo(data.userId, data.username, data.avatarUrl);
-          this.broadcast({
-            type:         'update',
-            players:      this.players.getTop10(),
-            totalPlayers: this.players.getTotalCount(),
-            racePoints:   this.players.getTotalPoints(),
-            totalLikes:   this._totalLikes,
-            event:        { type: 'chatgo', username: data.username }
-          });
-        }
       }
     );
-
-    // Каждую минуту скрываем игроков, которые не активны 30+ минут
-    this._inactiveCheck = setInterval(() => {
-      const changed = this.players.checkInactive();
-      if (changed > 0) {
-        this.broadcast({
-          type:         'update',
-          players:      this.players.getTop10(),
-          totalPlayers: this.players.getTotalCount(),
-          racePoints:   this.players.getTotalPoints(),
-          totalLikes:   this._totalLikes
-        });
-      }
-    }, 60 * 1000);
   }
 
   addClient(ws) {
@@ -426,29 +354,26 @@ class Room {
     if (wasEmpty && this.connection && this.connection._stopped) {
       this.connection.restart();
     }
-    db.getTopKillers(5).then(top => {
-      ws.send(JSON.stringify({
-        type:         'init',
-        players:      this.players.getTop10(),
-        totalPlayers: this.players.getTotalCount(),
-        racePoints:   this.players.getTotalPoints(),
-        totalLikes:   this._totalLikes,
-        username:     this.username,
-        tiktokMode:   this.connection?._tiktokMode || 'connecting',
-        topKillers:   top,
-      }));
-    }).catch(() => {
-      ws.send(JSON.stringify({
-        type:         'init',
-        players:      this.players.getTop10(),
-        totalPlayers: this.players.getTotalCount(),
-        racePoints:   this.players.getTotalPoints(),
-        totalLikes:   this._totalLikes,
-        username:     this.username,
-        tiktokMode:   this.connection?._tiktokMode || 'connecting',
-        topKillers:   [],
-      }));
-    });
+    Promise.all([db.getTopKillers(5), db.getTopRaceDonations(10)])
+      .then(([topKillers, topDonations]) => {
+        ws.send(JSON.stringify({
+          type:         'init',
+          totalMeters:  this._carMeters,
+          topDonations: topDonations,
+          username:     this.username,
+          tiktokMode:   this.connection?._tiktokMode || 'connecting',
+          topKillers:   topKillers,
+        }));
+      }).catch(() => {
+        ws.send(JSON.stringify({
+          type:         'init',
+          totalMeters:  this._carMeters,
+          topDonations: [],
+          username:     this.username,
+          tiktokMode:   this.connection?._tiktokMode || 'connecting',
+          topKillers:   [],
+        }));
+      });
   }
 
   removeClient(ws) {
@@ -460,7 +385,6 @@ class Room {
   }
 
   destroy() {
-    clearInterval(this._inactiveCheck);
     const c = this.connection;
     if (c) {
       clearInterval(c._demoInterval);

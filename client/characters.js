@@ -312,7 +312,10 @@ class Car3D {
   }
 
   // ── UPDATE ───────────────────────────────────────────────────────────────────
-  update(dt) {
+  // speedFactor: 0..1, откуда сейчас берётся реальная скорость машины (game.js).
+  // При 0 колёса и покачивание полностью замирают — машина "стоит".
+  update(dt, speedFactor) {
+    if (speedFactor === undefined) speedFactor = 1;
     // Inside tornado: spin in place
     if (this._inTornado) {
       this.group.rotation.y += dt * 0.012;
@@ -344,12 +347,12 @@ class Car3D {
     this.group.rotation.y = 0;
     this.group.rotation.z = 0;
 
-    // Spin wheels
-    this._wheelAngle += dt * 0.012;
+    // Spin wheels — scales with actual speed, stops completely when idle
+    this._wheelAngle += dt * 0.012 * speedFactor;
     for (const w of this._wheels) w.rotation.x = this._wheelAngle;
 
-    // Slight body bounce
-    this.group.position.y = Math.abs(Math.sin(this._wheelAngle * 2)) * 0.025;
+    // Slight body bounce — also fades out to 0 when stopped
+    this.group.position.y = Math.abs(Math.sin(this._wheelAngle * 2)) * 0.025 * speedFactor;
   }
 
   updatePlayer(player) {
