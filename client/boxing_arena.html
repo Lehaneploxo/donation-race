@@ -210,6 +210,7 @@ function onGift(username, coins){
 // ── Боты: подсаживаются на ринг, только если реальных игроков < 2 ──
 const BOT_NAMES = ['sparring_bob','rookie_max','punchbag_joe','iron_mike_jr','left_hook_al','glass_jaw_ed','rocky_clone','tin_man','no_name_ned','jab_master','duck_n_cover','sandbag_sam'];
 const MAX_FIGHTERS = 10;
+const MAX_BOTS = 3; // на ринге одновременно не больше 3 ботов
 const BOT_CHECK_MS = 15000;
 const BOT_ENERGY = 100, BOT_POWER = 5;
 let botSpawnTimer = BOT_CHECK_MS;
@@ -223,6 +224,7 @@ function getBotName(){
 
 function spawnBot(){
   if (VARIANTS.filter(v=>!v.eliminated).length >= MAX_FIGHTERS) return;
+  if (VARIANTS.filter(v=>v.isBot && !v.eliminated).length >= MAX_BOTS) return;
   const skin = randomSkin();
   const v = {
     dir: skin.dir,
