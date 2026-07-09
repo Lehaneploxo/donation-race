@@ -666,28 +666,9 @@ function drawRoundGirl() {
   ctx.restore();
 }
 
-// маленький бейдж текущего раунда — угол экрана, поверх плашки
 function formatRoundTime(ms){
   const s = Math.max(0, Math.ceil(ms/1000));
   return `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;
-}
-
-// бейдж раунда + обратный отсчёт до конца раунда — всегда виден в углу плашки
-function drawRoundBadge() {
-  const bw = 96, bh = 42, bx = CW - bw - 8, by = PANEL_TOP + 6;
-  ctx.save();
-  ctx.fillStyle = 'rgba(0,0,0,0.55)';
-  ctx.fillRect(bx, by, bw, bh);
-  ctx.strokeStyle = 'rgba(255,255,255,0.25)'; ctx.lineWidth = 1;
-  ctx.strokeRect(bx, by, bw, bh);
-  ctx.textAlign = 'center';
-  ctx.font = 'bold 12px Arial Black';
-  ctx.fillStyle = '#ffcf4d';
-  ctx.fillText(`РАУНД ${roundNum}/${ROUND_TOTAL}`, bx+bw/2, by+16);
-  ctx.font = 'bold 18px Arial Black';
-  ctx.fillStyle = roundTimer < 30000 ? '#ff5566' : '#8fffb0';
-  ctx.fillText(formatRoundTime(roundTimer), bx+bw/2, by+35);
-  ctx.restore();
 }
 
 function drawEventBanner() {
@@ -876,6 +857,22 @@ function drawHUD() {
     ctx.restore();
   });
 
+  // раунд + обратный отсчёт — под правилами, тут как раз есть свободное место
+  const roundY = rY + rules.length*rStep;
+  ctx.font = 'bold 14px Arial Black'; ctx.textAlign = 'left';
+  ctx.strokeStyle = 'rgba(0,0,0,0.85)'; ctx.lineWidth = 3;
+  const roundLabel = `⏱ РАУНД ${roundNum}/${ROUND_TOTAL}`;
+  ctx.strokeText(roundLabel, 8, roundY, CW/2-10);
+  ctx.fillStyle = '#ffcf4d';
+  ctx.fillText(roundLabel, 8, roundY, CW/2-10);
+
+  ctx.font = 'bold 24px Arial Black';
+  ctx.strokeStyle = 'rgba(0,0,0,0.9)'; ctx.lineWidth = 4.5;
+  const timeLabel = formatRoundTime(roundTimer);
+  ctx.strokeText(timeLabel, 8, roundY+30, CW/2-10);
+  ctx.fillStyle = roundTimer < 30000 ? '#ff5566' : '#8fffb0';
+  ctx.fillText(timeLabel, 8, roundY+30, CW/2-10);
+
   // правая колонка — топ по силе
   ctx.font = 'bold 12px Arial Black'; ctx.textAlign = 'center';
   ctx.strokeStyle = 'rgba(0,0,0,0.9)'; ctx.lineWidth = 3;
@@ -948,12 +945,18 @@ function drawFighter(v) {
   const labelY = headTopY - 16*s;
 
   ctx.textAlign = 'center';
-  ctx.font = `bold ${15*s}px Arial Black`;
-  ctx.fillStyle = v.alive ? v.color : '#888';
-  ctx.strokeStyle = 'rgba(0,0,0,0.85)';
-  ctx.lineWidth = 3.5;
+  ctx.font = `bold ${16*s}px Arial Black`;
   const tag = v.isBot ? '🤖' : '';
   const nameTxt = v.alive ? tag+v.name : tag+v.name+' 💤';
+
+  // тёмная подложка под ником — читаемость не зависит от цвета фона за спиной
+  const nameW = ctx.measureText(nameTxt).width;
+  ctx.fillStyle = 'rgba(0,0,0,0.45)';
+  ctx.fillRect(cx - nameW/2 - 6*s, labelY - 14*s, nameW + 12*s, 18*s);
+
+  ctx.fillStyle = v.alive ? v.color : '#888';
+  ctx.strokeStyle = 'rgba(0,0,0,0.95)';
+  ctx.lineWidth = 4.5;
   ctx.strokeText(nameTxt, cx, labelY);
   ctx.fillText(nameTxt, cx, labelY);
 
@@ -1260,7 +1263,6 @@ function loop(t) {
   drawRoundGirl();
   drawEventBanner();
   drawHUD();
-  drawRoundBadge();
 
   requestAnimationFrame(loop);
 }
