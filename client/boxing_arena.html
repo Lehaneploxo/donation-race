@@ -23,6 +23,7 @@
 <button id="voiceBtn" class="ui-btn" title="Озвучка">🔇</button>
 <button id="fsBtn"    class="ui-btn" title="На весь экран">⛶</button>
 <div id="statusBadge"></div>
+<div id="ratingOverlay" style="position:fixed;top:27%;left:50%;transform:translateX(-50%);z-index:200;pointer-events:none;display:none;background:rgba(0,0,0,0.88);border:2px solid rgba(255,80,80,0.5);border-radius:10px;padding:8px 16px 10px;font-family:Arial,sans-serif;min-width:180px;text-align:center;"></div>
 <div id="wrap"><canvas id="c" width="600" height="1000"></canvas></div>
 <script>
 const canvas = document.getElementById('c');
@@ -459,14 +460,27 @@ function wsConnect(username){
       if (d.type==='arena_gift' && _gameMode==='tiktok') onGift(d.username, d.coins);
       if (d.type==='top_boxing') _dbTop = (d.data||[]).map(p=>({ username:p.username, stolen:p.total_stolen }));
       if (d.type==='arena_boxing_rating'){
-        pushEvent(d.rank
-          ? `📊 @${d.username} — #${d.rank} место (⚡${d.stolen})`
-          : `📊 @${d.username} — пока не в рейтинге`);
+        _showRating(d.rank
+          ? `<span style="color:#FF6688;font-size:16px;font-weight:bold;">📊 @${d.username}<br><span style="color:#FFD700">#${d.rank} место · ⚡${d.stolen} отнятой энергии</span></span>`
+          : `<span style="color:#AAA;font-size:15px;">📊 @${d.username}<br>пока не в рейтинге</span>`);
       }
     } catch(err){ console.error('[boxing ws]', err); }
   };
   _ws.onclose = ()=>{ setStatus('error', '❌ Disconnected…'); setTimeout(()=>wsConnect(_wsUser), 3000); };
   _ws.onerror = ()=>{};
+}
+
+// отдельное всплывающее окошко под ответ на "rating" из чата (как в
+// arena2/arena3) — не смешивается с общей очередью событий боя/диктора,
+// поэтому не теряется среди фраз
+let _ratingHideTimer = null;
+function _showRating(html){
+  const el = document.getElementById('ratingOverlay');
+  if (!el) return;
+  el.innerHTML = html;
+  el.style.display = 'block';
+  if (_ratingHideTimer) clearTimeout(_ratingHideTimer);
+  _ratingHideTimer = setTimeout(()=>{ el.style.display = 'none'; }, 6000);
 }
 
 function reportStolen(username, amount){
