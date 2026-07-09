@@ -154,10 +154,13 @@ function findRealFighter(username){
 
 // gain: { likeEnergy?, likePower?, giftEnergy?, giftPower? } — прибавка от
 // одного события; likeEnergy/likePower идут в потолок (см. LIKE_*_CAP),
-// giftEnergy/giftPower — без потолка
-function applyGrowth(username, gain){
+// giftEnergy/giftPower — без потолка. isGift — донат это или лайк (влияет
+// на то, какой фразой диктор это объявит; обычные лайки на уже живого
+// бойца молчат — иначе диктор захлёбывался бы каждым лайком).
+function applyGrowth(username, gain, isGift){
   if (!username) return;
   let v = findRealFighter(username);
+  const isNew = !v;
   if (!v){
     const skin = randomSkin();
     const pos = spawnRingPos();
@@ -180,23 +183,28 @@ function applyGrowth(username, gain){
   v.energyMax = newMax;
   v.power = v.likePower + v.giftPower;
 
-  if (!v.alive || v.eliminated){
+  const wasDown = !v.alive || v.eliminated;
+  if (wasDown){
     // боец был выбит с ринга — новый лайк/донат возвращает его в бой
     const pos = spawnRingPos();
     v.alive = true; v.eliminated = false;
     v.energy = v.energyMax;
     v.state = 'idle'; v.frameIdx = 0;
     v.x = pos.x; v.y = pos.y; v.tx = pos.x; v.ty = pos.y;
-    pushEvent(`🔥 ${v.name} возвращается в бой!`);
+    pushEvent(pick(REVIVE_LINES)(v.name), true);
   } else {
     v.energy = Math.min(v.energyMax, v.energy + gained);
   }
+
+  if (isNew && !wasDown) pushEvent(pick(JOIN_LINES)(v.name), true);
+  else if (isGift && !wasDown) pushEvent(pick(GIFT_LINES)(v.name), true);
+  // обычный лайк на уже живого бойца — молча, диктор не озвучивает каждый лайк
 }
 
-function onLike(username){ applyGrowth(username, { likeEnergy:10, likePower:1 }); }
+function onLike(username){ applyGrowth(username, { likeEnergy:10, likePower:1 }, false); }
 function onGift(username, coins){
   coins = Math.max(1, Math.floor(Number(coins)||1));
-  applyGrowth(username, { giftEnergy:100*coins, giftPower:10*coins });
+  applyGrowth(username, { giftEnergy:100*coins, giftPower:10*coins }, true);
 }
 
 // ── Боты: подсаживаются на ринг, только если реальных игроков < 2 ──
@@ -227,7 +235,7 @@ function spawnBot(){
   const pos = spawnRingPos();
   initFighterRuntime(v, pos.x, pos.y);
   VARIANTS.push(v);
-  pushEvent(`🤖 На ринг вышел бот ${v.name}!`);
+  // боты не объявляются диктором — тишина, только реальные бойцы на слуху
 }
 
 // каждые 15 сек: если реальных игроков на ринге < 2 — подсаживаем 1 или 2 бота
@@ -245,45 +253,110 @@ let roundNum = 1;
 let roundTimer = ROUND_DURATION_MS;
 let roundGirl = null; // {t} — активна во время прохода девушки с табличкой
 
-// ── События (реальные из боя) + озвучка (как arena2/arena3) ──
-let eventQueue = [];
-function pushEvent(text){ eventQueue.push(text); if (eventQueue.length>10) eventQueue.shift(); }
-pushEvent('🔔 Бой начался!');
+// ── События + озвучка — архитектура как в arena2.html: очередь фраз,
+// такт задаёт РЕАЛЬНОЕ окончание речи (не фиксированный таймер), в паузах
+// диктор сам рассказывает правила/шутки. Боты никогда не озвучиваются —
+// это фильтруется на месте вызова (см. collapse/spawnBot), а не здесь.
+let vQueue = [];       // очередь {text, urgent} — то что реально будет сказано/показано
+let vSpeaking = false;
+let vQuietPool = [];
+let vQuietTimer = null;
+let currentEvent = null; // {text, timer, max} — для баннера (drawEventBanner)
 
-const FILLER = [
-  '🥊 Бой продолжается — не моргайте!',
-  '👍 Лайкни — и твой боец станет сильнее!',
-  '🎁 Задонать — получи персонального чемпиона!',
-  '💬 Напиши "rating" — узнай своё место в топе!',
-  '🥱 На ринге как-то тихо... бойцы заскучали без лайков!',
-  '🍿 Зрители уже взяли попкорн — а бойцы всё ждут вас!',
-  '🩹 Боец без доната — как боец без перчаток. Помоги ему!',
-  '📣 Рефери свистит просто от скуки — оживите бой лайком!',
-  '💰 Чем больше донат — тем больнее удар. Инвестируй в боль!',
-  '😤 Кто-то там точно метит в Короли ринга!',
-  '🔥 Разогрев продолжается — лайки решают исход боя!',
-  '🥋 Тренер что-то кричит с трибун... неразборчиво, но громко!',
-  '🏋️ Груша в углу скучает — бойцам бы такую мотивацию!',
-  '🎯 Один лайк — и твой боец на шаг ближе к победе!',
+// правила — озвучиваются в паузах вперемешку с шутками (как RULES в arena2)
+const RULES = [
+  'Ставь лайки — твой боец получает энергию и силу!',
+  'Кидай донат — чем больше монет, тем сильнее удар твоего бойца!',
+  'Напиши в чате слово рейтинг — узнаешь своё место в топе!',
+  'Нокаутированный боец вернётся в бой, если его снова лайкнуть или задонатить!',
 ];
-let fillerLast = -1;
-function pickFiller(){
-  let i;
-  do { i = Math.floor(Math.random()*FILLER.length); } while (i===fillerLast && FILLER.length>1);
-  fillerLast = i;
-  return FILLER[i];
+const FILLER = [
+  'Бой продолжается — не моргайте!',
+  'На ринге как-то тихо... бойцы заскучали без лайков!',
+  'Зрители уже взяли попкорн — а бойцы всё ждут вас!',
+  'Боец без доната — как боец без перчаток. Помоги ему!',
+  'Рефери свистит просто от скуки — оживите бой лайком!',
+  'Чем больше донат — тем больнее удар. Инвестируй в боль!',
+  'Кто-то там точно метит в Короли ринга!',
+  'Разогрев продолжается — лайки решают исход боя!',
+  'Тренер что-то кричит с трибун... неразборчиво, но громко!',
+  'Груша в углу скучает — бойцам бы такую мотивацию!',
+  'Один лайк — и твой боец на шаг ближе к победе!',
+  'Наш диктор питается лайками. Без них он грустнеет. Как сейчас, например.',
+  'Три секунды тишины. Четыре. Пять. Окей, это уже неловко.',
+  'Секретный способ стать легендой ринга: донатить. Больше секретов нет, всё просто.',
+];
+function nextQuietPhrase(){
+  if (vQuietPool.length===0) vQuietPool = [...RULES, ...FILLER].sort(()=>Math.random()-0.5);
+  return vQuietPool.shift();
 }
-let currentEvent = null; // {text, timer, max}
 
-function updateEvents(dt){
-  if (currentEvent){
-    currentEvent.timer -= dt;
-    if (currentEvent.timer>0) return;
-    currentEvent = null;
+// вход в бой (новый реальный боец), донат на уже живого бойца, возврат
+// после нокаута — три разных повода, три разных набора фраз (с шутками)
+const JOIN_LINES = [
+  n=>`Встречайте на ринге — ${n}!`,
+  n=>`${n} выходит на ринг! Похлопаем!`,
+  n=>`Новый боец — ${n}! Надевай перчатки!`,
+  n=>`${n} на ринге! Разминка окончена, начинаем!`,
+  n=>`О! ${n} в деле! Добро пожаловать в самый безумный бой тиктока!`,
+];
+const GIFT_LINES = [
+  n=>`${n} не жалеет монет! Удар становится больнее!`,
+  n=>`${n} вложился в победу! Соперникам не позавидуешь!`,
+  n=>`${n} прокачался донатом! Берегитесь, соперники!`,
+  n=>`${n} только что купил себе лишние килограммы силы!`,
+  n=>`Касса ринга пополнилась! ${n} готовится к разрушению!`,
+  n=>`Экономисты плачут. ${n} смеётся. Его боец растёт!`,
+];
+const REVIVE_LINES = [
+  n=>`${n} возвращается в бой!`,
+  n=>`${n} поднялся с канвата и снова на ринге!`,
+  n=>`Нашатырь подействовал — ${n} снова в деле!`,
+  n=>`${n} не сдаётся! Возвращение на ринг!`,
+];
+
+// urgent=true — обрывает текущую фразу и говорит сразу (как donation-хайп
+// в arena2), обычные события просто встают в очередь
+function pushEvent(text, urgent){
+  if (urgent){
+    if (window.speechSynthesis) window.speechSynthesis.cancel();
+    vSpeaking = false;
+    vQueue.unshift(text);
+    if (vQueue.length>12) vQueue.length = 12;
+  } else {
+    vQueue.push(text);
+    if (vQueue.length>12) vQueue.shift();
   }
-  const text = eventQueue.length>0 ? eventQueue.shift() : pickFiller();
-  currentEvent = { text, timer: 3400, max: 3400 };
-  speak(text);
+  vSpeakNext();
+}
+
+function estimateSpeechMs(text){
+  return Math.min(7000, Math.max(2200, text.length*75));
+}
+
+function vSpeakNext(){
+  if (vSpeaking) return;
+  if (vQueue.length===0){ vScheduleQuiet(); return; }
+  clearTimeout(vQuietTimer);
+  const text = vQueue.shift();
+  vSpeaking = true;
+  const dur = estimateSpeechMs(text);
+  currentEvent = { text, timer: dur, max: dur };
+  if (voiceEnabled && window.speechSynthesis){
+    speak(text, ()=>{ vSpeaking=false; setTimeout(vSpeakNext, 400); });
+  } else {
+    setTimeout(()=>{ vSpeaking=false; vSpeakNext(); }, dur);
+  }
+}
+
+// в паузах (10 сек без событий) диктор сам рассказывает правила/шутки
+function vScheduleQuiet(){
+  clearTimeout(vQuietTimer);
+  vQuietTimer = setTimeout(()=>{
+    if (vSpeaking || vQueue.length>0) return;
+    vQueue.push(nextQuietPhrase());
+    vSpeakNext();
+  }, 10000);
 }
 
 function hash(n){ const s = Math.sin(n*127.1)*43758.5453; return s - Math.floor(s); }
@@ -345,13 +418,18 @@ function drawCrowdRow(t, w, baseY, count, rSize, phase, alpha) {
   ctx.restore();
 }
 
-// ── Озвучка (как arena2/arena3) ──
+// ── Озвучка (архитектура как в arena2.html) ──
 let voiceEnabled = false, _cachedVoice = null;
 
 function getRuVoice(){
   if(_cachedVoice) return _cachedVoice;
   const voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
-  _cachedVoice = voices.find(v=>/ru/i.test(v.lang)) || voices[0] || null;
+  _cachedVoice = voices.find(v=>/pavel/i.test(v.name))
+    || voices.find(v=>/ru/i.test(v.lang) && /male/i.test(v.name))
+    || voices.find(v=>/ru[-_]/i.test(v.lang))
+    || voices.find(v=>/ru/i.test(v.lang))
+    || voices.find(v=>v.default)
+    || voices[0] || null;
   return _cachedVoice;
 }
 // диктор должен читать только буквы никнейма — без "@" и без смайликов/
@@ -363,16 +441,25 @@ function speakClean(text){
     .replace(/\s+/g, ' ')
     .trim();
 }
-function speak(text){
-  if(!voiceEnabled || !window.speechSynthesis) return;
+// как speakText в arena2: onDone вызывается по РЕАЛЬНОМУ завершению речи
+// (или через 8с как страховка) — этим тактом живёт вся очередь vQueue
+function speak(text, onDone){
+  const done = onDone || (()=>{});
+  if(!voiceEnabled || !window.speechSynthesis){ done(); return; }
   const clean = speakClean(text);
   const u = new SpeechSynthesisUtterance(clean);
   const v = getRuVoice();
   if(v) u.voice = v;
-  u.lang = 'ru-RU'; u.rate = 1.05;
-  try{ window.speechSynthesis.speak(u); }catch(e){}
+  u.lang = 'ru-RU'; u.rate = 1.08; u.volume = 1;
+  let finished = false;
+  const finish = ()=>{ if(finished) return; finished = true; done(); };
+  u.onend = u.onerror = finish;
+  setTimeout(finish, 8000);
+  try{ window.speechSynthesis.speak(u); }catch(e){ finish(); }
 }
 if(window.speechSynthesis) window.speechSynthesis.onvoiceschanged = ()=>{ _cachedVoice = null; };
+
+pushEvent('🔔 Бой начался!');
 
 // ── Звуки боя (удары/нокаут) — синтезируются на лету, без файлов ──
 let audioCtx = null;
@@ -1056,8 +1143,8 @@ function endRound(){
     const delta = v.stolenEnergy - (v.roundStartStolen||0);
     if (delta > bestDelta){ bestDelta = delta; best = v; }
   });
-  if (best) pushEvent(pick(ROUND_RESULT_LINES)(best.name, roundNum, bestDelta));
-  else pushEvent(pick(NO_LEADER_LINES)(roundNum));
+  if (best) pushEvent(pick(ROUND_RESULT_LINES)(best.name, roundNum, bestDelta), true);
+  else pushEvent(pick(NO_LEADER_LINES)(roundNum), true);
 
   sendFightersToCorners();
   roundGirl = { t: 0 };
@@ -1096,9 +1183,10 @@ function collapse(loser, winner){
     // боты не пишутся в БД/рейтинг — очки за победу над кем угодно
     // засчитываются только реальному зрителю-победителю
     if (!winner.isBot) reportStolen(winner.name, stolen);
-    pushEvent(pick(KO_LINES)(winner.name, loser.name, stolen));
-  } else {
-    pushEvent(pick(TIRED_LINES)(loser.name));
+    // диктор объявляет только реальных победителей — бот-победитель молчит
+    if (!winner.isBot) pushEvent(pick(KO_LINES)(winner.name, loser.name, stolen), true);
+  } else if (!loser.isBot) {
+    pushEvent(pick(TIRED_LINES)(loser.name), true);
   }
 }
 
@@ -1266,7 +1354,9 @@ function update(dt){
     if (roundGirl.t >= ROUND_GIRL_MS) roundGirl = null;
   }
 
-  updateEvents(dt);
+  // сама очередь двигается по завершению речи (см. vSpeakNext) — тут только
+  // тикает таймер затухания баннера
+  if (currentEvent) currentEvent.timer = Math.max(0, currentEvent.timer - dt);
 }
 
 let _lastT = 0;
