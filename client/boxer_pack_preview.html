@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Boxer Pack Preview</title>
+<style>
+  html,body { margin:0; background:#111; display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:100vh; font-family:Arial,sans-serif; }
+  canvas { background:#000; border-radius:12px; display:block; image-rendering:pixelated; }
+  h2 { color:#fff; margin:10px 0 6px; }
+  .btns { margin-top:12px; display:flex; gap:8px; flex-wrap:wrap; justify-content:center; max-width:520px; }
+  button { padding:8px 16px; border-radius:8px; border:none; background:#e63946; color:#fff; font-size:14px; font-weight:bold; cursor:pointer; }
+  button:hover { background:#c1121f; }
+  button.active { background:#f4a261; }
+  .label { color:#aaa; font-size:13px; margin-top:8px; }
+</style>
+</head>
+<body>
+<h2>🥊 Boxer Pack (OpenGameArt, CC0) — превью</h2>
+<canvas id="c" width="520" height="320"></canvas>
+<div class="btns" id="btns"></div>
+<div class="label" id="modeLabel">Режим: idle</div>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+const ANIMS = {
+  idle:      { dir:'idle',      prefix:'__Boxer2_Idle_',     count:10, fps:8,  loop:true },
+  walk_fwd:  { dir:'walk_fwd',  prefix:'__Boxer2_Forward_',  count:10, fps:10, loop:true },
+  walk_back: { dir:'walk_back', prefix:'__Boxer2_Backward_', count:10, fps:10, loop:true },
+  punch1:    { dir:'punch1',    prefix:'__Boxer2_Punch1_',   count:8,  fps:14, loop:false },
+  punch2:    { dir:'punch2',    prefix:'__Boxer2_Punch2_',   count:8,  fps:14, loop:false },
+  punch3:    { dir:'punch3',    prefix:'__Boxer2_Punch3_',   count:8,  fps:14, loop:false },
+  block:     { dir:'block',     prefix:'__Boxer2_Block_',    count:10, fps:8,  loop:true },
+  hurt:      { dir:'hurt/1-Hurt', prefix:'__Boxer2_Hurt1_',  count:8,  fps:12, loop:false },
+  dizzy:     { dir:'hurt/3-Dizzy', prefix:'__Boxer2_Dizzy_', count:10, fps:8,  loop:true },
+  ko:        { dir:'ko',        prefix:'__Boxer2_KO_',       count:8,  fps:10, loop:false },
+};
+
+const frames = {};
+let loaded = 0, total = 0;
+for (const key in ANIMS) {
+  const a = ANIMS[key];
+  frames[key] = [];
+  for (let i = 0; i < a.count; i++) {
+    const n = String(i).padStart(3,'0');
+    const img = new Image();
+    total++;
+    img.onload = () => loaded++;
+    img.src = `sprites/boxer_oga/${a.dir}/${a.prefix}${n}.png`;
+    frames[key].push(img);
+  }
+}
+
+const btns = document.getElementById('btns');
+Object.keys(ANIMS).forEach(key => {
+  const b = document.createElement('button');
+  b.textContent = key;
+  b.onclick = () => setMode(key);
+  b.id = 'btn_'+key;
+  btns.appendChild(b);
+});
+document.getElementById('btn_idle').classList.add('active');
+
+let mode = 'idle', frameIdx = 0, lastT = 0;
+function setMode(m) {
+  mode = m; frameIdx = 0; lastT = 0;
+  document.querySelectorAll('#btns button').forEach(b=>b.classList.remove('active'));
+  document.getElementById('btn_'+m).classList.add('active');
+  document.getElementById('modeLabel').textContent = 'Режим: ' + m;
+}
+
+// --- Плоский мультяшный фон ринга/зала, в стиле самого спрайта ---
+function drawBackground(t) {
+  const w = canvas.width, h = canvas.height;
+  // небо/стена зала - градиент
+  const sky = ctx.createLinearGradient(0,0,0,h*0.62);
+  sky.addColorStop(0, '#2b2140');
+  sky.addColorStop(1, '#4a3763');
+  ctx.fillStyle = sky;
+  ctx.fillRect(0,0,w,h*0.62);
+
+  // прожекторы (плоские треугольники света)
+  ctx.save();
+  ctx.globalAlpha = 0.12;
+  for (const cx of [w*0.18, w*0.5, w*0.82]) {
+    const grad = ctx.createLinearGradient(cx,0,cx,h*0.6);
+    grad.addColorStop(0,'#fff'); grad.addColorStop(1,'rgba(255,255,255,0)');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.moveTo(cx-70,0); ctx.lineTo(cx+70,0); ctx.lineTo(cx+140,h*0.6); ctx.lineTo(cx-140,h*0.6);
+    ctx.closePath(); ctx.fill();
+  }
+  ctx.restore();
+
+  // толпа зрителей (плоские силуэты-полукруги)
+  ctx.fillStyle = '#1b1530';
+  ctx.fillRect(0, h*0.40, w, h*0.14);
+  ctx.fillStyle = '#241c3a';
+  for (let x = -10; x < w+20; x += 22) {
+    const bob = Math.sin(t/600 + x)*2;
+    ctx.beginPath();
+    ctx.arc(x, h*0.44 + bob, 10, Math.PI, 0);
+    ctx.fill();
+  }
+
+  // канаты ринга (три горизонтальные линии) на заднем плане
+  ctx.strokeStyle = '#e63946';
+  ctx.lineWidth = 4;
+  [0.56,0.60,0.64].forEach(f=>{
+    ctx.beginPath(); ctx.moveTo(0,h*f); ctx.lineTo(w,h*f); ctx.stroke();
+  });
+
+  // угловые стойки ринга
+  ctx.fillStyle = '#c1121f';
+  ctx.fillRect(20, h*0.50, 10, h*0.20);
+  ctx.fillRect(w-30, h*0.50, 10, h*0.20);
+
+  // пол ринга (холст) - плоский цвет с лёгким градиентом + разметка
+  const floor = ctx.createLinearGradient(0,h*0.62,0,h);
+  floor.addColorStop(0,'#e0d3b8');
+  floor.addColorStop(1,'#c9b98f');
+  ctx.fillStyle = floor;
+  ctx.fillRect(0,h*0.62,w,h*0.38);
+
+  // диагональная разметка пола
+  ctx.strokeStyle = 'rgba(0,0,0,0.06)';
+  ctx.lineWidth = 14;
+  for (let x=-h; x<w+h; x+=40) {
+    ctx.beginPath(); ctx.moveTo(x,h); ctx.lineTo(x+h*0.4,h*0.62); ctx.stroke();
+  }
+
+  // мягкая тень персонажа
+}
+
+function drawShadow(cx, floorY) {
+  ctx.save();
+  ctx.globalAlpha = 0.25;
+  ctx.fillStyle = '#000';
+  ctx.beginPath();
+  ctx.ellipse(cx, floorY, 46, 12, 0, 0, Math.PI*2);
+  ctx.fill();
+  ctx.restore();
+}
+
+function loop(t) {
+  const a = ANIMS[mode];
+  const fps = a.fps;
+  if (!lastT) lastT = t;
+  if (t - lastT > 1000/fps) {
+    frameIdx++;
+    if (frameIdx >= a.count) frameIdx = a.loop ? 0 : a.count-1;
+    lastT = t;
+  }
+
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  drawBackground(t);
+
+  const floorY = canvas.height*0.82;
+  drawShadow(canvas.width/2, floorY);
+
+  const img = frames[mode][frameIdx];
+  if (img && img.complete && img.naturalWidth) {
+    const scale = 280 / img.naturalHeight;
+    const dw = img.naturalWidth*scale, dh = img.naturalHeight*scale;
+    ctx.drawImage(img, canvas.width/2 - dw/2, floorY - dh + 20, dw, dh);
+  }
+
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

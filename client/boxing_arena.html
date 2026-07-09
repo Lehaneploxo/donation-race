@@ -1,0 +1,706 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Boxer Arena — карта + плашка (мокап, под телефон)</title>
+<style>
+  html, body { width:100vw; height:100vh; margin:0; background:#000; overflow:hidden; font-family:Arial,sans-serif; }
+  #wrap { position:absolute; left:0; top:0; width:600px; height:1000px; transform-origin:0 0; }
+  canvas { display:block; background:#000; }
+  #tag { position:fixed; left:8px; top:6px; z-index:10; color:rgba(255,255,255,0.55); font-size:11px; background:rgba(0,0,0,0.4); padding:3px 8px; border-radius:6px; }
+  #voiceBtn { position:fixed; right:8px; top:6px; z-index:10; font-size:12px; padding:5px 10px; border-radius:6px; border:none; background:#e63946; color:#fff; font-weight:bold; }
+</style>
+</head>
+<body>
+<div id="tag">600×1000 — плашка правил+топ (как в arena2) + ринг ниже</div>
+<button id="voiceBtn">🔊 Вкл. озвучку</button>
+<div id="wrap"><canvas id="c" width="600" height="1000"></canvas></div>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const wrap = document.getElementById('wrap');
+const CW = canvas.width;
+
+function applyScale(){
+  const vw = document.documentElement.clientWidth || window.innerWidth;
+  const vh = document.documentElement.clientHeight || window.innerHeight;
+  const s = Math.min(vw/600, vh/1000);
+  const x = (vw - 600*s)/2, y = (vh - 1000*s)/2;
+  wrap.style.transform = `translate(${x}px,${y}px) scale(${s})`;
+}
+window.addEventListener('resize', applyScale);
+applyScale();
+
+// ── Бойцы: ТОЛЬКО два показателя — Энергия (жизнь/выносливость) и Сила (урон) ──
+// Сердечки убраны — Энергия теперь одновременно и здоровье, и ресурс на удар.
+// likeEnergy/likePower — растут ТОЛЬКО от лайков, с потолком (1000 / 100).
+// giftEnergy/giftPower — растут от донатов, БЕЗ потолка.
+// energy = likeEnergy + giftEnergy, power = likePower + giftPower.
+const LIKE_ENERGY_CAP = 1000, LIKE_POWER_CAP = 100;
+
+// stolenEnergy — очки из ОТДЕЛЬНОЙ БД (all-time): сколько энергии боец
+// отнял у противников за все бои (начисляется когда противник падает).
+// Это метрика для ТОП-листа, отдельная от текущей энергии/силы в бою.
+const VARIANTS = [
+  { dir:'boxer_v1_red',    name:'alex',   color:'#ff5566', likeEnergy:620,  giftEnergy:0,    likePower:45,  giftPower:0,   stolenEnergy:1240 },
+  { dir:'boxer_v2_blue',   name:'valdus', color:'#4fa8ff', likeEnergy:1000, giftEnergy:400,  likePower:100, giftPower:35,  stolenEnergy:6800 },
+  { dir:'boxer_v3_green',  name:'peadar', color:'#5fe36a', likeEnergy:300,  giftEnergy:0,    likePower:12,  giftPower:0,   stolenEnergy:340 },
+  { dir:'boxer_v4_purple', name:'nika',   color:'#c26bff', likeEnergy:250,  giftEnergy:0,    likePower:60,  giftPower:0,   stolenEnergy:2100 },
+  { dir:'boxer_v5_gold',   name:'timur',  color:'#ffd24f', likeEnergy:1000, giftEnergy:2400, likePower:100, giftPower:180, stolenEnergy:15200 },
+  { dir:'boxer_v6_cyan',   name:'olya',   color:'#4fe3d0', likeEnergy:800,  giftEnergy:0,    likePower:90,  giftPower:0,   stolenEnergy:5400 },
+  { dir:'boxer_v7_pink',   name:'boss',   color:'#ff6fc0', likeEnergy:1000, giftEnergy:8000, likePower:100, giftPower:412, stolenEnergy:38900 },
+];
+VARIANTS.forEach(v=>{
+  v.likeEnergy = Math.min(LIKE_ENERGY_CAP, v.likeEnergy);
+  v.likePower  = Math.min(LIKE_POWER_CAP, v.likePower);
+  v.energyMax = v.likeEnergy + v.giftEnergy; // энергия = здоровье бойца в этом раунде
+  v.energy = v.energyMax;
+  v.power  = v.likePower + v.giftPower;      // сила — постоянный урон-стат, не тратится сама
+});
+
+// портретная раскладка: дальний ряд (3), средний (2), ближний (2) — стартовые позиции
+const LAYOUT = [
+  { x:130, depth:0.15 }, { x:300, depth:0.12 }, { x:470, depth:0.17 },
+  { x:210, depth:0.48 }, { x:390, depth:0.45 },
+  { x:190, depth:0.82 }, { x:410, depth:0.85 },
+];
+
+// ── Геометрия экрана: плашка сверху, ринг ниже ──
+const PANEL_TOP = 14, PANEL_H = 208;
+const WALL_TOP = PANEL_TOP + PANEL_H + 10;
+const FLOOR_TOP = 560, FLOOR_BOT = 1000;
+
+// зона движения — пол ринга, с отступом от канатов/краёв
+const RING = { xMin:75, xMax:525, yMin:FLOOR_TOP+45, yMax:FLOOR_BOT-35 };
+const PUNCH_COST = 50;    // энергия, которую тратит бьющий на один удар
+const KO_FALL_MS = 1600;  // сколько играет анимация падения перед исчезновением
+const ROUND_RESET_MS = 3500;
+const FIGHT_DIST = 68;
+
+// ── Анимации: наборы кадров на боксёра (idle/walk/punch×3/hurt/ko) ──
+const ANIM_DEFS = {
+  idle:     { dir:'idle',        prefix:'__Boxer2_Idle_',     count:10, fps:8,  loop:true  },
+  walk:     { dir:'walk_fwd',    prefix:'__Boxer2_Forward_',  count:10, fps:10, loop:true  },
+  walkBack: { dir:'walk_back',   prefix:'__Boxer2_Backward_', count:10, fps:10, loop:true  },
+  punch1: { dir:'punch1',      prefix:'__Boxer2_Punch1_',   count:8,  fps:18, loop:false },
+  punch2: { dir:'punch2',      prefix:'__Boxer2_Punch2_',   count:8,  fps:18, loop:false },
+  punch3: { dir:'punch3',      prefix:'__Boxer2_Punch3_',   count:8,  fps:18, loop:false },
+  hurt:   { dir:'hurt/1-Hurt', prefix:'__Boxer2_Hurt1_',    count:8,  fps:14, loop:false },
+  ko:     { dir:'ko',          prefix:'__Boxer2_KO_',       count:8,  fps:10, loop:false },
+};
+function loadFrames(dir){
+  const out = {};
+  for (const key in ANIM_DEFS){
+    const a = ANIM_DEFS[key];
+    out[key] = [];
+    for (let i=0;i<a.count;i++){
+      const img = new Image();
+      img.src = `sprites/${dir}/${a.dir}/${a.prefix}${String(i).padStart(3,'0')}.png`;
+      out[key].push(img);
+    }
+  }
+  return out;
+}
+
+const clamp = (v,a,b) => Math.max(a, Math.min(b, v));
+
+VARIANTS.forEach((v,i)=>{
+  const l = LAYOUT[i];
+  v.x = l.x; v.y = FLOOR_TOP + l.depth*(FLOOR_BOT-FLOOR_TOP);
+  v.tx = v.x; v.ty = v.y;
+  v.state = 'idle'; v.stateTimer = 0;
+  v.animName = 'idle'; v.frameIdx = 0; v.frameTimer = 0;
+  v.facing = 1;
+  v.lean = 0;
+  v.punchCooldown = Math.random()*600;
+  v.wanderPause = Math.random()*800;
+  v.koTimer = 0;
+  v.alive = true;
+  v.eliminated = false; // true = совсем убран с ринга (энергия кончилась)
+  v.lastAttacker = null;
+  v.frames = loadFrames(v.dir);
+});
+
+let roundEnding = false, roundResetTimer = 0;
+
+// ── События (реальные из боя) + озвучка (как arena2/arena3) ──
+let eventQueue = [];
+function pushEvent(text){ eventQueue.push(text); if (eventQueue.length>10) eventQueue.shift(); }
+pushEvent('🔔 Бой начался!');
+
+const FILLER = [
+  '🥊 Бой продолжается!',
+  '👍 Лайкай — качай своего бойца!',
+  '🎁 Донать — бустуй Силу без предела!',
+  '💬 Напиши "rating" — узнай свой топ',
+];
+let fillerIdx = 0;
+let currentEvent = null; // {text, timer, max}
+
+function updateEvents(dt){
+  if (currentEvent){
+    currentEvent.timer -= dt;
+    if (currentEvent.timer>0) return;
+    currentEvent = null;
+  }
+  let text;
+  if (eventQueue.length>0) text = eventQueue.shift();
+  else { text = FILLER[fillerIdx % FILLER.length]; fillerIdx++; }
+  currentEvent = { text, timer: 3400, max: 3400 };
+  speak(text);
+}
+
+function hash(n){ const s = Math.sin(n*127.1)*43758.5453; return s - Math.floor(s); }
+
+const CROWD_SKIN = ['#e8b48a','#c98a5e','#8a5a3a','#f0c8a0','#7a4a2e','#d9a373'];
+const CROWD_HAIR  = ['#1a1220','#2a1c30','#3a2418','#241c3a','#150f1c','#000000'];
+const CROWD_SHIRT = ['#3a2b52','#2e2347','#4a2e2e','#243a3a','#2e2e4a','#3a3a2e','#5c2e3a'];
+
+function drawCrowdRow(t, w, baseY, count, rSize, phase, alpha) {
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  for (let i = 0; i < count; i++) {
+    const seed = i + phase*37;
+    const x = (i + 0.5) * (w / count) + (hash(seed*1.7) - 0.5) * (w/count) * 0.5;
+    const bob = Math.sin(t/520 + seed*3.1) * 2.2;
+    const y = baseY + bob;
+    const r = rSize + (hash(seed*2.3) - 0.5) * rSize * 0.3;
+
+    const shirt = CROWD_SHIRT[Math.floor(hash(seed*4.1) * CROWD_SHIRT.length)];
+    const skin  = CROWD_SKIN[Math.floor(hash(seed*5.9) * CROWD_SKIN.length)];
+    const hair  = CROWD_HAIR[Math.floor(hash(seed*7.3) * CROWD_HAIR.length)];
+
+    // плечи/тело
+    ctx.fillStyle = shirt;
+    ctx.beginPath();
+    ctx.arc(x, y + r*1.35, r*1.25, Math.PI, 0);
+    ctx.fill();
+
+    // голова
+    ctx.fillStyle = skin;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI*2);
+    ctx.fill();
+
+    // причёска (верхняя дуга темнее)
+    ctx.fillStyle = hair;
+    ctx.beginPath();
+    ctx.arc(x, y - r*0.15, r*1.02, Math.PI*1.05, Math.PI*1.95);
+    ctx.fill();
+
+    // глаза
+    const eyeDX = r*0.36, eyeY = y + r*0.08, eyeR = Math.max(0.8, r*0.14);
+    ctx.fillStyle = '#1a1015';
+    ctx.beginPath(); ctx.arc(x - eyeDX, eyeY, eyeR, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(x + eyeDX, eyeY, eyeR, 0, Math.PI*2); ctx.fill();
+
+    // рот — открытый овал (типа кричит/болеет)
+    ctx.fillStyle = 'rgba(120,30,30,0.7)';
+    ctx.beginPath();
+    ctx.ellipse(x, y + r*0.5, r*0.22, r*0.16, 0, 0, Math.PI*2);
+    ctx.fill();
+
+    // блик для объёма
+    ctx.fillStyle = 'rgba(255,255,255,0.10)';
+    ctx.beginPath();
+    ctx.arc(x - r*0.35, y - r*0.3, r*0.35, 0, Math.PI*2);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+// ── Озвучка (как arena2/arena3) ──
+let voiceEnabled = false, _cachedVoice = null;
+
+function getRuVoice(){
+  if(_cachedVoice) return _cachedVoice;
+  const voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+  _cachedVoice = voices.find(v=>/ru/i.test(v.lang)) || voices[0] || null;
+  return _cachedVoice;
+}
+function speak(text){
+  if(!voiceEnabled || !window.speechSynthesis) return;
+  const clean = text.replace(/[⚔️🏆🥊💥🎁⚡💪❤️👍]/g,'').trim();
+  const u = new SpeechSynthesisUtterance(clean);
+  const v = getRuVoice();
+  if(v) u.voice = v;
+  u.lang = 'ru-RU'; u.rate = 1.05;
+  try{ window.speechSynthesis.speak(u); }catch(e){}
+}
+if(window.speechSynthesis) window.speechSynthesis.onvoiceschanged = ()=>{ _cachedVoice = null; };
+
+// ── Звуки боя (удары/нокаут) — синтезируются на лету, без файлов ──
+let audioCtx = null;
+function getAudioCtx(){
+  if (!audioCtx) audioCtx = new (window.AudioContext||window.webkitAudioContext)();
+  return audioCtx;
+}
+function playPunchSound(){
+  if (!voiceEnabled) return;
+  const ac = getAudioCtx(); const now = ac.currentTime;
+
+  const osc = ac.createOscillator(), gain = ac.createGain();
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(150, now);
+  osc.frequency.exponentialRampToValueAtTime(55, now+0.09);
+  gain.gain.setValueAtTime(0.4, now);
+  gain.gain.exponentialRampToValueAtTime(0.001, now+0.13);
+  osc.connect(gain); gain.connect(ac.destination);
+  osc.start(now); osc.stop(now+0.14);
+
+  const bufSize = Math.floor(ac.sampleRate*0.06);
+  const buf = ac.createBuffer(1, bufSize, ac.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i=0;i<bufSize;i++) data[i] = (Math.random()*2-1)*(1-i/bufSize);
+  const noise = ac.createBufferSource(); noise.buffer = buf;
+  const noiseGain = ac.createGain();
+  noiseGain.gain.setValueAtTime(0.3, now);
+  noiseGain.gain.exponentialRampToValueAtTime(0.001, now+0.06);
+  noise.connect(noiseGain); noiseGain.connect(ac.destination);
+  noise.start(now);
+}
+function playKOSound(){
+  if (!voiceEnabled) return;
+  const ac = getAudioCtx(); const now = ac.currentTime;
+  const osc = ac.createOscillator(), gain = ac.createGain();
+  osc.type = 'sawtooth';
+  osc.frequency.setValueAtTime(200, now);
+  osc.frequency.exponentialRampToValueAtTime(38, now+0.5);
+  gain.gain.setValueAtTime(0.32, now);
+  gain.gain.exponentialRampToValueAtTime(0.001, now+0.55);
+  osc.connect(gain); gain.connect(ac.destination);
+  osc.start(now); osc.stop(now+0.6);
+}
+
+document.getElementById('voiceBtn').addEventListener('click', ()=>{
+  voiceEnabled = true;
+  document.getElementById('voiceBtn').textContent = '🔊 Озвучка включена';
+  if(window.speechSynthesis){
+    try{ const s=new SpeechSynthesisUtterance(''); s.volume=0; window.speechSynthesis.speak(s); }catch(e){}
+  }
+  try{ getAudioCtx().resume(); }catch(e){}
+});
+
+function drawEventBanner() {
+  if (!currentEvent) return;
+  const { text, timer, max } = currentEvent;
+  const fadeIn = Math.min(1, (max-timer)/350);
+  const fadeOut = Math.min(1, timer/350);
+  const alpha = Math.min(fadeIn, fadeOut);
+  if (alpha<=0) return;
+
+  const y = WALL_TOP + 58;
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.font = 'bold 18px Arial Black';
+  ctx.textAlign = 'center';
+  ctx.shadowColor = '#ff3344'; ctx.shadowBlur = 12;
+  ctx.strokeStyle = 'rgba(0,0,0,0.9)'; ctx.lineWidth = 4;
+  ctx.strokeText(text, CW/2, y, CW-40);
+  ctx.fillStyle = '#ffcf4d';
+  ctx.fillText(text, CW/2, y, CW-40);
+  ctx.shadowBlur = 0;
+  ctx.restore();
+}
+
+function drawCrowd(t, w, wallBot) {
+  drawCrowdRow(t, w, wallBot-52, Math.round(w/34), 8, 1, 0.55);  // дальний ряд — мельче, тусклее
+  drawCrowdRow(t, w, wallBot-22, Math.round(w/26), 11, 2, 0.9);  // ближний ряд — крупнее, ярче
+}
+
+function drawBackground(t) {
+  const w = canvas.width;
+  const wallBot = FLOOR_TOP - 60;
+
+  const sky = ctx.createLinearGradient(0,WALL_TOP,0,wallBot);
+  sky.addColorStop(0, '#2b2140');
+  sky.addColorStop(1, '#4a3763');
+  ctx.fillStyle = sky;
+  ctx.fillRect(0,WALL_TOP,w,wallBot-WALL_TOP);
+
+  ctx.save();
+  ctx.globalAlpha = 0.10;
+  for (const cx of [w*0.18, w*0.5, w*0.82]) {
+    const grad = ctx.createLinearGradient(cx,WALL_TOP,cx,wallBot);
+    grad.addColorStop(0,'#fff'); grad.addColorStop(1,'rgba(255,255,255,0)');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.moveTo(cx-70,WALL_TOP); ctx.lineTo(cx+70,WALL_TOP); ctx.lineTo(cx+150,wallBot); ctx.lineTo(cx-150,wallBot);
+    ctx.closePath(); ctx.fill();
+  }
+  ctx.restore();
+
+  ctx.fillStyle = '#1b1530';
+  ctx.fillRect(0, wallBot-76, w, 76);
+  drawCrowd(t, w, wallBot);
+
+  ctx.strokeStyle = '#e63946';
+  ctx.lineWidth = 5;
+  [FLOOR_TOP-40, FLOOR_TOP-25, FLOOR_TOP-10].forEach(y=>{
+    ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(w,y); ctx.stroke();
+  });
+
+  ctx.fillStyle = '#c1121f';
+  ctx.fillRect(16, FLOOR_TOP-55, 12, 60);
+  ctx.fillRect(w-28, FLOOR_TOP-55, 12, 60);
+
+  const floor = ctx.createLinearGradient(0,FLOOR_TOP,0,FLOOR_BOT);
+  floor.addColorStop(0,'#e0d3b8');
+  floor.addColorStop(1,'#c9b98f');
+  ctx.fillStyle = floor;
+  ctx.fillRect(0,FLOOR_TOP,w,FLOOR_BOT-FLOOR_TOP);
+
+  ctx.strokeStyle = 'rgba(0,0,0,0.06)';
+  ctx.lineWidth = 16;
+  for (let x=-FLOOR_BOT; x<w+FLOOR_BOT; x+=42) {
+    ctx.beginPath(); ctx.moveTo(x,FLOOR_BOT); ctx.lineTo(x+(FLOOR_BOT-FLOOR_TOP)*0.4,FLOOR_TOP); ctx.stroke();
+  }
+}
+
+// ── ПЛАШКА (как в arena2.html): правила слева, топ справа ──
+function drawHUD() {
+  const T = PANEL_TOP, TH = PANEL_H;
+
+  const bg = ctx.createLinearGradient(0, T, 0, T + TH);
+  bg.addColorStop(0, 'rgba(30,6,10,0.97)'); bg.addColorStop(1, 'rgba(15,3,5,0.97)');
+  ctx.fillStyle = bg; ctx.fillRect(0, T, CW, TH);
+  ctx.strokeStyle = 'rgba(255,80,80,0.35)'; ctx.lineWidth = 1.5;
+  ctx.strokeRect(2, T + 2, CW - 4, TH - 4);
+
+  ctx.shadowColor = '#ff3344'; ctx.shadowBlur = 14;
+  ctx.font = 'bold 24px Arial Black'; ctx.textAlign = 'center';
+  ctx.strokeStyle = 'rgba(0,0,0,0.9)'; ctx.lineWidth = 4;
+  ctx.strokeText('🥊 BOXING ARENA 🥊', CW/2, T+34, CW-20);
+  ctx.fillStyle = '#ff5566'; ctx.fillText('🥊 BOXING ARENA 🥊', CW/2, T+34, CW-20);
+  ctx.shadowBlur = 0;
+
+  const hg = ctx.createLinearGradient(0,0,CW,0);
+  hg.addColorStop(0,'rgba(255,80,80,0)'); hg.addColorStop(0.2,'rgba(255,80,80,0.4)');
+  hg.addColorStop(0.8,'rgba(255,80,80,0.4)'); hg.addColorStop(1,'rgba(255,80,80,0)');
+  ctx.strokeStyle = hg; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(0,T+44); ctx.lineTo(CW,T+44); ctx.stroke();
+
+  const vg = ctx.createLinearGradient(0,T+48,0,T+TH-6);
+  vg.addColorStop(0,'rgba(255,255,255,0)'); vg.addColorStop(0.3,'rgba(255,255,255,0.12)');
+  vg.addColorStop(0.7,'rgba(255,255,255,0.12)'); vg.addColorStop(1,'rgba(255,255,255,0)');
+  ctx.strokeStyle = vg;
+  ctx.beginPath(); ctx.moveTo(CW/2,T+48); ctx.lineTo(CW/2,T+TH-6); ctx.stroke();
+
+  // левая колонка — правила
+  ctx.font = 'bold 11px Arial'; ctx.textAlign = 'left';
+  ctx.fillStyle = 'rgba(255,255,255,0.38)';
+  ctx.fillText('КАК ИГРАТЬ:', 12, T+60);
+
+  const rules = [
+    { text: '👍 1 лайк = +10⚡ +1💪 (до потолка)',       color: '#FF6688' },
+    { text: '🎁 1 монета = +100⚡ +10💪 (без потолка!)', color: '#FFD700' },
+    { text: '⚡ Лайками максимум: 1000 энергии',          color: '#7fd3ff' },
+    { text: '💪 Лайками максимум: 100 силы',              color: '#ff9d5c' },
+    { text: '💬 Напиши "rating" — узнаешь свой топ',      color: '#8fffb0' },
+  ];
+  const rY = T+76, rStep = 21;
+  rules.forEach((r,i)=>{
+    ctx.save();
+    ctx.font = 'bold 12px Arial'; ctx.textAlign = 'left';
+    ctx.shadowColor = 'rgba(0,0,0,1)'; ctx.shadowBlur = 4;
+    ctx.fillStyle = r.color;
+    ctx.fillText(r.text, 8, rY + i*rStep, CW/2 - 14);
+    ctx.shadowBlur = 0;
+    ctx.restore();
+  });
+
+  // правая колонка — топ по силе
+  ctx.shadowColor = '#ff3344'; ctx.shadowBlur = 8;
+  ctx.font = 'bold 12px Arial Black'; ctx.textAlign = 'center';
+  ctx.strokeStyle = 'rgba(0,0,0,0.9)'; ctx.lineWidth = 3;
+  ctx.strokeText('🏆 TOP БОЙЦЫ 🏆', CW*0.75, T+60, CW/2-16);
+  ctx.fillStyle = '#ffd24f'; ctx.fillText('🏆 TOP БОЙЦЫ 🏆', CW*0.75, T+60, CW/2-16);
+  ctx.shadowBlur = 0;
+
+  // очки топа = отнятая энергия у противников (all-time, из отдельной БД),
+  // НЕ текущая сила/энергия боя
+  const top = [...VARIANTS].sort((a,b)=>b.stolenEnergy-a.stolenEnergy).slice(0,5);
+  const rankColors = ['#FFD700','#C0C0C0','#CD7F32','#AAAAAA','#666666'];
+  const ranks = ['👑','2.','3.','4.','5.'];
+  const tX = CW/2 + 8, tY = T+80, tStep = 25;
+  for (let i=0;i<top.length;i++){
+    const p = top[i], y = tY + i*tStep;
+    if (i===0){ ctx.fillStyle='rgba(255,215,0,0.08)'; ctx.fillRect(tX-4,y-16,CW/2-12,tStep-1); }
+    ctx.font = i===0 ? 'bold 15px Arial Black' : 'bold 14px Arial';
+    ctx.textAlign='left'; ctx.fillStyle=rankColors[i];
+    ctx.shadowColor='rgba(0,0,0,0.9)'; ctx.shadowBlur=3;
+    ctx.fillText(ranks[i], tX, y);
+    ctx.fillStyle = i===0 ? '#FFE566' : '#EEEEEE';
+    ctx.fillText(p.name, tX+20, y, 155);
+    ctx.shadowBlur=0;
+    ctx.textAlign='right'; ctx.fillStyle='#7fd3ff';
+    ctx.font = i===0 ? 'bold 13px Arial' : 'bold 12px Arial';
+    ctx.fillText('⚡'+p.stolenEnergy, CW-8, y);
+  }
+  ctx.font = '9px Arial'; ctx.fillStyle = 'rgba(255,255,255,0.18)';
+  ctx.textAlign = 'center'; ctx.fillText('all-time отнятая энергия', CW*0.75, T+TH-6);
+}
+
+// все бойцы ОДНОГО размера (как totalSc в arena2) — глубина влияет только на позицию/порядок отрисовки, не на масштаб
+const FIGHTER_SCALE = 0.85;
+
+function drawFighter(v) {
+  if (v.eliminated) return; // насовсем исчез с ринга
+
+  const s = FIGHTER_SCALE;
+  const cx = v.x, floorY = v.y;
+  const img = (v.frames[v.animName] || v.frames.idle)[v.frameIdx];
+
+  ctx.save();
+  ctx.globalAlpha = v.alive ? 0.25 : 0.15;
+  ctx.fillStyle = '#000';
+  ctx.beginPath();
+  ctx.ellipse(cx, floorY, 28*s, 7*s, 0, 0, Math.PI*2);
+  ctx.fill();
+  ctx.restore();
+
+  const baseH = 130*s;
+  let dh = baseH;
+  if (img && img.complete && img.naturalWidth) {
+    // некоторые кадры удара сильно шире (вытянутая рука) — ограничиваем
+    // ширину, а не растягиваем, чтобы не было "кляксы"; масштаб равномерный
+    const maxW = baseH*1.55;
+    let scale = baseH / img.naturalHeight;
+    if (img.naturalWidth*scale > maxW) scale = maxW/img.naturalWidth;
+    const dw = img.naturalWidth*scale;
+    dh = img.naturalHeight*scale;
+    ctx.save();
+    ctx.translate(cx, floorY);
+    ctx.rotate(v.lean||0); // лёгкий наклон в сторону движения — заменяет отсутствующий цикл ходьбы
+    if (v.facing < 0) ctx.scale(-1,1);
+    ctx.drawImage(img, -dw/2, -dh+8, dw, dh);
+    ctx.restore();
+  }
+
+  const headTopY = floorY - dh + 8;
+  const labelY = headTopY - 22*s;
+
+  ctx.textAlign = 'center';
+  ctx.font = `bold ${13*s}px Arial`;
+  ctx.fillStyle = v.alive ? v.color : '#888';
+  ctx.strokeStyle = 'rgba(0,0,0,0.8)';
+  ctx.lineWidth = 3;
+  const nameTxt = v.alive ? v.name : v.name+' 💤';
+  ctx.strokeText(nameTxt, cx, labelY);
+  ctx.fillText(nameTxt, cx, labelY);
+
+  // ⚡ Энергия и 💪 Сила — в стиле _drawLabels из arena3.html (сердечки убраны — Энергия теперь и есть здоровье)
+  ctx.font = `bold ${11*s}px Arial`;
+  ctx.lineWidth = 2.5; ctx.strokeStyle = 'rgba(0,0,0,0.9)';
+  const enTxt = `⚡ ${Math.max(0,v.energy)}`;
+  ctx.strokeText(enTxt, cx, labelY + 17*s);
+  ctx.fillStyle = '#7fd3ff'; ctx.fillText(enTxt, cx, labelY + 17*s);
+
+  const pwTxt = `💪 ${v.power}`;
+  ctx.strokeText(pwTxt, cx, labelY + 31*s);
+  ctx.fillStyle = '#ff9d5c'; ctx.fillText(pwTxt, cx, labelY + 31*s);
+}
+
+// ── Игровая логика: движение по рингу, столкновения, урон, нокаут ──
+// урон наносит ТОЛЬКО тот, кто реально попал (один "победитель обмена" за
+// столкновение, не оба одновременно — так реалистичнее)
+// урон = Сила атакующего напрямую (Сила и Энергия растут из одного
+// источника лайки/донаты, так что шкалы соразмерны)
+function damageFor(power){ return Math.max(1, power); }
+
+function advanceAnim(v, dt){
+  const key = v.state==='walk' ? 'walk'
+    : v.state==='punch' ? v.animName
+    : v.state==='hurt' ? 'hurt'
+    : v.state==='ko' ? 'ko'
+    : 'idle';
+  const def = ANIM_DEFS[key];
+  v.frameTimer += dt;
+  const frameDur = 1000/def.fps;
+  if (v.frameTimer >= frameDur){
+    v.frameTimer -= frameDur;
+    v.frameIdx++;
+    if (v.frameIdx >= def.count) v.frameIdx = def.loop ? 0 : def.count-1;
+  }
+  v.animName = key;
+}
+
+function startNewRound(){
+  VARIANTS.forEach(v=>{
+    v.alive = true; v.eliminated = false;
+    v.energy = v.energyMax;
+    v.state = 'idle'; v.frameIdx = 0;
+    v.x = RING.xMin + Math.random()*(RING.xMax-RING.xMin);
+    v.y = RING.yMin + Math.random()*(RING.yMax-RING.yMin);
+    v.tx = v.x; v.ty = v.y;
+    v.lastAttacker = null;
+  });
+  roundEnding = false;
+  pushEvent('🔔 Новый раунд начался!');
+}
+
+function collapse(loser, winner){
+  if (!loser.alive) return;
+  loser.alive = false;
+  loser.state = 'ko'; loser.animName = 'ko'; loser.frameIdx = 0; loser.frameTimer = 0;
+  loser.koTimer = KO_FALL_MS;
+  playKOSound();
+  if (winner){
+    const stolen = damageFor(winner.power) + 100;
+    winner.stolenEnergy += stolen;
+    pushEvent(`⚔️ ${winner.name} нокаутировал ${loser.name}! (+${stolen}⚡)`);
+  } else {
+    pushEvent(`💦 ${loser.name} выдохся и упал!`);
+  }
+}
+
+// за одно столкновение реально попадает только ОДИН боец (случайно из тех,
+// у кого хватает энергии на удар) — так реалистичнее, чем взаимный обмен
+function resolveFight(a, b){
+  a.punchCooldown = 1000 + Math.random()*500;
+  b.punchCooldown = 1000 + Math.random()*500;
+
+  const aCanHit = a.energy>=PUNCH_COST, bCanHit = b.energy>=PUNCH_COST;
+  let attacker=null, defender=null;
+  if (aCanHit && bCanHit) { if (Math.random()<0.5){attacker=a;defender=b;} else {attacker=b;defender=a;} }
+  else if (aCanHit) { attacker=a; defender=b; }
+  else if (bCanHit) { attacker=b; defender=a; }
+
+  if (attacker){
+    const punchNames = ['punch1','punch2','punch3'];
+    attacker.state='punch'; attacker.animName=punchNames[Math.floor(Math.random()*3)]; attacker.frameIdx=0; attacker.frameTimer=0; attacker.stateTimer=420;
+    defender.state='hurt'; defender.animName='hurt'; defender.frameIdx=0; defender.frameTimer=0; defender.stateTimer=420;
+    attacker.facing = defender.x>=attacker.x ? -1 : 1;
+    defender.facing = attacker.x>=defender.x ? -1 : 1;
+
+    attacker.energy -= PUNCH_COST;
+    const dmg = damageFor(attacker.power);
+    defender.energy -= dmg;
+    defender.power = Math.max(1, defender.power - Math.floor(dmg*0.3)); // как в arena2: пропущенный удар ослабляет Силу (там 40%, тут 30% по договорённости)
+    defender.lastAttacker = attacker;
+    playPunchSound();
+  } else {
+    a.state='idle'; b.state='idle';
+  }
+
+  const dx=b.x-a.x, dy=b.y-a.y, d=Math.hypot(dx,dy)||1, push=75;
+  a.tx = clamp(a.x - dx/d*push, RING.xMin, RING.xMax);
+  a.ty = clamp(a.y - dy/d*push, RING.yMin, RING.yMax);
+  b.tx = clamp(b.x + dx/d*push, RING.xMin, RING.xMax);
+  b.ty = clamp(b.y + dy/d*push, RING.yMin, RING.yMax);
+  a.wanderPause = 500; b.wanderPause = 500;
+
+  if (attacker && defender.energy<=0) collapse(defender, attacker);
+}
+
+function update(dt){
+  for (const v of VARIANTS){
+    advanceAnim(v, dt);
+
+    if (!v.alive){
+      if (!v.eliminated){
+        v.koTimer -= dt;
+        if (v.koTimer<=0) v.eliminated = true; // исчезает с ринга насовсем (до конца раунда)
+      }
+      continue;
+    }
+
+    if (v.energy<=0){ collapse(v, v.lastAttacker); continue; } // выдохся сам по себе, не только от удара
+
+    if (v.punchCooldown>0) v.punchCooldown -= dt;
+
+    if (v.state==='punch' || v.state==='hurt'){
+      v.stateTimer -= dt;
+      if (v.stateTimer<=0) v.state='idle';
+      continue;
+    }
+
+    v.wanderPause -= dt;
+    const dx=v.tx-v.x, dy=v.ty-v.y, dist=Math.hypot(dx,dy);
+    if (dist<6 && v.wanderPause<=0){
+      v.tx = RING.xMin + Math.random()*(RING.xMax-RING.xMin);
+      v.ty = RING.yMin + Math.random()*(RING.yMax-RING.yMin);
+      v.wanderPause = 500 + Math.random()*1400;
+    }
+    if (dist>6){
+      const speed = 0.05;
+      v.x += (dx/dist)*speed*dt;
+      v.y += (dy/dist)*speed*dt;
+      v.facing = dx>=0 ? -1 : 1; // спрайт по умолчанию смотрит влево — флип нужен при движении вправо
+      v.state = 'walk';
+    } else {
+      v.state = 'idle';
+      v.lean = (v.lean||0)*0.85;
+    }
+  }
+
+  // мягкое разведение — живые бойцы не должны залипать друг в друге
+  const MIN_SEP = 58;
+  for (let i=0;i<VARIANTS.length;i++){
+    const a = VARIANTS[i];
+    if (!a.alive) continue;
+    for (let j=i+1;j<VARIANTS.length;j++){
+      const b = VARIANTS[j];
+      if (!b.alive) continue;
+      const dx=b.x-a.x, dy=b.y-a.y, d=Math.hypot(dx,dy)||0.001;
+      if (d < MIN_SEP){
+        const push = (MIN_SEP-d)/2, ux=dx/d, uy=dy/d;
+        a.x = clamp(a.x-ux*push, RING.xMin, RING.xMax);
+        a.y = clamp(a.y-uy*push, RING.yMin, RING.yMax);
+        b.x = clamp(b.x+ux*push, RING.xMin, RING.xMax);
+        b.y = clamp(b.y+uy*push, RING.yMin, RING.yMax);
+      }
+    }
+  }
+
+  for (let i=0;i<VARIANTS.length;i++){
+    const a = VARIANTS[i];
+    if (!a.alive || a.punchCooldown>0) continue;
+    for (let j=i+1;j<VARIANTS.length;j++){
+      const b = VARIANTS[j];
+      if (!b.alive || b.punchCooldown>0) continue;
+      if (Math.hypot(a.x-b.x, a.y-b.y) < FIGHT_DIST) resolveFight(a,b);
+    }
+  }
+
+  // раунд battle royale: когда остался 1 боец (или 0) — раунд окончен, пауза, новый раунд
+  if (roundEnding){
+    roundResetTimer -= dt;
+    if (roundResetTimer<=0) startNewRound();
+  } else {
+    const standing = VARIANTS.filter(v=>!v.eliminated);
+    if (standing.length<=1){
+      roundEnding = true;
+      roundResetTimer = ROUND_RESET_MS;
+      if (standing.length===1) pushEvent(`🏆 ${standing[0].name} ПОБЕДИЛ В РАУНДЕ!`);
+      else pushEvent('🤝 Ничья — раунд окончен!');
+    }
+  }
+
+  updateEvents(dt);
+}
+
+let _lastT = 0;
+function loop(t) {
+  if (!_lastT) _lastT = t;
+  const dt = Math.min(50, t-_lastT);
+  _lastT = t;
+
+  update(dt);
+
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  drawBackground(t);
+
+  const sorted = [...VARIANTS].sort((a,b)=>a.y-b.y);
+  for (const v of sorted) drawFighter(v);
+
+  drawEventBanner();
+  drawHUD();
+
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

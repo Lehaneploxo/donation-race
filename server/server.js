@@ -60,6 +60,7 @@ app.get('/arena',       serveHtml('arena.html'));
 app.get('/arena2',      serveHtml('arena2.html'));
 app.get('/arena3',      serveHtml('arena3.html'));
 app.get('/civilization',serveHtml('civilization.html'));
+app.get('/boxing',      serveHtml('boxing_arena.html'));
 
 // Локальный no-op сервис подписи — возвращает URL без изменений
 // Библиотека tiktok-live-connector использует его вместо eulerstream
