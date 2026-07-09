@@ -165,6 +165,16 @@ app.get('/top-race-donations', async (req, res) => {
   }
 });
 
+app.get('/top-boxing', async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 100;
+    const top = await db.getTopBoxingStolen(limit);
+    res.json({ ok: true, count: top.length, top });
+  } catch(e) {
+    res.json({ ok: false, error: e.message });
+  }
+});
+
 // ─── Rooms ───────────────────────────────────────────────────────────────────
 const rooms = new Map();
 
@@ -345,6 +355,14 @@ class Room {
             .catch(() => {
               this.broadcast({ type: 'arena_boss_rating', username: data.username, rank: null, damage: 0 });
             });
+          // Boxing Arena: same command, ranked by all-time отнятая энергия
+          db.getUserBoxingRank(data.username)
+            .then(rank => {
+              this.broadcast({ type: 'arena_boxing_rating', username: data.username, rank: rank ? rank.rank : null, stolen: rank ? rank.total_stolen : 0 });
+            })
+            .catch(() => {
+              this.broadcast({ type: 'arena_boxing_rating', username: data.username, rank: null, stolen: 0 });
+            });
         }
 
       }
@@ -462,6 +480,14 @@ wss.on('connection', (ws, req) => {
             room.broadcast({ type: 'top_boss_damage', data: top });
           })
           .catch(e => console.error('[DB] boss_damage error:', e.message));
+      }
+      if (msg.type === 'boxing_stolen' && msg.username && msg.amount) {
+        db.addBoxingStolen(msg.username, msg.amount)
+          .then(() => db.getTopBoxingStolen(5))
+          .then(top => {
+            room.broadcast({ type: 'top_boxing', data: top });
+          })
+          .catch(e => console.error('[DB] boxing_stolen error:', e.message));
       }
       if (msg.type === 'request_rating' && msg.username) {
         db.getUserRank(msg.username)

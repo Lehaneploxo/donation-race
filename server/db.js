@@ -36,7 +36,13 @@ async function init() {
       total_coins INTEGER NOT NULL DEFAULT 0
     )
   `);
-  console.log('[DB] Таблицы kills, boss_damage и race_donations готовы');
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS boxing_stolen (
+      username TEXT PRIMARY KEY,
+      total_stolen INTEGER NOT NULL DEFAULT 0
+    )
+  `);
+  console.log('[DB] Таблицы kills, boss_damage, race_donations и boxing_stolen готовы');
 }
 
 async function addBossDamage(username, amount) {
@@ -123,6 +129,36 @@ async function getTopRaceDonations(limit = 10) {
   return res.rows;
 }
 
+async function addBoxingStolen(username, amount) {
+  if (!pool || !username || !amount) return;
+  await pool.query(`
+    INSERT INTO boxing_stolen (username, total_stolen)
+    VALUES ($1, $2)
+    ON CONFLICT (username)
+    DO UPDATE SET total_stolen = boxing_stolen.total_stolen + $2
+  `, [username, Math.floor(amount)]);
+}
+
+async function getTopBoxingStolen(limit = 10) {
+  if (!pool) return [];
+  const res = await pool.query(
+    'SELECT username, total_stolen FROM boxing_stolen ORDER BY total_stolen DESC LIMIT $1',
+    [limit]
+  );
+  return res.rows;
+}
+
+async function getUserBoxingRank(username) {
+  if (!pool || !username) return null;
+  const res = await pool.query(`
+    SELECT username, total_stolen,
+           RANK() OVER (ORDER BY total_stolen DESC) AS rank
+    FROM boxing_stolen
+  `);
+  const row = res.rows.find(r => r.username.toLowerCase() === username.toLowerCase());
+  return row ? { rank: Number(row.rank), total_stolen: Number(row.total_stolen) } : null;
+}
+
 function isConnected() { return pool !== null; }
 
-module.exports = { init, addKill, getTopKillers, getUserRank, addBossDamage, getTopBossDamage, resetBossDamage, getUserBossDamageRank, addRaceCoins, getTopRaceDonations, isConnected };
+module.exports = { init, addKill, getTopKillers, getUserRank, addBossDamage, getTopBossDamage, resetBossDamage, getUserBossDamageRank, addRaceCoins, getTopRaceDonations, addBoxingStolen, getTopBoxingStolen, getUserBoxingRank, isConnected };

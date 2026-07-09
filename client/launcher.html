@@ -315,7 +315,13 @@
   <!-- ── BOXING ARENA ── -->
   <div class="game-panel panel-arena" style="border-left:1px solid rgba(255,80,80,0.3)">
     <div class="panel-title" style="color:#FF6688;text-shadow:0 0 18px #FF3344">🥊 BOXING ARENA 🥊</div>
-    <div class="panel-sub">Battle royale боксёров · пока демо-режим (без TikTok-эфира)</div>
+    <div class="panel-sub">Battle royale боксёров · лайки/донаты · пиши "rating" в чате</div>
+
+    <input class="nick-input" id="boxingInput" type="text"
+           placeholder="@your_username"
+           autocomplete="off" autocorrect="off" spellcheck="false">
+
+    <div class="error-msg" id="boxingError">Введи никнейм TikTok</div>
 
     <button class="btn-start" id="boxingStart" style="background:linear-gradient(90deg,#c1121f,#ff5566);color:#fff;box-shadow:0 4px 20px rgba(255,60,60,0.4)">🥊 START BOXING ARENA</button>
 
@@ -335,12 +341,13 @@
   document.getElementById('arena2Input').value = saved;
   document.getElementById('arena3Input').value = saved;
   document.getElementById('civInput').value    = saved;
+  document.getElementById('boxingInput').value = saved;
 
   // Sync all inputs when typing
-  ['raceInput','warInput','arenaInput','arena2Input','arena3Input','civInput'].forEach(id => {
+  ['raceInput','warInput','arenaInput','arena2Input','arena3Input','civInput','boxingInput'].forEach(id => {
     document.getElementById(id).addEventListener('input', function() {
       if (this.value.startsWith('@')) this.value = this.value.slice(1);
-      ['raceInput','warInput','arenaInput','arena2Input','arena3Input','civInput'].forEach(oid => {
+      ['raceInput','warInput','arenaInput','arena2Input','arena3Input','civInput','boxingInput'].forEach(oid => {
         if (oid !== id) document.getElementById(oid).value = this.value;
       });
     });
@@ -409,10 +416,11 @@
     if (e.key === 'Enter') document.getElementById('arena3Start').click();
   });
 
-  // Boxing Arena — пока без TikTok-подключения, просто переходим на страницу
-  document.getElementById('boxingStart').addEventListener('click', () => {
-    document.getElementById('boxingStatus').style.display = 'block';
-    window.location.href = '/boxing';
+  // Boxing Arena
+  document.getElementById('boxingStart').addEventListener('click', () =>
+    handleClick('boxingInput','boxingError','boxingStatus','boxingStart','/boxing'));
+  document.getElementById('boxingInput').addEventListener('keydown', e => {
+    if (e.key === 'Enter') document.getElementById('boxingStart').click();
   });
 </script>
 
