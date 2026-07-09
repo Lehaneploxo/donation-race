@@ -312,6 +312,16 @@
     <div class="status-msg" id="arena3Status">⏳ Открываю игру…</div>
   </div>
 
+  <!-- ── BOXING ARENA ── -->
+  <div class="game-panel panel-arena" style="border-left:1px solid rgba(255,80,80,0.3)">
+    <div class="panel-title" style="color:#FF6688;text-shadow:0 0 18px #FF3344">🥊 BOXING ARENA 🥊</div>
+    <div class="panel-sub">Battle royale боксёров · пока демо-режим (без TikTok-эфира)</div>
+
+    <button class="btn-start" id="boxingStart" style="background:linear-gradient(90deg,#c1121f,#ff5566);color:#fff;box-shadow:0 4px 20px rgba(255,60,60,0.4)">🥊 START BOXING ARENA</button>
+
+    <div class="status-msg" id="boxingStatus">⏳ Открываю игру…</div>
+  </div>
+
 </div>
 
 <div class="stripe"></div>
@@ -397,6 +407,12 @@
     handleClick('arena3Input','arena3Error','arena3Status','arena3Start','/arena3'));
   document.getElementById('arena3Input').addEventListener('keydown', e => {
     if (e.key === 'Enter') document.getElementById('arena3Start').click();
+  });
+
+  // Boxing Arena — пока без TikTok-подключения, просто переходим на страницу
+  document.getElementById('boxingStart').addEventListener('click', () => {
+    document.getElementById('boxingStatus').style.display = 'block';
+    window.location.href = '/boxing';
   });
 </script>
 
