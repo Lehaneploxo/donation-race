@@ -1179,6 +1179,15 @@ function collapse(loser, winner){
   loser.state = 'ko'; loser.animName = 'ko'; loser.frameIdx = 0; loser.frameTimer = 0;
   loser.koTimer = KO_FALL_MS;
   playKOSound();
+
+  // нокаут обнуляет ВСЮ накопленную статистику реального бойца (не только
+  // текущую энергию) — следующий лайк/донат от этого зрителя стартует его
+  // заново с нуля, а не восстанавливает прежнюю силу
+  if (!loser.isBot){
+    loser.likeEnergy = 0; loser.giftEnergy = 0;
+    loser.likePower = 0; loser.giftPower = 0;
+    loser.energyMax = 0; loser.power = 0;
+  }
   if (winner){
     const stolen = damageFor(winner.power) + 100;
     winner.stolenEnergy += stolen;
