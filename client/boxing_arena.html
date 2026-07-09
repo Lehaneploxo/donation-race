@@ -354,9 +354,18 @@ function getRuVoice(){
   _cachedVoice = voices.find(v=>/ru/i.test(v.lang)) || voices[0] || null;
   return _cachedVoice;
 }
+// диктор должен читать только буквы никнейма — без "@" и без смайликов/
+// эмодзи (у ников бывают любые декоративные символы из TikTok)
+function speakClean(text){
+  return text
+    .replace(/[\u{1F1E6}-\u{1F1FF}\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{2190}-\u{21FF}\u{2300}-\u{23FF}\u{2B00}-\u{2BFF}\u{FE0F}\u{200D}]/gu, '')
+    .replace(/@/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
 function speak(text){
   if(!voiceEnabled || !window.speechSynthesis) return;
-  const clean = text.replace(/[⚔️🏆🥊💥🎁⚡💪❤️👍]/g,'').trim();
+  const clean = speakClean(text);
   const u = new SpeechSynthesisUtterance(clean);
   const v = getRuVoice();
   if(v) u.voice = v;
