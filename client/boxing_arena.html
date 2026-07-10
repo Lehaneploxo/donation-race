@@ -198,14 +198,14 @@ function applyGrowth(username, gain, isGift){
     v.power = v.powerMax;
     v.state = 'idle'; v.frameIdx = 0;
     v.x = pos.x; v.y = pos.y; v.tx = pos.x; v.ty = pos.y;
-    pushEvent(pick(REVIVE_LINES)(v.name), true);
+    pushEvent(pick(REVIVE_LINES)(cleanNickForSpeech(v.name)), true);
   } else {
     v.energy = Math.min(v.energyMax, v.energy + gainedEnergy);
     v.power = Math.min(v.powerMax, v.power + gainedPower);
   }
 
-  if (isNew && !wasDown) pushEvent(pick(JOIN_LINES)(v.name), true);
-  else if (isGift && !wasDown) pushEvent(pick(GIFT_LINES)(v.name), true);
+  if (isNew && !wasDown) pushEvent(pick(JOIN_LINES)(cleanNickForSpeech(v.name)), true);
+  else if (isGift && !wasDown) pushEvent(pick(GIFT_LINES)(cleanNickForSpeech(v.name)), true);
   // обычный лайк на уже живого бойца — молча, диктор не озвучивает каждый лайк
 }
 
@@ -448,6 +448,19 @@ function speakClean(text){
   return text
     .replace(/[\u{1F1E6}-\u{1F1FF}\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{2190}-\u{21FF}\u{2300}-\u{23FF}\u{2B00}-\u{2BFF}\u{FE0F}\u{200D}]/gu, '')
     .replace(/@/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+// ник в TikTok может содержать ЛЮБЫЕ декоративные символы (рамки, звёздочки,
+// зачёркнутые/жирные unicode-буквы, диакритику) — для озвучки оставляем
+// только буквы/цифры самого ника, остальное диктор не должен произносить.
+// NFKD раскладывает декоративные unicode-буквы (полноширинные, зачёркнутые,
+// в кружочках и т.п.) обратно в обычные буквы перед фильтрацией.
+function cleanNickForSpeech(name){
+  return String(name||'')
+    .normalize('NFKD')
+    .replace(/[_.\-]+/g, ' ')
+    .replace(/[^\p{L}\p{N} ]+/gu, '')
     .replace(/\s+/g, ' ')
     .trim();
 }
@@ -1153,7 +1166,7 @@ function endRound(){
     const delta = v.stolenEnergy - (v.roundStartStolen||0);
     if (delta > bestDelta){ bestDelta = delta; best = v; }
   });
-  if (best) pushEvent(pick(ROUND_RESULT_LINES)(best.name, roundNum, bestDelta), true);
+  if (best) pushEvent(pick(ROUND_RESULT_LINES)(cleanNickForSpeech(best.name), roundNum, bestDelta), true);
   else pushEvent(pick(NO_LEADER_LINES)(roundNum), true);
 
   sendFightersToCorners();
@@ -1204,9 +1217,9 @@ function collapse(loser, winner){
     // засчитываются только реальному зрителю-победителю
     if (!winner.isBot) reportStolen(winner.name, stolen);
     // диктор объявляет только реальных победителей — бот-победитель молчит
-    if (!winner.isBot) pushEvent(pick(KO_LINES)(winner.name, loser.name, stolen), true);
+    if (!winner.isBot) pushEvent(pick(KO_LINES)(cleanNickForSpeech(winner.name), cleanNickForSpeech(loser.name), stolen), true);
   } else if (!loser.isBot) {
-    pushEvent(pick(TIRED_LINES)(loser.name), true);
+    pushEvent(pick(TIRED_LINES)(cleanNickForSpeech(loser.name)), true);
   }
 }
 
