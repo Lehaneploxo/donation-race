@@ -168,7 +168,7 @@ function applyGrowth(username, gain, isGift){
       dir: skin.dir, name: username, color: skin.color, isBot: false,
       likeEnergy: 0, giftEnergy: 0, likePower: 0, giftPower: 0, stolenEnergy: 0,
     };
-    v.energyMax = 0; v.energy = 0; v.power = 0;
+    v.energyMax = 0; v.energy = 0; v.powerMax = 0; v.power = 0;
     initFighterRuntime(v, pos.x, pos.y);
     VARIANTS.push(v);
   }
@@ -178,22 +178,30 @@ function applyGrowth(username, gain, isGift){
   if (gain.giftEnergy) v.giftEnergy += gain.giftEnergy;
   if (gain.giftPower)  v.giftPower  += gain.giftPower;
 
-  const newMax = v.likeEnergy + v.giftEnergy;
-  const gained = Math.max(0, newMax - v.energyMax);
-  v.energyMax = newMax;
-  v.power = v.likePower + v.giftPower;
+  // energy/power растут ТОЛЬКО на величину новой прибавки — урон, полученный
+  // в бою, должен оставаться в силе, а не откатываться следующим лайком.
+  const newEnergyMax = v.likeEnergy + v.giftEnergy;
+  const gainedEnergy = Math.max(0, newEnergyMax - v.energyMax);
+  v.energyMax = newEnergyMax;
+
+  const newPowerMax = v.likePower + v.giftPower;
+  const gainedPower = Math.max(0, newPowerMax - (v.powerMax||0));
+  v.powerMax = newPowerMax;
 
   const wasDown = !v.alive || v.eliminated;
   if (wasDown){
-    // боец был выбит с ринга — новый лайк/донат возвращает его в бой
+    // боец был выбит с ринга — новый лайк/донат возвращает его в бой,
+    // но со свежими показателями (старые уже обнулены в collapse())
     const pos = spawnRingPos();
     v.alive = true; v.eliminated = false;
     v.energy = v.energyMax;
+    v.power = v.powerMax;
     v.state = 'idle'; v.frameIdx = 0;
     v.x = pos.x; v.y = pos.y; v.tx = pos.x; v.ty = pos.y;
     pushEvent(pick(REVIVE_LINES)(v.name), true);
   } else {
-    v.energy = Math.min(v.energyMax, v.energy + gained);
+    v.energy = Math.min(v.energyMax, v.energy + gainedEnergy);
+    v.power = Math.min(v.powerMax, v.power + gainedPower);
   }
 
   if (isNew && !wasDown) pushEvent(pick(JOIN_LINES)(v.name), true);
@@ -1186,7 +1194,8 @@ function collapse(loser, winner){
   if (!loser.isBot){
     loser.likeEnergy = 0; loser.giftEnergy = 0;
     loser.likePower = 0; loser.giftPower = 0;
-    loser.energyMax = 0; loser.power = 0;
+    loser.energyMax = 0; loser.energy = 0;
+    loser.powerMax = 0; loser.power = 0;
   }
   if (winner){
     const stolen = damageFor(winner.power) + 100;
