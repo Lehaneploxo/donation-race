@@ -1242,8 +1242,16 @@ function startExchange(a, b){
   const hits = 1 + Math.floor(Math.random()*3);
   const queue = [];
   for (let i=0; i<hits; i++){
-    queue.push({ attacker:a, defender:b });
-    queue.push({ attacker:b, defender:a });
+    // порядок внутри пары рандомный, а не всегда "a первый" - иначе тот,
+    // кто оказался a по индексу спавна, всегда бьёт раньше и может убить
+    // соперника до того, как дойдёт очередь до его ответного удара
+    if (Math.random() < 0.5){
+      queue.push({ attacker:a, defender:b });
+      queue.push({ attacker:b, defender:a });
+    } else {
+      queue.push({ attacker:b, defender:a });
+      queue.push({ attacker:a, defender:b });
+    }
   }
   activeExchanges.push({ a, b, queue, idx:0, timer:0 });
 }
