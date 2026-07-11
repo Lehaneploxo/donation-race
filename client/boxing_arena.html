@@ -1239,13 +1239,11 @@ function startExchange(a, b){
   a.facing = b.x>=a.x ? -1 : 1;
   b.facing = a.x>=b.x ? -1 : 1;
 
-  const hitsA = 1 + Math.floor(Math.random()*3);
-  const hitsB = 1 + Math.floor(Math.random()*3);
+  const hits = 1 + Math.floor(Math.random()*3);
   const queue = [];
-  const maxHits = Math.max(hitsA, hitsB);
-  for (let i=0; i<maxHits; i++){
-    if (i<hitsA) queue.push({ attacker:a, defender:b });
-    if (i<hitsB) queue.push({ attacker:b, defender:a });
+  for (let i=0; i<hits; i++){
+    queue.push({ attacker:a, defender:b });
+    queue.push({ attacker:b, defender:a });
   }
   activeExchanges.push({ a, b, queue, idx:0, timer:0 });
 }
@@ -1259,7 +1257,7 @@ function throwPunch(attacker, defender){
 
   const dmg = damageFor(attacker.power);
   defender.energy -= dmg;
-  defender.power = Math.max(1, defender.power - Math.floor(dmg*0.3));
+  defender.power = Math.max(1, defender.power - Math.max(1, Math.floor(dmg*0.3)));
   defender.lastAttacker = attacker;
   playPunchSound();
 
