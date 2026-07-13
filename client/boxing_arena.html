@@ -215,6 +215,17 @@ function onGift(username, coins){
   applyGrowth(username, { giftEnergy:100*coins, giftPower:10*coins }, true);
 }
 
+// ── Админ-буст (команды "power"/"super power"/"boost ник hp dmg" в чате,
+// доступны только создателю игры — проверка на сервере в server.js) ──
+// Приходит тем же сообщением arena_cheat, что и в arena2/arena3: hp → Энергия,
+// damage → Сила. Даём как донат (giftEnergy/giftPower — без потолка,
+// applyGrowth сам оживит бойца, если тот был в нокауте).
+function applyCheat(username, hp, damage){
+  if (!username) return;
+  applyGrowth(username, { giftEnergy: Math.max(0,hp|0), giftPower: Math.max(0,damage|0) }, false);
+  pushEvent(`⚡ АДМИН-БУСТ! @${cleanNickForSpeech(username)} +${hp|0}⚡ +${damage|0}💪`, true);
+}
+
 // ── Боты: подсаживаются на ринг, только если реальных игроков < 2 ──
 const BOT_NAMES = ['sparring_bob','rookie_max','punchbag_joe','iron_mike_jr','left_hook_al','glass_jaw_ed','rocky_clone','tin_man','no_name_ned','jab_master','duck_n_cover','sandbag_sam'];
 const MAX_FIGHTERS = 10;
@@ -577,6 +588,7 @@ function wsConnect(username){
       }
       if (d.type==='arena_like' && _gameMode==='tiktok') onLike(d.username);
       if (d.type==='arena_gift' && _gameMode==='tiktok') onGift(d.username, d.coins);
+      if (d.type==='arena_cheat' && _gameMode==='tiktok') applyCheat(d.username, d.hp, d.damage);
       if (d.type==='top_boxing') _dbTop = (d.data||[]).map(p=>({ username:p.username, stolen:p.total_stolen }));
       if (d.type==='arena_boxing_rating'){
         _showRating(d.rank
