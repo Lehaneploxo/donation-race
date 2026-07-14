@@ -300,6 +300,7 @@ const RULES = [
   'Кидай донат — чем больше монет, тем сильнее удар твоего бойца!',
   'Напиши в чате слово рейтинг — узнаешь своё место в топе!',
   'Нокаутированный боец вернётся в бой, если его снова лайкнуть или задонатить!',
+  'Забыл про бойца на 15 минут? Его Сила начнёт слабеть — лайкни, чтобы не терять форму!',
 ];
 const FILLER = [
   'Бой продолжается — не моргайте!',
@@ -1000,12 +1001,13 @@ function drawHUD() {
     { text: '👍 1 лайк = +10❤️ +1💪',       color: '#FF6688' },
     { text: '🎁 1 монета = +100❤️ +10💪',   color: '#FFD700' },
     { text: '💬 Напиши "rating" — узнаешь свой топ', color: '#8fffb0' },
+    { text: '⏳ 15 мин тишины = 💪Сила -1/сек', color: '#ffa64d' },
   ];
-  const rY = T+96, rStep = 34;
+  const rY = T+96, rStep = 26;
   rules.forEach((r,i)=>{
     ctx.save();
-    ctx.font = 'bold 17px Arial Black'; ctx.textAlign = 'left';
-    ctx.strokeStyle = 'rgba(0,0,0,0.85)'; ctx.lineWidth = 3.5;
+    ctx.font = 'bold 15px Arial Black'; ctx.textAlign = 'left';
+    ctx.strokeStyle = 'rgba(0,0,0,0.85)'; ctx.lineWidth = 3;
     ctx.strokeText(r.text, 8, rY + i*rStep, CW/2 - 10);
     ctx.fillStyle = r.color;
     ctx.fillText(r.text, 8, rY + i*rStep, CW/2 - 10);
