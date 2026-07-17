@@ -43,9 +43,11 @@ applyScale();
 
 // ── Бойцы: ТОЛЬКО два показателя — Энергия (жизнь/выносливость) и Сила (урон) ──
 // Сердечки убраны — Энергия теперь одновременно и здоровье, и ресурс на удар.
-// likeEnergy/likePower — растут ТОЛЬКО от лайков, с потолком (1000 / 100).
-// giftEnergy/giftPower — растут от донатов, БЕЗ потолка.
-// energy = likeEnergy + giftEnergy, power = likePower + giftPower.
+// Донаты — ВСЕГДА без ограничений, толкают и Энергию, и Силу.
+// Лайки — начисляются только в тот показатель, который ПРЯМО СЕЙЧАС (по факту,
+// каким бы он ни стал — хоть от донатов) ещё не достиг потолка: Энергия < 1000
+// или Сила < 100. Если показатель уже выше потолка — этот лайк его не трогает,
+// но может пойти во второй показатель, если тот ещё не упёрся в свой потолок.
 const LIKE_ENERGY_CAP = 1000, LIKE_POWER_CAP = 100;
 
 // боец без лайков/донатов 15 минут подряд — Сила начинает капать (-1/сек,
@@ -158,10 +160,14 @@ function findRealFighter(username){
 }
 
 // gain: { likeEnergy?, likePower?, giftEnergy?, giftPower? } — прибавка от
-// одного события; likeEnergy/likePower идут в потолок (см. LIKE_*_CAP),
-// giftEnergy/giftPower — без потолка. isGift — донат это или лайк (влияет
-// на то, какой фразой диктор это объявит; обычные лайки на уже живого
-// бойца молчат — иначе диктор захлёбывался бы каждым лайком).
+// одного события. giftEnergy/giftPower (донат) всегда начисляются полностью,
+// без ограничений. likeEnergy/likePower (лайк) начисляются, только если
+// ТЕКУЩАЯ Энергия/Сила бойца (какой бы она ни стала — хоть от донатов) ещё
+// не достигла потолка LIKE_ENERGY_CAP/LIKE_POWER_CAP; если один из двух уже
+// выше потолка — лайк просто не даёт эту часть, но может дать вторую.
+// isGift — донат это или лайк (влияет на то, какой фразой диктор это
+// объявит; обычные лайки на уже живого бойца молчат — иначе диктор
+// захлёбывался бы каждым лайком).
 function applyGrowth(username, gain, isGift){
   if (!username) return;
   let v = findRealFighter(username);
@@ -171,8 +177,7 @@ function applyGrowth(username, gain, isGift){
     const pos = spawnRingPos();
     v = {
       dir: skin.dir, name: username, color: skin.color, isBot: false,
-      likeEnergy: 0, giftEnergy: 0, likePower: 0, giftPower: 0, stolenEnergy: 0,
-      powerDecayAcc: 0,
+      stolenEnergy: 0, powerDecayAcc: 0,
     };
     v.energyMax = 0; v.energy = 0; v.powerMax = 0; v.power = 0;
     initFighterRuntime(v, pos.x, pos.y);
@@ -183,20 +188,13 @@ function applyGrowth(username, gain, isGift){
   // бездействия (см. INACTIVITY_MS / decayInactivePower в update())
   v.lastActiveAt = Date.now();
 
-  if (gain.likeEnergy) v.likeEnergy = Math.min(LIKE_ENERGY_CAP, v.likeEnergy + gain.likeEnergy);
-  if (gain.likePower)  v.likePower  = Math.min(LIKE_POWER_CAP,  v.likePower  + gain.likePower);
-  if (gain.giftEnergy) v.giftEnergy += gain.giftEnergy;
-  if (gain.giftPower)  v.giftPower  += gain.giftPower;
+  let gainedEnergy = gain.giftEnergy || 0;
+  let gainedPower  = gain.giftPower  || 0;
+  if (gain.likeEnergy && v.energy < LIKE_ENERGY_CAP) gainedEnergy += gain.likeEnergy;
+  if (gain.likePower  && v.power  < LIKE_POWER_CAP)  gainedPower  += gain.likePower;
 
-  // energy/power растут ТОЛЬКО на величину новой прибавки — урон, полученный
-  // в бою, должен оставаться в силе, а не откатываться следующим лайком.
-  const newEnergyMax = v.likeEnergy + v.giftEnergy;
-  const gainedEnergy = Math.max(0, newEnergyMax - v.energyMax);
-  v.energyMax = newEnergyMax;
-
-  const newPowerMax = v.likePower + v.giftPower;
-  const gainedPower = Math.max(0, newPowerMax - (v.powerMax||0));
-  v.powerMax = newPowerMax;
+  v.energyMax += gainedEnergy;
+  v.powerMax  += gainedPower;
 
   const wasDown = !v.alive || v.eliminated;
   if (wasDown){
@@ -210,8 +208,8 @@ function applyGrowth(username, gain, isGift){
     v.x = pos.x; v.y = pos.y; v.tx = pos.x; v.ty = pos.y;
     pushEvent(pick(REVIVE_LINES)(cleanNickForSpeech(v.name)), true);
   } else {
-    v.energy = Math.min(v.energyMax, v.energy + gainedEnergy);
-    v.power = Math.min(v.powerMax, v.power + gainedPower);
+    v.energy += gainedEnergy;
+    v.power  += gainedPower;
   }
 
   if (isNew && !wasDown) pushEvent(pick(JOIN_LINES)(cleanNickForSpeech(v.name)), true);
@@ -301,6 +299,7 @@ const RULES = [
   'Напиши в чате слово рейтинг — узнаешь своё место в топе!',
   'Нокаутированный боец вернётся в бой, если его снова лайкнуть или задонатить!',
   'Забыл про бойца на 15 минут? Его Сила начнёт слабеть — лайкни, чтобы не терять форму!',
+  'Заходите в наш телеграм чат — бокс арена один, ссылка прямо на табло!',
 ];
 const FILLER = [
   'Бой продолжается — не моргайте!',
@@ -1030,6 +1029,20 @@ function drawHUD() {
   ctx.fillStyle = roundTimer < 30000 ? '#ff5566' : '#8fffb0';
   ctx.fillText(timeLabel, 8, roundY+30, CW/2-10);
 
+  // телеграм-чат — правее раунда/времени, там ещё есть свободное место
+  // в левой колонке до вертикального разделителя
+  ctx.textAlign = 'right';
+  ctx.font = 'bold 11px Arial Black';
+  ctx.strokeStyle = 'rgba(0,0,0,0.85)'; ctx.lineWidth = 3;
+  ctx.strokeText('📱 ТЕЛЕГРАМ ЧАТ', CW/2-8, roundY-2, CW/2-150);
+  ctx.fillStyle = '#4fc3ff';
+  ctx.fillText('📱 ТЕЛЕГРАМ ЧАТ', CW/2-8, roundY-2, CW/2-150);
+
+  ctx.font = 'bold 17px Arial Black';
+  ctx.strokeText('boxingarena1', CW/2-8, roundY+22, CW/2-150);
+  ctx.fillStyle = '#7fd3ff';
+  ctx.fillText('boxingarena1', CW/2-8, roundY+22, CW/2-150);
+
   // правая колонка — топ по силе
   ctx.font = 'bold 12px Arial Black'; ctx.textAlign = 'center';
   ctx.strokeStyle = 'rgba(0,0,0,0.9)'; ctx.lineWidth = 3;
@@ -1229,8 +1242,6 @@ function collapse(loser, winner){
   // текущую энергию) — следующий лайк/донат от этого зрителя стартует его
   // заново с нуля, а не восстанавливает прежнюю силу
   if (!loser.isBot){
-    loser.likeEnergy = 0; loser.giftEnergy = 0;
-    loser.likePower = 0; loser.giftPower = 0;
     loser.energyMax = 0; loser.energy = 0;
     loser.powerMax = 0; loser.power = 0;
   }
