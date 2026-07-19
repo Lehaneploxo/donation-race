@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>ЧЕРНОВИК — визуал чемпиона ринга</title>
+<style>
+  html, body { margin:0; background:#0b0906; color:#eee; font-family:Arial,sans-serif; }
+  #bar { padding:10px 16px; background:#1a140d; border-bottom:2px solid #4a3a22; font-size:14px; }
+  #bar b { color:#ffd24f; }
+  #stage { display:flex; justify-content:center; padding:20px; }
+  canvas { background:#241c14; border-radius:10px; box-shadow:0 0 0 2px #4a3a22; }
+  #controls { display:flex; justify-content:center; gap:12px; padding:0 20px 24px; flex-wrap:wrap; }
+  button { background:#2a2015; color:#ffd24f; border:1px solid #6a5227; border-radius:8px; padding:10px 16px; font-size:14px; cursor:pointer; }
+  button:hover { background:#3a2c19; }
+  #note { max-width:600px; margin:0 auto 20px; padding:0 20px; font-size:13px; color:#c9bfa9; line-height:1.5; }
+</style>
+</head>
+<body>
+<div id="bar">🛠 ЧЕРНОВИК / не в игре — сравнение: обычный боец (справа) vs чемпион ринга (слева, <b>#1 в рейтинге отнятой энергии</b>)</div>
+<div id="note">Слева — золотые перчатки/шорты (перекраска boxer_v5_gold как заготовка), ник с золотым свечением. Справа — обычный боец для сравнения. Внизу — кнопка проиграть голосовое объявление, которым диктор встречает чемпиона на ринге.</div>
+<div id="stage"><canvas id="c" width="600" height="440"></canvas></div>
+<div id="controls">
+  <button id="announceBtn">🔊 Проиграть объявление диктора</button>
+  <button id="swapBtn">🔁 Сменить пример ника чемпиона</button>
+</div>
+
+<script>
+const ctx = document.getElementById('c').getContext('2d');
+
+const ANIM = { dir:'idle', prefix:'__Boxer2_Idle_', count:10, fps:8 };
+function loadFrames(dir){
+  const out = [];
+  for (let i=0;i<ANIM.count;i++){
+    const img = new Image();
+    img.src = `sprites/${dir}/${ANIM.dir}/${ANIM.prefix}${String(i).padStart(3,'0')}.png`;
+    out.push(img);
+  }
+  return out;
+}
+
+const champion = { frames: loadFrames('boxer_v5_gold'), frameIdx:0, frameTimer:0, name:'Leha Neploxo 21', x:190, y:340 };
+const regular  = { frames: loadFrames('boxer_v2_blue'),  frameIdx:0, frameTimer:0, name:'cumpod', color:'#4fa8ff', x:410, y:340 };
+
+const CHAMPION_NAMES = ['Leha Neploxo 21', 'Sleepsugar', '⚝♕', 'ProBoxer228'];
+let nameIdx = 0;
+document.getElementById('swapBtn').onclick = () => {
+  nameIdx = (nameIdx+1) % CHAMPION_NAMES.length;
+  champion.name = CHAMPION_NAMES[nameIdx];
+};
+
+document.getElementById('announceBtn').onclick = () => {
+  const u = new SpeechSynthesisUtterance(`Чемпион ринга — ${champion.name}`);
+  const voices = speechSynthesis.getVoices();
+  const ru = voices.find(v => v.lang && v.lang.startsWith('ru'));
+  if (ru) u.voice = ru;
+  u.lang = 'ru-RU';
+  speechSynthesis.speak(u);
+};
+
+function drawFloorShadow(x, y){
+  ctx.save();
+  ctx.globalAlpha = 0.28;
+  ctx.fillStyle = '#000';
+  ctx.beginPath();
+  ctx.ellipse(x, y, 30, 8, 0, 0, Math.PI*2);
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawGoldName(cx, y, text){
+  ctx.save();
+  ctx.textAlign = 'center';
+  ctx.font = 'bold 17px Arial Black';
+  const w = ctx.measureText(text).width;
+  ctx.fillStyle = 'rgba(0,0,0,0.55)';
+  ctx.fillRect(cx - w/2 - 7, y - 15, w + 14, 20);
+
+  // толстая тёмная обводка ПОД заливкой — держит читаемость на любом фоне
+  ctx.lineWidth = 5;
+  ctx.lineJoin = 'round';
+  ctx.strokeStyle = 'rgba(40,20,0,0.95)';
+  ctx.strokeText(text, cx, y);
+
+  // золотое свечение и яркая заливка поверх обводки
+  ctx.shadowColor = '#ffcc33';
+  ctx.shadowBlur = 12;
+  ctx.fillStyle = '#fff2b0';
+  ctx.fillText(text, cx, y);
+  ctx.shadowBlur = 0;
+  ctx.fillText(text, cx, y);
+  ctx.restore();
+}
+
+function drawPlainName(cx, y, text, color){
+  ctx.save();
+  ctx.textAlign = 'center';
+  ctx.font = 'bold 17px Arial Black';
+  const w = ctx.measureText(text).width;
+  ctx.fillStyle = 'rgba(0,0,0,0.45)';
+  ctx.fillRect(cx - w/2 - 7, y - 15, w + 14, 20);
+  ctx.lineWidth = 4;
+  ctx.strokeStyle = 'rgba(0,0,0,0.95)';
+  ctx.strokeText(text, cx, y);
+  ctx.fillStyle = color;
+  ctx.fillText(text, cx, y);
+  ctx.restore();
+}
+
+// в самом PNG-кадре сверху много прозрачного поля (место под замах/анимацию) —
+// реальный силуэт бойца начинается примерно на 17% высоты кадра ниже верхнего
+// края, измерено напрямую по пикселям кадра idle (см. _bbox_probe.html)
+const HEAD_TOP_FRAC = 0.169;
+
+function drawFighter(f, isChampion){
+  drawFloorShadow(f.x, f.y);
+  const img = f.frames[f.frameIdx];
+  const baseH = 190;
+  let dh = baseH, dw = baseH;
+  if (img && img.complete && img.naturalWidth){
+    const scale = baseH / img.naturalHeight;
+    dw = img.naturalWidth * scale;
+    dh = img.naturalHeight * scale;
+    ctx.drawImage(img, f.x - dw/2, f.y - dh + 10, dw, dh);
+  }
+  const imgTopY = f.y - dh + 10;
+  const headTopY = imgTopY + dh*HEAD_TOP_FRAC; // верх реального силуэта, не кадра
+  const labelY = headTopY - 6;
+  if (isChampion) drawGoldName(f.x, labelY, f.name);
+  else drawPlainName(f.x, labelY, f.name, f.color);
+}
+
+function tick(){
+  ctx.clearRect(0,0,600,440);
+  ctx.fillStyle = '#2b2115';
+  ctx.fillRect(0, 380, 600, 60);
+
+  [champion, regular].forEach(f => {
+    f.frameTimer++;
+    if (f.frameTimer > 60/ANIM.fps){ f.frameTimer = 0; f.frameIdx = (f.frameIdx+1) % ANIM.count; }
+  });
+
+  drawFighter(champion, true);
+  drawFighter(regular, false);
+
+  requestAnimationFrame(tick);
+}
+tick();
+</script>
+</body>
+</html>

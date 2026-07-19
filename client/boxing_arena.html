@@ -59,19 +59,60 @@ const POWER_DECAY_INTERVAL_MS = 1000;
 // отнял у противников за все бои (начисляется когда противник падает).
 // Это метрика для ТОП-листа, отдельная от текущей энергии/силы в бою.
 
-// 7 готовых перекрасок спрайта (dir=папка с кадрами, color=цвет ника) —
+// 6 готовых перекрасок спрайта (dir=папка с кадрами, color=цвет ника) —
 // используются и для реальных игроков (при создании по первому лайку/
-// донату), и для ботов, берутся случайно из общего пула.
+// донату), и для ботов, берутся случайно из общего пула. Золотая
+// (boxer_v5_gold) сюда больше не входит — она зарезервирована только за
+// текущим чемпионом ринга (см. CHAMPION_SKIN/syncChampionStatus ниже).
 const SKIN_VARIANTS = [
   { dir:'boxer_v1_red',    color:'#ff5566' },
   { dir:'boxer_v2_blue',   color:'#4fa8ff' },
   { dir:'boxer_v3_green',  color:'#5fe36a' },
   { dir:'boxer_v4_purple', color:'#c26bff' },
-  { dir:'boxer_v5_gold',   color:'#ffd24f' },
   { dir:'boxer_v6_cyan',   color:'#4fe3d0' },
   { dir:'boxer_v7_pink',   color:'#ff6fc0' },
 ];
 function randomSkin(){ return SKIN_VARIANTS[Math.floor(Math.random()*SKIN_VARIANTS.length)]; }
+
+// ── Чемпион ринга: текущий #1 в all-time рейтинге отнятой энергии ──
+// получает золотую перекраску (перчатки/шорты) + золотой ник вместо своей
+// обычной, пока держит первое место. При смене лидера золото переходит на
+// нового, у старого возвращается обычный (сохранённый) скин.
+const CHAMPION_SKIN = { dir:'boxer_v5_gold', color:'#fff2b0' };
+let _championName = null;
+
+function applyChampionSkin(v){
+  if (v.isChamp) return;
+  v.dir = CHAMPION_SKIN.dir; v.color = CHAMPION_SKIN.color;
+  v.frames = loadFrames(v.dir);
+  v.isChamp = true;
+}
+function revertChampionSkin(v){
+  if (!v.isChamp) return;
+  v.dir = v.baseDir; v.color = v.baseColor;
+  v.frames = loadFrames(v.dir);
+  v.isChamp = false;
+}
+// вызывается после каждого обновления _dbTop (и сразу после спавна нового
+// бойца) — синхронизирует, кто именно сейчас должен носить золото
+function syncChampionStatus(){
+  const newName = (_dbTop[0] && _dbTop[0].username) || null;
+  if (newName === _championName){
+    // лидер не поменялся, но он мог только что заспавниться — на всякий
+    // случай убеждаемся, что золото на нём, если он уже на ринге
+    if (newName){ const v = findRealFighter(newName); if (v) applyChampionSkin(v); }
+    return;
+  }
+  if (_championName){
+    const old = findRealFighter(_championName);
+    if (old) revertChampionSkin(old);
+  }
+  _championName = newName;
+  if (_championName){
+    const now = findRealFighter(_championName);
+    if (now) applyChampionSkin(now);
+  }
+}
 
 // ростер бойцов стартует ПУСТЫМ — реальные бойцы появляются по первому
 // лайку/донату конкретного зрителя (см. applyGrowth ниже); пока их <2 на
@@ -177,12 +218,14 @@ function applyGrowth(username, gain, isGift){
     const pos = spawnRingPos();
     v = {
       dir: skin.dir, name: username, color: skin.color, isBot: false,
+      baseDir: skin.dir, baseColor: skin.color, isChamp: false,
       stolenEnergy: 0, powerDecayAcc: 0,
     };
     v.energyMax = 0; v.energy = 0; v.powerMax = 0; v.power = 0;
     initFighterRuntime(v, pos.x, pos.y);
     VARIANTS.push(v);
   }
+  syncChampionStatus(); // если это чемпион только что заспавнился — сразу золото
 
   // любой лайк/донат — признак активности зрителя, сбрасывает таймер
   // бездействия (см. INACTIVITY_MS / decayInactivePower в update())
@@ -206,14 +249,17 @@ function applyGrowth(username, gain, isGift){
     v.power = v.powerMax;
     v.state = 'idle'; v.frameIdx = 0;
     v.x = pos.x; v.y = pos.y; v.tx = pos.x; v.ty = pos.y;
-    pushEvent(pick(REVIVE_LINES)(cleanNickForSpeech(v.name)), true);
+    pushEvent(v.isChamp ? pick(CHAMPION_ENTRANCE_LINES)(cleanNickForSpeech(v.name))
+                         : pick(REVIVE_LINES)(cleanNickForSpeech(v.name)), true);
   } else {
     v.energy += gainedEnergy;
     v.power  += gainedPower;
   }
 
-  if (isNew && !wasDown) pushEvent(pick(JOIN_LINES)(cleanNickForSpeech(v.name)), true);
-  else if (isGift && !wasDown) pushEvent(pick(GIFT_LINES)(cleanNickForSpeech(v.name)), true);
+  if (isNew && !wasDown) {
+    pushEvent(v.isChamp ? pick(CHAMPION_ENTRANCE_LINES)(cleanNickForSpeech(v.name))
+                         : pick(JOIN_LINES)(cleanNickForSpeech(v.name)), true);
+  } else if (isGift && !wasDown) pushEvent(pick(GIFT_LINES)(cleanNickForSpeech(v.name)), true);
   // обычный лайк на уже живого бойца — молча, диктор не озвучивает каждый лайк
 }
 
@@ -344,6 +390,16 @@ const REVIVE_LINES = [
   n=>`${n} поднялся с канвата и снова на ринге!`,
   n=>`Нашатырь подействовал — ${n} снова в деле!`,
   n=>`${n} не сдаётся! Возвращение на ринг!`,
+];
+// вход/возврат ТЕКУЩЕГО чемпиона ринга (#1 в all-time рейтинге отнятой
+// энергии) — вместо обычных JOIN/REVIVE фраз, звучит вне очереди (urgent)
+const CHAMPION_ENTRANCE_LINES = [
+  n=>`Чемпион ринга ${n} вышел на ринг! Бойтесь, бойцы!`,
+  n=>`На ринге чемпион — ${n}! Никому не поздоровится!`,
+  n=>`Чемпион ринга ${n} здесь! Пощады не будет!`,
+  n=>`Внимание, ринг! Чемпион ${n} возвращается! Дрожите!`,
+  n=>`Сам чемпион ринга ${n} выходит к канатам! Это будет разгром!`,
+  n=>`Тишина в зале! Чемпион ринга ${n} на ринге!`,
 ];
 
 // urgent=true — обрывает текущую фразу и говорит сразу (как donation-хайп
@@ -599,7 +655,7 @@ function wsConnect(username){
       if (d.type==='arena_like' && _gameMode==='tiktok') onLike(d.username);
       if (d.type==='arena_gift' && _gameMode==='tiktok') onGift(d.username, d.coins);
       if (d.type==='arena_cheat' && _gameMode==='tiktok') applyCheat(d.username, d.hp, d.damage);
-      if (d.type==='top_boxing') _dbTop = (d.data||[]).map(p=>({ username:p.username, stolen:p.total_stolen }));
+      if (d.type==='top_boxing') { _dbTop = (d.data||[]).map(p=>({ username:p.username, stolen:p.total_stolen })); syncChampionStatus(); }
       if (d.type==='arena_boxing_rating'){
         _showRating(d.rank
           ? `<span style="color:#FF6688;font-size:16px;font-weight:bold;">📊 @${d.username}<br><span style="color:#FFD700">#${d.rank} место · ⚡${d.stolen} отнятой энергии</span></span>`
@@ -632,7 +688,7 @@ function reportStolen(username, amount){
 let _dbTop = []; // [{username, stolen}]
 function fetchBoxingTop(){
   fetch('/top-boxing?limit=5').then(r=>r.json()).then(d=>{
-    if (d.ok && d.top) _dbTop = d.top.map(p=>({ username:p.username, stolen:p.total_stolen }));
+    if (d.ok && d.top) { _dbTop = d.top.map(p=>({ username:p.username, stolen:p.total_stolen })); syncChampionStatus(); }
   }).catch(()=>{});
 }
 fetchBoxingTop();
@@ -1124,11 +1180,25 @@ function drawFighter(v) {
   ctx.fillStyle = 'rgba(0,0,0,0.45)';
   ctx.fillRect(cx - nameW/2 - 6*s, labelY - 14*s, nameW + 12*s, 18*s);
 
-  ctx.fillStyle = v.alive ? v.color : '#888';
-  ctx.strokeStyle = 'rgba(0,0,0,0.95)';
-  ctx.lineWidth = 4.5;
-  ctx.strokeText(nameTxt, cx, labelY);
-  ctx.fillText(nameTxt, cx, labelY);
+  if (v.isChamp && v.alive){
+    // чемпион ринга — золотое свечение вокруг ника вместо обычного цвета
+    ctx.lineWidth = 4.5*s;
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = 'rgba(40,20,0,0.95)';
+    ctx.strokeText(nameTxt, cx, labelY);
+    ctx.shadowColor = '#ffcc33';
+    ctx.shadowBlur = 12*s;
+    ctx.fillStyle = '#fff2b0';
+    ctx.fillText(nameTxt, cx, labelY);
+    ctx.shadowBlur = 0;
+    ctx.fillText(nameTxt, cx, labelY);
+  } else {
+    ctx.fillStyle = v.alive ? v.color : '#888';
+    ctx.strokeStyle = 'rgba(0,0,0,0.95)';
+    ctx.lineWidth = 4.5;
+    ctx.strokeText(nameTxt, cx, labelY);
+    ctx.fillText(nameTxt, cx, labelY);
+  }
 
   // ⚡ Энергия и 💪 Сила — в стиле _drawLabels из arena3.html (сердечки убраны — Энергия теперь и есть здоровье)
   ctx.font = `bold ${13*s}px Arial`;
