@@ -292,6 +292,9 @@ class Room {
         // Arena game: any chat → try spawn if not on arena
         this.broadcast({ type: 'arena_member', username: data.username });
 
+        // Boxing Arena: любое сообщение в чате = как один лайк бойцу автора
+        this.broadcast({ type: 'arena_boxing_chat', username: data.username });
+
         // Arena game: team commands
         if (msgLower === 'team') {
           this.broadcast({ type: 'arena_team', team: 1, username: data.username });

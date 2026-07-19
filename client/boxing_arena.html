@@ -120,7 +120,7 @@ function syncChampionStatus(){
 const VARIANTS = [];
 
 // ── Геометрия экрана: плашка сверху, ринг ниже ──
-const PANEL_TOP = 14, PANEL_H = 236;
+const PANEL_TOP = 14, PANEL_H = 250;
 const WALL_TOP = PANEL_TOP + PANEL_H + 10;
 const FLOOR_TOP = 480, FLOOR_BOT = 1000;
 
@@ -682,6 +682,7 @@ function wsConnect(username){
         else setStatus('connecting', '⏳ @'+username+'…');
       }
       if (d.type==='arena_like' && _gameMode==='tiktok') onLike(d.username);
+      if (d.type==='arena_boxing_chat' && _gameMode==='tiktok') onLike(d.username);
       if (d.type==='arena_gift' && _gameMode==='tiktok') onGift(d.username, d.coins);
       if (d.type==='arena_cheat' && _gameMode==='tiktok') applyCheat(d.username, d.hp, d.damage);
       if (d.type==='top_boxing') { _dbTop = (d.data||[]).map(p=>({ username:p.username, stolen:p.total_stolen })); syncChampionStatus(); }
@@ -1070,6 +1071,13 @@ function drawHUD() {
   ctx.strokeStyle = hg; ctx.lineWidth = 1;
   ctx.beginPath(); ctx.moveTo(0,T+44); ctx.lineTo(CW,T+44); ctx.stroke();
 
+  // creator-подпись (как в arena3.html)
+  ctx.font = 'bold 11px Arial'; ctx.textAlign = 'center';
+  ctx.shadowColor = 'rgba(255,215,0,0.5)'; ctx.shadowBlur = 6;
+  ctx.fillStyle = 'rgba(255,215,0,0.55)';
+  ctx.fillText('🎮 creator: Leha Neploxo', CW/2, T+56);
+  ctx.shadowBlur = 0;
+
   const vg = ctx.createLinearGradient(0,T+48,0,T+TH-6);
   vg.addColorStop(0,'rgba(255,255,255,0)'); vg.addColorStop(0.3,'rgba(255,255,255,0.12)');
   vg.addColorStop(0.7,'rgba(255,255,255,0.12)'); vg.addColorStop(1,'rgba(255,255,255,0)');
@@ -1079,7 +1087,7 @@ function drawHUD() {
   // левая колонка — правила (только суть: лайк/монета/рейтинг)
   ctx.font = 'bold 11px Arial'; ctx.textAlign = 'left';
   ctx.fillStyle = 'rgba(255,255,255,0.38)';
-  ctx.fillText('КАК ИГРАТЬ:', 12, T+60);
+  ctx.fillText('КАК ИГРАТЬ:', 12, T+74);
 
   const rules = [
     { text: '👍 1 лайк = +10❤️ +1💪',       color: '#FF6688' },
@@ -1087,7 +1095,7 @@ function drawHUD() {
     { text: '💬 Напиши "rating" — узнаешь свой топ', color: '#8fffb0' },
     { text: '⏳ 15 мин тишины = 💪Сила -1/сек', color: '#ffa64d' },
   ];
-  const rY = T+96, rStep = 26;
+  const rY = T+110, rStep = 26;
   rules.forEach((r,i)=>{
     ctx.save();
     ctx.font = 'bold 15px Arial Black'; ctx.textAlign = 'left';
@@ -1131,15 +1139,15 @@ function drawHUD() {
   // правая колонка — топ по силе
   ctx.font = 'bold 12px Arial Black'; ctx.textAlign = 'center';
   ctx.strokeStyle = 'rgba(0,0,0,0.9)'; ctx.lineWidth = 3;
-  ctx.strokeText('🏆 TOP БОЙЦЫ 🏆', CW*0.75, T+60, CW/2-16);
-  ctx.fillStyle = '#ffd24f'; ctx.fillText('🏆 TOP БОЙЦЫ 🏆', CW*0.75, T+60, CW/2-16);
+  ctx.strokeText('🏆 TOP БОЙЦЫ 🏆', CW*0.75, T+74, CW/2-16);
+  ctx.fillStyle = '#ffd24f'; ctx.fillText('🏆 TOP БОЙЦЫ 🏆', CW*0.75, T+74, CW/2-16);
 
   // очки топа = отнятая энергия у противников (all-time, из отдельной БД —
   // _dbTop, не сбрасывается между боями/стримами), НЕ текущая сила/энергия боя
   const top = _dbTop.slice(0,5).map(p=>({ name:p.username, stolenEnergy:p.stolen }));
   const rankColors = ['#FFD700','#C0C0C0','#CD7F32','#AAAAAA','#666666'];
   const ranks = ['👑','2.','3.','4.','5.'];
-  const tX = CW/2 + 8, tY = T+88, tStep = 31;
+  const tX = CW/2 + 8, tY = T+102, tStep = 31;
   for (let i=0;i<top.length;i++){
     const p = top[i], y = tY + i*tStep;
     if (i===0){ ctx.fillStyle='rgba(255,215,0,0.08)'; ctx.fillRect(tX-4,y-21,CW/2-12,tStep-1); }
