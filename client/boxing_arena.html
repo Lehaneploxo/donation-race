@@ -413,7 +413,7 @@ const CHAMPION_ENTRANCE_LINES = [
 // следующей в очереди. protect=true — сама эта фраза, начав звучать,
 // тоже не может быть оборвана (используется для входа чемпиона и правил)
 function pushEvent(text, urgent, protect){
-  const item = { text, protected: !!protect };
+  const item = { text, protected: !!protect, ts: Date.now() };
   if (urgent){
     if (!vProtected){
       if (window.speechSynthesis) window.speechSynthesis.cancel();
@@ -432,8 +432,16 @@ function estimateSpeechMs(text){
   return Math.min(7000, Math.max(2200, text.length*75));
 }
 
+// событие, простоявшее в очереди дольше этого — уже не актуально (то, что
+// оно описывало, случилось секунд 10+ назад), озвучивать его не нужно,
+// просто выкидываем и берём следующее
+const SPEECH_STALE_MS = 10000;
+
 function vSpeakNext(){
   if (vSpeaking) return;
+  while (vQueue.length && Date.now() - vQueue[0].ts > SPEECH_STALE_MS){
+    vQueue.shift();
+  }
   if (vQueue.length===0){ vScheduleQuiet(); return; }
   clearTimeout(vQuietTimer);
   const item = vQueue.shift();
@@ -463,8 +471,7 @@ function vScheduleQuiet(){
   clearTimeout(vQuietTimer);
   vQuietTimer = setTimeout(()=>{
     if (vSpeaking || vQueue.length>0) return;
-    vQueue.push(nextQuietPhrase());
-    vSpeakNext();
+    pushEvent(nextQuietPhrase());
   }, 10000);
 }
 
