@@ -264,6 +264,17 @@ function applyGrowth(username, gain, isGift){
 }
 
 function onLike(username){ applyGrowth(username, { likeEnergy:10, likePower:1 }, false); }
+
+// ── Команда "Team" в чате: тумблер красного флажка — пока боец жив, свои
+// с флажком друг друга не бьют. Флаг слетает автоматически при нокауте
+// (см. v.eliminated=true в update()), раунды на него не влияют. Боты в
+// команду вступать не могут — findRealFighter ищет только реальных.
+function toggleTeam(username){
+  const v = findRealFighter(username);
+  if (!v || !v.alive || v.eliminated) return;
+  v.team = !v.team;
+  pushEvent(pick(v.team ? TEAM_JOIN_LINES : TEAM_LEAVE_LINES)(cleanNickForSpeech(v.name)), true);
+}
 function onGift(username, coins){
   coins = Math.max(1, Math.floor(Number(coins)||1));
   applyGrowth(username, { giftEnergy:100*coins, giftPower:10*coins }, true);
@@ -395,6 +406,14 @@ const REVIVE_LINES = [
   n=>`${n} поднялся с канвата и снова на ринге!`,
   n=>`Нашатырь подействовал — ${n} снова в деле!`,
   n=>`${n} не сдаётся! Возвращение на ринг!`,
+];
+const TEAM_JOIN_LINES = [
+  n=>`🚩 ${n} вступает в команду! Свои теперь не бьют своих!`,
+  n=>`🚩 ${n} поднимает красный флаг — теперь он в команде!`,
+];
+const TEAM_LEAVE_LINES = [
+  n=>`🚩 ${n} выходит из команды — снова сам за себя!`,
+  n=>`🚩 ${n} сорвал флаг — команда потеряла бойца!`,
 ];
 // вход/возврат ТЕКУЩЕГО чемпиона ринга (#1 в all-time рейтинге отнятой
 // энергии) — вместо обычных JOIN/REVIVE фраз, звучит вне очереди (urgent)
@@ -683,6 +702,7 @@ function wsConnect(username){
       }
       if (d.type==='arena_like' && _gameMode==='tiktok') onLike(d.username);
       if (d.type==='arena_boxing_chat' && _gameMode==='tiktok') onLike(d.username);
+      if (d.type==='arena_team' && _gameMode==='tiktok') toggleTeam(d.username);
       if (d.type==='arena_gift' && _gameMode==='tiktok') onGift(d.username, d.coins);
       if (d.type==='arena_cheat' && _gameMode==='tiktok') applyCheat(d.username, d.hp, d.damage);
       if (d.type==='top_boxing') { _dbTop = (d.data||[]).map(p=>({ username:p.username, stolen:p.total_stolen })); syncChampionStatus(); }
@@ -1087,18 +1107,16 @@ function drawHUD() {
   ctx.strokeStyle = vg;
   ctx.beginPath(); ctx.moveTo(CW/2,T+72); ctx.lineTo(CW/2,T+TH-6); ctx.stroke();
 
-  // левая колонка — правила (только суть: лайк/монета/рейтинг)
-  ctx.font = 'bold 15px Arial'; ctx.textAlign = 'left';
-  ctx.fillStyle = 'rgba(255,255,255,0.45)';
-  ctx.fillText('КАК ИГРАТЬ:', 12, T+80);
-
+  // левая колонка — правила (только суть: лайк/монета/рейтинг/команда);
+  // заголовок "КАК ИГРАТЬ:" убран, чтобы освободить место под строку Team
   const rules = [
     { text: '👍 1 лайк = +10❤️ +1💪',       color: '#FF6688' },
     { text: '🎁 1 монета = +100❤️ +10💪',   color: '#FFD700' },
     { text: '💬 Напиши "rating" — узнаешь свой топ', color: '#8fffb0' },
+    { text: '🚩 Напиши "Team" — заходи в команду', color: '#ff5566' },
     { text: '⏳ 15 мин тишины = 💪Сила -1/сек', color: '#ffa64d' },
   ];
-  const rY = T+108, rStep = 26;
+  const rY = T+82, rStep = 26;
   // буквы "растянуты" по высоте: берём шрифт покрупнее и сжимаем его по
   // ширине через ctx.scale(sx,1) — так же, как сделано в arena2/arena3 —
   // ширина остаётся в рамках левой колонки (не вылезает на топ-список),
@@ -1349,7 +1367,7 @@ function drawFighter(v) {
 
   ctx.textAlign = 'center';
   ctx.font = `bold ${16*s}px Arial Black`;
-  const tag = v.isBot ? '🤖' : '';
+  const tag = (v.team ? '🚩' : '') + (v.isBot ? '🤖' : '');
   const nameTxt = v.alive ? tag+v.name : tag+v.name+' 💤';
 
   // тёмная подложка под ником — читаемость не зависит от цвета фона за спиной
@@ -1598,7 +1616,7 @@ function update(dt){
     if (!v.alive){
       if (!v.eliminated){
         v.koTimer -= dt;
-        if (v.koTimer<=0) v.eliminated = true; // исчезает с ринга насовсем (до конца раунда)
+        if (v.koTimer<=0){ v.eliminated = true; v.team = false; } // исчезает с ринга насовсем (до конца раунда), флажок команды слетает
       }
       continue;
     }
@@ -1673,6 +1691,7 @@ function update(dt){
     for (let j=i+1;j<VARIANTS.length;j++){
       const b = VARIANTS[j];
       if (!b.alive || b.punchCooldown>0) continue;
+      if (a.team && b.team) continue; // свои с красным флажком друг друга не бьют
       if (Math.hypot(a.x-b.x, a.y-b.y) < FIGHT_DIST) startExchange(a,b);
     }
   }
