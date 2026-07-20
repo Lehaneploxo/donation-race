@@ -1071,23 +1071,26 @@ function drawHUD() {
   ctx.strokeStyle = hg; ctx.lineWidth = 1;
   ctx.beginPath(); ctx.moveTo(0,T+44); ctx.lineTo(CW,T+44); ctx.stroke();
 
-  // creator-подпись (как в arena3.html)
-  ctx.font = 'bold 11px Arial'; ctx.textAlign = 'center';
-  ctx.shadowColor = 'rgba(255,215,0,0.5)'; ctx.shadowBlur = 6;
-  ctx.fillStyle = 'rgba(255,215,0,0.55)';
-  ctx.fillText('🎮 creator: Leha Neploxo', CW/2, T+56);
+  // creator-подпись (как в arena3.html) — увеличена по максимуму в рамках
+  // существующей плашки (без изменения PANEL_H/размера ринга)
+  ctx.font = 'bold 26px Arial Black'; ctx.textAlign = 'center';
+  ctx.shadowColor = 'rgba(255,215,0,0.55)'; ctx.shadowBlur = 10;
+  ctx.strokeStyle = 'rgba(0,0,0,0.65)'; ctx.lineWidth = 3;
+  ctx.strokeText('🎮 creator: Leha Neploxo', CW/2, T+62, CW-20);
+  ctx.fillStyle = 'rgba(255,215,0,0.75)';
+  ctx.fillText('🎮 creator: Leha Neploxo', CW/2, T+62, CW-20);
   ctx.shadowBlur = 0;
 
-  const vg = ctx.createLinearGradient(0,T+48,0,T+TH-6);
+  const vg = ctx.createLinearGradient(0,T+72,0,T+TH-6);
   vg.addColorStop(0,'rgba(255,255,255,0)'); vg.addColorStop(0.3,'rgba(255,255,255,0.12)');
   vg.addColorStop(0.7,'rgba(255,255,255,0.12)'); vg.addColorStop(1,'rgba(255,255,255,0)');
   ctx.strokeStyle = vg;
-  ctx.beginPath(); ctx.moveTo(CW/2,T+48); ctx.lineTo(CW/2,T+TH-6); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(CW/2,T+72); ctx.lineTo(CW/2,T+TH-6); ctx.stroke();
 
   // левая колонка — правила (только суть: лайк/монета/рейтинг)
-  ctx.font = 'bold 11px Arial'; ctx.textAlign = 'left';
-  ctx.fillStyle = 'rgba(255,255,255,0.38)';
-  ctx.fillText('КАК ИГРАТЬ:', 12, T+74);
+  ctx.font = 'bold 15px Arial'; ctx.textAlign = 'left';
+  ctx.fillStyle = 'rgba(255,255,255,0.45)';
+  ctx.fillText('КАК ИГРАТЬ:', 12, T+80);
 
   const rules = [
     { text: '👍 1 лайк = +10❤️ +1💪',       color: '#FF6688' },
@@ -1095,14 +1098,24 @@ function drawHUD() {
     { text: '💬 Напиши "rating" — узнаешь свой топ', color: '#8fffb0' },
     { text: '⏳ 15 мин тишины = 💪Сила -1/сек', color: '#ffa64d' },
   ];
-  const rY = T+110, rStep = 26;
+  const rY = T+108, rStep = 26;
+  // буквы "растянуты" по высоте: берём шрифт покрупнее и сжимаем его по
+  // ширине через ctx.scale(sx,1) — так же, как сделано в arena2/arena3 —
+  // ширина остаётся в рамках левой колонки (не вылезает на топ-список),
+  // а сама плашка не увеличивается
+  const ruleFont = 'bold 22px Arial Black';
+  const ruleAvailW = CW/2 - 16;
+  ctx.font = ruleFont;
+  let ruleScaleX = 1;
+  rules.forEach(r => { ruleScaleX = Math.min(ruleScaleX, ruleAvailW / ctx.measureText(r.text).width); });
   rules.forEach((r,i)=>{
     ctx.save();
-    ctx.font = 'bold 15px Arial Black'; ctx.textAlign = 'left';
-    ctx.strokeStyle = 'rgba(0,0,0,0.85)'; ctx.lineWidth = 3;
-    ctx.strokeText(r.text, 8, rY + i*rStep, CW/2 - 10);
+    ctx.scale(ruleScaleX, 1);
+    ctx.font = ruleFont; ctx.textAlign = 'left';
+    ctx.strokeStyle = 'rgba(0,0,0,0.85)'; ctx.lineWidth = 3.5;
+    ctx.strokeText(r.text, 8/ruleScaleX, rY + i*rStep);
     ctx.fillStyle = r.color;
-    ctx.fillText(r.text, 8, rY + i*rStep, CW/2 - 10);
+    ctx.fillText(r.text, 8/ruleScaleX, rY + i*rStep);
     ctx.restore();
   });
 
@@ -1122,32 +1135,37 @@ function drawHUD() {
   ctx.fillStyle = roundTimer < 30000 ? '#ff5566' : '#8fffb0';
   ctx.fillText(timeLabel, 8, roundY+30, CW/2-10);
 
-  // телеграм-чат — правее раунда/времени, там ещё есть свободное место
-  // в левой колонке до вертикального разделителя
+  // телеграм-чат — правее раунда/времени, в отдельной рамке-плашке, чтобы
+  // было явно видно, что это самостоятельный блок, а не часть раунда/таймера
+  const tgBoxX = 134, tgBoxY = roundY - 22, tgBoxW = CW/2 - tgBoxX - 4, tgBoxH = 50;
+  roundRectPath(tgBoxX, tgBoxY, tgBoxW, tgBoxH, 7);
+  ctx.fillStyle = 'rgba(79,195,255,0.10)'; ctx.fill();
+  ctx.strokeStyle = 'rgba(79,195,255,0.55)'; ctx.lineWidth = 1.5; ctx.stroke();
+
   ctx.textAlign = 'right';
   ctx.font = 'bold 11px Arial Black';
   ctx.strokeStyle = 'rgba(0,0,0,0.85)'; ctx.lineWidth = 3;
-  ctx.strokeText('📱 ТЕЛЕГРАМ ЧАТ', CW/2-8, roundY-2, CW/2-150);
+  ctx.strokeText('📱 ТЕЛЕГРАМ ЧАТ', CW/2-8, roundY-2, tgBoxW-12);
   ctx.fillStyle = '#4fc3ff';
-  ctx.fillText('📱 ТЕЛЕГРАМ ЧАТ', CW/2-8, roundY-2, CW/2-150);
+  ctx.fillText('📱 ТЕЛЕГРАМ ЧАТ', CW/2-8, roundY-2, tgBoxW-12);
 
   ctx.font = 'bold 17px Arial Black';
-  ctx.strokeText('boxingarena1', CW/2-8, roundY+22, CW/2-150);
+  ctx.strokeText('boxingarena1', CW/2-8, roundY+22, tgBoxW-12);
   ctx.fillStyle = '#7fd3ff';
-  ctx.fillText('boxingarena1', CW/2-8, roundY+22, CW/2-150);
+  ctx.fillText('boxingarena1', CW/2-8, roundY+22, tgBoxW-12);
 
   // правая колонка — топ по силе
   ctx.font = 'bold 12px Arial Black'; ctx.textAlign = 'center';
   ctx.strokeStyle = 'rgba(0,0,0,0.9)'; ctx.lineWidth = 3;
-  ctx.strokeText('🏆 TOP БОЙЦЫ 🏆', CW*0.75, T+74, CW/2-16);
-  ctx.fillStyle = '#ffd24f'; ctx.fillText('🏆 TOP БОЙЦЫ 🏆', CW*0.75, T+74, CW/2-16);
+  ctx.strokeText('🏆 TOP БОЙЦЫ 🏆', CW*0.75, T+80, CW/2-16);
+  ctx.fillStyle = '#ffd24f'; ctx.fillText('🏆 TOP БОЙЦЫ 🏆', CW*0.75, T+80, CW/2-16);
 
   // очки топа = отнятая энергия у противников (all-time, из отдельной БД —
   // _dbTop, не сбрасывается между боями/стримами), НЕ текущая сила/энергия боя
   const top = _dbTop.slice(0,5).map(p=>({ name:p.username, stolenEnergy:p.stolen }));
   const rankColors = ['#FFD700','#C0C0C0','#CD7F32','#AAAAAA','#666666'];
   const ranks = ['👑','2.','3.','4.','5.'];
-  const tX = CW/2 + 8, tY = T+102, tStep = 31;
+  const tX = CW/2 + 8, tY = T+108, tStep = 29;
   for (let i=0;i<top.length;i++){
     const p = top[i], y = tY + i*tStep;
     if (i===0){ ctx.fillStyle='rgba(255,215,0,0.08)'; ctx.fillRect(tX-4,y-21,CW/2-12,tStep-1); }
