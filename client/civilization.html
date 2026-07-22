@@ -19,20 +19,18 @@ canvas { display:block; }
 #leaderboard { position:absolute; top:148px; left:8px; display:flex; flex-direction:column; gap:6px; pointer-events:none; max-width:175px; }
 .lb-king { background:rgba(0,0,0,0.88); border-radius:10px; padding:8px 12px; border:2.5px solid #FFD700; font-family:'Segoe UI',sans-serif; }
 .lb-king-title { font-size:13px; font-weight:900; color:#FFD700; letter-spacing:1.5px; margin-bottom:3px; text-shadow:0 0 8px #FFD700; }
-.lb-king-name { font-size:18px; font-weight:900; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:155px; text-shadow:0 1px 4px rgba(0,0,0,1); }
+.lb-king-name { font-size:22px; font-weight:900; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:170px; text-shadow:0 1px 4px rgba(0,0,0,1); }
 .lb-king-count { font-size:14px; font-weight:700; color:rgba(255,255,255,0.9); margin-top:2px; text-shadow:0 1px 3px rgba(0,0,0,1); }
 .lb-row { background:rgba(0,0,0,0.82); border-radius:8px; padding:6px 10px; font-family:'Segoe UI',sans-serif; display:flex; align-items:center; gap:6px; border-left:4px solid #888; }
 .lb-rank { font-size:15px; font-weight:900; min-width:16px; text-shadow:0 0 6px currentColor; }
-.lb-nick { font-size:14px; font-weight:800; color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100px; text-shadow:0 1px 3px rgba(0,0,0,1); }
+.lb-nick { font-size:17px; font-weight:800; color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:115px; text-shadow:0 1px 3px rgba(0,0,0,1); }
 .lb-cnt  { font-size:13px; font-weight:700; color:rgba(255,255,255,0.85); margin-left:auto; white-space:nowrap; text-shadow:0 1px 3px rgba(0,0,0,1); }
 #bottomBar { position:absolute; bottom:0; left:0; right:0; background:linear-gradient(0deg,rgba(0,0,0,0.8) 0%,rgba(0,0,0,0) 100%); padding:18px 14px 12px; }
 #disasterMsg { font-size:32px; font-weight:900; text-align:center; color:#FF4444; text-shadow:0 0 24px #FF0000,0 2px 6px rgba(0,0,0,1); display:none; animation:shake 0.15s infinite alternate; letter-spacing:2px; }
 @keyframes shake { from{transform:translateX(-4px)} to{transform:translateX(4px)} }
-#likeBarWrap { height:12px; background:rgba(0,0,0,0.5); border-radius:8px; overflow:hidden; margin-top:5px; border:1px solid rgba(255,255,255,0.2); }
-#likeFill { height:100%; background:linear-gradient(90deg,#FF44AA,#FF0044,#FF6600); border-radius:8px; transition:width 0.15s; }
-#likeLabel { font-size:19px; font-weight:900; color:#FF8888; font-family:'Arial Black',Arial,sans-serif; text-align:center; margin-top:4px; text-shadow:0 0 10px rgba(255,80,80,0.6),0 2px 4px rgba(0,0,0,1); letter-spacing:0.5px; }
 #connMsg { position:absolute; bottom:50px; left:50%; transform:translateX(-50%); font-size:14px; font-weight:700; color:rgba(255,255,255,0.6); font-family:'Segoe UI',sans-serif; text-align:center; white-space:nowrap; text-shadow:0 1px 4px rgba(0,0,0,1); }
 #fsBtn { position:fixed; z-index:99999; top:50%; right:10px; transform:translateY(-50%); width:26px; height:26px; font-size:12px; background:rgba(0,0,0,0.55); color:rgba(255,255,255,0.55); border:1px solid rgba(255,255,255,0.2); border-radius:6px; cursor:pointer; display:flex; align-items:center; justify-content:center; }
+#voiceBtn { position:fixed; z-index:99999; top:calc(50% - 40px); right:10px; width:26px; height:26px; font-size:12px; background:rgba(0,0,0,0.55); color:rgba(255,255,255,0.55); border:1px solid rgba(255,255,255,0.2); border-radius:6px; cursor:pointer; display:flex; align-items:center; justify-content:center; }
 #coinHint {
   position:absolute; top:148px; right:10px;
   background:rgba(0,0,0,0.82); border-radius:10px;
@@ -44,17 +42,16 @@ canvas { display:block; }
 </style>
 </head>
 <body>
-<button id="fsBtn" title="Fullscreen">⛶</button>
+<button id="fsBtn" title="Полный экран">⛶</button>
+<button id="voiceBtn" title="Озвучка">🔇</button>
 <div id="scaleWrapper">
   <canvas id="cvs" width="563" height="1000"></canvas>
   <div id="uiOverlay">
     <div id="topBar">
-      <div id="eraLabel">🦕 PRIMITIVE ERA</div>
-      <div id="eraYear">20,000 BC</div>
-      <div id="popLabel">Population: 0 / 200</div>
+      <div id="eraLabel">🦕 ПЕРВОБЫТНАЯ ЭРА</div>
+      <div id="eraYear">20 000 лет до н.э.</div>
+      <div id="popLabel">Население: 0 / 200</div>
       <div id="popBarWrap"><div id="popBar" style="width:0%"></div></div>
-      <div id="likeBarWrap"><div id="likeFill" style="width:0%"></div></div>
-      <div id="likeLabel">❤️ 0 / 1000 until disaster</div>
     </div>
     <div id="leaderboard"></div>
     <div id="coinHint">
@@ -153,12 +150,12 @@ const W=563,H=1000,GND=145,SEA_Y=H-88;
 
 // ── Eras ──────────────────────────────────────────────────────────────────────
 const ERAS=[
-  {name:'🦕 PRIMITIVE ERA',    year:'20,000 BC', minPop:0,    maxPop:200,  skyT:'#1a1200',skyB:'#6b3a00',gndT:'#5a3a10',gndM:'#6a4820',gndB:'#3d2808'},
-  {name:'🏛️ ANCIENT GREECE',   year:'3,000 BC',  minPop:200,  maxPop:500,  skyT:'#0a1a3d',skyB:'#1a4a8a',gndT:'#8B9B5A',gndM:'#6B7B3A',gndB:'#4d5e2a'},
-  {name:'⚔️ MIDDLE AGES',      year:'900 AD',    minPop:500,  maxPop:1000, skyT:'#080a18',skyB:'#1a2040',gndT:'#3d4820',gndM:'#4a5828',gndB:'#252d12'},
-  {name:'🎩 INDUSTRIAL AGE',   year:'1700 AD',   minPop:1000, maxPop:3000, skyT:'#1a1a2e',skyB:'#2d3d5a',gndT:'#405530',gndM:'#506040',gndB:'#283520'},
-  {name:'🏙️ MODERN ERA',       year:'2025 AD',   minPop:3000, maxPop:5000, skyT:'#000818',skyB:'#0a1a30',gndT:'#303838',gndM:'#404848',gndB:'#1a2020'},
-  {name:'🚀 THE FUTURE',       year:'2150 AD',   minPop:5000, maxPop:9999, skyT:'#000005',skyB:'#050018',gndT:'#0a0a20',gndM:'#101030',gndB:'#050510'},
+  {name:'🦕 ПЕРВОБЫТНАЯ ЭРА',      year:'20 000 лет до н.э.', minPop:0,    maxPop:200,  skyT:'#1a1200',skyB:'#6b3a00',gndT:'#5a3a10',gndM:'#6a4820',gndB:'#3d2808'},
+  {name:'🏛️ ДРЕВНЯЯ ГРЕЦИЯ',       year:'3000 лет до н.э.',   minPop:200,  maxPop:500,  skyT:'#0a1a3d',skyB:'#1a4a8a',gndT:'#8B9B5A',gndM:'#6B7B3A',gndB:'#4d5e2a'},
+  {name:'⚔️ СРЕДНИЕ ВЕКА',         year:'900 год',            minPop:500,  maxPop:1000, skyT:'#080a18',skyB:'#1a2040',gndT:'#3d4820',gndM:'#4a5828',gndB:'#252d12'},
+  {name:'🎩 ИНДУСТРИАЛЬНАЯ ЭРА',   year:'1700 год',           minPop:1000, maxPop:3000, skyT:'#1a1a2e',skyB:'#2d3d5a',gndT:'#405530',gndM:'#506040',gndB:'#283520'},
+  {name:'🏙️ НАШЕ ВРЕМЯ',           year:'2025 год',           minPop:3000, maxPop:5000, skyT:'#000818',skyB:'#0a1a30',gndT:'#303838',gndM:'#404848',gndB:'#1a2020'},
+  {name:'🚀 БУДУЩЕЕ',              year:'2150 год',           minPop:5000, maxPop:9999, skyT:'#000005',skyB:'#050018',gndT:'#0a0a20',gndM:'#101030',gndB:'#050510'},
 ];
 const ERA_VARIANTS=[4,4,6,6,6,5];
 
@@ -184,15 +181,16 @@ function drawTerrain(ei){
   tx.bezierCurveTo(142,GND-12,282,GND+10,422,GND-8);
   tx.bezierCurveTo(472,GND-10,530,GND+6,W,GND);
   tx.lineTo(W,H);tx.lineTo(0,H);tx.closePath();tx.fill();
-  if(ei<=4){for(let gy=GND+20;gy<SEA_Y;gy+=38){tx.fillStyle='rgba(60,120,10,0.10)';tx.fillRect(0,gy,W,7);}}
-  else{tx.strokeStyle='rgba(0,180,255,0.07)';tx.lineWidth=1;for(let gx=0;gx<W;gx+=38){tx.beginPath();tx.moveTo(gx,GND);tx.lineTo(gx,SEA_Y);tx.stroke();}for(let gy=GND;gy<SEA_Y;gy+=38){tx.beginPath();tx.moveTo(0,gy);tx.lineTo(W,gy);tx.stroke();}}
-  if(ei<5){const alpha=ei===4?0.55:0.72;const rcol=ei===1?`rgba(55,135,220,${alpha})`:`rgba(45,105,175,${alpha})`;tx.strokeStyle=rcol;tx.lineWidth=13;tx.lineCap='round';tx.beginPath();tx.moveTo(432,GND+5);tx.bezierCurveTo(382,GND+188,302,GND+277,252,GND+399);tx.bezierCurveTo(202,GND+521,162,GND+627,108,GND+805);tx.stroke();tx.strokeStyle='rgba(255,255,255,0.15)';tx.lineWidth=3;tx.beginPath();tx.moveTo(430,GND+7);tx.bezierCurveTo(380,GND+190,300,GND+279,250,GND+401);tx.bezierCurveTo(200,GND+523,160,GND+629,106,GND+807);tx.stroke();}
+  drawMountains(tx,ei);
+  drawGroundTexture(tx,ei);
   drawNature(tx,ei);
+  drawWorldDecor(tx,ei);
 }
 
 // ── Nature ────────────────────────────────────────────────────────────────────
-const TREE_POS=[[22,178],[540,172],[28,248],[536,242],[16,320],[548,314],[24,400],[540,392],[20,480],[544,472],[26,560],[538,553],[18,640],[546,632],[22,720],[540,712],[88,192],[180,185],[310,180],[430,188],[500,195],[70,295],[200,285],[340,278],[460,290],[520,300],[55,420],[170,412],[290,408],[420,415],[510,425],[100,550],[240,542],[380,538],[490,548],[130,670],[270,662],[410,658],[160,780],[300,774],[440,768]];
-const ROCK_POS=[[382,212],[178,230],[422,390],[138,372],[362,522],[198,512],[300,650],[450,640],[120,760],[400,755]];
+const TREE_POS=[[22,178],[540,172],[28,248],[536,242],[16,320],[548,314],[24,400],[540,392],[20,480],[544,472],[26,560],[538,553],[18,640],[546,632],[22,720],[540,712],[88,192],[180,185],[310,180],[430,188],[500,195],[70,295],[200,285],[340,278],[460,290],[520,300],[55,420],[170,412],[290,408],[420,415],[510,425],[100,550],[240,542],[380,538],[490,548],[130,670],[270,662],[410,658],[160,780],[300,774],[440,768],
+  [45,220],[510,225],[110,340],[470,345],[60,460],[500,465],[140,600],[440,605],[80,700],[480,700],[200,740],[350,745]];
+const ROCK_POS=[[382,212],[178,230],[422,390],[138,372],[362,522],[198,512],[300,650],[450,640],[120,760],[400,755],[250,300],[330,470]];
 function drawTreePrim(c,x,y){c.fillStyle='#5a3a10';c.fillRect(x-3,y-22,6,22);c.fillStyle='#2d5a10';c.beginPath();c.arc(x,y-28,16,0,Math.PI*2);c.fill();c.fillStyle='#3a6a18';c.beginPath();c.arc(x-5,y-22,10,0,Math.PI*2);c.fill();}
 function drawTreeConifer(c,x,y){c.fillStyle='#4a3010';c.fillRect(x-2,y-18,5,18);c.fillStyle='#1a4a10';[[36,y-18],[28,y-28],[20,y-38]].forEach(([w,ty])=>{c.beginPath();c.moveTo(x-w/2,ty+12);c.lineTo(x,ty);c.lineTo(x+w/2,ty+12);c.closePath();c.fill();});}
 function drawTreeBroad(c,x,y){c.fillStyle='#5a3a15';c.fillRect(x-3,y-24,6,24);c.fillStyle='#2a5a18';c.beginPath();c.ellipse(x,y-30,14,18,0,0,Math.PI*2);c.fill();c.fillStyle='#3a7020';c.beginPath();c.ellipse(x-6,y-24,10,12,0,0,Math.PI*2);c.fill();c.beginPath();c.ellipse(x+6,y-26,9,11,0,0,Math.PI*2);c.fill();}
@@ -200,9 +198,166 @@ function drawTreeModern(c,x,y){c.fillStyle='#303830';c.fillRect(x-2,y-20,5,20);c
 function drawCrystal(c,x,y){c.strokeStyle='rgba(0,200,255,0.6)';c.lineWidth=1;c.fillStyle='rgba(0,100,180,0.3)';c.beginPath();c.moveTo(x,y-28);c.lineTo(x-8,y);c.lineTo(x+8,y);c.closePath();c.fill();c.stroke();}
 function drawRock(c,x,y,ei){c.fillStyle=ei>=4?'#303838':'#706050';c.beginPath();c.ellipse(x,y,9,5,0,0,Math.PI*2);c.fill();}
 function drawNature(c,ei){
-  if(ei===5){TREE_POS.forEach(([x,y],i)=>{if(i%2===0)drawCrystal(c,x,y);});return;}
-  TREE_POS.forEach(([x,y])=>{if(ei===0)drawTreePrim(c,x,y);else if(ei<=2)drawTreeConifer(c,x,y);else if(ei===3)drawTreeBroad(c,x,y);else drawTreeModern(c,x,y);});
+  const treeFn = ei===0?drawTreePrim : ei<=2?drawTreeConifer : ei===3?drawTreeBroad : ei===4?drawTreeModern : drawCrystal;
+  // дальний слой — мельче, тусклее, гуще у горизонта (глубина)
+  c.save();c.globalAlpha=0.55;
+  for(let i=0;i<26;i++){
+    const x=20+prand(ei*300+i)*(W-40);
+    const y=GND+40+prand(ei*300+i+50)*160;
+    const s=0.45+prand(ei*300+i+99)*0.25;
+    c.save();c.translate(x,y);c.scale(s,s);treeFn(c,0,0);c.restore();
+  }
+  c.restore();
+  // ближний слой — крупнее, с вариативным масштабом (не однообразные клоны)
+  TREE_POS.forEach(([x,y],i)=>{
+    const s=0.85+prand(ei*700+i)*0.55;
+    c.save();c.translate(x,y);c.scale(s,s);treeFn(c,0,0);c.restore();
+  });
   ROCK_POS.forEach(([x,y])=>drawRock(c,x,y,ei));
+}
+
+// ── Горы на горизонте (2 слоя, параллакс) ──────────────────────────────────────
+function drawMountains(c,ei){
+  function ridge(baseY,amp,seedOff,col,alpha){
+    c.save();c.globalAlpha=alpha;c.fillStyle=col;
+    c.beginPath();c.moveTo(0,baseY);
+    const pts=14;
+    for(let i=0;i<=pts;i++){
+      const x=i*(W/pts);
+      const h=amp*(0.4+0.6*Math.abs(Math.sin(i*1.7+seedOff)))+prand(seedOff*50+i)*amp*0.35;
+      c.lineTo(x,baseY-h);
+    }
+    c.lineTo(W,baseY);c.closePath();c.fill();
+    c.restore();
+  }
+  const far = ei===5?'#2a1a55': ei>=3?'#3a4a68':'#3a5a78';
+  const near= ei===5?'#180d33': ei>=3?'#26324a':'#254a3a';
+  ridge(GND+6, 58, ei*13+2, far, 0.55);
+  ridge(GND+6, 40, ei*13+9, near, 0.8);
+}
+
+// ── Текстура земли: трава/тропинки/трещины/энергожилы (без реки) ──────────────
+function drawGroundTexture(c,ei){
+  if(ei===5){
+    // будущее — органические светящиеся "энергожилы", без сетки/квадратов
+    for(let v=0;v<7;v++){
+      const sx=prand(v*31)*W, sy=GND+40+prand(v*31+1)*(SEA_Y-GND-80);
+      c.strokeStyle='rgba(0,200,255,0.16)';c.lineWidth=2.2;c.lineCap='round';
+      c.beginPath();c.moveTo(sx,sy);
+      let px=sx,py=sy;
+      for(let k=0;k<5;k++){
+        const nx=px+(prand(v*31+k*3)-0.5)*140, ny=py+40+prand(v*31+k*3+1)*60;
+        c.quadraticCurveTo(px+(nx-px)*0.5+(prand(v*7+k)-0.5)*30, py+(ny-py)*0.5, nx, ny);
+        px=nx;py=ny;
+      }
+      c.stroke();
+    }
+    for(let i=0;i<34;i++){const x=prand(i*7)*W,y=GND+prand(i*7+1)*(SEA_Y-GND);
+      c.fillStyle='rgba(0,220,255,0.35)';c.beginPath();c.arc(x,y,1.4,0,Math.PI*2);c.fill();}
+    return;
+  }
+  if(ei===4){
+    // современный асфальт/тротуар — редкие продольные швы (не сетка) + крапинки + люки
+    c.strokeStyle='rgba(255,255,255,0.05)';c.lineWidth=1;
+    for(let gy=GND+80;gy<SEA_Y;gy+=140){c.beginPath();c.moveTo(0,gy);c.lineTo(W,gy);c.stroke();}
+    c.fillStyle='rgba(0,0,0,0.12)';
+    for(let i=0;i<90;i++){const x=prand(i*4)*W,y=GND+prand(i*4+1)*(SEA_Y-GND);c.beginPath();c.arc(x,y,0.8,0,Math.PI*2);c.fill();}
+    c.strokeStyle='rgba(0,0,0,0.16)';c.lineWidth=1;
+    for(let i=0;i<8;i++){const x=prand(i*11)*W,y=GND+prand(i*11+3)*(SEA_Y-GND);
+      c.beginPath();c.moveTo(x,y);c.lineTo(x+10+prand(i)*20,y+6+prand(i+1)*14);c.lineTo(x+4+prand(i+2)*16,y+18+prand(i+3)*10);c.stroke();}
+    for(let i=0;i<4;i++){const x=60+prand(i*17)*(W-120),y=GND+80+prand(i*17+1)*(SEA_Y-GND-160);
+      c.fillStyle='#3a3a3a';c.beginPath();c.ellipse(x,y,10,4,0,0,Math.PI*2);c.fill();
+      c.strokeStyle='#222';c.lineWidth=1;c.stroke();}
+    return;
+  }
+  // трава / грунт
+  const bladeCol = ei===0?'rgba(90,70,30,0.35)':'rgba(40,90,20,0.35)';
+  for(let i=0;i<220;i++){
+    const bx=prand(i*3+ei*90)*W;
+    const by=GND+20+prand(i*3+1+ei*90)*(SEA_Y-GND-40);
+    const h=4+prand(i*3+2)*6;
+    c.strokeStyle=bladeCol;c.lineWidth=0.8;
+    c.beginPath();c.moveTo(bx,by);c.lineTo(bx+prand(i)*3-1.5,by-h);c.stroke();
+  }
+  if(ei>=1&&ei<=3){
+    const flowers=['#ff6688','#ffdd44','#ffffff','#cc88ff'];
+    for(let i=0;i<24;i++){
+      const x=30+prand(i*5+ei)*(W-60), y=GND+60+prand(i*5+1+ei)*(SEA_Y-GND-120);
+      c.fillStyle=flowers[i%4];c.globalAlpha=0.75;
+      c.beginPath();c.arc(x,y,2,0,Math.PI*2);c.fill();c.globalAlpha=1;
+    }
+  }
+  // протоптанные тропинки — соединяют зоны спавна людей с центром
+  c.strokeStyle=ei===0?'rgba(90,60,20,0.35)':'rgba(120,95,55,0.28)';
+  c.lineWidth=16;c.lineCap='round';
+  c.beginPath();c.moveTo(80,SEA_Y-60);c.quadraticCurveTo(220,GND+420,W/2,GND+380);c.stroke();
+  c.beginPath();c.moveTo(W-80,SEA_Y-60);c.quadraticCurveTo(W-220,GND+420,W/2,GND+380);c.stroke();
+  c.lineWidth=3;c.strokeStyle=ei===0?'rgba(60,40,10,0.25)':'rgba(90,70,35,0.2)';
+  c.beginPath();c.moveTo(80,SEA_Y-60);c.quadraticCurveTo(220,GND+420,W/2,GND+380);c.stroke();
+  c.beginPath();c.moveTo(W-80,SEA_Y-60);c.quadraticCurveTo(W-220,GND+420,W/2,GND+380);c.stroke();
+}
+
+// ── Декор границ, не зависящий от населения ────────────────────────────────────
+function drawHedgeRow(c,x1,x2,y,seedOff){
+  for(let x=x1;x<=x2;x+=16){
+    const r=7+prand(seedOff+x)*3;
+    c.fillStyle='rgba(30,60,18,0.9)';c.beginPath();c.ellipse(x,y-r*0.6,r,r*0.75,0,0,Math.PI*2);c.fill();
+    c.fillStyle='rgba(50,95,28,0.8)';c.beginPath();c.ellipse(x-r*0.3,y-r*0.9,r*0.55,r*0.5,0,0,Math.PI*2);c.fill();
+  }
+}
+function drawPlanterRow(c,x1,x2,y){
+  for(let x=x1;x<=x2;x+=34){
+    c.fillStyle='#4a4a4a';c.fillRect(x-9,y-10,18,10);
+    c.strokeStyle='#333';c.lineWidth=1;c.strokeRect(x-9,y-10,18,10);
+    c.fillStyle='#2e5a24';c.beginPath();c.ellipse(x,y-14,9,7,0,0,Math.PI*2);c.fill();
+    c.fillStyle='rgba(255,255,255,0.08)';c.beginPath();c.ellipse(x-3,y-17,3,2,0,0,Math.PI*2);c.fill();
+  }
+}
+function drawPylonRow(c,x1,x2,y){
+  c.strokeStyle='rgba(0,220,255,0.22)';c.lineWidth=1;
+  c.beginPath();c.moveTo(x1,y-16);c.lineTo(x2,y-16);c.stroke();
+  for(let x=x1;x<=x2;x+=42){
+    c.strokeStyle='rgba(120,140,160,0.9)';c.lineWidth=2;c.beginPath();c.moveTo(x,y);c.lineTo(x,y-16);c.stroke();
+    const g=c.createRadialGradient(x,y-20,0,x,y-20,10);
+    g.addColorStop(0,'rgba(0,220,255,0.9)');g.addColorStop(1,'rgba(0,220,255,0)');
+    c.fillStyle=g;c.beginPath();c.arc(x,y-20,10,0,Math.PI*2);c.fill();
+    c.fillStyle='#00dcff';c.beginPath();c.arc(x,y-20,2.5,0,Math.PI*2);c.fill();
+  }
+}
+function drawBoundaryStones(c,x1,x2,y){
+  for(let x=x1;x<=x2;x+=22){
+    c.fillStyle='#807060';c.beginPath();c.ellipse(x,y-3,7,5,0,0,Math.PI*2);c.fill();
+    c.fillStyle='#5a4c3e';c.beginPath();c.ellipse(x-2,y-4,3,2,0,0,Math.PI*2);c.fill();
+  }
+}
+function drawBorder(c,x1,x2,y,ei){
+  if(ei===0) drawBoundaryStones(c,x1,x2,y);
+  else if(ei===4) drawPlanterRow(c,x1,x2,y);
+  else if(ei===5) drawPylonRow(c,x1,x2,y);
+  else drawHedgeRow(c,x1,x2,y,ei*40);
+}
+function drawWell(c,x,y){
+  c.fillStyle='#6a6050';c.beginPath();c.ellipse(x,y,16,7,0,0,Math.PI*2);c.fill();
+  c.fillStyle='#8a8070';c.fillRect(x-14,y-16,28,16);
+  c.strokeStyle='#4a4038';c.lineWidth=1;for(let i=0;i<5;i++)c.strokeRect(x-14,y-16+i*3.2,28,3.2);
+  c.strokeStyle='#5a3a18';c.lineWidth=3;c.beginPath();c.moveTo(x-14,y-16);c.lineTo(x-18,y-38);c.stroke();c.beginPath();c.moveTo(x+14,y-16);c.lineTo(x+18,y-38);c.stroke();
+  c.fillStyle='#7a5030';c.beginPath();c.moveTo(x-22,y-38);c.lineTo(x,y-50);c.lineTo(x+22,y-38);c.closePath();c.fill();
+  c.strokeStyle='#3a2a10';c.lineWidth=1.5;c.beginPath();c.moveTo(x-2,y-38);c.lineTo(x-2,y-16);c.stroke();
+  c.fillStyle='#3a3020';c.beginPath();c.ellipse(x,y-16,7,3,0,0,Math.PI*2);c.fill();
+}
+function drawBeacon(c,x,y){
+  const g=c.createRadialGradient(x,y-50,0,x,y-50,40);
+  g.addColorStop(0,'rgba(0,220,255,0.25)');g.addColorStop(1,'rgba(0,0,0,0)');
+  c.fillStyle=g;c.beginPath();c.arc(x,y-50,40,0,Math.PI*2);c.fill();
+  c.fillStyle='rgba(30,30,55,0.9)';c.fillRect(x-10,y-6,20,6);
+  c.strokeStyle='rgba(0,220,255,0.7)';c.lineWidth=2;c.beginPath();c.moveTo(x-8,y-6);c.lineTo(x-3,y-70);c.lineTo(x+3,y-70);c.lineTo(x+8,y-6);c.closePath();c.stroke();
+  c.fillStyle='rgba(0,220,255,0.9)';c.beginPath();c.arc(x,y-74,4,0,Math.PI*2);c.fill();
+}
+function drawWorldDecor(c,ei){
+  drawBorder(c,24,136,SEA_Y-30,ei);
+  drawBorder(c,428,540,SEA_Y-30,ei);
+  if(ei===5) drawBeacon(c,W/2,GND+330);
+  else drawWell(c,W/2,GND+340);
 }
 
 // ── Buildings ─────────────────────────────────────────────────────────────────
@@ -679,8 +834,11 @@ const donorColors={};let nextColorIdx=0;
 function getDonorColor(u){if(!donorColors[u]){donorColors[u]=DONOR_COLORS[nextColorIdx%DONOR_COLORS.length];nextColorIdx++;}return donorColors[u];}
 
 // ── Game state ────────────────────────────────────────────────────────────────
-let civPop=0,likeCount=0,eraIdx=0;
-const LIKES_PER_DISASTER=1000,MAX_FIGURES=250;
+let civPop=0,eraIdx=0;
+const MAX_FIGURES=250;
+// Катастрофы теперь случайны по времени, не зависят от лайков/чата
+function randDisasterDelay(){return 45000+Math.random()*75000;} // 45–120 сек
+let nextDisasterAt=performance.now()+randDisasterDelay();
 const figures=[],donors={};
 const buildings=[],MIN_BLDG_DIST=75,MAX_BUILDINGS=55;
 let isDemo=false; // always false — civ is TikTok-only
@@ -769,6 +927,7 @@ const SPAWN_ZONES=[
 ];
 function randZone(){const z=SPAWN_ZONES[Math.floor(Math.random()*SPAWN_ZONES.length)];return{x:z.x1+Math.random()*(z.x2-z.x1),y:z.y1+Math.random()*(z.y2-z.y1)};}
 
+const BIG_GIFT_THRESHOLD=100;
 function spawnPeople(username,coins){
   const n=Math.max(1,Math.floor(coins));civPop+=n;
   const toAdd=Math.min(n,MAX_FIGURES-figures.length);
@@ -776,27 +935,50 @@ function spawnPeople(username,coins){
   const dc=isReal?getDonorColor(username):null;
   for(let i=0;i<toAdd;i++){const p=randZone();figures.push({x:p.x,y:p.y,vx:(Math.random()-0.5)*0.6,vy:(Math.random()-0.5)*0.3,phase:Math.random()*Math.PI*2,donorColor:dc,gender:Math.random()<0.5?'m':'f',pathTarget:Math.random()<0.3?Math.floor(Math.random()*GATHER_SPOTS.length):-1});}
   if(isReal){donors[username]=(donors[username]||0)+n;updateTopDonors();}
+  if(isReal&&coins>=BIG_GIFT_THRESHOLD) triggerBigGift(username,coins,dc);
   updateEra();updateUI();
 }
-function updateEra(){let ni=0;for(let i=ERAS.length-1;i>=0;i--){if(civPop>=ERAS[i].minPop){ni=i;break;}}if(ni!==eraIdx){eraIdx=ni;cachedEra=-1;buildings.forEach(b=>{b.era=ni;b.variant=Math.floor(Math.random()*ERA_VARIANTS[ni]);});if(ni>0){eraTransition={t:0,dur:3500,name:ERAS[ni].name,year:ERAS[ni].year};try{sndNewEra();}catch(e){}spawnFireworks();}}}
+// ── Большой подарок: баннер + салют + именное здание ───────────────────────────
+function triggerBigGift(username,coins,color){
+  giftBanner={t:0,dur:2800,text:`🏛️ ${username} построил здание! (+${Math.floor(coins)})`,color:color||'#FFD700'};
+  spawnFireworks();
+  placeMonumentBuilding(username,color);
+  try{pushEvent(pick(GIFT_LINES)(cleanNickForSpeech(username),Math.floor(coins)),true);}catch(e){}
+}
+function placeMonumentBuilding(username,color){
+  const vc=ERA_VARIANTS[eraIdx];
+  for(let attempt=0;attempt<50;attempt++){
+    const bx=30+Math.random()*(W-60);
+    const by=GND+20+Math.random()*(SEA_Y-GND-60);
+    if(eraIdx>=1&&eraIdx<=4&&bx>110&&bx<260&&by>SEA_Y-100)continue;
+    let ok=true;
+    for(const b of buildings){if(Math.hypot(b.x-bx,b.y-by)<MIN_BLDG_DIST){ok=false;break;}}
+    if(ok){for(const z of blockedZones){if(Math.hypot(z.x-bx,z.y-by)<z.r){ok=false;break;}}}
+    if(ok){buildings.push({x:bx,y:by,era:eraIdx,variant:Math.floor(Math.random()*vc),spawnT:performance.now(),label:username,labelColor:color||'#FFD700'});return;}
+  }
+}
+function updateEra(){let ni=0;for(let i=ERAS.length-1;i>=0;i--){if(civPop>=ERAS[i].minPop){ni=i;break;}}if(ni!==eraIdx){eraIdx=ni;cachedEra=-1;buildings.forEach(b=>{b.era=ni;b.variant=Math.floor(Math.random()*ERA_VARIANTS[ni]);});if(ni>0){eraTransition={t:0,dur:3500,name:ERAS[ni].name,year:ERAS[ni].year};try{sndNewEra();}catch(e){}spawnFireworks();try{pushEvent(`Город переходит в новую эпоху — ${cleanNickForSpeech(ERAS[ni].name)}!`,true);}catch(e){}}}}
 function updateTopDonors(){
   topDonors=Object.entries(donors).sort((a,b)=>b[1]-a[1]).slice(0,5).map(([n,c])=>({n,c,color:donorColors[n]||'#fff'}));
   renderLeaderboard();
+  if(topDonors[0]){
+    if(!leaderMonument||leaderMonument.username!==topDonors[0].n){
+      const isNewLeader=!!leaderMonument;
+      leaderMonument={username:topDonors[0].n,color:topDonors[0].color,x:W/2,y:GND+200};
+      if(isNewLeader){try{pushEvent(pick(LEADER_LINES)(cleanNickForSpeech(topDonors[0].n)),true);}catch(e){}}
+    } else {
+      leaderMonument.color=topDonors[0].color;
+    }
+  } else {
+    leaderMonument=null;
+  }
 }
 function renderLeaderboard(){
   const lb=document.getElementById('leaderboard');if(!lb)return;lb.innerHTML='';
   topDonors.forEach((d,i)=>{
-    if(i===0){const div=document.createElement('div');div.className='lb-king';div.style.borderColor=d.color;div.innerHTML=`<div class="lb-king-title">👑 KING</div><div class="lb-king-name" style="color:${d.color}">${d.n}</div><div class="lb-king-count">👥 ${d.c.toLocaleString()} people</div>`;lb.appendChild(div);}
+    if(i===0){const div=document.createElement('div');div.className='lb-king';div.style.borderColor=d.color;div.innerHTML=`<div class="lb-king-title">👑 КОРОЛЬ</div><div class="lb-king-name" style="color:${d.color}">${d.n}</div><div class="lb-king-count">👥 ${d.c.toLocaleString()} чел.</div>`;lb.appendChild(div);}
     else{const div=document.createElement('div');div.className='lb-row';div.style.borderLeftColor=d.color;div.innerHTML=`<span class="lb-rank" style="color:${d.color}">${i+1}</span><span class="lb-nick">${d.n}</span><span class="lb-cnt">👥 ${d.c.toLocaleString()}</span>`;lb.appendChild(div);}
   });
-}
-function addLike(){
-  likeCount++;
-  if(likeCount>=LIKES_PER_DISASTER){
-    likeCount=0;
-    triggerDisaster();
-  }
-  updateUI();
 }
 function updateUI(){
   const e=ERAS[eraIdx],ne=ERAS[eraIdx+1];
@@ -804,12 +986,8 @@ function updateUI(){
   document.getElementById('eraYear').textContent=e.year;
   const mp=ne?ne.minPop:e.maxPop;
   const pct=ne?Math.min(100,(civPop-e.minPop)/(ne.minPop-e.minPop)*100):100;
-  document.getElementById('popLabel').textContent=`Population: ${civPop.toLocaleString()} / ${mp.toLocaleString()}`;
+  document.getElementById('popLabel').textContent=`Население: ${civPop.toLocaleString()} / ${mp.toLocaleString()}`;
   document.getElementById('popBar').style.width=pct+'%';
-  const likePct=(likeCount/LIKES_PER_DISASTER)*100;
-  document.getElementById('likeFill').style.width=likePct+'%';
-  const remaining=LIKES_PER_DISASTER-likeCount;
-  document.getElementById('likeLabel').textContent=`❤️ ${likeCount} / ${LIKES_PER_DISASTER} until disaster`;
 }
 
 // ── Audio ─────────────────────────────────────────────────────────────────────
@@ -958,12 +1136,12 @@ function drawEraTransition(cx,tr){
     const gg=cx.createRadialGradient(0,0,0,0,0,220);
     gg.addColorStop(0,`rgba(0,0,0,${textAlpha*0.75})`);gg.addColorStop(1,'rgba(0,0,0,0)');
     cx.fillStyle=gg;cx.beginPath();cx.arc(0,0,220,0,Math.PI*2);cx.fill();
-    // "NEW ERA!" text
+    // текст "НОВАЯ ЭРА!"
     cx.font=`900 ${Math.round(64)}px 'Arial Black',Arial,sans-serif`;
     cx.textAlign='center';cx.textBaseline='middle';
     cx.fillStyle=`rgba(255,215,0,${textAlpha})`;
     cx.shadowColor='rgba(255,180,0,0.9)';cx.shadowBlur=30;
-    cx.fillText('NEW ERA!',0,-38);
+    cx.fillText('НОВАЯ ЭРА!',0,-38);
     cx.shadowBlur=0;
     // era name
     cx.font=`800 28px 'Arial Black',Arial,sans-serif`;
@@ -979,14 +1157,191 @@ function drawEraTransition(cx,tr){
   }
 }
 
+// ── Баннер большого подарка ─────────────────────────────────────────────────────
+let giftBanner=null;// {t,dur,text,color}
+function drawGiftBanner(cx,gb){
+  const p=gb.t/gb.dur;
+  const alpha=p<0.15?p/0.15:p>0.8?Math.max(0,1-(p-0.8)/0.2):1;
+  const slide=p<0.15?(1-p/0.15)*-24:0;
+  cx.save();cx.globalAlpha=alpha;
+  cx.font=`900 21px 'Arial Black',Arial,sans-serif`;
+  cx.textAlign='center';cx.textBaseline='middle';
+  cx.shadowColor='rgba(0,0,0,0.9)';cx.shadowBlur=10;
+  cx.fillStyle=gb.color||'#FFD700';
+  cx.fillText(gb.text,W/2,70+slide);
+  cx.shadowBlur=0;
+  cx.restore();
+}
+
+// ── Постоянный монумент лидеру донатов ──────────────────────────────────────────
+let leaderMonument=null;// {username,color,x,y}
+function drawLeaderMonument(cx,m,now){
+  if(!m)return;
+  const x=m.x,y=m.y;
+  cx.fillStyle='rgba(0,0,0,0.17)';cx.beginPath();cx.ellipse(x+3,y,14,4,0,0,Math.PI*2);cx.fill();
+  cx.fillStyle='#c8c5b0';cx.fillRect(x-16,y-8,32,8);
+  cx.fillStyle='#a8a590';cx.fillRect(x-12,y-22,24,14);
+  cx.strokeStyle='rgba(0,0,0,0.25)';cx.lineWidth=1;cx.strokeRect(x-12,y-22,24,14);
+  cx.strokeStyle='#5a4a30';cx.lineWidth=2;cx.beginPath();cx.moveTo(x,y-22);cx.lineTo(x,y-62);cx.stroke();
+  const wave=Math.sin(now*0.003)*4;
+  cx.fillStyle=m.color;
+  cx.beginPath();cx.moveTo(x,y-62);cx.lineTo(x+26,y-56+wave);cx.lineTo(x,y-48);cx.closePath();cx.fill();
+  cx.font='16px Arial';cx.textAlign='center';cx.textBaseline='alphabetic';
+  cx.fillText('👑',x,y-70);
+  cx.font='900 17px Arial';
+  cx.strokeStyle='rgba(0,0,0,0.85)';cx.lineWidth=3;
+  cx.fillStyle=m.color;
+  cx.strokeText(m.username,x,y-2);
+  cx.fillText(m.username,x,y-2);
+}
+
+// ── Диктор (озвучка событий, архитектура как в boxing_arena.html) ──────────────
+let voiceEnabled=false,_cachedVoice=null;
+let vQueue=[],vSpeaking=false,vProtected=false,vQuietTimer=null,vQuietPool=[];
+function pick(arr){return arr[Math.floor(Math.random()*arr.length)];}
+
+function getRuVoice(){
+  if(_cachedVoice) return _cachedVoice;
+  const voices=window.speechSynthesis?window.speechSynthesis.getVoices():[];
+  _cachedVoice=voices.find(v=>/pavel/i.test(v.name))
+    || voices.find(v=>/ru/i.test(v.lang)&&/male/i.test(v.name))
+    || voices.find(v=>/ru[-_]/i.test(v.lang))
+    || voices.find(v=>/ru/i.test(v.lang))
+    || voices.find(v=>v.default)
+    || voices[0]||null;
+  return _cachedVoice;
+}
+// диктор не должен произносить эмодзи/декоративные символы из текста фразы
+function speakClean(text){
+  return text
+    .replace(/[\u{1F1E6}-\u{1F1FF}\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{2190}-\u{21FF}\u{2300}-\u{23FF}\u{2B00}-\u{2BFF}\u{FE0F}\u{200D}]/gu,'')
+    .replace(/@/g,'')
+    .replace(/\s+/g,' ')
+    .trim();
+}
+// ник в TikTok может содержать любые декоративные unicode-символы — для
+// озвучки оставляем только буквы/цифры самого ника
+function cleanNickForSpeech(name){
+  return String(name||'')
+    .normalize('NFKD')
+    .replace(/[_.\-]+/g,' ')
+    .replace(/[^\p{L}\p{N} ]+/gu,'')
+    .replace(/\s+/g,' ')
+    .trim();
+}
+function speak(text,onDone){
+  const done=onDone||(()=>{});
+  if(!voiceEnabled||!window.speechSynthesis){done();return;}
+  const clean=speakClean(text);
+  const u=new SpeechSynthesisUtterance(clean);
+  const v=getRuVoice();
+  if(v)u.voice=v;
+  u.lang='ru-RU';u.rate=1.05;u.volume=1;
+  let finished=false;
+  const finish=()=>{if(finished)return;finished=true;done();};
+  u.onend=u.onerror=finish;
+  setTimeout(finish,8000);
+  try{window.speechSynthesis.speak(u);}catch(e){finish();}
+}
+if(window.speechSynthesis) window.speechSynthesis.onvoiceschanged=()=>{_cachedVoice=null;};
+
+// urgent=true — обрывает текущую фразу (кроме protected), встаёт в начало очереди
+// protect=true — сама эта фраза, начав звучать, не может быть оборвана (правила)
+function pushEvent(text,urgent,protect){
+  const item={text,protected:!!protect,ts:Date.now()};
+  if(urgent){
+    if(!vProtected){
+      if(window.speechSynthesis) window.speechSynthesis.cancel();
+      vSpeaking=false;
+    }
+    vQueue.unshift(item);
+    if(vQueue.length>12) vQueue.length=12;
+  } else {
+    vQueue.push(item);
+    if(vQueue.length>12) vQueue.shift();
+  }
+  vSpeakNext();
+}
+function estimateSpeechMs(text){return Math.min(7000,Math.max(2200,text.length*75));}
+// событие, простоявшее в очереди дольше этого, уже не актуально — выкидываем
+const SPEECH_STALE_MS=10000;
+function vSpeakNext(){
+  if(vSpeaking) return;
+  while(vQueue.length&&Date.now()-vQueue[0].ts>SPEECH_STALE_MS){vQueue.shift();}
+  if(vQueue.length===0){vScheduleQuiet();return;}
+  clearTimeout(vQuietTimer);
+  const item=vQueue.shift();
+  const text=item.text;
+  vSpeaking=true;vProtected=item.protected;
+  const dur=estimateSpeechMs(text);
+  const onDone=()=>{vSpeaking=false;vProtected=false;setTimeout(vSpeakNext,400);};
+  if(voiceEnabled&&window.speechSynthesis){speak(text,onDone);}
+  else{setTimeout(onDone,dur);}
+}
+// в паузах (10 сек без событий) диктор сам рассказывает шутки-заполнители
+function vScheduleQuiet(){
+  clearTimeout(vQuietTimer);
+  vQuietTimer=setTimeout(()=>{
+    if(vSpeaking||vQueue.length>0) return;
+    pushEvent(nextQuietPhrase());
+  },10000);
+}
+
+const RULE_PRIMARY='Дари подарки в TikTok — каждая монета это новый житель твоего города!';
+const RULES_OTHER=[
+  'Катастрофы происходят случайно, в любой момент — метеориты, пожары, нашествия!',
+  'Подарок от ста монет и больше — и на карте появится здание с твоим именем!',
+  'Тот, кто задонатил больше всех — получает памятник на главной площади города!',
+  'Смотри, как город проходит эпохи — от каменного века до будущего!',
+];
+let _ruleOtherIdx=0;
+const FILLER=[
+  'Город растёт... но мог бы расти быстрее. Подарки решают всё!',
+  'Жители скучают без новых соседей — задонать, чтобы город рос!',
+  'Диктор смотрит на пустую карту и вздыхает. Помогите ему.',
+  'Где-то там точно кто-то целится в звание короля города!',
+  'Тишина... даже слишком тихая для растущей цивилизации.',
+  'Каждая монета — это чей-то новый дом на этой карте!',
+  'Катастрофа может случиться в любую секунду. Готовьтесь!',
+  'Хочешь войти в историю города? Один большой подарок — и ты в топе!',
+];
+function nextQuietPhrase(){
+  if(vQuietPool.length===0) vQuietPool=[...FILLER].sort(()=>Math.random()-0.5);
+  return vQuietPool.shift();
+}
+// главное правило — гарантированно каждые 30 сек
+setInterval(()=>{pushEvent(RULE_PRIMARY,true,true);},30000);
+// остальные правила — по кругу раз в минуту
+setInterval(()=>{pushEvent(RULES_OTHER[_ruleOtherIdx%RULES_OTHER.length],true,true);_ruleOtherIdx++;},60000);
+
+const DISASTER_LINES={
+  meteor:'Внимание! Метеорит несётся прямо на город!',
+  fire:'Пожар! Город горит, жители в панике!',
+  invasion:'Нашествие врагов! Город атакуют!',
+  plague:'Чума расползается по городу!',
+  tsunami:'Наводнение! Волна накрывает город!',
+  tornado:'Торнадо! Всё сносит на своём пути!',
+};
+const GIFT_LINES=[
+  (n,c)=>`${n} задонатил ${c} монет! На карте появилось его здание!`,
+  (n,c)=>`Огромный подарок от ${n} — целых ${c} монет! Город благодарит!`,
+  (n,c)=>`${n} вложился в город на ${c} монет! Вот это щедрость!`,
+];
+const LEADER_LINES=[
+  n=>`У города новый лидер — ${n}! Он теперь Король!`,
+  n=>`${n} вырывается в лидеры донатов! Держите лицо, соперники!`,
+];
+
+pushEvent('Добро пожаловать в Цивилизацию! Дари подарки — город растёт!');
+
 // ── Disasters ─────────────────────────────────────────────────────────────────
 const DISASTERS=[
-  {name:'☄️ METEOR!',   kill:0.04, type:'meteor'},
-  {name:'🔥 FIRE!',     kill:0.03, type:'fire'},
-  {name:'⚔️ INVASION!', kill:0.05, type:'invasion'},
-  {name:'☠️ PLAGUE!',   kill:0.06, type:'plague'},
-  {name:'🌊 FLOOD!',    kill:0.04, type:'tsunami'},
-  {name:'🌪️ TORNADO!',  kill:0.035,type:'tornado'},
+  {name:'☄️ МЕТЕОРИТ!',    kill:0.04, type:'meteor'},
+  {name:'🔥 ПОЖАР!',       kill:0.03, type:'fire'},
+  {name:'⚔️ НАШЕСТВИЕ!',   kill:0.05, type:'invasion'},
+  {name:'☠️ ЧУМА!',        kill:0.06, type:'plague'},
+  {name:'🌊 НАВОДНЕНИЕ!',  kill:0.04, type:'tsunami'},
+  {name:'🌪️ ТОРНАДО!',     kill:0.035,type:'tornado'},
 ];
 let disasterAnim=null;
 
@@ -1017,8 +1372,9 @@ function triggerDisaster(){
   }
   disasterAnim={...d,...extra,t:0,kn,killed:false};
   const msg=document.getElementById('disasterMsg');
-  msg.textContent=d.name+` -${kn} people!`;msg.style.display='block';
+  msg.textContent=d.name+` -${kn} жителей!`;msg.style.display='block';
   try{DISASTER_SOUNDS[d.type]&&DISASTER_SOUNDS[d.type]();}catch(e){}
+  try{pushEvent(DISASTER_LINES[d.type]||d.name,true);}catch(e){}
 }
 
 function applyDisasterDamage(a){
@@ -1471,6 +1827,7 @@ const dyingBuildings=[];
 function gameLoop(now){
   const dt=Math.min(now-lastTime,64);lastTime=now;
   // No demo mode — civilization is TikTok-only
+  if(now>=nextDisasterAt){triggerDisaster();nextDisasterAt=now+randDisasterDelay();}
   figures.forEach(f=>{
     f.phase+=dt*0.005;
     if(f.pathTarget>=0&&civPop>150){
@@ -1547,7 +1904,21 @@ function gameLoop(now){
     } else {
       drawBuilding(ctx,b.x,b.y,b.era,b.variant,s);
     }
+    if(b.label){
+      ctx.save();
+      ctx.font=`900 ${Math.max(16,Math.round(15*s))}px Arial`;
+      ctx.textAlign='center';
+      ctx.strokeStyle='rgba(0,0,0,0.8)';ctx.lineWidth=3;
+      ctx.fillStyle=b.labelColor||'#FFD700';
+      const ty=b.y-100*s-8;
+      ctx.strokeText(b.label,b.x,ty);
+      ctx.fillText(b.label,b.x,ty);
+      ctx.restore();
+    }
   });
+
+  // Монумент лидеру донатов
+  drawLeaderMonument(ctx,leaderMonument,now);
 
   // Dying buildings destruction animation
   for(let i=dyingBuildings.length-1;i>=0;i--){
@@ -1594,6 +1965,13 @@ function gameLoop(now){
     }
   }
 
+  // Баннер большого подарка
+  if(giftBanner){
+    giftBanner.t+=dt;
+    drawGiftBanner(ctx,giftBanner);
+    if(giftBanner.t>=giftBanner.dur) giftBanner=null;
+  }
+
   // Era transition overlay
   if(eraTransition){
     eraTransition.t+=dt;
@@ -1611,14 +1989,14 @@ function gameLoop(now){
     ctx.font='bold 28px Arial Black,Arial';
     ctx.fillStyle='#FFD700';
     ctx.shadowColor='rgba(255,180,0,0.7)';ctx.shadowBlur=14;
-    ctx.fillText('🏛️ CIVILIZATION',W/2,cy-24);
+    ctx.fillText('🏛️ ЦИВИЛИЗАЦИЯ',W/2,cy-24);
     ctx.shadowBlur=0;
     ctx.font='bold 16px Segoe UI,Arial';
     ctx.fillStyle='rgba(255,255,255,0.85)';
-    ctx.fillText('Send gifts → spawn people!',W/2,cy+12);
+    ctx.fillText('Дари подарки → город растёт!',W/2,cy+12);
     ctx.font='14px Segoe UI,Arial';
     ctx.fillStyle='rgba(255,255,255,0.5)';
-    ctx.fillText('Likes → disasters every 1000 \u2764\ufe0f',W/2,cy+40);
+    ctx.fillText('Катастрофы происходят внезапно ❗',W/2,cy+40);
     ctx.restore();
   }
 
@@ -1630,12 +2008,19 @@ let socket;
 const username=new URLSearchParams(location.search).get('username')||'demo';
 const connMsg=document.getElementById('connMsg');
 document.getElementById('fsBtn').addEventListener('click',()=>{if(document.fullscreenElement)document.exitFullscreen&&document.exitFullscreen();else document.documentElement.requestFullscreen&&document.documentElement.requestFullscreen().then(()=>{if(screen.orientation&&screen.orientation.lock)screen.orientation.lock('portrait').catch(()=>{});}).catch(()=>{});});
+document.getElementById('voiceBtn').addEventListener('click',()=>{
+  voiceEnabled=!voiceEnabled;
+  document.getElementById('voiceBtn').textContent=voiceEnabled?'🔊':'🔇';
+  if(voiceEnabled&&window.speechSynthesis){
+    try{const s=new SpeechSynthesisUtterance('');s.volume=0;window.speechSynthesis.speak(s);}catch(e){}
+  }
+});
 function connectWS(){
   const proto=location.protocol==='https:'?'wss':'ws';
   socket=new WebSocket(`${proto}://${location.host}?username=${encodeURIComponent(username)}`);
-  socket.addEventListener('open',()=>{connMsg.textContent='🔗 Connecting to TikTok…';connMsg.style.display='block';});
+  socket.addEventListener('open',()=>{connMsg.textContent='🔗 Подключение к TikTok…';connMsg.style.display='block';});
   socket.addEventListener('message',e=>{let m;try{m=JSON.parse(e.data);}catch{return;}handleEvent(m);});
-  socket.addEventListener('close',()=>{connMsg.textContent='⚠️ Reconnecting…';connMsg.style.display='block';setTimeout(connectWS,3000);});
+  socket.addEventListener('close',()=>{connMsg.textContent='⚠️ Переподключение…';connMsg.style.display='block';setTimeout(connectWS,3000);});
   socket.addEventListener('error',()=>socket.close());
 }
 function spawnNeutral(){
@@ -1648,23 +2033,20 @@ function handleEvent(m){
   if(m.type==='civ_gift'){
     spawnPeople(m.username||'?', Math.max(1, Number(m.coins)||1));
   }
-  else if(m.type==='civ_like'){
-    const n=Math.max(1,Math.floor((m.likes||1)));
-    for(let i=0;i<n;i++) addLike();
-  }
+  else if(m.type==='civ_like'){/* лайки больше не влияют на игру — катастрофы теперь случайны по времени */}
   // Fallback: legacy events
   else if(m.type==='arena_gift'||m.type==='gift'){spawnPeople(m.username||m.uniqueId||'?',Math.max(1,Number(m.coins||m.diamondCount)||1));}
-  else if(m.type==='arena_like'||m.type==='like'){addLike();}
+  else if(m.type==='arena_like'||m.type==='like'){/* лайки больше не влияют на игру */}
   else if(m.type==='arena_member'||m.type==='member'){/* ignore */}
   else if(m.type==='arena_bot'){/* ignore — arena AI bots must not affect civilization */}
   else if(m.type==='chat'&&(m.comment||'').trim().toLowerCase()==='man'){spawnNeutral();}
   else if(m.type==='status'){
-    if(m.connected){connMsg.textContent=`✅ @${username} live!`;setTimeout(()=>connMsg.style.display='none',2000);}
-    else{connMsg.textContent=`⏳ Waiting for @${username} stream…`;connMsg.style.display='block';}
+    if(m.connected){connMsg.textContent=`✅ @${username} в эфире!`;setTimeout(()=>connMsg.style.display='none',2000);}
+    else{connMsg.textContent=`⏳ Ждём эфир @${username}…`;connMsg.style.display='block';}
   }
   else if(m.type==='init'){
-    if(m.tiktokMode==='tiktok'){connMsg.textContent=`✅ @${username} live!`;setTimeout(()=>connMsg.style.display='none',2000);}
-    else{connMsg.textContent=`⏳ Waiting for @${username} stream…`;connMsg.style.display='block';}
+    if(m.tiktokMode==='tiktok'){connMsg.textContent=`✅ @${username} в эфире!`;setTimeout(()=>connMsg.style.display='none',2000);}
+    else{connMsg.textContent=`⏳ Ждём эфир @${username}…`;connMsg.style.display='block';}
   }
 }
 
@@ -1733,7 +2115,7 @@ if(location.hostname==='localhost'||location.hostname==='127.0.0.1'){
 }
 
 // Always connect to WebSocket — no demo mode for civilization
-connMsg.textContent='⏳ Waiting for stream…';
+connMsg.textContent='⏳ Ждём начало эфира…';
 connectWS();
 updateUI();
 requestAnimationFrame(t=>{lastTime=t;gameLoop(t);});
@@ -1754,7 +2136,7 @@ function testDisaster(type){
   else if(type==='tornado'){const side=Math.floor(Math.random()*2);const startX=side===0?W+80:-80;extra={tx:startX,ty:GND+100+Math.random()*(SEA_Y-GND-180),particles:[],killAt:2000,dur:5000};}
   disasterAnim={...d,...extra,t:0,kn,killed:false};
   const msg=document.getElementById('disasterMsg');
-  msg.textContent=d.name+` -${kn} people!`;msg.style.display='block';
+  msg.textContent=d.name+` -${kn} жителей!`;msg.style.display='block';
   try{DISASTER_SOUNDS[type]&&DISASTER_SOUNDS[type]();}catch(e){console.warn('sound err',e);}
 }
 
