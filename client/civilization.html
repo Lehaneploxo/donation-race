@@ -26,7 +26,7 @@ canvas { display:block; }
 .lb-nick { font-size:17px; font-weight:800; color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:115px; text-shadow:0 1px 3px rgba(0,0,0,1); }
 .lb-cnt  { font-size:13px; font-weight:700; color:rgba(255,255,255,0.85); margin-left:auto; white-space:nowrap; text-shadow:0 1px 3px rgba(0,0,0,1); }
 #bottomBar { position:absolute; bottom:0; left:0; right:0; background:linear-gradient(0deg,rgba(0,0,0,0.8) 0%,rgba(0,0,0,0) 100%); padding:18px 14px 12px; }
-#disasterMsg { font-size:32px; font-weight:900; text-align:center; color:#FF4444; text-shadow:0 0 24px #FF0000,0 2px 6px rgba(0,0,0,1); display:none; animation:shake 0.15s infinite alternate; letter-spacing:2px; }
+#disasterMsg { font-size:32px; font-weight:900; text-align:center; color:#FF4444; text-shadow:0 0 24px #FF0000,0 2px 6px rgba(0,0,0,1); display:none; animation:shake 0.15s infinite alternate; letter-spacing:2px; white-space:nowrap; }
 @keyframes shake { from{transform:translateX(-4px)} to{transform:translateX(4px)} }
 #connMsg { position:absolute; bottom:50px; left:50%; transform:translateX(-50%); font-size:14px; font-weight:700; color:rgba(255,255,255,0.6); font-family:'Segoe UI',sans-serif; text-align:center; white-space:nowrap; text-shadow:0 1px 4px rgba(0,0,0,1); }
 #fsBtn { position:fixed; z-index:99999; top:50%; right:10px; transform:translateY(-50%); width:26px; height:26px; font-size:12px; background:rgba(0,0,0,0.55); color:rgba(255,255,255,0.55); border:1px solid rgba(255,255,255,0.2); border-radius:6px; cursor:pointer; display:flex; align-items:center; justify-content:center; }
@@ -1136,12 +1136,18 @@ function drawEraTransition(cx,tr){
     const gg=cx.createRadialGradient(0,0,0,0,0,220);
     gg.addColorStop(0,`rgba(0,0,0,${textAlpha*0.75})`);gg.addColorStop(1,'rgba(0,0,0,0)');
     cx.fillStyle=gg;cx.beginPath();cx.arc(0,0,220,0,Math.PI*2);cx.fill();
-    // текст "НОВАЯ ЭРА!"
+    // текст "НОВАЯ ЭРА!" — русский вариант шире английского, сжимаем по ширине, если не влезает
     cx.font=`900 ${Math.round(64)}px 'Arial Black',Arial,sans-serif`;
     cx.textAlign='center';cx.textBaseline='middle';
     cx.fillStyle=`rgba(255,215,0,${textAlpha})`;
     cx.shadowColor='rgba(255,180,0,0.9)';cx.shadowBlur=30;
-    cx.fillText('НОВАЯ ЭРА!',0,-38);
+    const eraTitle='НОВАЯ ЭРА!';
+    const eraTitleMaxW=W-70;
+    const eraTitleW=cx.measureText(eraTitle).width;
+    const eraTitleSx=eraTitleW>eraTitleMaxW?eraTitleMaxW/eraTitleW:1;
+    cx.save();cx.scale(eraTitleSx,1);
+    cx.fillText(eraTitle,0,-38);
+    cx.restore();
     cx.shadowBlur=0;
     // era name
     cx.font=`800 28px 'Arial Black',Arial,sans-serif`;
@@ -1345,6 +1351,19 @@ const DISASTERS=[
 ];
 let disasterAnim=null;
 
+// русские фразы длиннее английских — ужимаем шрифт, чтобы влезло в одну строку
+function setDisasterMsg(text){
+  const msg=document.getElementById('disasterMsg');
+  msg.style.fontSize='32px';
+  msg.textContent=text;
+  msg.style.display='block';
+  requestAnimationFrame(()=>{
+    const avail=msg.parentElement.clientWidth-20;
+    let fs=32;
+    while(msg.scrollWidth>avail&&fs>16){fs-=2;msg.style.fontSize=fs+'px';}
+  });
+}
+
 function triggerDisaster(){
   if(civPop<5||disasterAnim)return;
   const d=DISASTERS[Math.floor(Math.random()*DISASTERS.length)];
@@ -1371,8 +1390,7 @@ function triggerDisaster(){
     extra={tx:startX,ty:GND+100+Math.random()*(SEA_Y-GND-180),particles:[],killAt:2000,dur:5000};
   }
   disasterAnim={...d,...extra,t:0,kn,killed:false};
-  const msg=document.getElementById('disasterMsg');
-  msg.textContent=d.name+` -${kn} жителей!`;msg.style.display='block';
+  setDisasterMsg(d.name+` -${kn} жителей!`);
   try{DISASTER_SOUNDS[d.type]&&DISASTER_SOUNDS[d.type]();}catch(e){}
   try{pushEvent(DISASTER_LINES[d.type]||d.name,true);}catch(e){}
 }
@@ -2135,8 +2153,7 @@ function testDisaster(type){
   else if(type==='tsunami'){extra={waveY:SEA_Y,particles:[],killAt:1800,dur:5000};}
   else if(type==='tornado'){const side=Math.floor(Math.random()*2);const startX=side===0?W+80:-80;extra={tx:startX,ty:GND+100+Math.random()*(SEA_Y-GND-180),particles:[],killAt:2000,dur:5000};}
   disasterAnim={...d,...extra,t:0,kn,killed:false};
-  const msg=document.getElementById('disasterMsg');
-  msg.textContent=d.name+` -${kn} жителей!`;msg.style.display='block';
+  setDisasterMsg(d.name+` -${kn} жителей!`);
   try{DISASTER_SOUNDS[type]&&DISASTER_SOUNDS[type]();}catch(e){console.warn('sound err',e);}
 }
 
