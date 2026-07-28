@@ -58,16 +58,16 @@ canvas { display:block; }
     <div id="leaderboard"></div>
     <div id="coinHint">
       <div style="display:flex;align-items:center;gap:5px;">
-        <canvas id="coinCanvas" width="22" height="28"></canvas>
+        <span style="font-size:20px;line-height:1;">🌹</span>
         <span style="font-size:16px;color:rgba(255,255,255,0.7);font-weight:900;">=</span>
         <canvas id="personCanvas" width="22" height="28"></canvas>
         <span style="font-size:13px;font-weight:900;color:#FFD700;font-family:'Segoe UI',sans-serif;">× 1</span>
       </div>
       <div style="height:1px;background:rgba(255,255,255,0.12);margin:4px 0;"></div>
       <div style="display:flex;align-items:center;gap:5px;">
-        <span style="font-size:13px;font-weight:900;color:#fff;font-family:'Segoe UI',sans-serif;">"man"</span>
+        <span style="font-size:13px;font-weight:900;color:#fff;font-family:'Segoe UI',sans-serif;">👍×50</span>
         <span style="font-size:16px;color:rgba(255,255,255,0.7);font-weight:900;">=</span>
-        <canvas id="neutralCanvas" width="22" height="28"></canvas>
+        <canvas id="personCanvas2" width="22" height="28"></canvas>
       </div>
     </div>
     <div id="bottomBar">
@@ -99,7 +99,6 @@ canvas { display:block; }
       <button onclick="spawnPeople('test',20)">+20</button>
       <button onclick="spawnPeople('test',100)">+100</button>
       <button onclick="spawnPeople('test',500)">+500</button>
-      <button onclick="spawnNeutral()">🤍 man</button>
     </div>
   </div>
   <div class="dev-divider"></div>
@@ -2044,21 +2043,29 @@ function connectWS(){
   socket.addEventListener('close',()=>{connMsg.textContent='⚠️ Переподключение…';connMsg.style.display='block';setTimeout(connectWS,3000);});
   socket.addEventListener('error',()=>socket.close());
 }
-function spawnNeutral(){
-  civPop+=1;
-  if(figures.length<MAX_FIGURES){const p=randZone();figures.push({x:p.x,y:p.y,vx:(Math.random()-0.5)*0.6,vy:(Math.random()-0.5)*0.3,phase:Math.random()*Math.PI*2,donorColor:'#FFFFFF',gender:Math.random()<0.5?'m':'f',pathTarget:Math.random()<0.3?Math.floor(Math.random()*GATHER_SPOTS.length):-1});}
-  updateEra();updateUI();
+// лайки копятся по нику между сообщениями (TikTok шлёт их пачками по 10-20,
+// а не всё разом) — как только у зрителя накопилось 50, спавним ему
+// человечка ТОЧНО ТАК ЖЕ, как за донат: его цвет, счёт идёт в топ-донатеров
+const likeAccum={};
+const LIKES_PER_PERSON=50;
+function handleLikes(username,likes){
+  if(!username)return;
+  likeAccum[username]=(likeAccum[username]||0)+Math.max(1,Math.floor(Number(likes)||1));
+  const people=Math.floor(likeAccum[username]/LIKES_PER_PERSON);
+  if(people>0){
+    likeAccum[username]-=people*LIKES_PER_PERSON;
+    spawnPeople(username,people);
+  }
 }
 function handleEvent(m){
   // Dedicated civilization events (always fired, not gated by race)
   if(m.type==='civ_gift'){
     spawnPeople(m.username||'?', Math.max(1, Number(m.coins)||1));
   }
-  else if(m.type==='civ_like'){/* лайки больше не влияют на игру — катастрофы теперь случайны по времени */}
+  else if(m.type==='civ_like'){handleLikes(m.username,m.likes);}
   else if(m.type==='arena_like'||m.type==='like'){/* лайки больше не влияют на игру */}
   else if(m.type==='arena_member'||m.type==='member'){/* ignore */}
   else if(m.type==='arena_bot'){/* ignore — arena AI bots must not affect civilization */}
-  else if(m.type==='chat'&&(m.comment||'').trim().toLowerCase()==='man'){spawnNeutral();}
   else if(m.type==='status'){
     if(m.connected){connMsg.textContent=`✅ @${username} в эфире!`;setTimeout(()=>connMsg.style.display='none',2000);}
     else{connMsg.textContent=`⏳ Ждём эфир @${username}…`;connMsg.style.display='block';}
@@ -2071,22 +2078,12 @@ function handleEvent(m){
 
 // ── Coin hint graphic ─────────────────────────────────────────────────────────
 (function(){
-  // Монета
-  const cc=document.getElementById('coinCanvas');
-  if(cc){
-    const cx=cc.getContext('2d');
-    const g=cx.createRadialGradient(9,9,1,10,10,10);
-    g.addColorStop(0,'#FFE878');g.addColorStop(0.5,'#FFD700');g.addColorStop(1,'#B8860B');
-    cx.fillStyle=g;cx.beginPath();cx.arc(11,14,10,0,Math.PI*2);cx.fill();
-    cx.strokeStyle='#B8860B';cx.lineWidth=1.5;cx.stroke();
-    cx.fillStyle='rgba(255,255,255,0.3)';cx.beginPath();cx.ellipse(8,10,3,5,Math.PI*0.3,0,Math.PI*2);cx.fill();
-    cx.fillStyle='#7a5500';cx.font='bold 10px Arial';cx.textAlign='center';cx.textBaseline='middle';cx.fillText('₿',11,14);
-  }
-  // Человечек
-  const pc=document.getElementById('personCanvas');
-  if(pc){
+  // Анимированный человечек — используется дважды (донат и лайки)
+  function initPersonCanvas(id){
+    const pc=document.getElementById(id);
+    if(!pc)return;
     const px=pc.getContext('2d');
-    let ph=0;
+    let ph=Math.random()*Math.PI*2;
     function drawPerson(){
       px.clearRect(0,0,22,28);
       ph+=0.06;
@@ -2104,28 +2101,8 @@ function handleEvent(m){
     }
     drawPerson();
   }
-  // Белый нейтральный человечек
-  const nc=document.getElementById('neutralCanvas');
-  if(nc){
-    const nx=nc.getContext('2d');
-    let nph=0;
-    function drawNeutralPerson(){
-      nx.clearRect(0,0,22,28);
-      nph+=0.06;
-      const ls=Math.sin(nph)*0.3,as=Math.sin(nph+Math.PI)*0.25;
-      nx.fillStyle='#FFFFFF';nx.beginPath();nx.arc(11,5,4,0,Math.PI*2);nx.fill();
-      nx.strokeStyle='#FFFFFF';nx.lineWidth=1.8;nx.lineCap='round';
-      nx.beginPath();nx.moveTo(11,9);nx.lineTo(11,17);nx.stroke();
-      nx.lineWidth=1.5;
-      nx.beginPath();nx.moveTo(11,10);nx.lineTo(8+as*3,15);nx.stroke();
-      nx.beginPath();nx.moveTo(11,10);nx.lineTo(14-as*3,15);nx.stroke();
-      nx.lineWidth=1.8;
-      nx.beginPath();nx.moveTo(11,17);nx.lineTo(8+ls*4,26);nx.stroke();
-      nx.beginPath();nx.moveTo(11,17);nx.lineTo(14-ls*4,26);nx.stroke();
-      requestAnimationFrame(drawNeutralPerson);
-    }
-    drawNeutralPerson();
-  }
+  initPersonCanvas('personCanvas');
+  initPersonCanvas('personCanvas2');
 })();
 
 // Show dev panel only on localhost
