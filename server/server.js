@@ -194,8 +194,12 @@ class Room {
       this.username,
       // onGift — донат
       (data) => {
-        // Always send to civilization regardless of race state
-        this.broadcast({ type: 'civ_gift', username: data.username, uniqueId: data.userId, coins: data.coins });
+        // Civilization: только реальные донаты из TikTok (или явный тестовый username=demo).
+        // Если реальное подключение оборвалось/упало и сервер временно переключился
+        // в демо-режим с ботами — эти фейковые донаты НЕ должны попадать в игру.
+        if (this.connection?._tiktokMode === 'tiktok' || this.username === 'demo') {
+          this.broadcast({ type: 'civ_gift', username: data.username, uniqueId: data.userId, coins: data.coins });
+        }
 
         const giftLower = (data.giftName || '').toLowerCase();
 
