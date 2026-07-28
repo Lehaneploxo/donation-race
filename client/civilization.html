@@ -16,7 +16,7 @@ canvas { display:block; }
 #popLabel { font-size:17px; font-weight:700; color:#fff; text-align:center; font-family:'Segoe UI',sans-serif; text-shadow:0 1px 4px rgba(0,0,0,1); }
 #popBarWrap { height:12px; background:rgba(0,0,0,0.5); border-radius:8px; overflow:hidden; border:1px solid rgba(255,255,255,0.2); }
 #popBar { height:100%; background:linear-gradient(90deg,#44CC00,#AAFF44); border-radius:8px; transition:width 0.4s; }
-#leaderboard { position:absolute; top:148px; left:8px; display:flex; flex-direction:column; gap:6px; pointer-events:none; max-width:175px; }
+#leaderboard { position:absolute; top:230px; left:8px; display:flex; flex-direction:column; gap:6px; pointer-events:none; max-width:175px; }
 .lb-king { background:rgba(0,0,0,0.88); border-radius:10px; padding:8px 12px; border:2.5px solid #FFD700; font-family:'Segoe UI',sans-serif; }
 .lb-king-title { font-size:13px; font-weight:900; color:#FFD700; letter-spacing:1.5px; margin-bottom:3px; text-shadow:0 0 8px #FFD700; }
 .lb-king-name { font-size:22px; font-weight:900; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:170px; text-shadow:0 1px 4px rgba(0,0,0,1); }
@@ -33,13 +33,20 @@ canvas { display:block; }
 #voiceBtn { position:fixed; z-index:99999; top:calc(50% - 40px); right:10px; width:26px; height:26px; font-size:12px; background:rgba(0,0,0,0.55); color:rgba(255,255,255,0.55); border:1px solid rgba(255,255,255,0.2); border-radius:6px; cursor:pointer; display:flex; align-items:center; justify-content:center; }
 #backBtn { position:fixed; z-index:99999; top:calc(50% + 40px); right:10px; width:26px; height:26px; font-size:12px; background:rgba(0,0,0,0.55); color:rgba(255,255,255,0.55); border:1px solid rgba(255,255,255,0.2); border-radius:6px; cursor:pointer; display:flex; align-items:center; justify-content:center; }
 #coinHint {
-  position:absolute; top:148px; right:10px;
+  position:absolute; top:128px; left:8px; width:150px;
   background:rgba(0,0,0,0.82); border-radius:10px;
-  padding:7px 10px; display:flex; flex-direction:column; gap:0;
+  padding:8px 10px; display:flex; flex-direction:column; gap:0;
   border:1.5px solid rgba(255,215,0,0.4);
   pointer-events:none;
 }
 #coinHint canvas { display:block; }
+#coinHint .rule-row { display:flex; align-items:center; gap:6px; }
+#coinHint .rule-emoji { font-size:19px; line-height:1; }
+#coinHint .rule-txt { font-size:15px; font-weight:900; color:#fff; font-family:'Segoe UI',sans-serif; }
+#coinHint .rule-eq { display:flex; align-items:center; gap:5px; margin:3px 0 7px 2px; }
+#coinHint .rule-eq .rule-txt { color:#FFD700; }
+#coinHint .eq-sign { font-size:15px; color:rgba(255,255,255,0.6); font-weight:900; }
+#coinHint .rule-sep { height:1px; background:rgba(255,255,255,0.14); margin:2px 0 7px; }
 </style>
 </head>
 <body>
@@ -57,20 +64,11 @@ canvas { display:block; }
     </div>
     <div id="leaderboard"></div>
     <div id="coinHint">
-      <div style="display:flex;align-items:center;gap:5px;">
-        <span style="font-size:20px;line-height:1;">🌹</span>
-        <span style="font-size:12px;font-weight:900;color:#fff;font-family:'Segoe UI',sans-serif;">донат</span>
-        <span style="font-size:16px;color:rgba(255,255,255,0.7);font-weight:900;">=</span>
-        <canvas id="personCanvas" width="22" height="28"></canvas>
-        <span style="font-size:13px;font-weight:900;color:#FFD700;font-family:'Segoe UI',sans-serif;">1 житель</span>
-      </div>
-      <div style="height:1px;background:rgba(255,255,255,0.12);margin:4px 0;"></div>
-      <div style="display:flex;align-items:center;gap:5px;">
-        <span style="font-size:13px;font-weight:900;color:#fff;font-family:'Segoe UI',sans-serif;">👍 50 лайков</span>
-        <span style="font-size:16px;color:rgba(255,255,255,0.7);font-weight:900;">=</span>
-        <canvas id="personCanvas2" width="22" height="28"></canvas>
-        <span style="font-size:13px;font-weight:900;color:#FFD700;font-family:'Segoe UI',sans-serif;">1 житель</span>
-      </div>
+      <div class="rule-row"><span class="rule-emoji">🌹</span><span class="rule-txt">донат</span></div>
+      <div class="rule-eq"><span class="eq-sign">=</span><canvas id="personCanvas" width="22" height="28"></canvas><span class="rule-txt">1 житель</span></div>
+      <div class="rule-sep"></div>
+      <div class="rule-row"><span class="rule-emoji">👍</span><span class="rule-txt">50 лайков</span></div>
+      <div class="rule-eq"><span class="eq-sign">=</span><canvas id="personCanvas2" width="22" height="28"></canvas><span class="rule-txt">1 житель</span></div>
     </div>
     <div id="bottomBar">
       <div id="disasterMsg">☄️ DISASTER!</div>
@@ -2106,6 +2104,23 @@ function handleEvent(m){
   }
   initPersonCanvas('personCanvas');
   initPersonCanvas('personCanvas2');
+})();
+
+// ── Вертикальная раскладка левой колонки: плашка правил СРАЗУ под шапкой
+// (эра/население), топ-донатеров сразу под правилами — считаем реальную
+// высоту через offsetHeight, чтобы не гадать пиксели и не залезть друг
+// на друга при любом размере шрифта/переносе текста.
+(function layoutLeftColumn(){
+  const topBar=document.getElementById('topBar'), hint=document.getElementById('coinHint'), lb=document.getElementById('leaderboard');
+  function layout(){
+    if(!topBar||!hint||!lb)return;
+    const gap=8;
+    hint.style.top=(topBar.offsetTop+topBar.offsetHeight+gap)+'px';
+    lb.style.top=(hint.offsetTop+hint.offsetHeight+gap)+'px';
+  }
+  layout();
+  window.addEventListener('resize',layout);
+  setTimeout(layout,300); // на случай если шрифты дорисовались чуть позже
 })();
 
 // Show dev panel only on localhost
