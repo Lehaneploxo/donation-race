@@ -31,6 +31,7 @@ canvas { display:block; }
 #connMsg { position:absolute; bottom:50px; left:50%; transform:translateX(-50%); font-size:14px; font-weight:700; color:rgba(255,255,255,0.6); font-family:'Segoe UI',sans-serif; text-align:center; white-space:nowrap; text-shadow:0 1px 4px rgba(0,0,0,1); }
 #fsBtn { position:fixed; z-index:99999; top:50%; right:10px; transform:translateY(-50%); width:26px; height:26px; font-size:12px; background:rgba(0,0,0,0.55); color:rgba(255,255,255,0.55); border:1px solid rgba(255,255,255,0.2); border-radius:6px; cursor:pointer; display:flex; align-items:center; justify-content:center; }
 #voiceBtn { position:fixed; z-index:99999; top:calc(50% - 40px); right:10px; width:26px; height:26px; font-size:12px; background:rgba(0,0,0,0.55); color:rgba(255,255,255,0.55); border:1px solid rgba(255,255,255,0.2); border-radius:6px; cursor:pointer; display:flex; align-items:center; justify-content:center; }
+#backBtn { position:fixed; z-index:99999; top:calc(50% + 40px); right:10px; width:26px; height:26px; font-size:12px; background:rgba(0,0,0,0.55); color:rgba(255,255,255,0.55); border:1px solid rgba(255,255,255,0.2); border-radius:6px; cursor:pointer; display:flex; align-items:center; justify-content:center; }
 #coinHint {
   position:absolute; top:148px; right:10px;
   background:rgba(0,0,0,0.82); border-radius:10px;
@@ -44,6 +45,7 @@ canvas { display:block; }
 <body>
 <button id="fsBtn" title="Полный экран">⛶</button>
 <button id="voiceBtn" title="Озвучка">🔇</button>
+<button id="backBtn" title="Выход в меню">⌂</button>
 <div id="scaleWrapper">
   <canvas id="cvs" width="563" height="1000"></canvas>
   <div id="uiOverlay">
@@ -2026,6 +2028,7 @@ let socket;
 const username=new URLSearchParams(location.search).get('username')||'demo';
 const connMsg=document.getElementById('connMsg');
 document.getElementById('fsBtn').addEventListener('click',()=>{if(document.fullscreenElement)document.exitFullscreen&&document.exitFullscreen();else document.documentElement.requestFullscreen&&document.documentElement.requestFullscreen().then(()=>{if(screen.orientation&&screen.orientation.lock)screen.orientation.lock('portrait').catch(()=>{});}).catch(()=>{});});
+document.getElementById('backBtn').addEventListener('click',()=>{location.href='/';});
 document.getElementById('voiceBtn').addEventListener('click',()=>{
   voiceEnabled=!voiceEnabled;
   document.getElementById('voiceBtn').textContent=voiceEnabled?'🔊':'🔇';
