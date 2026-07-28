@@ -155,6 +155,15 @@ app.get('/admin/reset-boss-damage', async (req, res) => {
   }
 });
 
+app.get('/admin/reset-boxing-rating', async (req, res) => {
+  try {
+    await db.resetBoxingRating();
+    res.json({ ok: true });
+  } catch(e) {
+    res.json({ ok: false, error: e.message });
+  }
+});
+
 app.get('/top-race-donations', async (req, res) => {
   try {
     const limit = parseInt(req.query.limit) || 100;
@@ -365,10 +374,17 @@ class Room {
           // Boxing Arena: same command, ranked by all-time отнятая энергия
           db.getUserBoxingRank(data.username)
             .then(rank => {
-              this.broadcast({ type: 'arena_boxing_rating', username: data.username, rank: rank ? rank.rank : null, stolen: rank ? rank.total_stolen : 0 });
+              this.broadcast({
+                type: 'arena_boxing_rating',
+                username: data.username,
+                rank: rank ? rank.rank : null,
+                stolen: rank ? rank.total_stolen : 0,
+                kos: rank ? rank.total_kos : 0,
+                beltSeconds: rank ? rank.belt_seconds : 0,
+              });
             })
             .catch(() => {
-              this.broadcast({ type: 'arena_boxing_rating', username: data.username, rank: null, stolen: 0 });
+              this.broadcast({ type: 'arena_boxing_rating', username: data.username, rank: null, stolen: 0, kos: 0, beltSeconds: 0 });
             });
         }
 
@@ -495,6 +511,21 @@ wss.on('connection', (ws, req) => {
             room.broadcast({ type: 'top_boxing', data: top });
           })
           .catch(e => console.error('[DB] boxing_stolen error:', e.message));
+      }
+      if (msg.type === 'boxing_ko' && msg.username) {
+        db.addBoxingKO(msg.username).catch(e => console.error('[DB] boxing_ko error:', e.message));
+      }
+      if (msg.type === 'boxing_belt' && msg.username && msg.seconds) {
+        db.addBoxingBeltSeconds(msg.username, msg.seconds).catch(e => console.error('[DB] boxing_belt error:', e.message));
+      }
+      if (msg.type === 'boxing_tier_request' && msg.username) {
+        db.getUserBoxingRank(msg.username)
+          .then(rank => {
+            room.broadcast({ type: 'boxing_tier_info', username: msg.username, total_stolen: rank ? rank.total_stolen : 0 });
+          })
+          .catch(() => {
+            room.broadcast({ type: 'boxing_tier_info', username: msg.username, total_stolen: 0 });
+          });
       }
       if (msg.type === 'request_rating' && msg.username) {
         db.getUserRank(msg.username)

@@ -74,12 +74,60 @@ const SKIN_VARIANTS = [
 ];
 function randomSkin(){ return SKIN_VARIANTS[Math.floor(Math.random()*SKIN_VARIANTS.length)]; }
 
+// ── Уровень зрителя (медаль у ника) — по all-time ⚡ отнятой энергии,
+// независимо от пояса чемпиона (можно носить и то, и другое одновременно).
+// Только для реальных бойцов — у ботов нет истории в БД.
+const TIER_BRONZE = 100000, TIER_SILVER = 1000000, TIER_GOLD = 10000000;
+function tierOf(total){
+  if (total >= TIER_GOLD) return 'gold';
+  if (total >= TIER_SILVER) return 'silver';
+  if (total >= TIER_BRONZE) return 'bronze';
+  return null;
+}
+const TIER_COLORS = {
+  bronze: { outer:'#7a4a25', inner:'#95582c', ring:'#3d2410' },
+  silver: { outer:'#c8c8ce', inner:'#e8e8ee', ring:'#8b8b93' },
+  gold:   { outer:'#ffd75e', inner:'#fff2b0', ring:'#a8790a' },
+};
+function drawTierMedal(cx, y, s, tier){
+  const c = TIER_COLORS[tier];
+  if (!c) return;
+  const r = 8*s;
+  ctx.save();
+  ctx.beginPath(); ctx.arc(cx, y, r, 0, Math.PI*2);
+  ctx.fillStyle = c.outer; ctx.fill();
+  ctx.lineWidth = 1.3; ctx.strokeStyle = c.ring; ctx.stroke();
+  ctx.beginPath(); ctx.arc(cx, y, r*0.6, 0, Math.PI*2);
+  ctx.fillStyle = c.inner; ctx.fill();
+  if (tier === 'gold'){
+    ctx.shadowColor = '#ffcc33'; ctx.shadowBlur = 6*s;
+    ctx.beginPath(); ctx.arc(cx, y, r, 0, Math.PI*2);
+    ctx.lineWidth = 1; ctx.strokeStyle = '#ffcc33'; ctx.stroke();
+    ctx.shadowBlur = 0;
+  }
+  ctx.restore();
+}
+
 // ── Чемпион ринга: текущий #1 в all-time рейтинге отнятой энергии ──
 // получает золотую перекраску (перчатки/шорты) + золотой ник вместо своей
 // обычной, пока держит первое место. При смене лидера золото переходит на
 // нового, у старого возвращается обычный (сохранённый) скин.
 const CHAMPION_SKIN = { dir:'boxer_v5_gold', color:'#fff2b0' };
 let _championName = null;
+let _championSince = null; // Date.now() с последнего флаша времени владения поясом
+
+// сбрасывает накопленное с последнего флаша время владения поясом на
+// сервер (по 60 сек, чтобы не терять много при перезагрузке/рестарте) —
+// только пока реально идёт эфир (не в demo/connecting)
+function flushBeltTime(){
+  if (!_championName || !_championSince) return;
+  const now = Date.now();
+  const elapsedSec = Math.floor((now - _championSince) / 1000);
+  if (elapsedSec > 0 && typeof _gameMode !== 'undefined' && _gameMode === 'tiktok') {
+    reportBelt(_championName, elapsedSec);
+  }
+  _championSince = now;
+}
 
 function applyChampionSkin(v){
   if (v.isChamp) return;
@@ -103,16 +151,19 @@ function syncChampionStatus(){
     if (newName){ const v = findRealFighter(newName); if (v) applyChampionSkin(v); }
     return;
   }
+  flushBeltTime(); // закрываем отрезок владения поясом старым чемпионом перед сменой
   if (_championName){
     const old = findRealFighter(_championName);
     if (old) revertChampionSkin(old);
   }
   _championName = newName;
+  _championSince = newName ? Date.now() : null;
   if (_championName){
     const now = findRealFighter(_championName);
     if (now) applyChampionSkin(now);
   }
 }
+setInterval(flushBeltTime, 60000);
 
 // ростер бойцов стартует ПУСТЫМ — реальные бойцы появляются по первому
 // лайку/донату конкретного зрителя (см. applyGrowth ниже); пока их <2 на
@@ -219,11 +270,12 @@ function applyGrowth(username, gain, isGift){
     v = {
       dir: skin.dir, name: username, color: skin.color, isBot: false,
       baseDir: skin.dir, baseColor: skin.color, isChamp: false,
-      stolenEnergy: 0, powerDecayAcc: 0,
+      stolenEnergy: 0, powerDecayAcc: 0, kos: 0, allTimeStolen: 0,
     };
     v.energyMax = 0; v.energy = 0; v.powerMax = 0; v.power = 0;
     initFighterRuntime(v, pos.x, pos.y);
     VARIANTS.push(v);
+    requestTier(username); // подтягиваем all-time очки для медали (клиент знает только топ-5)
   }
   syncChampionStatus(); // если это чемпион только что заспавнился — сразу золото
 
@@ -479,6 +531,11 @@ function vSpeakNext(){
 
 // главное правило — гарантированно каждые 30 сек, целиком (protected)
 setInterval(()=>{ pushEvent(RULE_PRIMARY, true, true); }, 30000);
+// объявление про новый сезон/рейтинг — та же приоритетная очередь: если в
+// этот момент говорится главное правило, оно НЕ обрывается, это объявление
+// просто встаёт следующим и звучит сразу за ним
+const NEW_SEASON_LINE = 'Новый сезон! Новые правила! Новый рейтинг! Кто станет королём ринга?';
+setInterval(()=>{ pushEvent(NEW_SEASON_LINE, true, true); }, 30000);
 // остальные правила — по кругу раз в минуту, тоже protected
 setInterval(()=>{
   pushEvent(RULES_OTHER[_ruleOtherIdx % RULES_OTHER.length], true, true);
@@ -706,10 +763,23 @@ function wsConnect(username){
       if (d.type==='arena_gift' && _gameMode==='tiktok') onGift(d.username, d.coins);
       if (d.type==='arena_cheat' && _gameMode==='tiktok') applyCheat(d.username, d.hp, d.damage);
       if (d.type==='top_boxing') { _dbTop = (d.data||[]).map(p=>({ username:p.username, stolen:p.total_stolen })); syncChampionStatus(); }
+      if (d.type==='boxing_tier_info'){
+        const v = findRealFighter(d.username);
+        if (v) v.allTimeStolen = Number(d.total_stolen)||0;
+      }
       if (d.type==='arena_boxing_rating'){
-        _showRating(d.rank
-          ? `<span style="color:#FF6688;font-size:16px;font-weight:bold;">📊 @${d.username}<br><span style="color:#FFD700">#${d.rank} место · ⚡${d.stolen} отнятой энергии</span></span>`
-          : `<span style="color:#AAA;font-size:15px;">📊 @${d.username}<br>пока не в рейтинге</span>`);
+        if (d.rank){
+          const pts = Number(d.stolen||0).toLocaleString('ru-RU');
+          let html = `<span style="color:#FF6688;font-size:16px;font-weight:bold;">📊 @${d.username}</span><br>`
+            + `<span style="color:#FFD700;font-size:14.5px;">#${d.rank} место · ⚡${pts}</span><br>`
+            + `<span style="color:#ffb4c4;font-size:13.5px;">🥊 Нокаутов: ${d.kos||0}</span>`;
+          if (d.beltSeconds > 0){
+            html += `<div style="margin-top:5px;padding-top:5px;border-top:1px dashed rgba(255,215,0,0.25);display:flex;align-items:center;justify-content:center;gap:6px;color:#fff2b0;font-size:14px;font-weight:700;">${BELT_ICON_SVG}<b>${formatBeltTime(d.beltSeconds)}</b></div>`;
+          }
+          _showRating(html);
+        } else {
+          _showRating(`<span style="color:#AAA;font-size:15px;">📊 @${d.username}<br>пока не в рейтинге</span>`);
+        }
       }
     } catch(err){ console.error('[boxing ws]', err); }
   };
@@ -720,6 +790,27 @@ function wsConnect(username){
 // отдельное всплывающее окошко под ответ на "rating" из чата (как в
 // arena2/arena3) — не смешивается с общей очередью событий боя/диктора,
 // поэтому не теряется среди фраз
+// иконка нашего пояса чемпиона (не 🏆-кубок) — уменьшенная копия того же
+// дизайна, что и drawChampionBelt на ринге, для плашки рейтинга (HTML, не canvas)
+const BELT_ICON_SVG = `<svg width="30" height="14" viewBox="-25 0 90 40" style="vertical-align:middle;flex:none;">
+  <rect x="-23" y="13.5" width="25" height="13" rx="2" fill="#1f7a42" stroke="#e8c25a" stroke-width="1"/>
+  <rect x="38" y="13.5" width="25" height="13" rx="2" fill="#1f7a42" stroke="#e8c25a" stroke-width="1"/>
+  <circle cx="20" cy="20" r="17" fill="#e8c25a"/>
+  <circle cx="20" cy="20" r="13.5" fill="#1f7a42"/>
+  <rect x="18.5" y="4" width="3" height="6" rx="1" fill="#d64545"/>
+  <rect x="18.5" y="30" width="3" height="6" rx="1" fill="#2b5fa8"/>
+  <rect x="4" y="18.5" width="6" height="3" rx="1" fill="#e8c25a"/>
+  <rect x="30" y="18.5" width="6" height="3" rx="1" fill="#f2f2f2"/>
+  <circle cx="20" cy="20" r="8" fill="#2f9052" stroke="#f6dd97" stroke-width="1"/>
+</svg>`;
+function formatBeltTime(totalSeconds){
+  const h = Math.floor(totalSeconds/3600);
+  const m = Math.floor((totalSeconds%3600)/60);
+  if (h>0) return `${h}ч ${m}м`;
+  if (m>0) return `${m}м`;
+  return `${totalSeconds}с`;
+}
+
 let _ratingHideTimer = null;
 function _showRating(html){
   const el = document.getElementById('ratingOverlay');
@@ -730,8 +821,32 @@ function _showRating(html){
   _ratingHideTimer = setTimeout(()=>{ el.style.display = 'none'; }, 6000);
 }
 
+// очки за удары сыплются часто (каждый попавший удар) — вместо мгновенной
+// отправки на каждый удар копим по нику и шлём одной пачкой раз в 4 сек,
+// чтобы не грузить БД лишними запросами. Локально (медаль/пояс) всё равно
+// считается мгновенно — задержка касается только записи в БД для топа.
+let _pendingStolen = {};
 function reportStolen(username, amount){
-  if (_ws && _ws.readyState===1) _ws.send(JSON.stringify({ type:'boxing_stolen', username, amount }));
+  if (!username || !amount) return;
+  _pendingStolen[username] = (_pendingStolen[username]||0) + amount;
+}
+setInterval(()=>{
+  if (!_ws || _ws.readyState!==1) return;
+  for (const u in _pendingStolen){
+    const amount = _pendingStolen[u];
+    if (amount > 0) _ws.send(JSON.stringify({ type:'boxing_stolen', username:u, amount }));
+  }
+  _pendingStolen = {};
+}, 4000);
+
+function reportKO(username){
+  if (_ws && _ws.readyState===1) _ws.send(JSON.stringify({ type:'boxing_ko', username }));
+}
+function reportBelt(username, seconds){
+  if (_ws && _ws.readyState===1) _ws.send(JSON.stringify({ type:'boxing_belt', username, seconds }));
+}
+function requestTier(username){
+  if (_ws && _ws.readyState===1) _ws.send(JSON.stringify({ type:'boxing_tier_request', username }));
 }
 
 // ── ТОП-лист: all-time из БД (не сбрасывается между стримами) ──
@@ -1375,6 +1490,10 @@ function drawFighter(v) {
   ctx.fillStyle = 'rgba(0,0,0,0.45)';
   ctx.fillRect(cx - nameW/2 - 6*s, labelY - 14*s, nameW + 12*s, 18*s);
 
+  // уровень зрителя (медаль слева от ника) — только у реальных бойцов,
+  // независимо от пояса чемпиона (можно носить и то, и другое сразу)
+  const tier = (!v.isBot) ? tierOf(v.allTimeStolen||0) : null;
+
   if (v.isChamp && v.alive){
     drawChampionBelt(cx, labelY - 28*s, s);
     // чемпион ринга — золотое свечение вокруг ника вместо обычного цвета
@@ -1388,12 +1507,26 @@ function drawFighter(v) {
     ctx.fillText(nameTxt, cx, labelY);
     ctx.shadowBlur = 0;
     ctx.fillText(nameTxt, cx, labelY);
+  } else if (tier === 'gold' && v.alive){
+    // золотой уровень (не чемпион) — тот же приём, но свечение слабее
+    ctx.lineWidth = 4.5;
+    ctx.strokeStyle = 'rgba(0,0,0,0.95)';
+    ctx.strokeText(nameTxt, cx, labelY);
+    ctx.shadowColor = '#ffcc33';
+    ctx.shadowBlur = 6*s;
+    ctx.fillStyle = '#fff2b0';
+    ctx.fillText(nameTxt, cx, labelY);
+    ctx.shadowBlur = 0;
   } else {
     ctx.fillStyle = v.alive ? v.color : '#888';
     ctx.strokeStyle = 'rgba(0,0,0,0.95)';
     ctx.lineWidth = 4.5;
     ctx.strokeText(nameTxt, cx, labelY);
     ctx.fillText(nameTxt, cx, labelY);
+  }
+
+  if (tier && v.alive){
+    drawTierMedal(cx - nameW/2 - 12*s, labelY - 5*s, s, tier);
   }
 
   // ⚡ Энергия и 💪 Сила — в стиле _drawLabels из arena3.html (сердечки убраны — Энергия теперь и есть здоровье)
@@ -1469,8 +1602,13 @@ function endRound(){
     const delta = v.stolenEnergy - (v.roundStartStolen||0);
     if (delta > bestDelta){ bestDelta = delta; best = v; }
   });
-  if (best) pushEvent(pick(ROUND_RESULT_LINES)(cleanNickForSpeech(best.name), roundNum, bestDelta), true);
-  else pushEvent(pick(NO_LEADER_LINES)(roundNum), true);
+  if (best){
+    const roundBonus = 500;
+    best.stolenEnergy += roundBonus;
+    best.allTimeStolen = (best.allTimeStolen||0) + roundBonus;
+    reportStolen(best.name, roundBonus);
+    pushEvent(pick(ROUND_RESULT_LINES)(cleanNickForSpeech(best.name), roundNum, bestDelta + roundBonus), true);
+  } else pushEvent(pick(NO_LEADER_LINES)(roundNum), true);
 
   sendFightersToCorners();
   roundGirl = { t: 0 };
@@ -1512,13 +1650,21 @@ function collapse(loser, winner){
     loser.powerMax = 0; loser.power = 0;
   }
   if (winner){
-    const stolen = damageFor(winner.power) + 100;
-    winner.stolenEnergy += stolen;
-    // боты не пишутся в БД/рейтинг — очки за победу над кем угодно
+    // урон от финального удара уже засчитан в throwPunch (за каждый удар) —
+    // здесь начисляем ТОЛЬКО фиксированный бонус за сам факт нокаута
+    const koBonus = 100;
+    const finishingDmg = damageFor(winner.power); // только для текста фразы диктора
+    winner.stolenEnergy += koBonus;
+    // боты не пишутся в БД/рейтинг — бонус за нокаут и счётчик нокаутов
     // засчитываются только реальному зрителю-победителю
-    if (!winner.isBot) reportStolen(winner.name, stolen);
+    if (!winner.isBot){
+      winner.allTimeStolen = (winner.allTimeStolen||0) + koBonus;
+      winner.kos = (winner.kos||0) + 1;
+      reportStolen(winner.name, koBonus);
+      reportKO(winner.name);
+    }
     // диктор объявляет только реальных победителей — бот-победитель молчит
-    if (!winner.isBot) pushEvent(pick(KO_LINES)(cleanNickForSpeech(winner.name), cleanNickForSpeech(loser.name), stolen), true);
+    if (!winner.isBot) pushEvent(pick(KO_LINES)(cleanNickForSpeech(winner.name), cleanNickForSpeech(loser.name), finishingDmg + koBonus), true);
   } else if (!loser.isBot) {
     pushEvent(pick(TIRED_LINES)(cleanNickForSpeech(loser.name)), true);
   }
@@ -1569,6 +1715,14 @@ function throwPunch(attacker, defender){
   defender.power = Math.max(1, defender.power - Math.max(1, Math.floor(dmg*0.3)));
   defender.lastAttacker = attacker;
   playPunchSound();
+
+  // очки рейтинга — за каждый удар, сразу и безусловно (не только победителю
+  // финального нокаута): отнял энергию — она сразу твоя, в любом случае
+  attacker.stolenEnergy += dmg;
+  if (!attacker.isBot){
+    attacker.allTimeStolen = (attacker.allTimeStolen||0) + dmg;
+    reportStolen(attacker.name, dmg);
+  }
 
   if (defender.energy<=0) collapse(defender, attacker);
 }

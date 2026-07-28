@@ -42,6 +42,8 @@ async function init() {
       total_stolen INTEGER NOT NULL DEFAULT 0
     )
   `);
+  await pool.query(`ALTER TABLE boxing_stolen ADD COLUMN IF NOT EXISTS total_kos INTEGER NOT NULL DEFAULT 0`);
+  await pool.query(`ALTER TABLE boxing_stolen ADD COLUMN IF NOT EXISTS belt_seconds INTEGER NOT NULL DEFAULT 0`);
   console.log('[DB] Таблицы kills, boss_damage, race_donations и boxing_stolen готовы');
 }
 
@@ -151,14 +153,44 @@ async function getTopBoxingStolen(limit = 10) {
 async function getUserBoxingRank(username) {
   if (!pool || !username) return null;
   const res = await pool.query(`
-    SELECT username, total_stolen,
+    SELECT username, total_stolen, total_kos, belt_seconds,
            RANK() OVER (ORDER BY total_stolen DESC) AS rank
     FROM boxing_stolen
   `);
   const row = res.rows.find(r => r.username.toLowerCase() === username.toLowerCase());
-  return row ? { rank: Number(row.rank), total_stolen: Number(row.total_stolen) } : null;
+  return row ? {
+    rank: Number(row.rank),
+    total_stolen: Number(row.total_stolen),
+    total_kos: Number(row.total_kos),
+    belt_seconds: Number(row.belt_seconds),
+  } : null;
+}
+
+async function addBoxingKO(username) {
+  if (!pool || !username) return;
+  await pool.query(`
+    INSERT INTO boxing_stolen (username, total_kos)
+    VALUES ($1, 1)
+    ON CONFLICT (username)
+    DO UPDATE SET total_kos = boxing_stolen.total_kos + 1
+  `, [username]);
+}
+
+async function addBoxingBeltSeconds(username, seconds) {
+  if (!pool || !username || !seconds) return;
+  await pool.query(`
+    INSERT INTO boxing_stolen (username, belt_seconds)
+    VALUES ($1, $2)
+    ON CONFLICT (username)
+    DO UPDATE SET belt_seconds = boxing_stolen.belt_seconds + $2
+  `, [username, Math.floor(seconds)]);
+}
+
+async function resetBoxingRating() {
+  if (!pool) return;
+  await pool.query('DELETE FROM boxing_stolen');
 }
 
 function isConnected() { return pool !== null; }
 
-module.exports = { init, addKill, getTopKillers, getUserRank, addBossDamage, getTopBossDamage, resetBossDamage, getUserBossDamageRank, addRaceCoins, getTopRaceDonations, addBoxingStolen, getTopBoxingStolen, getUserBoxingRank, isConnected };
+module.exports = { init, addKill, getTopKillers, getUserRank, addBossDamage, getTopBossDamage, resetBossDamage, getUserBossDamageRank, addRaceCoins, getTopRaceDonations, addBoxingStolen, getTopBoxingStolen, getUserBoxingRank, addBoxingKO, addBoxingBeltSeconds, resetBoxingRating, isConnected };
