@@ -2052,8 +2052,6 @@ function handleEvent(m){
     spawnPeople(m.username||'?', Math.max(1, Number(m.coins)||1));
   }
   else if(m.type==='civ_like'){/* лайки больше не влияют на игру — катастрофы теперь случайны по времени */}
-  // Fallback: legacy events
-  else if(m.type==='arena_gift'||m.type==='gift'){spawnPeople(m.username||m.uniqueId||'?',Math.max(1,Number(m.coins||m.diamondCount)||1));}
   else if(m.type==='arena_like'||m.type==='like'){/* лайки больше не влияют на игру */}
   else if(m.type==='arena_member'||m.type==='member'){/* ignore */}
   else if(m.type==='arena_bot'){/* ignore — arena AI bots must not affect civilization */}
