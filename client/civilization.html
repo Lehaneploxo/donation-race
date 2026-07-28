@@ -33,17 +33,17 @@ canvas { display:block; }
 #voiceBtn { position:fixed; z-index:99999; top:calc(50% - 40px); right:10px; width:26px; height:26px; font-size:12px; background:rgba(0,0,0,0.55); color:rgba(255,255,255,0.55); border:1px solid rgba(255,255,255,0.2); border-radius:6px; cursor:pointer; display:flex; align-items:center; justify-content:center; }
 #backBtn { position:fixed; z-index:99999; top:calc(50% + 40px); right:10px; width:26px; height:26px; font-size:12px; background:rgba(0,0,0,0.55); color:rgba(255,255,255,0.55); border:1px solid rgba(255,255,255,0.2); border-radius:6px; cursor:pointer; display:flex; align-items:center; justify-content:center; }
 #coinHint {
-  position:absolute; top:128px; left:8px; width:auto; max-width:110px;
+  position:absolute; top:128px; left:8px; width:auto; max-width:132px;
   background:rgba(0,0,0,0.82); border-radius:8px;
-  padding:5px 8px; display:flex; flex-direction:column; gap:4px;
+  padding:6px 10px; display:flex; flex-direction:column; gap:5px;
   border:1.5px solid rgba(255,215,0,0.4);
   pointer-events:none;
 }
 #coinHint canvas { display:block; }
-#coinHint .rule-row { display:flex; align-items:center; gap:4px; white-space:nowrap; }
-#coinHint .rule-emoji { font-size:14px; line-height:1; }
-#coinHint .rule-txt { font-size:12px; font-weight:900; color:#fff; font-family:'Segoe UI',sans-serif; }
-#coinHint .eq-sign { font-size:12px; color:rgba(255,255,255,0.6); font-weight:900; }
+#coinHint .rule-row { display:flex; align-items:center; gap:5px; white-space:nowrap; }
+#coinHint .rule-emoji { font-size:17px; line-height:1; }
+#coinHint .rule-txt { font-size:14.5px; font-weight:900; color:#fff; font-family:'Segoe UI',sans-serif; }
+#coinHint .eq-sign { font-size:14.5px; color:rgba(255,255,255,0.6); font-weight:900; }
 </style>
 </head>
 <body>
@@ -61,8 +61,8 @@ canvas { display:block; }
     </div>
     <div id="leaderboard"></div>
     <div id="coinHint">
-      <div class="rule-row"><span class="rule-txt">донат</span><span class="rule-emoji">🌹</span><span class="eq-sign">=</span><canvas id="personCanvas" width="22" height="28" style="width:16px;height:20px;"></canvas></div>
-      <div class="rule-row"><span class="rule-txt">50 лайков</span><span class="eq-sign">=</span><canvas id="personCanvas2" width="22" height="28" style="width:16px;height:20px;"></canvas></div>
+      <div class="rule-row"><span class="rule-txt">донат</span><span class="rule-emoji">🌹</span><span class="eq-sign">=</span><canvas id="personCanvas" width="22" height="28" style="width:20px;height:25px;"></canvas></div>
+      <div class="rule-row"><span class="rule-txt">50 лайков</span><span class="eq-sign">=</span><canvas id="personCanvas2" width="22" height="28" style="width:20px;height:25px;"></canvas></div>
     </div>
     <div id="bottomBar">
       <div id="disasterMsg">☄️ DISASTER!</div>
