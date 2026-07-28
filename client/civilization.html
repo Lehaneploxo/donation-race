@@ -142,6 +142,14 @@ canvas { display:block; }
 
 const cvs=document.getElementById('cvs'),ctx=cvs.getContext('2d');
 const W=563,H=1000,GND=145,SEA_Y=H-88;
+// Резкость на телефонах: буфер canvas делаем в DPR раз больше (потолок 2x —
+// баланс чёткости и производительности на слабых телефонах с 3x-экранами),
+// CSS-размер (563×1000) не меняем — вся геометрия игры остаётся как есть,
+// просто рисуется на большее число реальных пикселей.
+const DPR=Math.min(window.devicePixelRatio||1,2);
+cvs.width=W*DPR;cvs.height=H*DPR;
+cvs.style.width=W+'px';cvs.style.height=H+'px';
+ctx.scale(DPR,DPR);
 
 // ── Eras ──────────────────────────────────────────────────────────────────────
 const ERAS=[
@@ -155,8 +163,8 @@ const ERAS=[
 const ERA_VARIANTS=[4,4,6,6,6,5];
 
 // ── Terrain cache ─────────────────────────────────────────────────────────────
-const tc=document.createElement('canvas');tc.width=W;tc.height=H;
-const tx=tc.getContext('2d');
+const tc=document.createElement('canvas');tc.width=W*DPR;tc.height=H*DPR;
+const tx=tc.getContext('2d');tx.scale(DPR,DPR);
 let cachedEra=-1;
 function prand(n){n=(n^61)^(n>>16);n+=(n<<3);n^=(n>>4);n*=0x27d4eb2d;n^=(n>>15);return((n>>>0)%10000)/10000;}
 
@@ -1859,7 +1867,7 @@ function gameLoop(now){
 
   nightness=Math.max(0,-Math.cos(now/DAY_CYCLE_MS*Math.PI*2))*0.72;
   drawTerrain(eraIdx);
-  ctx.drawImage(tc,0,0);
+  ctx.drawImage(tc,0,0,W,H);
   drawSun(ctx,now);
   drawNightSky(ctx,now,nightness);
   updateAndDrawClouds(ctx);
