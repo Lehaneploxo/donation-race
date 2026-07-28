@@ -59,15 +59,17 @@ canvas { display:block; }
     <div id="coinHint">
       <div style="display:flex;align-items:center;gap:5px;">
         <span style="font-size:20px;line-height:1;">🌹</span>
+        <span style="font-size:12px;font-weight:900;color:#fff;font-family:'Segoe UI',sans-serif;">донат</span>
         <span style="font-size:16px;color:rgba(255,255,255,0.7);font-weight:900;">=</span>
         <canvas id="personCanvas" width="22" height="28"></canvas>
-        <span style="font-size:13px;font-weight:900;color:#FFD700;font-family:'Segoe UI',sans-serif;">× 1</span>
+        <span style="font-size:13px;font-weight:900;color:#FFD700;font-family:'Segoe UI',sans-serif;">1 житель</span>
       </div>
       <div style="height:1px;background:rgba(255,255,255,0.12);margin:4px 0;"></div>
       <div style="display:flex;align-items:center;gap:5px;">
-        <span style="font-size:13px;font-weight:900;color:#fff;font-family:'Segoe UI',sans-serif;">👍×50</span>
+        <span style="font-size:13px;font-weight:900;color:#fff;font-family:'Segoe UI',sans-serif;">👍 50 лайков</span>
         <span style="font-size:16px;color:rgba(255,255,255,0.7);font-weight:900;">=</span>
         <canvas id="personCanvas2" width="22" height="28"></canvas>
+        <span style="font-size:13px;font-weight:900;color:#FFD700;font-family:'Segoe UI',sans-serif;">1 житель</span>
       </div>
     </div>
     <div id="bottomBar">
@@ -1300,6 +1302,7 @@ const RULES_OTHER=[
   'Подарок от ста монет и больше — и на карте появится здание с твоим именем!',
   'Тот, кто задонатил больше всех — получает памятник на главной площади города!',
   'Смотри, как город проходит эпохи — от каменного века до будущего!',
+  'Ставь лайки! Каждые 50 лайков превращаются в нового жителя твоего цвета!',
 ];
 let _ruleOtherIdx=0;
 const FILLER=[
