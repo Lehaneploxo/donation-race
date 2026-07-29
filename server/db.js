@@ -191,6 +191,16 @@ async function resetBoxingRating() {
   await pool.query('DELETE FROM boxing_stolen');
 }
 
+async function setBoxingStolen(username, value) {
+  if (!pool || !username) return;
+  await pool.query(`
+    INSERT INTO boxing_stolen (username, total_stolen)
+    VALUES ($1, $2)
+    ON CONFLICT (username)
+    DO UPDATE SET total_stolen = $2
+  `, [username, Math.floor(value)]);
+}
+
 function isConnected() { return pool !== null; }
 
-module.exports = { init, addKill, getTopKillers, getUserRank, addBossDamage, getTopBossDamage, resetBossDamage, getUserBossDamageRank, addRaceCoins, getTopRaceDonations, addBoxingStolen, getTopBoxingStolen, getUserBoxingRank, addBoxingKO, addBoxingBeltSeconds, resetBoxingRating, isConnected };
+module.exports = { init, addKill, getTopKillers, getUserRank, addBossDamage, getTopBossDamage, resetBossDamage, getUserBossDamageRank, addRaceCoins, getTopRaceDonations, addBoxingStolen, getTopBoxingStolen, getUserBoxingRank, addBoxingKO, addBoxingBeltSeconds, resetBoxingRating, setBoxingStolen, isConnected };

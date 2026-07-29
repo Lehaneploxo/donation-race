@@ -164,6 +164,19 @@ app.get('/admin/reset-boxing-rating', async (req, res) => {
   }
 });
 
+app.get('/admin/set-boxing-stolen', async (req, res) => {
+  try {
+    const username = req.query.username || '';
+    const value = parseInt(req.query.value);
+    if (!username || Number.isNaN(value)) return res.json({ ok: false, error: 'username and value required' });
+    await db.setBoxingStolen(username, value);
+    console.log(`[ADMIN-SET-BOXING-STOLEN] username="${username}" value=${value}`);
+    res.json({ ok: true, username, value });
+  } catch(e) {
+    res.json({ ok: false, error: e.message });
+  }
+});
+
 app.get('/top-race-donations', async (req, res) => {
   try {
     const limit = parseInt(req.query.limit) || 100;
