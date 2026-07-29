@@ -1175,17 +1175,18 @@ function drawEraTransition(cx,tr){
 }
 
 // ── Баннер большого подарка ─────────────────────────────────────────────────────
-let giftBanner=null;// {t,dur,text,color}
+let giftBanner=null;// {t,dur,text,color,y} — y необязателен, по умолчанию сверху (70)
 function drawGiftBanner(cx,gb){
   const p=gb.t/gb.dur;
   const alpha=p<0.15?p/0.15:p>0.8?Math.max(0,1-(p-0.8)/0.2):1;
   const slide=p<0.15?(1-p/0.15)*-24:0;
+  const baseY=gb.y!==undefined?gb.y:70;
   cx.save();cx.globalAlpha=alpha;
   cx.font=`900 21px 'Arial Black',Arial,sans-serif`;
   cx.textAlign='center';cx.textBaseline='middle';
   cx.shadowColor='rgba(0,0,0,0.9)';cx.shadowBlur=10;
   cx.fillStyle=gb.color||'#FFD700';
-  cx.fillText(gb.text,W/2,70+slide);
+  cx.fillText(gb.text,W/2,baseY+slide);
   cx.shadowBlur=0;
   cx.restore();
 }
@@ -1429,23 +1430,28 @@ function tryDeclareWar(username){
   const defenderDead=defenderFigs.slice(0,defenderLoss);
   const queue=[...attackerDead,...defenderDead].map(f=>({f,at:1200+Math.random()*7500,done:false}));
   warAnim={t:0,dur:WAR_DUR,attackerColor,username,queue,attackerDeadTotal:attackerLoss,defenderDeadTotal:defenderLoss};
-  giftBanner={t:0,dur:2600,text:`⚔️ ${username} ОБЪЯВИЛ ВОЙНУ!`,color:'#FF4444'};
+  giftBanner={t:0,dur:2600,text:`⚔️ ${username} ОБЪЯВИЛ ВОЙНУ!`,color:'#FF4444',y:H/2};
   try{sndInvasion();}catch(e){}
   try{pushEvent(pick(WAR_LINES)(cleanNickForSpeech(username)),true,true);}catch(e){}
 }
 // ── Визуальные вспышки столкновений во время войны ──────────────────────────────
+// small — лёгкая искра при каждом ударе в рукопашной, big — яркий взрыв в момент гибели
 const warClashFX=[];
-function spawnWarClash(x,y){warClashFX.push({x,y,t:0,dur:420});}
+function spawnWarClash(x,y,big){warClashFX.push({x,y,t:0,dur:big?650:380,big:!!big});}
 function drawWarClashFX(cx,dt){
   for(let i=warClashFX.length-1;i>=0;i--){
     const p=warClashFX[i];p.t+=dt;
     if(p.t>=p.dur){warClashFX.splice(i,1);continue;}
-    const prog=p.t/p.dur;
+    const prog=p.t/p.dur,sc=p.big?1.8:1;
     cx.save();cx.globalAlpha=1-prog;
-    cx.strokeStyle='#fff';cx.lineWidth=2;
-    cx.beginPath();cx.moveTo(p.x-8-prog*6,p.y-14+prog*4);cx.lineTo(p.x+8+prog*6,p.y-4-prog*4);cx.stroke();
-    cx.fillStyle='rgba(255,60,40,0.85)';
-    cx.beginPath();cx.arc(p.x,p.y-8,3+prog*5,0,Math.PI*2);cx.fill();
+    cx.strokeStyle='#fff';cx.lineWidth=2*sc;
+    cx.beginPath();cx.moveTo(p.x-(8+prog*6)*sc,p.y-14*sc+prog*4*sc);cx.lineTo(p.x+(8+prog*6)*sc,p.y-4*sc-prog*4*sc);cx.stroke();
+    cx.fillStyle=p.big?'rgba(255,40,20,0.9)':'rgba(255,60,40,0.85)';
+    cx.beginPath();cx.arc(p.x,p.y-8*sc,(3+prog*5)*sc,0,Math.PI*2);cx.fill();
+    if(p.big){
+      cx.strokeStyle=`rgba(255,80,40,${(1-prog)*0.8})`;cx.lineWidth=2;
+      cx.beginPath();cx.arc(p.x,p.y-8,4+prog*26,0,Math.PI*2);cx.stroke();
+    }
     cx.restore();
   }
 }
@@ -1945,6 +1951,9 @@ function gameLoop(now){
   const dt=Math.min(now-lastTime,64);lastTime=now;
   // No demo mode — civilization is TikTok-only
   if(now>=nextDisasterAt){triggerDisaster();nextDisasterAt=now+randDisasterDelay();}
+  // сброс флага "в рукопашной" — пересчитывается заново каждый кадр ниже
+  if(warAnim) figures.forEach(f=>{f._inMelee=false;});
+  const MELEE_RANGE=26;
   figures.forEach(f=>{
     f.phase+=dt*(f.atWar?0.011:0.005);
     if(f.atWar&&warAnim){
@@ -1954,6 +1963,11 @@ function gameLoop(now){
       if(nearest){
         const dx=nearest.x-f.x,dy=nearest.y-f.y,dist=Math.hypot(dx,dy)||1;
         f.vx=f.vx*0.85+(dx/dist)*0.9*0.15;f.vy=f.vy*0.85+(dy/dist)*0.5*0.15;
+        // в радиусе удара — оба бойца визуально "дерутся" (видно и нападающего, и защищающегося)
+        if(nd<MELEE_RANGE){
+          f._inMelee=true;nearest._inMelee=true;
+          if(Math.random()<0.12) spawnWarClash((f.x+nearest.x)/2,(f.y+nearest.y)/2-10);
+        }
       }
     } else if(f.pathTarget>=0&&civPop>150){
       const tgt=GATHER_SPOTS[f.pathTarget];
@@ -2069,12 +2083,29 @@ function gameLoop(now){
     const s=0.38+depth*0.62;
     if(f.atWar){
       // боевая подсветка нападающего — видно среди толпы, кто именно воюет
-      ctx.save();ctx.globalAlpha=0.6+Math.sin(now*0.012)*0.25;
-      ctx.strokeStyle='#FF3333';ctx.lineWidth=2;
-      ctx.beginPath();ctx.arc(f.x,f.y-14*s,7*s,0,Math.PI*2);ctx.stroke();
+      ctx.save();ctx.globalAlpha=0.75+Math.sin(now*0.014)*0.2;
+      ctx.strokeStyle='#FF2222';ctx.lineWidth=3;
+      ctx.beginPath();ctx.arc(f.x,f.y-14*s,9*s,0,Math.PI*2);ctx.stroke();
+      ctx.font=`${Math.round(13*s)}px Arial`;ctx.textAlign='center';ctx.textBaseline='alphabetic';
+      ctx.fillText('⚔️',f.x,f.y-26*s);
       ctx.restore();
     }
-    drawStick(ctx,f.x,f.y,f.phase,eraIdx,s,f.donorColor,f.gender);
+    if(f._inMelee){
+      // рукопашная: размах оружия у обоих участников — видно, что они реально дерутся
+      ctx.save();ctx.strokeStyle='rgba(255,255,255,0.95)';ctx.lineWidth=2.2*s;ctx.lineCap='round';
+      const swA=(now*0.018+f.x)%(Math.PI*2);
+      ctx.beginPath();
+      ctx.moveTo(f.x+Math.cos(swA)*11*s,f.y-15*s+Math.sin(swA)*7*s);
+      ctx.lineTo(f.x+Math.cos(swA+0.7)*15*s,f.y-15*s+Math.sin(swA+0.7)*7*s);
+      ctx.stroke();
+      ctx.restore();
+      // лёгкое дрожание позиции — ощущение силового столкновения
+      ctx.save();ctx.translate((Math.random()-0.5)*2*s,(Math.random()-0.5)*2*s);
+      drawStick(ctx,f.x,f.y,f.phase,eraIdx,s,f.donorColor,f.gender);
+      ctx.restore();
+    } else {
+      drawStick(ctx,f.x,f.y,f.phase,eraIdx,s,f.donorColor,f.gender);
+    }
   });
   drawWarClashFX(ctx,dt);
 
@@ -2107,7 +2138,7 @@ function gameLoop(now){
         d.done=true;
         const idx=figures.indexOf(d.f);
         if(idx>=0){
-          spawnWarClash(d.f.x,d.f.y);
+          spawnWarClash(d.f.x,d.f.y,true);
           figures.splice(idx,1);
           if(!d.f.warTemp) civPop=Math.max(0,civPop-1);
         }
@@ -2123,7 +2154,7 @@ function gameLoop(now){
         }
       }
       warCooldownUntil=performance.now()+WAR_COOLDOWN_MS;
-      giftBanner={t:0,dur:2600,text:`⚔️ Война окончена: город -${defenderDeadTotal}, ${username} -${attackerDeadTotal}`,color:'#FF8844'};
+      giftBanner={t:0,dur:2600,text:`⚔️ Война окончена: город -${defenderDeadTotal}, ${username} -${attackerDeadTotal}`,color:'#FF8844',y:H/2};
       try{pushEvent(WAR_RESULT_LINES[0](cleanNickForSpeech(username),defenderDeadTotal,attackerDeadTotal),true,true);}catch(e){}
       updateEra();updateUI();
       warAnim=null;
