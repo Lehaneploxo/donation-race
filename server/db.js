@@ -152,11 +152,15 @@ async function getTopBoxingStolen(limit = 10) {
 
 async function getAllBoxingStolen() {
   if (!pool) return [];
+  // ROW_NUMBER (не RANK) — строгая сквозная нумерация без повторов при равных
+  // total_stolen, чтобы номер последней строки честно отражал общее число
+  // игроков. Вторичная сортировка по username — чтобы порядок среди "равных"
+  // не менялся случайно между обновлениями страницы.
   const res = await pool.query(`
     SELECT username, total_stolen, total_kos, belt_seconds,
-           RANK() OVER (ORDER BY total_stolen DESC) AS rank
+           ROW_NUMBER() OVER (ORDER BY total_stolen DESC, username ASC) AS rank
     FROM boxing_stolen
-    ORDER BY total_stolen DESC
+    ORDER BY total_stolen DESC, username ASC
   `);
   return res.rows.map(r => ({
     rank: Number(r.rank),
