@@ -150,6 +150,23 @@ async function getTopBoxingStolen(limit = 10) {
   return res.rows;
 }
 
+async function getAllBoxingStolen() {
+  if (!pool) return [];
+  const res = await pool.query(`
+    SELECT username, total_stolen, total_kos, belt_seconds,
+           RANK() OVER (ORDER BY total_stolen DESC) AS rank
+    FROM boxing_stolen
+    ORDER BY total_stolen DESC
+  `);
+  return res.rows.map(r => ({
+    rank: Number(r.rank),
+    username: r.username,
+    total_stolen: Number(r.total_stolen),
+    total_kos: Number(r.total_kos),
+    belt_seconds: Number(r.belt_seconds),
+  }));
+}
+
 async function getUserBoxingRank(username) {
   if (!pool || !username) return null;
   const res = await pool.query(`
@@ -208,4 +225,4 @@ async function deleteBoxingUser(username) {
 
 function isConnected() { return pool !== null; }
 
-module.exports = { init, addKill, getTopKillers, getUserRank, addBossDamage, getTopBossDamage, resetBossDamage, getUserBossDamageRank, addRaceCoins, getTopRaceDonations, addBoxingStolen, getTopBoxingStolen, getUserBoxingRank, addBoxingKO, addBoxingBeltSeconds, resetBoxingRating, setBoxingStolen, deleteBoxingUser, isConnected };
+module.exports = { init, addKill, getTopKillers, getUserRank, addBossDamage, getTopBossDamage, resetBossDamage, getUserBossDamageRank, addRaceCoins, getTopRaceDonations, addBoxingStolen, getTopBoxingStolen, getUserBoxingRank, addBoxingKO, addBoxingBeltSeconds, resetBoxingRating, setBoxingStolen, deleteBoxingUser, getAllBoxingStolen, isConnected };

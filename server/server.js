@@ -61,6 +61,7 @@ app.get('/arena2',      serveHtml('arena2.html'));
 app.get('/arena3',      serveHtml('arena3.html'));
 app.get('/civilization',serveHtml('civilization.html'));
 app.get('/boxing',      serveHtml('boxing_arena.html'));
+app.get('/boxing-db',   serveHtml('boxing_db.html'));
 
 // Локальный no-op сервис подписи — возвращает URL без изменений
 // Библиотека tiktok-live-connector использует его вместо eulerstream
@@ -150,6 +151,15 @@ app.get('/admin/reset-boss-damage', async (req, res) => {
   try {
     await db.resetBossDamage();
     res.json({ ok: true });
+  } catch(e) {
+    res.json({ ok: false, error: e.message });
+  }
+});
+
+app.get('/api/boxing-db', async (req, res) => {
+  try {
+    const rows = await db.getAllBoxingStolen();
+    res.json({ ok: true, count: rows.length, rows });
   } catch(e) {
     res.json({ ok: false, error: e.message });
   }
