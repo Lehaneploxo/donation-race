@@ -177,6 +177,18 @@ app.get('/admin/set-boxing-stolen', async (req, res) => {
   }
 });
 
+app.get('/admin/delete-boxing-user', async (req, res) => {
+  try {
+    const username = req.query.username || '';
+    if (!username) return res.json({ ok: false, error: 'username required' });
+    await db.deleteBoxingUser(username);
+    console.log(`[ADMIN-DELETE-BOXING-USER] username="${username}"`);
+    res.json({ ok: true, username });
+  } catch(e) {
+    res.json({ ok: false, error: e.message });
+  }
+});
+
 app.get('/top-race-donations', async (req, res) => {
   try {
     const limit = parseInt(req.query.limit) || 100;
