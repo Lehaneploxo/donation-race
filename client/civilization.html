@@ -88,6 +88,13 @@ canvas { display:block; }
   </div>
   <div class="dev-divider"></div>
   <div class="dev-section">
+    <div class="dev-label">⚔️ war</div>
+    <div class="dev-row">
+      <button onclick="tryDeclareWar('TestWarrior')">⚔️ War</button>
+    </div>
+  </div>
+  <div class="dev-divider"></div>
+  <div class="dev-section">
     <div class="dev-label">👥 people</div>
     <div class="dev-row">
       <button onclick="spawnPeople('test',20)">+20</button>
@@ -960,7 +967,7 @@ function placeMonumentBuilding(username,color){
     if(ok){buildings.push({x:bx,y:by,era:eraIdx,variant:Math.floor(Math.random()*vc),spawnT:performance.now(),label:username,labelColor:color||'#FFD700'});return;}
   }
 }
-function updateEra(){let ni=0;for(let i=ERAS.length-1;i>=0;i--){if(civPop>=ERAS[i].minPop){ni=i;break;}}if(ni!==eraIdx){eraIdx=ni;cachedEra=-1;buildings.forEach(b=>{b.era=ni;b.variant=Math.floor(Math.random()*ERA_VARIANTS[ni]);});if(ni>0){eraTransition={t:0,dur:3500,name:ERAS[ni].name,year:ERAS[ni].year};try{sndNewEra();}catch(e){}spawnFireworks();try{pushEvent(`Город переходит в новую эпоху — ${cleanNickForSpeech(ERAS[ni].name)}!`,true);}catch(e){}}}}
+function updateEra(){let ni=0;for(let i=ERAS.length-1;i>=0;i--){if(civPop>=ERAS[i].minPop){ni=i;break;}}if(ni>eraIdx){eraIdx=ni;cachedEra=-1;buildings.forEach(b=>{b.era=ni;b.variant=Math.floor(Math.random()*ERA_VARIANTS[ni]);});if(ni>0){eraTransition={t:0,dur:3500,name:ERAS[ni].name,year:ERAS[ni].year};try{sndNewEra();}catch(e){}spawnFireworks();try{pushEvent(`Город переходит в новую эпоху — ${cleanNickForSpeech(ERAS[ni].name)}!`,true);}catch(e){}}}}
 function updateTopDonors(){
   topDonors=Object.entries(donors).sort((a,b)=>b[1]-a[1]).slice(0,5).map(([n,c])=>({n,c,color:donorColors[n]||'#fff'}));
   renderLeaderboard();
@@ -1354,6 +1361,92 @@ const DISASTERS=[
   {name:'🌪️ ТОРНАДО!',     kill:0.035,type:'tornado'},
 ];
 let disasterAnim=null;
+
+// ── Война (чат-команда "war"/"война"/"війна") ──────────────────────────────────
+// Объявивший войну сражается со всеми остальными цветами города разом.
+// Бой считается мгновенно (волновая модель, как настоящее взаимное истощение
+// армий — потери каждой стороны зависят от ТЕКУЩЕЙ численности другой
+// стороны на каждой волне, не от статичного процента), а результат уже
+// просто красиво показывается зрителю 10 секунд — та же схема, что и у
+// катастроф (кол-во жертв считается сразу в triggerDisaster, а анимация
+// это просто отыгрывает).
+let warAnim=null;// {t,dur,attackerColor,username,queue,attackerDeadTotal,defenderDeadTotal}
+let warCooldownUntil=0;
+const WAR_COOLDOWN_MS=30000,WAR_DUR=10000,WAR_MIN_POP=10;
+function shuffleArr(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
+// 6 волн боя: на каждой волне обе стороны наносят урон пропорционально
+// ТЕКУЩЕЙ (не начальной) численности противника — чем дольше длится бой,
+// тем сильнее истощаются обе стороны. Потолки защищают от полного уничтожения:
+// город не теряет больше 20%, нападающий — не больше 80% (у него всегда
+// остаётся хотя бы часть людей).
+function simulateWar(A0,D0){
+  let A=A0,D=D0;
+  for(let i=0;i<6&&A>0&&D>0;i++){
+    const dmgToDefender=A*0.15*(0.7+Math.random()*0.6);
+    const dmgToAttacker=D*0.15*(0.7+Math.random()*0.6);
+    D=Math.max(0,D-dmgToDefender);
+    A=Math.max(0,A-dmgToAttacker);
+  }
+  let defenderLoss=Math.min(D0*0.20,D0-D);
+  let attackerLoss=Math.min(A0*0.80,A0-A);
+  defenderLoss=Math.min(D0,Math.max(1,Math.round(defenderLoss)));
+  attackerLoss=Math.min(A0,Math.max(1,Math.round(attackerLoss)));
+  return{defenderLoss,attackerLoss};
+}
+const WAR_LINES=[
+  n=>`${n} объявил войну городу! Все против одного!`,
+  n=>`${n} поднял мятеж против всего города! Начинается битва!`,
+];
+const WAR_RESULT_LINES=[
+  (n,d,a)=>`Война окончена! Город потерял ${d} жителей, ${n} потерял ${a} своих людей.`,
+];
+function tryDeclareWar(username){
+  if(!username||warAnim)return;
+  const now=performance.now();
+  if(now<warCooldownUntil)return;
+  if(civPop<WAR_MIN_POP)return;
+  const attackerColor=getDonorColor(username);
+  let A0=figures.filter(f=>f.donorColor===attackerColor).length;
+  const D0=figures.length-A0;
+  if(D0<=0)return;// в городе кроме зачинщика никого нет — воевать не с кем
+  if(A0===0){
+    // у зачинщика ещё нет своих жителей — временный отряд только для этого боя
+    // (в население/донат-счёт не идёт, исчезает после войны)
+    for(let i=0;i<3;i++){
+      const p=randZone();
+      figures.push({x:p.x,y:p.y,vx:0,vy:0,phase:Math.random()*Math.PI*2,donorColor:attackerColor,gender:Math.random()<0.5?'m':'f',pathTarget:-1,warTemp:true});
+    }
+    A0=3;
+  }
+  const{defenderLoss,attackerLoss}=simulateWar(A0,D0);
+  const attackerFigs=figures.filter(f=>f.donorColor===attackerColor);
+  attackerFigs.forEach(f=>f.atWar=true);
+  shuffleArr(attackerFigs);
+  const attackerDead=attackerFigs.slice(0,attackerLoss);
+  const defenderFigs=shuffleArr(figures.filter(f=>f.donorColor!==attackerColor));
+  const defenderDead=defenderFigs.slice(0,defenderLoss);
+  const queue=[...attackerDead,...defenderDead].map(f=>({f,at:1200+Math.random()*7500,done:false}));
+  warAnim={t:0,dur:WAR_DUR,attackerColor,username,queue,attackerDeadTotal:attackerLoss,defenderDeadTotal:defenderLoss};
+  giftBanner={t:0,dur:2600,text:`⚔️ ${username} ОБЪЯВИЛ ВОЙНУ!`,color:'#FF4444'};
+  try{sndInvasion();}catch(e){}
+  try{pushEvent(pick(WAR_LINES)(cleanNickForSpeech(username)),true,true);}catch(e){}
+}
+// ── Визуальные вспышки столкновений во время войны ──────────────────────────────
+const warClashFX=[];
+function spawnWarClash(x,y){warClashFX.push({x,y,t:0,dur:420});}
+function drawWarClashFX(cx,dt){
+  for(let i=warClashFX.length-1;i>=0;i--){
+    const p=warClashFX[i];p.t+=dt;
+    if(p.t>=p.dur){warClashFX.splice(i,1);continue;}
+    const prog=p.t/p.dur;
+    cx.save();cx.globalAlpha=1-prog;
+    cx.strokeStyle='#fff';cx.lineWidth=2;
+    cx.beginPath();cx.moveTo(p.x-8-prog*6,p.y-14+prog*4);cx.lineTo(p.x+8+prog*6,p.y-4-prog*4);cx.stroke();
+    cx.fillStyle='rgba(255,60,40,0.85)';
+    cx.beginPath();cx.arc(p.x,p.y-8,3+prog*5,0,Math.PI*2);cx.fill();
+    cx.restore();
+  }
+}
 
 // русские фразы длиннее английских — ужимаем шрифт, чтобы влезло в одну строку
 function setDisasterMsg(text){
@@ -1851,8 +1944,16 @@ function gameLoop(now){
   // No demo mode — civilization is TikTok-only
   if(now>=nextDisasterAt){triggerDisaster();nextDisasterAt=now+randDisasterDelay();}
   figures.forEach(f=>{
-    f.phase+=dt*0.005;
-    if(f.pathTarget>=0&&civPop>150){
+    f.phase+=dt*(f.atWar?0.011:0.005);
+    if(f.atWar&&warAnim){
+      // во время войны бойцы-нападающие ищут ближайшего "чужого" и бегут к нему
+      let nearest=null,nd=Infinity;
+      for(const g of figures){if(g.donorColor!==f.donorColor){const dd=Math.hypot(g.x-f.x,g.y-f.y);if(dd<nd){nd=dd;nearest=g;}}}
+      if(nearest){
+        const dx=nearest.x-f.x,dy=nearest.y-f.y,dist=Math.hypot(dx,dy)||1;
+        f.vx=f.vx*0.85+(dx/dist)*0.9*0.15;f.vy=f.vy*0.85+(dy/dist)*0.5*0.15;
+      }
+    } else if(f.pathTarget>=0&&civPop>150){
       const tgt=GATHER_SPOTS[f.pathTarget];
       const dx=tgt.x-f.x,dy=tgt.y-f.y,dist=Math.hypot(dx,dy);
       if(dist<28){f.pathTarget=Math.floor(Math.random()*GATHER_SPOTS.length);}
@@ -1963,8 +2064,17 @@ function gameLoop(now){
   // Figures
   [...figures].sort((a,b)=>a.y-b.y).forEach(f=>{
     const depth=(f.y-GND)/(H-GND);
-    drawStick(ctx,f.x,f.y,f.phase,eraIdx,0.38+depth*0.62,f.donorColor,f.gender);
+    const s=0.38+depth*0.62;
+    if(f.atWar){
+      // боевая подсветка нападающего — видно среди толпы, кто именно воюет
+      ctx.save();ctx.globalAlpha=0.6+Math.sin(now*0.012)*0.25;
+      ctx.strokeStyle='#FF3333';ctx.lineWidth=2;
+      ctx.beginPath();ctx.arc(f.x,f.y-14*s,7*s,0,Math.PI*2);ctx.stroke();
+      ctx.restore();
+    }
+    drawStick(ctx,f.x,f.y,f.phase,eraIdx,s,f.donorColor,f.gender);
   });
+  drawWarClashFX(ctx,dt);
 
   // Night ground overlay
   drawNightGround(ctx,nightness);
@@ -1984,6 +2094,37 @@ function gameLoop(now){
     if(disasterAnim.t>=disasterAnim.dur){
       disasterAnim=null;
       document.getElementById('disasterMsg').style.display='none';
+    }
+  }
+
+  // Война: тикаем таймер, убиваем по расписанию, в конце — итог и кулдаун
+  if(warAnim){
+    warAnim.t+=dt;
+    for(const d of warAnim.queue){
+      if(!d.done&&warAnim.t>=d.at){
+        d.done=true;
+        const idx=figures.indexOf(d.f);
+        if(idx>=0){
+          spawnWarClash(d.f.x,d.f.y);
+          figures.splice(idx,1);
+          if(!d.f.warTemp) civPop=Math.max(0,civPop-1);
+        }
+      }
+    }
+    if(warAnim.t>=warAnim.dur){
+      const{username,attackerColor,attackerDeadTotal,defenderDeadTotal}=warAnim;
+      for(let i=figures.length-1;i>=0;i--){
+        const f=figures[i];
+        if(f.donorColor===attackerColor){
+          if(f.warTemp) figures.splice(i,1);// временный отряд исчезает после боя целиком
+          else f.atWar=false;
+        }
+      }
+      warCooldownUntil=performance.now()+WAR_COOLDOWN_MS;
+      giftBanner={t:0,dur:2600,text:`⚔️ Война окончена: город -${defenderDeadTotal}, ${username} -${attackerDeadTotal}`,color:'#FF8844'};
+      try{pushEvent(WAR_RESULT_LINES[0](cleanNickForSpeech(username),defenderDeadTotal,attackerDeadTotal),true,true);}catch(e){}
+      updateEra();updateUI();
+      warAnim=null;
     }
   }
 
@@ -2066,6 +2207,10 @@ function handleEvent(m){
     spawnPeople(m.username||'?', Math.max(1, Number(m.coins)||1));
   }
   else if(m.type==='civ_like'){handleLikes(m.username,m.likes);}
+  else if(m.type==='chat'){
+    const c=(m.comment||'').trim().toLowerCase();
+    if(c==='war'||c==='война'||c==='війна') tryDeclareWar(m.username);
+  }
   else if(m.type==='arena_like'||m.type==='like'){/* лайки больше не влияют на игру */}
   else if(m.type==='arena_member'||m.type==='member'){/* ignore */}
   else if(m.type==='arena_bot'){/* ignore — arena AI bots must not affect civilization */}

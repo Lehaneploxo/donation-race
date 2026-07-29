@@ -294,8 +294,11 @@ class Room {
       },
       // onLike — лайки
       (data) => {
-        // Always send to civilization
-        this.broadcast({ type: 'civ_like', likes: data.likes || 1, username: data.username });
+        // Civilization: только реальные лайки из TikTok — демо-боты не должны
+        // растить население (та же защита, что уже стоит на civ_gift выше).
+        if (this.connection?._tiktokMode === 'tiktok') {
+          this.broadcast({ type: 'civ_like', likes: data.likes || 1, username: data.username });
+        }
         // War game: broadcast raw like count regardless of race state
         this.broadcast({ type: 'war_like', likes: data.likes || 0, username: data.username });
         this.broadcast({ type: 'arena_like', likes: data.likes || 0, username: data.username });
