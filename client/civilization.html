@@ -23,7 +23,7 @@ canvas { display:block; }
 .lb-king-count { font-size:14px; font-weight:700; color:rgba(255,255,255,0.9); margin-top:2px; text-shadow:0 1px 3px rgba(0,0,0,1); }
 .lb-row { background:rgba(0,0,0,0.82); border-radius:8px; padding:6px 10px; font-family:'Segoe UI',sans-serif; display:flex; align-items:center; gap:6px; border-left:4px solid #888; }
 .lb-rank { font-size:15px; font-weight:900; min-width:16px; text-shadow:0 0 6px currentColor; }
-.lb-flag { display:inline-block; width:11px; height:11px; border-radius:3px; flex-shrink:0; box-shadow:0 0 7px 1px currentColor,0 0 2px rgba(0,0,0,0.9); }
+.lb-flag { display:inline-block; width:11px; height:11px; border-radius:3px; flex-shrink:0; border:1px solid rgba(255,255,255,0.5); }
 .lb-nick { font-size:17px; font-weight:800; color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100px; }
 .lb-cnt  { font-size:13px; font-weight:700; color:rgba(255,255,255,0.85); margin-left:auto; white-space:nowrap; text-shadow:0 1px 3px rgba(0,0,0,1); }
 #bottomBar { position:absolute; bottom:0; left:0; right:0; background:linear-gradient(0deg,rgba(0,0,0,0.8) 0%,rgba(0,0,0,0) 100%); padding:18px 14px 12px; }
@@ -988,8 +988,8 @@ function updateTopDonors(){
 function renderLeaderboard(){
   const lb=document.getElementById('leaderboard');if(!lb)return;lb.innerHTML='';
   topDonors.forEach((d,i)=>{
-    if(i===0){const div=document.createElement('div');div.className='lb-king';div.style.borderColor=d.color;div.innerHTML=`<div class="lb-king-title">👑 КОРОЛЬ</div><div class="lb-king-name" style="color:${d.color};text-shadow:0 0 10px ${d.color},0 0 3px ${d.color},0 1px 4px rgba(0,0,0,1)"><span class="lb-flag" style="background:${d.color};color:${d.color}"></span> ${d.n}</div><div class="lb-king-count">👥 ${d.c.toLocaleString()} чел.</div>`;lb.appendChild(div);}
-    else{const div=document.createElement('div');div.className='lb-row';div.style.borderLeftColor=d.color;div.innerHTML=`<span class="lb-rank" style="color:${d.color}">${i+1}</span><span class="lb-flag" style="background:${d.color};color:${d.color}"></span><span class="lb-nick" style="color:${d.color};text-shadow:0 0 8px ${d.color},0 0 2px ${d.color},0 1px 3px rgba(0,0,0,1)">${d.n}</span><span class="lb-cnt">👥 ${d.c.toLocaleString()}</span>`;lb.appendChild(div);}
+    if(i===0){const div=document.createElement('div');div.className='lb-king';div.style.borderColor=d.color;div.innerHTML=`<div class="lb-king-title">👑 КОРОЛЬ</div><div class="lb-king-name" style="color:${d.color}"><span class="lb-flag" style="background:${d.color};color:${d.color}"></span> ${d.n}</div><div class="lb-king-count">👥 ${d.c.toLocaleString()} чел.</div>`;lb.appendChild(div);}
+    else{const div=document.createElement('div');div.className='lb-row';div.style.borderLeftColor=d.color;div.innerHTML=`<span class="lb-rank" style="color:${d.color}">${i+1}</span><span class="lb-flag" style="background:${d.color};color:${d.color}"></span><span class="lb-nick" style="color:${d.color}">${d.n}</span><span class="lb-cnt">👥 ${d.c.toLocaleString()}</span>`;lb.appendChild(div);}
   });
 }
 function updateUI(){
