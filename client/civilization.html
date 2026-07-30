@@ -1953,7 +1953,8 @@ function gameLoop(now){
   // No demo mode — civilization is TikTok-only
   if(now>=nextDisasterAt){triggerDisaster();nextDisasterAt=now+randDisasterDelay();}
   // сброс флага "в рукопашной" — пересчитывается заново каждый кадр ниже
-  if(warAnim) figures.forEach(f=>{f._inMelee=false;});
+  // (безусловно, иначе после конца войны бойцы застревают с мечом навсегда)
+  figures.forEach(f=>{f._inMelee=false;});
   const MELEE_RANGE=26;
   figures.forEach(f=>{
     f.phase+=dt*(f.atWar?0.011:0.005);
