@@ -2152,7 +2152,7 @@ function gameLoop(now){
         const f=figures[i];
         if(f.donorColor===attackerColor){
           if(f.warTemp) figures.splice(i,1);// временный отряд исчезает после боя целиком
-          else f.atWar=false;
+          else{f.atWar=false;f.vx=0;f.vy=0;}// гасим набранную в бою скорость погони, иначе бегут по инерции
         }
       }
       warCooldownUntil=performance.now()+WAR_COOLDOWN_MS;
