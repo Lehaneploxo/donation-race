@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>🥋 Street Fighter — Карта (мокап)</title>
+<style>
+  html, body { width:100vw; height:100vh; margin:0; background:#000; overflow:hidden; font-family:Arial,sans-serif; }
+  #wrap { position:absolute; left:0; top:0; width:600px; height:1000px; transform-origin:0 0; }
+  canvas { display:block; background:#000; image-rendering:pixelated; }
+</style>
+</head>
+<body>
+<div id="wrap"><canvas id="c" width="600" height="1000"></canvas></div>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const wrap = document.getElementById('wrap');
+const CW = canvas.width, CH = canvas.height;
+
+function applyScale(){
+  const vw = document.documentElement.clientWidth || window.innerWidth;
+  const vh = document.documentElement.clientHeight || window.innerHeight;
+  const s = Math.min(vw/600, vh/1000);
+  const x = (vw - 600*s)/2, y = (vh - 1000*s)/2;
+  wrap.style.transform = `translate(${x}px,${y}px) scale(${s})`;
+}
+applyScale();
+window.addEventListener('resize', applyScale);
+
+// ── Геометрия — та же схема, что и в boxing_arena.html (плашка сверху,
+// сцена ниже): PANEL 14-264, небо/стена 274-480, дорога(пол) 480-1000 ──
+const PANEL_TOP = 14, PANEL_H = 250;
+const SKY_TOP = PANEL_TOP + PANEL_H + 10; // 274
+const SKY_H = 80;
+const WALL_TOP = SKY_TOP + SKY_H;         // 354
+const WALL_H = 126;
+const ROAD_TOP = WALL_TOP + WALL_H;       // 480
+const ROAD_H = CH - ROAD_TOP;             // 520
+const FIGHT = { xMin:70, xMax:530, yMin:ROAD_TOP+60, yMax:CH-40 };
+
+// ── Тайлы улицы (Streets of Fight, ansimuz, CC0) ──
+const TILESET_SRC = 'sprites/streets_of_fight/stage/tileset.png';
+const BACK_SRC     = 'sprites/streets_of_fight/stage/back.png';
+const FORE_SRC      = 'sprites/streets_of_fight/stage/fore.png';
+
+// Точные координаты кусков внутри tileset.png — вычислены сканированием
+// прозрачных зазоров (см. историю чата), не угаданы на глаз:
+const TILE_WALL_PIZZA  = { sx:0,   sy:0,   sw:224, sh:96 };
+const TILE_WALL_WINDOW = { sx:288, sy:0,   sw:224, sh:96 };
+const TILE_ROAD        = { sx:48,  sy:224, sw:112, sh:144 };
+
+const imgTileset = new Image(); imgTileset.src = TILESET_SRC;
+const imgBack     = new Image(); imgBack.src = BACK_SRC;
+const imgFore     = new Image(); imgFore.src = FORE_SRC;
+
+function drawTiledSource(img, tile, dx, dy, dw, dh, tileScreenW){
+  // рисует горизонтально повторяющийся кусок исходника img (tile — область
+  // sx,sy,sw,sh) в прямоугольник dx,dy,dw,dh, каждая копия шириной tileScreenW
+  if (!img.complete || !img.naturalWidth) return;
+  const n = Math.ceil(dw / tileScreenW) + 1;
+  ctx.save();
+  ctx.beginPath(); ctx.rect(dx, dy, dw, dh); ctx.clip();
+  for (let i = 0; i < n; i++){
+    ctx.drawImage(img, tile.sx, tile.sy, tile.sw, tile.sh, dx + i*tileScreenW, dy, tileScreenW, dh);
+  }
+  ctx.restore();
+}
+
+function drawBackground(){
+  // небо/неоновый скайлайн (back.png, тайлится по ширине)
+  if (imgBack.complete && imgBack.naturalWidth){
+    const scale = SKY_H / imgBack.naturalHeight;
+    const tw = imgBack.naturalWidth * scale;
+    drawTiledSource(imgBack, { sx:0, sy:0, sw:imgBack.naturalWidth, sh:imgBack.naturalHeight }, 0, SKY_TOP, CW, SKY_H, tw);
+  } else {
+    ctx.fillStyle = '#1a1030'; ctx.fillRect(0, SKY_TOP, CW, SKY_H);
+  }
+
+  // стена дома — чередуем кусок с пиццерией и кусок с окном
+  if (imgTileset.complete && imgTileset.naturalWidth){
+    const scale = WALL_H / TILE_WALL_PIZZA.sh;
+    const tw = TILE_WALL_PIZZA.sw * scale;
+    let x = 0, i = 0;
+    ctx.save();
+    ctx.beginPath(); ctx.rect(0, WALL_TOP, CW, WALL_H); ctx.clip();
+    while (x < CW + tw){
+      const tile = (i % 2 === 0) ? TILE_WALL_PIZZA : TILE_WALL_WINDOW;
+      ctx.drawImage(imgTileset, tile.sx, tile.sy, tile.sw, tile.sh, x, WALL_TOP, tw, WALL_H);
+      x += tw; i++;
+    }
+    ctx.restore();
+  } else {
+    ctx.fillStyle = '#3a2a20'; ctx.fillRect(0, WALL_TOP, CW, WALL_H);
+  }
+
+  // дорога/тротуар — плитка с жёлтой полосой, тайлится по всей высоте пола
+  if (imgTileset.complete && imgTileset.naturalWidth){
+    const scale = ROAD_H / TILE_ROAD.sh;
+    const tw = TILE_ROAD.sw * scale;
+    drawTiledSource(imgTileset, TILE_ROAD, 0, ROAD_TOP, CW, ROAD_H, tw);
+  } else {
+    ctx.fillStyle = '#26364a'; ctx.fillRect(0, ROAD_TOP, CW, ROAD_H);
+  }
+
+  // лёгкое затемнение снизу для глубины (пол ближе к камере — темнее)
+  const g = ctx.createLinearGradient(0, ROAD_TOP, 0, CH);
+  g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,0.35)');
+  ctx.fillStyle = g; ctx.fillRect(0, ROAD_TOP, CW, ROAD_H);
+
+  // фонари по бокам (fore.png) — для глубины, как угловые стойки в боксе
+  if (imgFore.complete && imgFore.naturalWidth){
+    const fh = 210, scale = fh / imgFore.naturalHeight, fw = imgFore.naturalWidth * scale;
+    ctx.drawImage(imgFore, 0, 0, imgFore.naturalWidth, imgFore.naturalHeight, 18, WALL_TOP - 40, fw, fh);
+    ctx.save(); ctx.scale(-1,1);
+    ctx.drawImage(imgFore, 0, 0, imgFore.naturalWidth, imgFore.naturalHeight, -(CW-18), WALL_TOP - 40, fw, fh);
+    ctx.restore();
+  }
+}
+
+// ── Персонажи: Brawler Girl (игрок) + Enemy Punk (враг/бот) ──
+const CHAR_DEFS = {
+  brawler_girl: { dir:'brawler_girl', folder:'Idle', prefix:'idle', count:4, fps:8 },
+  enemy_punk:   { dir:'enemy_punk',   folder:'Idle', prefix:'idle', count:4, fps:8 },
+};
+const charFrames = {};
+for (const key in CHAR_DEFS){
+  const d = CHAR_DEFS[key];
+  charFrames[key] = [];
+  for (let i = 1; i <= d.count; i++){
+    const img = new Image();
+    img.src = `sprites/streets_of_fight/${d.dir}/${d.folder}/${d.prefix}${i}.png`;
+    charFrames[key].push(img);
+  }
+}
+
+// демо-состав, стоят на дороге на разной "глубине" (Y определяет масштаб)
+const FIGHTERS = [
+  { type:'brawler_girl', x:150, y:FIGHT.yMin+20,  nick:'@fan_anya' },
+  { type:'brawler_girl', x:450, y:FIGHT.yMin+20,  nick:'@lucky_viewer' },
+  { type:'enemy_punk',   x:300, y:FIGHT.yMax-30,  nick:null },
+  { type:'brawler_girl', x:300, y:(FIGHT.yMin+FIGHT.yMax)/2, nick:'@top_fan' },
+];
+FIGHTERS.forEach(f => { f.frameIdx = 0; f.frameTimer = 0; });
+
+function depthScale(y){
+  const t = (y - FIGHT.yMin) / (FIGHT.yMax - FIGHT.yMin);
+  return 2.6 + t * 2.2; // дальше — мельче, ближе к камере — крупнее
+}
+
+function drawFighter(f, dt){
+  const d = CHAR_DEFS[f.type];
+  f.frameTimer += dt;
+  if (f.frameTimer >= 1000/d.fps){ f.frameTimer = 0; f.frameIdx = (f.frameIdx+1) % d.count; }
+  const img = charFrames[f.type][f.frameIdx];
+  if (!img.complete || !img.naturalWidth) return;
+
+  const scale = depthScale(f.y);
+  const dw = img.naturalWidth*scale, dh = img.naturalHeight*scale;
+
+  // тень
+  ctx.save();
+  ctx.globalAlpha = 0.35;
+  ctx.fillStyle = '#000';
+  ctx.beginPath();
+  ctx.ellipse(f.x, f.y+4, dw*0.28, dh*0.09, 0, 0, Math.PI*2);
+  ctx.fill();
+  ctx.restore();
+
+  ctx.drawImage(img, f.x - dw/2, f.y - dh, dw, dh);
+
+  if (f.nick){
+    ctx.font = 'bold 13px Arial Black'; ctx.textAlign = 'center';
+    ctx.strokeStyle = 'rgba(0,0,0,0.85)'; ctx.lineWidth = 3;
+    ctx.strokeText(f.nick, f.x, f.y - dh - 8);
+    ctx.fillStyle = '#ffd24f';
+    ctx.fillText(f.nick, f.x, f.y - dh - 8);
+  }
+}
+
+// ── ПЛАШКА (та же схема, что в boxing_arena.html: правила слева, топ справа) ──
+function drawHUD(){
+  const T = PANEL_TOP, TH = PANEL_H;
+  const bg = ctx.createLinearGradient(0, T, 0, T + TH);
+  bg.addColorStop(0, 'rgba(10,10,20,0.97)'); bg.addColorStop(1, 'rgba(4,4,10,0.97)');
+  ctx.fillStyle = bg; ctx.fillRect(0, T, CW, TH);
+  ctx.strokeStyle = 'rgba(80,180,255,0.4)'; ctx.lineWidth = 1.5;
+  ctx.strokeRect(2, T+2, CW-4, TH-4);
+
+  ctx.font = 'bold 24px Arial Black'; ctx.textAlign = 'center';
+  ctx.strokeStyle = 'rgba(0,0,0,0.9)'; ctx.lineWidth = 4;
+  ctx.strokeText('🥋 STREET FIGHTERS 🥋', CW/2, T+34, CW-20);
+  ctx.fillStyle = '#4fc3ff'; ctx.fillText('🥋 STREET FIGHTERS 🥋', CW/2, T+34, CW-20);
+
+  const hg = ctx.createLinearGradient(0,0,CW,0);
+  hg.addColorStop(0,'rgba(80,180,255,0)'); hg.addColorStop(0.2,'rgba(80,180,255,0.4)');
+  hg.addColorStop(0.8,'rgba(80,180,255,0.4)'); hg.addColorStop(1,'rgba(80,180,255,0)');
+  ctx.strokeStyle = hg; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(0,T+44); ctx.lineTo(CW,T+44); ctx.stroke();
+
+  ctx.font = 'bold 26px Arial Black'; ctx.textAlign = 'center';
+  ctx.shadowColor = 'rgba(80,180,255,0.55)'; ctx.shadowBlur = 10;
+  ctx.strokeStyle = 'rgba(0,0,0,0.65)'; ctx.lineWidth = 3;
+  ctx.strokeText('🎮 creator: Leha Neploxo', CW/2, T+62, CW-20);
+  ctx.fillStyle = 'rgba(120,200,255,0.75)';
+  ctx.fillText('🎮 creator: Leha Neploxo', CW/2, T+62, CW-20);
+  ctx.shadowBlur = 0;
+
+  const vg = ctx.createLinearGradient(0,T+72,0,T+TH-6);
+  vg.addColorStop(0,'rgba(255,255,255,0)'); vg.addColorStop(0.3,'rgba(255,255,255,0.12)');
+  vg.addColorStop(0.7,'rgba(255,255,255,0.12)'); vg.addColorStop(1,'rgba(255,255,255,0)');
+  ctx.strokeStyle = vg;
+  ctx.beginPath(); ctx.moveTo(CW/2,T+72); ctx.lineTo(CW/2,T+TH-6); ctx.stroke();
+
+  // левая колонка — правила (заглушка, та же логика роста будет что и в боксе)
+  const rules = [
+    { text: '👍 1 лайк = +10❤️ +1💪',       color: '#4fc3ff' },
+    { text: '🎁 1 монета = +100❤️ +10💪',   color: '#FFD700' },
+    { text: '💬 Напиши "rating" — топ',      color: '#8fffb0' },
+    { text: '🚩 Напиши "Team" — команда',    color: '#ff5566' },
+  ];
+  const rY = T+82, rStep = 26;
+  const ruleFont = 'bold 22px Arial Black';
+  const ruleAvailW = CW/2 - 16;
+  ctx.font = ruleFont;
+  let ruleScaleX = 1;
+  rules.forEach(r => { ruleScaleX = Math.min(ruleScaleX, ruleAvailW / ctx.measureText(r.text).width); });
+  rules.forEach((r,i)=>{
+    ctx.save();
+    ctx.scale(ruleScaleX, 1);
+    ctx.font = ruleFont; ctx.textAlign = 'left';
+    ctx.strokeStyle = 'rgba(0,0,0,0.85)'; ctx.lineWidth = 3.5;
+    ctx.strokeText(r.text, 8/ruleScaleX, rY + i*rStep);
+    ctx.fillStyle = r.color;
+    ctx.fillText(r.text, 8/ruleScaleX, rY + i*rStep);
+    ctx.restore();
+  });
+
+  // правая колонка — топ (заглушка-данные, будет как в боксе — из БД)
+  ctx.font = 'bold 12px Arial Black'; ctx.textAlign = 'center';
+  ctx.strokeStyle = 'rgba(0,0,0,0.9)'; ctx.lineWidth = 3;
+  ctx.strokeText('🏆 TOP БОЙЦЫ 🏆', CW*0.75, T+80, CW/2-16);
+  ctx.fillStyle = '#ffd24f'; ctx.fillText('🏆 TOP БОЙЦЫ 🏆', CW*0.75, T+80, CW/2-16);
+
+  const demoTop = [
+    { name:'fan_anya', stolen: 4820 },
+    { name:'lucky_viewer', stolen: 3110 },
+    { name:'top_fan', stolen: 2005 },
+  ];
+  const rankColors = ['#FFD700','#C0C0C0','#CD7F32'];
+  const ranks = ['👑','2.','3.'];
+  const tX = CW/2 + 8, tY = T+108, tStep = 29;
+  demoTop.forEach((p,i)=>{
+    const y = tY + i*tStep;
+    if (i===0){ ctx.fillStyle='rgba(80,180,255,0.08)'; ctx.fillRect(tX-4,y-21,CW/2-12,tStep-1); }
+    ctx.font = i===0 ? 'bold 21px Arial Black' : 'bold 19px Arial Black';
+    ctx.textAlign='left'; ctx.strokeStyle='rgba(0,0,0,0.9)'; ctx.lineWidth=3.5;
+    ctx.strokeText(ranks[i], tX, y);
+    ctx.fillStyle=rankColors[i]; ctx.fillText(ranks[i], tX, y);
+    ctx.strokeText(p.name, tX+26, y, 148);
+    ctx.fillStyle = i===0 ? '#FFE566' : '#EEEEEE';
+    ctx.fillText(p.name, tX+26, y, 148);
+    ctx.textAlign='right'; ctx.strokeStyle='rgba(0,0,0,0.9)'; ctx.lineWidth=3;
+    ctx.font = i===0 ? 'bold 17px Arial' : 'bold 16px Arial';
+    ctx.strokeText('⚡'+p.stolen, CW-8, y);
+    ctx.fillStyle='#7fd3ff'; ctx.fillText('⚡'+p.stolen, CW-8, y);
+  });
+  ctx.font = '9px Arial'; ctx.fillStyle = 'rgba(255,255,255,0.18)';
+  ctx.textAlign = 'center'; ctx.fillText('заглушка — логика та же, что в Boxing Arena', CW*0.75, T+TH-6);
+}
+
+let lastT = 0;
+function loop(t){
+  const dt = lastT ? t - lastT : 16; lastT = t;
+  ctx.clearRect(0,0,CW,CH);
+  drawBackground();
+  const sorted = [...FIGHTERS].sort((a,b)=>a.y-b.y);
+  sorted.forEach(f => drawFighter(f, dt));
+  drawHUD();
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
