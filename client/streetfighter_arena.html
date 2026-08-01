@@ -205,6 +205,10 @@ const FLOOR_TOP = 480, FLOOR_BOT = 1000;
 const RING = { xMin:75, xMax:525, yMin:FLOOR_TOP+45, yMax:FLOOR_BOT-35 };
 const KO_FALL_MS = 1600;  // сколько играет анимация падения перед исчезновением
 const FIGHT_DIST = 68;
+// бой стартует только если бойцы ещё и близки по глубине (Y) — иначе при
+// диагональной близости (один дальше от камеры, другой ближе) они дерутся
+// "по диагонали", хотя визуально не стоят друг перед другом
+const FIGHT_Y_GAP = 30;
 
 // раунды — чисто визуальный таймер поверх непрерывного боя (не влияет на
 // нокауты/выбывание): каждые 3 минуты объявляется лучший ЭТОГО раунда,
@@ -1718,7 +1722,7 @@ function update(dt){
       const b = VARIANTS[j];
       if (!b.alive || b.punchCooldown>0) continue;
       if (a.team && b.team) continue; // свои с красным флажком друг друга не бьют
-      if (Math.hypot(a.x-b.x, a.y-b.y) < FIGHT_DIST) startExchange(a,b);
+      if (Math.hypot(a.x-b.x, a.y-b.y) < FIGHT_DIST && Math.abs(a.y-b.y) < FIGHT_Y_GAP) startExchange(a,b);
     }
   }
 
