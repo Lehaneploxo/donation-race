@@ -143,10 +143,9 @@ const FIGHTERS = [
 ];
 FIGHTERS.forEach(f => { f.frameIdx = 0; f.frameTimer = 0; });
 
-function depthScale(y){
-  const t = (y - FIGHT.yMin) / (FIGHT.yMax - FIGHT.yMin);
-  return 2.6 + t * 2.2; // дальше — мельче, ближе к камере — крупнее
-}
+// все бойцы ОДНОГО размера (как FIGHTER_SCALE в boxing_arena.html) —
+// позиция(глубина) влияет только на порядок отрисовки/Y, не на масштаб
+const FIGHTER_SCALE = 0.85;
 
 function drawFighter(f, dt){
   const d = CHAR_DEFS[f.type];
@@ -155,8 +154,9 @@ function drawFighter(f, dt){
   const img = charFrames[f.type][f.frameIdx];
   if (!img.complete || !img.naturalWidth) return;
 
-  const scale = depthScale(f.y);
-  const dw = img.naturalWidth*scale, dh = img.naturalHeight*scale;
+  const baseH = 130*FIGHTER_SCALE;
+  const scale = baseH / img.naturalHeight;
+  const dw = img.naturalWidth*scale, dh = baseH;
 
   // тень
   ctx.save();
