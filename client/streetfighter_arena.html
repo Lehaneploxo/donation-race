@@ -468,7 +468,6 @@ let vSpeaking = false;
 let vProtected = false; // пока true — текущую фразу нельзя оборвать другим urgent-событием
 let vQuietPool = [];
 let vQuietTimer = null;
-let currentEvent = null; // {text, timer, max} — для баннера (drawEventBanner)
 
 // главное правило — звучит ГАРАНТИРОВАННО каждые 30 сек, целиком, вне
 // очереди (см. setInterval ниже и RULES_OTHER для остальных правил)
@@ -588,7 +587,6 @@ function vSpeakNext(){
   vSpeaking = true;
   vProtected = item.protected;
   const dur = estimateSpeechMs(text);
-  currentEvent = { text, timer: dur, max: dur };
   const onDone = ()=>{ vSpeaking=false; vProtected=false; setTimeout(vSpeakNext, 400); };
   if (voiceEnabled && window.speechSynthesis){
     speak(text, onDone);
@@ -1055,29 +1053,6 @@ function formatRoundTime(ms){
   return `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;
 }
 
-function drawEventBanner() {
-  if (!currentEvent) return;
-  const { text, timer, max } = currentEvent;
-  const fadeIn = Math.min(1, (max-timer)/350);
-  const fadeOut = Math.min(1, timer/350);
-  const alpha = Math.min(fadeIn, fadeOut);
-  if (alpha<=0) return;
-
-  const y = WALL_TOP + 40;
-  ctx.save();
-  ctx.globalAlpha = alpha;
-  ctx.font = 'bold 19px Arial Black';
-  ctx.textAlign = 'center';
-  const tw = Math.min(ctx.measureText(text).width, CW-40);
-  ctx.fillStyle = 'rgba(0,0,0,0.55)';
-  ctx.fillRect(CW/2 - tw/2 - 14, y-24, tw+28, 34);
-  ctx.strokeStyle = 'rgba(0,0,0,0.9)'; ctx.lineWidth = 4;
-  ctx.strokeText(text, CW/2, y, CW-40);
-  ctx.fillStyle = '#ffcf4d';
-  ctx.fillText(text, CW/2, y, CW-40);
-  ctx.restore();
-}
-
 // ── Единый масштаб для ВСЕХ пиксель-арт ассетов пака (персонажи и фон —
 // из одного пака Streets of Fight) — иначе дверь/стена не в пропорции с
 // бойцом. Кадры бойцов нативно 96×63, целимся в ту же высоту бойца, что и
@@ -1148,6 +1123,23 @@ function drawBackground(t) {
   } else {
     ctx.fillStyle = '#3a2a20'; ctx.fillRect(0, wallY, CW, WALL_H);
   }
+
+  // козырёк/карниз крыши на стыке неба и стены — без него стена сливалась
+  // с фоном и было непонятно, откуда она "начинается"; с карнизом сразу
+  // видно, что это крыша одноэтажного магазина, а ночной город (back.png)
+  // остаётся виден выше — как горизонт позади здания
+  const ledgeH = 13;
+  ctx.fillStyle = '#2b2129';
+  ctx.fillRect(0, wallY - ledgeH, CW, ledgeH + 4);
+  ctx.fillStyle = '#6b5f68';
+  ctx.fillRect(0, wallY - ledgeH, CW, 4);
+  ctx.fillStyle = 'rgba(255,220,160,0.35)';
+  ctx.fillRect(0, wallY - ledgeH, CW, 1.5);
+  const ledgeShadow = ctx.createLinearGradient(0, wallY + 4, 0, wallY + 20);
+  ledgeShadow.addColorStop(0, 'rgba(0,0,0,0.6)');
+  ledgeShadow.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = ledgeShadow;
+  ctx.fillRect(0, wallY + 4, CW, 20);
 
   // дорога/тротуар — тайлится и по ширине, и по высоте масштабом UNIT_SCALE
   const roadH = FLOOR_BOT - FLOOR_TOP;
@@ -1348,7 +1340,13 @@ function drawFighter(v) {
     ctx.save();
     ctx.translate(cx, floorY);
     ctx.rotate(v.lean||0); // лёгкий наклон в сторону движения — заменяет отсутствующий цикл ходьбы
-    if (v.facing < 0) ctx.scale(-1,1);
+    // v.facing<0 значит "должен смотреть вправо" — но у разных баз спрайтов
+    // разный дефолт (brawler_girl по умолчанию смотрит влево, enemy_punk —
+    // вправо), поэтому флип считаем относительно РЕАЛЬНОГО дефолта базового
+    // типа, а не одного глобального допущения (иначе punk бил в другую сторону)
+    const wantsRight = v.facing < 0;
+    const defaultsRight = v.baseType === 'enemy_punk';
+    if (wantsRight !== defaultsRight) ctx.scale(-1,1);
     ctx.drawImage(img, -dw/2, -dh+8, dw, dh);
     ctx.restore();
   }
@@ -1741,9 +1739,7 @@ function update(dt){
     if (roundGirl.t >= ROUND_GIRL_MS) roundGirl = null;
   }
 
-  // сама очередь двигается по завершению речи (см. vSpeakNext) — тут только
-  // тикает таймер затухания баннера
-  if (currentEvent) currentEvent.timer = Math.max(0, currentEvent.timer - dt);
+  // сама очередь двигается по завершению речи (см. vSpeakNext)
 }
 
 let _lastT = 0;
@@ -1761,7 +1757,6 @@ function loop(t) {
   for (const v of sorted) drawFighter(v);
 
   drawRoundGirl();
-  drawEventBanner();
   drawHUD();
 
   requestAnimationFrame(loop);
