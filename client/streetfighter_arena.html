@@ -1340,13 +1340,7 @@ function drawFighter(v) {
     ctx.save();
     ctx.translate(cx, floorY);
     ctx.rotate(v.lean||0); // лёгкий наклон в сторону движения — заменяет отсутствующий цикл ходьбы
-    // v.facing<0 значит "должен смотреть вправо" — но у разных баз спрайтов
-    // разный дефолт (brawler_girl по умолчанию смотрит влево, enemy_punk —
-    // вправо), поэтому флип считаем относительно РЕАЛЬНОГО дефолта базового
-    // типа, а не одного глобального допущения (иначе punk бил в другую сторону)
-    const wantsRight = v.facing < 0;
-    const defaultsRight = v.baseType === 'enemy_punk';
-    if (wantsRight !== defaultsRight) ctx.scale(-1,1);
+    if (v.facing < 0) ctx.scale(-1,1); // оба базовых спрайта по умолчанию смотрят влево
     ctx.drawImage(img, -dw/2, -dh+8, dw, dh);
     ctx.restore();
   }
