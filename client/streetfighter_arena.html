@@ -1210,9 +1210,8 @@ function drawBackground(t) {
   ctx.fillStyle = g; ctx.fillRect(0, FLOOR_TOP, CW, roadH);
 
   // автомат с газировкой — справа от пиццерии, у стены на тротуаре;
-  // низ автомата стоит НА тротуаре (дальний край RING), а не на границе
-  // стены — иначе визуально "висит" над полом
-  drawVendingMachine(pizzaTileW + 6, RING.yMin, 100);
+  // низ автомата на уровне низа стены (там же, где низ пиццерии/двери)
+  drawVendingMachine(pizzaTileW + 6, FLOOR_TOP + 4, 100);
 
   // фонари по бокам (только фонарь из fore.png, без куста) — для глубины
   if (imgFore.complete && imgFore.naturalWidth){
