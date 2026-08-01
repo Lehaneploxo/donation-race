@@ -64,6 +64,8 @@ app.get('/boxing',      serveHtml('boxing_arena.html'));
 app.get('/boxing-db',   serveHtml('boxing_db.html'));
 app.get('/boxing-en',    serveHtml('boxing_arena_en.html'));
 app.get('/boxing-db-en', serveHtml('boxing_db_en.html'));
+app.get('/streetfighter',    serveHtml('streetfighter_arena.html'));
+app.get('/streetfighter-db', serveHtml('streetfighter_db.html'));
 
 // Локальный no-op сервис подписи — возвращает URL без изменений
 // Библиотека tiktok-live-connector использует его вместо eulerstream
@@ -268,6 +270,59 @@ app.get('/top-boxing-en', async (req, res) => {
   try {
     const limit = parseInt(req.query.limit) || 100;
     const top = await db.getTopBoxingStolenEn(limit);
+    res.json({ ok: true, count: top.length, top });
+  } catch(e) {
+    res.json({ ok: false, error: e.message });
+  }
+});
+
+app.get('/api/streetfighter-db', async (req, res) => {
+  try {
+    const rows = await db.getAllStreetFighterStolen();
+    res.json({ ok: true, count: rows.length, rows });
+  } catch(e) {
+    res.json({ ok: false, error: e.message });
+  }
+});
+
+app.get('/admin/reset-streetfighter-rating', async (req, res) => {
+  try {
+    await db.resetStreetFighterRating();
+    res.json({ ok: true });
+  } catch(e) {
+    res.json({ ok: false, error: e.message });
+  }
+});
+
+app.get('/admin/set-streetfighter-stolen', async (req, res) => {
+  try {
+    const username = req.query.username || '';
+    const value = parseInt(req.query.value);
+    if (!username || Number.isNaN(value)) return res.json({ ok: false, error: 'username and value required' });
+    await db.setStreetFighterStolen(username, value);
+    console.log(`[ADMIN-SET-STREETFIGHTER-STOLEN] username="${username}" value=${value}`);
+    res.json({ ok: true, username, value });
+  } catch(e) {
+    res.json({ ok: false, error: e.message });
+  }
+});
+
+app.get('/admin/delete-streetfighter-user', async (req, res) => {
+  try {
+    const username = req.query.username || '';
+    if (!username) return res.json({ ok: false, error: 'username required' });
+    await db.deleteStreetFighterUser(username);
+    console.log(`[ADMIN-DELETE-STREETFIGHTER-USER] username="${username}"`);
+    res.json({ ok: true, username });
+  } catch(e) {
+    res.json({ ok: false, error: e.message });
+  }
+});
+
+app.get('/top-streetfighter', async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 100;
+    const top = await db.getTopStreetFighterStolen(limit);
     res.json({ ok: true, count: top.length, top });
   } catch(e) {
     res.json({ ok: false, error: e.message });
@@ -495,6 +550,21 @@ class Room {
             .catch(() => {
               this.broadcast({ type: 'arena_boxing_rating_en', username: data.username, rank: null, stolen: 0, kos: 0, beltSeconds: 0 });
             });
+          // Street Fighter: тот же топ, но по своей таблице
+          db.getUserStreetFighterRank(data.username)
+            .then(rank => {
+              this.broadcast({
+                type: 'arena_streetfighter_rating',
+                username: data.username,
+                rank: rank ? rank.rank : null,
+                stolen: rank ? rank.total_stolen : 0,
+                kos: rank ? rank.total_kos : 0,
+                beltSeconds: rank ? rank.belt_seconds : 0,
+              });
+            })
+            .catch(() => {
+              this.broadcast({ type: 'arena_streetfighter_rating', username: data.username, rank: null, stolen: 0, kos: 0, beltSeconds: 0 });
+            });
         }
 
       }
@@ -657,6 +727,29 @@ wss.on('connection', (ws, req) => {
           })
           .catch(() => {
             room.broadcast({ type: 'boxing_tier_info_en', username: msg.username, total_stolen: 0 });
+          });
+      }
+      if (msg.type === 'streetfighter_stolen' && msg.username && msg.amount) {
+        db.addStreetFighterStolen(msg.username, msg.amount)
+          .then(() => db.getTopStreetFighterStolen(5))
+          .then(top => {
+            room.broadcast({ type: 'top_streetfighter', data: top });
+          })
+          .catch(e => console.error('[DB] streetfighter_stolen error:', e.message));
+      }
+      if (msg.type === 'streetfighter_ko' && msg.username) {
+        db.addStreetFighterKO(msg.username).catch(e => console.error('[DB] streetfighter_ko error:', e.message));
+      }
+      if (msg.type === 'streetfighter_belt' && msg.username && msg.seconds) {
+        db.addStreetFighterBeltSeconds(msg.username, msg.seconds).catch(e => console.error('[DB] streetfighter_belt error:', e.message));
+      }
+      if (msg.type === 'streetfighter_tier_request' && msg.username) {
+        db.getUserStreetFighterRank(msg.username)
+          .then(rank => {
+            room.broadcast({ type: 'streetfighter_tier_info', username: msg.username, total_stolen: rank ? rank.total_stolen : 0 });
+          })
+          .catch(() => {
+            room.broadcast({ type: 'streetfighter_tier_info', username: msg.username, total_stolen: 0 });
           });
       }
       if (msg.type === 'request_rating' && msg.username) {

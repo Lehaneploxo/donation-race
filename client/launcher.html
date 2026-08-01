@@ -360,6 +360,30 @@
     <a class="btn-start" href="/boxing-db-en" style="display:block;text-align:center;text-decoration:none;background:linear-gradient(90deg,#113366,#44a0ff);color:#fff;box-shadow:0 4px 20px rgba(80,150,255,0.4)">📊 OPEN DATABASE</a>
   </div>
 
+  <!-- ── STREET FIGHTERS ── -->
+  <div class="game-panel panel-arena" style="border-left:1px solid rgba(120,80,255,0.3)">
+    <div class="panel-title" style="color:#9d6bff;text-shadow:0 0 18px #7a3dff">🥋 STREET FIGHTERS 🥋</div>
+    <div class="panel-sub">Уличные бойцы · лайки/донаты · пиши "rating" в чате</div>
+
+    <input class="nick-input" id="streetfighterInput" type="text"
+           placeholder="@your_username"
+           autocomplete="off" autocorrect="off" spellcheck="false">
+
+    <div class="error-msg" id="streetfighterError">Введи никнейм TikTok</div>
+
+    <button class="btn-start" id="streetfighterStart" style="background:linear-gradient(90deg,#4a1e8f,#9d6bff);color:#fff;box-shadow:0 4px 20px rgba(120,80,255,0.4)">🥋 START STREET FIGHTERS</button>
+
+    <div class="status-msg" id="streetfighterStatus">⏳ Открываю игру…</div>
+  </div>
+
+  <!-- ── STREET FIGHTERS: БАЗА ДАННЫХ ── -->
+  <div class="game-panel panel-arena" style="border-left:1px solid rgba(120,80,255,0.3)">
+    <div class="panel-title" style="color:#9d6bff;text-shadow:0 0 18px #7a3dff">📊 БАЗА ДАННЫХ STREET FIGHTERS</div>
+    <div class="panel-sub">Полный список игроков и все их показатели</div>
+
+    <a class="btn-start" href="/streetfighter-db" style="display:block;text-align:center;text-decoration:none;background:linear-gradient(90deg,#2e1466,#8858ff);color:#fff;box-shadow:0 4px 20px rgba(120,80,255,0.4)">📊 ОТКРЫТЬ БАЗУ ДАННЫХ</a>
+  </div>
+
 </div>
 
 <div class="stripe"></div>
@@ -375,12 +399,13 @@
   document.getElementById('civInput').value    = saved;
   document.getElementById('boxingInput').value = saved;
   document.getElementById('boxingEnInput').value = saved;
+  document.getElementById('streetfighterInput').value = saved;
 
   // Sync all inputs when typing
-  ['raceInput','warInput','arenaInput','arena2Input','arena3Input','civInput','boxingInput','boxingEnInput'].forEach(id => {
+  ['raceInput','warInput','arenaInput','arena2Input','arena3Input','civInput','boxingInput','boxingEnInput','streetfighterInput'].forEach(id => {
     document.getElementById(id).addEventListener('input', function() {
       if (this.value.startsWith('@')) this.value = this.value.slice(1);
-      ['raceInput','warInput','arenaInput','arena2Input','arena3Input','civInput','boxingInput','boxingEnInput'].forEach(oid => {
+      ['raceInput','warInput','arenaInput','arena2Input','arena3Input','civInput','boxingInput','boxingEnInput','streetfighterInput'].forEach(oid => {
         if (oid !== id) document.getElementById(oid).value = this.value;
       });
     });
@@ -459,6 +484,11 @@
     handleClick('boxingEnInput','boxingEnError','boxingEnStatus','boxingEnStart','/boxing-en'));
   document.getElementById('boxingEnInput').addEventListener('keydown', e => {
     if (e.key === 'Enter') document.getElementById('boxingEnStart').click();
+  });
+  document.getElementById('streetfighterStart').addEventListener('click', () =>
+    handleClick('streetfighterInput','streetfighterError','streetfighterStatus','streetfighterStart','/streetfighter'));
+  document.getElementById('streetfighterInput').addEventListener('keydown', e => {
+    if (e.key === 'Enter') document.getElementById('streetfighterStart').click();
   });
 </script>
 

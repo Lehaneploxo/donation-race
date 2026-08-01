@@ -52,7 +52,15 @@ async function init() {
   `);
   await pool.query(`ALTER TABLE boxing_stolen_en ADD COLUMN IF NOT EXISTS total_kos INTEGER NOT NULL DEFAULT 0`);
   await pool.query(`ALTER TABLE boxing_stolen_en ADD COLUMN IF NOT EXISTS belt_seconds INTEGER NOT NULL DEFAULT 0`);
-  console.log('[DB] Таблицы kills, boss_damage, race_donations, boxing_stolen и boxing_stolen_en готовы');
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS streetfighter_stolen (
+      username TEXT PRIMARY KEY,
+      total_stolen INTEGER NOT NULL DEFAULT 0
+    )
+  `);
+  await pool.query(`ALTER TABLE streetfighter_stolen ADD COLUMN IF NOT EXISTS total_kos INTEGER NOT NULL DEFAULT 0`);
+  await pool.query(`ALTER TABLE streetfighter_stolen ADD COLUMN IF NOT EXISTS belt_seconds INTEGER NOT NULL DEFAULT 0`);
+  console.log('[DB] Таблицы kills, boss_damage, race_donations, boxing_stolen, boxing_stolen_en и streetfighter_stolen готовы');
 }
 
 async function addBossDamage(username, amount) {
@@ -245,6 +253,7 @@ function makeBoxingApi(table) {
 
 const boxingRu = makeBoxingApi('boxing_stolen');
 const boxingEn = makeBoxingApi('boxing_stolen_en');
+const streetFighter = makeBoxingApi('streetfighter_stolen');
 
 const addBoxingStolen = boxingRu.addStolen;
 const getTopBoxingStolen = boxingRu.getTop;
@@ -266,6 +275,16 @@ const resetBoxingRatingEn = boxingEn.reset;
 const setBoxingStolenEn = boxingEn.setStolen;
 const deleteBoxingUserEn = boxingEn.deleteUser;
 
+const addStreetFighterStolen = streetFighter.addStolen;
+const getTopStreetFighterStolen = streetFighter.getTop;
+const getAllStreetFighterStolen = streetFighter.getAll;
+const getUserStreetFighterRank = streetFighter.getUserRank;
+const addStreetFighterKO = streetFighter.addKO;
+const addStreetFighterBeltSeconds = streetFighter.addBeltSeconds;
+const resetStreetFighterRating = streetFighter.reset;
+const setStreetFighterStolen = streetFighter.setStolen;
+const deleteStreetFighterUser = streetFighter.deleteUser;
+
 function isConnected() { return pool !== null; }
 
 module.exports = {
@@ -277,5 +296,8 @@ module.exports = {
   addBoxingStolenEn, getTopBoxingStolenEn, getUserBoxingRankEn, addBoxingKOEn,
   addBoxingBeltSecondsEn, resetBoxingRatingEn, setBoxingStolenEn, deleteBoxingUserEn,
   getAllBoxingStolenEn,
+  addStreetFighterStolen, getTopStreetFighterStolen, getUserStreetFighterRank,
+  addStreetFighterKO, addStreetFighterBeltSeconds, resetStreetFighterRating,
+  setStreetFighterStolen, deleteStreetFighterUser, getAllStreetFighterStolen,
   isConnected,
 };
