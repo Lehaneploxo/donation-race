@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Database — Boxing Arena</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  background:#0a0505; color:#fff; min-height:100vh;
+  font-family:'Segoe UI',Arial,sans-serif;
+  padding:20px 14px 60px;
+}
+.top {
+  display:flex; align-items:center; justify-content:space-between;
+  max-width:900px; margin:0 auto 18px; gap:12px; flex-wrap:wrap;
+}
+h1 {
+  font-family:'Arial Black',Arial,sans-serif;
+  font-size:22px; color:#FF9944; text-shadow:0 0 18px #FF6600;
+  letter-spacing:1px;
+}
+.back-btn {
+  display:inline-block; padding:8px 16px; border-radius:8px;
+  background:rgba(255,255,255,0.08); color:#fff; text-decoration:none;
+  font-weight:700; font-size:14px; border:1px solid rgba(255,255,255,0.15);
+  transition:background 0.15s;
+}
+.back-btn:hover { background:rgba(255,255,255,0.16); }
+.meta {
+  max-width:900px; margin:0 auto 14px; color:rgba(255,255,255,0.5);
+  font-size:13px; display:flex; justify-content:space-between; flex-wrap:wrap; gap:8px;
+}
+.meta span#refreshBtn { cursor:pointer; color:#FF9944; text-decoration:underline; }
+table {
+  max-width:900px; margin:0 auto; width:100%; border-collapse:collapse;
+  background:rgba(255,255,255,0.03); border-radius:12px; overflow:hidden;
+}
+thead th {
+  background:rgba(255,150,50,0.15); color:#FFB877; text-align:left;
+  padding:10px 12px; font-size:13px; letter-spacing:0.5px; position:sticky; top:0;
+}
+thead th.num { text-align:right; }
+tbody td {
+  padding:9px 12px; font-size:14px; border-top:1px solid rgba(255,255,255,0.06);
+}
+tbody td.num { text-align:right; font-variant-numeric:tabular-nums; }
+tbody tr:hover { background:rgba(255,255,255,0.04); }
+.rank-cell { font-weight:900; }
+.rank-1 { color:#FFD700; }
+.rank-2 { color:#C8C8D8; }
+.rank-3 { color:#CD7F32; }
+.nick { font-weight:700; }
+.empty, .loading, .error {
+  max-width:900px; margin:40px auto; text-align:center; color:rgba(255,255,255,0.5);
+  font-size:15px;
+}
+.error { color:#FF6666; }
+@media (max-width:520px){
+  h1 { font-size:18px; }
+  thead th, tbody td { padding:7px 8px; font-size:12.5px; }
+}
+</style>
+</head>
+<body>
+
+<div class="top">
+  <h1>📊 Database — Boxing Arena</h1>
+  <a class="back-btn" href="/">⌂ Menu</a>
+</div>
+<div class="meta">
+  <span id="countLabel">Loading…</span>
+  <span id="refreshBtn" onclick="load()">🔄 refresh</span>
+</div>
+
+<div id="content"><div class="loading">Loading data…</div></div>
+
+<script>
+function fmtTime(sec){
+  sec = Math.floor(sec||0);
+  const h = Math.floor(sec/3600), m = Math.floor((sec%3600)/60), s = sec%60;
+  if (h>0) return `${h}h ${m}m`;
+  if (m>0) return `${m}m ${s}s`;
+  return `${s}s`;
+}
+function rankClass(r){
+  if (r===1) return 'rank-cell rank-1';
+  if (r===2) return 'rank-cell rank-2';
+  if (r===3) return 'rank-cell rank-3';
+  return 'rank-cell';
+}
+async function load(){
+  const content = document.getElementById('content');
+  const countLabel = document.getElementById('countLabel');
+  try{
+    const res = await fetch('/api/boxing-db-en');
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || 'unknown error');
+    const rows = data.rows || [];
+    countLabel.textContent = `Total players in database: ${rows.length}`;
+    if (rows.length === 0){
+      content.innerHTML = '<div class="empty">No one in the database yet.</div>';
+      return;
+    }
+    const tableRows = rows.map(r => `
+      <tr>
+        <td class="${rankClass(r.rank)}">${r.rank}</td>
+        <td class="nick">${escapeHtml(r.username)}</td>
+        <td class="num">${r.total_stolen.toLocaleString()}</td>
+        <td class="num">${r.total_kos.toLocaleString()}</td>
+        <td class="num">${fmtTime(r.belt_seconds)}</td>
+      </tr>
+    `).join('');
+    content.innerHTML = `
+      <table>
+        <thead>
+          <tr>
+            <th>Rank</th>
+            <th>Nick</th>
+            <th class="num">⚡ Energy stolen</th>
+            <th class="num">💀 KOs</th>
+            <th class="num">👑 Belt time</th>
+          </tr>
+        </thead>
+        <tbody>${tableRows}</tbody>
+      </table>
+    `;
+  } catch(e){
+    countLabel.textContent = '';
+    content.innerHTML = `<div class="error">Failed to load data: ${escapeHtml(e.message)}</div>`;
+  }
+}
+function escapeHtml(s){
+  return String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+load();
+setInterval(load, 15000);
+</script>
+
+</body>
+</html>

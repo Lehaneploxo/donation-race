@@ -62,6 +62,8 @@ app.get('/arena3',      serveHtml('arena3.html'));
 app.get('/civilization',serveHtml('civilization.html'));
 app.get('/boxing',      serveHtml('boxing_arena.html'));
 app.get('/boxing-db',   serveHtml('boxing_db.html'));
+app.get('/boxing-en',    serveHtml('boxing_arena_en.html'));
+app.get('/boxing-db-en', serveHtml('boxing_db_en.html'));
 
 // Локальный no-op сервис подписи — возвращает URL без изменений
 // Библиотека tiktok-live-connector использует его вместо eulerstream
@@ -213,6 +215,59 @@ app.get('/top-boxing', async (req, res) => {
   try {
     const limit = parseInt(req.query.limit) || 100;
     const top = await db.getTopBoxingStolen(limit);
+    res.json({ ok: true, count: top.length, top });
+  } catch(e) {
+    res.json({ ok: false, error: e.message });
+  }
+});
+
+app.get('/api/boxing-db-en', async (req, res) => {
+  try {
+    const rows = await db.getAllBoxingStolenEn();
+    res.json({ ok: true, count: rows.length, rows });
+  } catch(e) {
+    res.json({ ok: false, error: e.message });
+  }
+});
+
+app.get('/admin/reset-boxing-rating-en', async (req, res) => {
+  try {
+    await db.resetBoxingRatingEn();
+    res.json({ ok: true });
+  } catch(e) {
+    res.json({ ok: false, error: e.message });
+  }
+});
+
+app.get('/admin/set-boxing-stolen-en', async (req, res) => {
+  try {
+    const username = req.query.username || '';
+    const value = parseInt(req.query.value);
+    if (!username || Number.isNaN(value)) return res.json({ ok: false, error: 'username and value required' });
+    await db.setBoxingStolenEn(username, value);
+    console.log(`[ADMIN-SET-BOXING-STOLEN-EN] username="${username}" value=${value}`);
+    res.json({ ok: true, username, value });
+  } catch(e) {
+    res.json({ ok: false, error: e.message });
+  }
+});
+
+app.get('/admin/delete-boxing-user-en', async (req, res) => {
+  try {
+    const username = req.query.username || '';
+    if (!username) return res.json({ ok: false, error: 'username required' });
+    await db.deleteBoxingUserEn(username);
+    console.log(`[ADMIN-DELETE-BOXING-USER-EN] username="${username}"`);
+    res.json({ ok: true, username });
+  } catch(e) {
+    res.json({ ok: false, error: e.message });
+  }
+});
+
+app.get('/top-boxing-en', async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 100;
+    const top = await db.getTopBoxingStolenEn(limit);
     res.json({ ok: true, count: top.length, top });
   } catch(e) {
     res.json({ ok: false, error: e.message });
@@ -424,6 +479,22 @@ class Room {
             .catch(() => {
               this.broadcast({ type: 'arena_boxing_rating', username: data.username, rank: null, stolen: 0, kos: 0, beltSeconds: 0 });
             });
+          // Boxing Arena EN: тот же топ, но по английской таблице —
+          // рассылается всегда, EN-страница слушает только свой тип, RU игнорирует
+          db.getUserBoxingRankEn(data.username)
+            .then(rank => {
+              this.broadcast({
+                type: 'arena_boxing_rating_en',
+                username: data.username,
+                rank: rank ? rank.rank : null,
+                stolen: rank ? rank.total_stolen : 0,
+                kos: rank ? rank.total_kos : 0,
+                beltSeconds: rank ? rank.belt_seconds : 0,
+              });
+            })
+            .catch(() => {
+              this.broadcast({ type: 'arena_boxing_rating_en', username: data.username, rank: null, stolen: 0, kos: 0, beltSeconds: 0 });
+            });
         }
 
       }
@@ -563,6 +634,29 @@ wss.on('connection', (ws, req) => {
           })
           .catch(() => {
             room.broadcast({ type: 'boxing_tier_info', username: msg.username, total_stolen: 0 });
+          });
+      }
+      if (msg.type === 'boxing_stolen_en' && msg.username && msg.amount) {
+        db.addBoxingStolenEn(msg.username, msg.amount)
+          .then(() => db.getTopBoxingStolenEn(5))
+          .then(top => {
+            room.broadcast({ type: 'top_boxing_en', data: top });
+          })
+          .catch(e => console.error('[DB] boxing_stolen_en error:', e.message));
+      }
+      if (msg.type === 'boxing_ko_en' && msg.username) {
+        db.addBoxingKOEn(msg.username).catch(e => console.error('[DB] boxing_ko_en error:', e.message));
+      }
+      if (msg.type === 'boxing_belt_en' && msg.username && msg.seconds) {
+        db.addBoxingBeltSecondsEn(msg.username, msg.seconds).catch(e => console.error('[DB] boxing_belt_en error:', e.message));
+      }
+      if (msg.type === 'boxing_tier_request_en' && msg.username) {
+        db.getUserBoxingRankEn(msg.username)
+          .then(rank => {
+            room.broadcast({ type: 'boxing_tier_info_en', username: msg.username, total_stolen: rank ? rank.total_stolen : 0 });
+          })
+          .catch(() => {
+            room.broadcast({ type: 'boxing_tier_info_en', username: msg.username, total_stolen: 0 });
           });
       }
       if (msg.type === 'request_rating' && msg.username) {
