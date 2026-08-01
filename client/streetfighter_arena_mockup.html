@@ -28,15 +28,24 @@ function applyScale(){
 applyScale();
 window.addEventListener('resize', applyScale);
 
+// ── Единый масштаб для ВСЕХ пиксель-арт ассетов пака (персонажи и фон —
+// из одного пака, один "размер пикселя" в исходниках) — иначе дверь/стена
+// оказываются не в пропорции с бойцом. Кадры бойцов нативно 96×63,
+// целимся в ту же высоту бойца, что и в boxing_arena.html (130*0.85) ──
+const FIGHTER_SCALE = 0.85;
+const UNIT_SCALE = (130*FIGHTER_SCALE) / 63; // ≈1.754
+
 // ── Геометрия — та же схема, что и в boxing_arena.html (плашка сверху,
-// сцена ниже): PANEL 14-264, небо/стена 274-480, дорога(пол) 480-1000 ──
+// сцена ниже): PANEL 14-264, небо/стена/дорога ниже, высоты полос теперь
+// считаются от нативных размеров тайлов * UNIT_SCALE, не берутся с потолка ──
 const PANEL_TOP = 14, PANEL_H = 250;
 const SKY_TOP = PANEL_TOP + PANEL_H + 10; // 274
-const SKY_H = 80;
-const WALL_TOP = SKY_TOP + SKY_H;         // 354
-const WALL_H = 126;
-const ROAD_TOP = WALL_TOP + WALL_H;       // 480
-const ROAD_H = CH - ROAD_TOP;             // 520
+const SKY_H = 80 * UNIT_SCALE;
+const WALL_TOP = SKY_TOP + SKY_H;
+const WALL_H = 96 * UNIT_SCALE;
+const ROAD_TOP = WALL_TOP + WALL_H;
+const ROAD_H = CH - ROAD_TOP;
+const ROAD_TILE_H = 144 * UNIT_SCALE; // дорога тайлится и по вертикали тем же масштабом
 const FIGHT = { xMin:70, xMax:530, yMin:ROAD_TOP+60, yMax:CH-40 };
 
 // ── Тайлы улицы (Streets of Fight, ansimuz, CC0) ──
@@ -54,33 +63,36 @@ const imgTileset = new Image(); imgTileset.src = TILESET_SRC;
 const imgBack     = new Image(); imgBack.src = BACK_SRC;
 const imgFore     = new Image(); imgFore.src = FORE_SRC;
 
-function drawTiledSource(img, tile, dx, dy, dw, dh, tileScreenW){
-  // рисует горизонтально повторяющийся кусок исходника img (tile — область
-  // sx,sy,sw,sh) в прямоугольник dx,dy,dw,dh, каждая копия шириной tileScreenW
+function drawTiledSource(img, tile, dx, dy, dw, dh, tileScreenW, tileScreenH){
+  // рисует повторяющийся кусок исходника img (область sx,sy,sw,sh) в
+  // прямоугольник dx,dy,dw,dh, каждая копия — tileScreenW×tileScreenH.
+  // Без tileScreenH тайлит только по горизонтали (одна полоса).
   if (!img.complete || !img.naturalWidth) return;
-  const n = Math.ceil(dw / tileScreenW) + 1;
+  const nx = Math.ceil(dw / tileScreenW) + 1;
+  const ny = tileScreenH ? Math.ceil(dh / tileScreenH) + 1 : 1;
   ctx.save();
   ctx.beginPath(); ctx.rect(dx, dy, dw, dh); ctx.clip();
-  for (let i = 0; i < n; i++){
-    ctx.drawImage(img, tile.sx, tile.sy, tile.sw, tile.sh, dx + i*tileScreenW, dy, tileScreenW, dh);
+  for (let row = 0; row < ny; row++){
+    for (let i = 0; i < nx; i++){
+      ctx.drawImage(img, tile.sx, tile.sy, tile.sw, tile.sh,
+        dx + i*tileScreenW, dy + row*(tileScreenH||dh), tileScreenW, tileScreenH||dh);
+    }
   }
   ctx.restore();
 }
 
 function drawBackground(){
-  // небо/неоновый скайлайн (back.png, тайлится по ширине)
+  // небо/неоновый скайлайн (back.png, тайлится по ширине, масштаб = UNIT_SCALE)
   if (imgBack.complete && imgBack.naturalWidth){
-    const scale = SKY_H / imgBack.naturalHeight;
-    const tw = imgBack.naturalWidth * scale;
+    const tw = imgBack.naturalWidth * UNIT_SCALE;
     drawTiledSource(imgBack, { sx:0, sy:0, sw:imgBack.naturalWidth, sh:imgBack.naturalHeight }, 0, SKY_TOP, CW, SKY_H, tw);
   } else {
     ctx.fillStyle = '#1a1030'; ctx.fillRect(0, SKY_TOP, CW, SKY_H);
   }
 
-  // стена дома — чередуем кусок с пиццерией и кусок с окном
+  // стена дома — чередуем кусок с пиццерией и кусок с окном, тот же UNIT_SCALE
   if (imgTileset.complete && imgTileset.naturalWidth){
-    const scale = WALL_H / TILE_WALL_PIZZA.sh;
-    const tw = TILE_WALL_PIZZA.sw * scale;
+    const tw = TILE_WALL_PIZZA.sw * UNIT_SCALE;
     let x = 0, i = 0;
     ctx.save();
     ctx.beginPath(); ctx.rect(0, WALL_TOP, CW, WALL_H); ctx.clip();
@@ -94,11 +106,11 @@ function drawBackground(){
     ctx.fillStyle = '#3a2a20'; ctx.fillRect(0, WALL_TOP, CW, WALL_H);
   }
 
-  // дорога/тротуар — плитка с жёлтой полосой, тайлится по всей высоте пола
+  // дорога/тротуар — тайлится и по ширине, и по высоте тем же UNIT_SCALE,
+  // чтобы плитка/бордюр были в том же "размере пикселя", что стена и бойцы
   if (imgTileset.complete && imgTileset.naturalWidth){
-    const scale = ROAD_H / TILE_ROAD.sh;
-    const tw = TILE_ROAD.sw * scale;
-    drawTiledSource(imgTileset, TILE_ROAD, 0, ROAD_TOP, CW, ROAD_H, tw);
+    const tw = TILE_ROAD.sw * UNIT_SCALE;
+    drawTiledSource(imgTileset, TILE_ROAD, 0, ROAD_TOP, CW, ROAD_H, tw, ROAD_TILE_H);
   } else {
     ctx.fillStyle = '#26364a'; ctx.fillRect(0, ROAD_TOP, CW, ROAD_H);
   }
@@ -108,12 +120,12 @@ function drawBackground(){
   g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,0.35)');
   ctx.fillStyle = g; ctx.fillRect(0, ROAD_TOP, CW, ROAD_H);
 
-  // фонари по бокам (fore.png) — для глубины, как угловые стойки в боксе
+  // фонари по бокам (fore.png) — тот же UNIT_SCALE, для глубины, как угловые стойки в боксе
   if (imgFore.complete && imgFore.naturalWidth){
-    const fh = 210, scale = fh / imgFore.naturalHeight, fw = imgFore.naturalWidth * scale;
-    ctx.drawImage(imgFore, 0, 0, imgFore.naturalWidth, imgFore.naturalHeight, 18, WALL_TOP - 40, fw, fh);
+    const fw = imgFore.naturalWidth * UNIT_SCALE, fh = imgFore.naturalHeight * UNIT_SCALE;
+    ctx.drawImage(imgFore, 0, 0, imgFore.naturalWidth, imgFore.naturalHeight, 18, WALL_TOP - fh*0.35, fw, fh);
     ctx.save(); ctx.scale(-1,1);
-    ctx.drawImage(imgFore, 0, 0, imgFore.naturalWidth, imgFore.naturalHeight, -(CW-18), WALL_TOP - 40, fw, fh);
+    ctx.drawImage(imgFore, 0, 0, imgFore.naturalWidth, imgFore.naturalHeight, -(CW-18), WALL_TOP - fh*0.35, fw, fh);
     ctx.restore();
   }
 }
@@ -136,8 +148,8 @@ for (const key in CHAR_DEFS){
 
 // демо-состав, стоят на дороге на разной "глубине" (Y определяет масштаб)
 const FIGHTERS = [
-  { type:'brawler_girl', x:150, y:FIGHT.yMin+20,  nick:'@fan_anya' },
-  { type:'brawler_girl', x:450, y:FIGHT.yMin+20,  nick:'@lucky_viewer' },
+  { type:'brawler_girl', x:190, y:FIGHT.yMin+60,  nick:'@fan_anya' },
+  { type:'brawler_girl', x:410, y:FIGHT.yMin+60,  nick:'@lucky_viewer' },
   { type:'enemy_punk',   x:300, y:FIGHT.yMax-30,  nick:null },
   { type:'brawler_girl', x:300, y:(FIGHT.yMin+FIGHT.yMax)/2, nick:'@top_fan' },
 ];
@@ -145,8 +157,6 @@ FIGHTERS.forEach(f => { f.frameIdx = 0; f.frameTimer = 0; });
 
 // все бойцы ОДНОГО размера (как FIGHTER_SCALE в boxing_arena.html) —
 // позиция(глубина) влияет только на порядок отрисовки/Y, не на масштаб
-const FIGHTER_SCALE = 0.85;
-
 function drawFighter(f, dt){
   const d = CHAR_DEFS[f.type];
   f.frameTimer += dt;
