@@ -58,11 +58,28 @@ const POWER_DECAY_INTERVAL_MS = 1000;
 // отнял у противников за все бои (начисляется когда противник падает).
 // Это метрика для ТОП-листа, отдельная от текущей энергии/силы в бою.
 
-// Пока только один визуальный вариант реального игрока (Brawler Girl,
-// пак Streets of Fight) — перекрасок ещё не делали (в отличие от бокса,
-// где было 6 готовых). dir тут = charType (папка в sprites/streets_of_fight/).
+// 7 перекрасок КАЖДОГО силуэта (Brawler Girl и Enemy Punk) — 14 скинов в
+// одном общем пуле. baseType определяет набор анимаций/атак (CHAR_ANIMS/
+// CHAR_ATTACKS ниже), dir — конкретную (перекрашенную) папку спрайтов.
+// Пул общий и для реальных игроков (applyGrowth), и для ботов (spawnBot) —
+// оба силуэта могут быть и тем, и другим, как попросил пользователь.
+// Перекраски сделаны HSL hue-rotation по неймно найденным зонам "волосы/
+// одежда/обувь" (см. историю чата) — кожа и золотые акценты не трогались.
 const SKIN_VARIANTS = [
-  { dir:'brawler_girl', color:'#ff5566' },
+  { baseType:'brawler_girl', dir:'brawler_girl',              color:'#ff5566' },
+  { baseType:'brawler_girl', dir:'brawler_girl_v2_yellowgreen',color:'#c6e05a' },
+  { baseType:'brawler_girl', dir:'brawler_girl_v3_green',      color:'#5fe36a' },
+  { baseType:'brawler_girl', dir:'brawler_girl_v4_teal',       color:'#4fe3d0' },
+  { baseType:'brawler_girl', dir:'brawler_girl_v5_blue',       color:'#4fa8ff' },
+  { baseType:'brawler_girl', dir:'brawler_girl_v6_purple',     color:'#8a6bff' },
+  { baseType:'brawler_girl', dir:'brawler_girl_v7_pink',       color:'#e06bff' },
+  { baseType:'enemy_punk',   dir:'enemy_punk',                 color:'#ff5566' },
+  { baseType:'enemy_punk',   dir:'enemy_punk_v2_yellowgreen',  color:'#c6e05a' },
+  { baseType:'enemy_punk',   dir:'enemy_punk_v3_green',        color:'#5fe36a' },
+  { baseType:'enemy_punk',   dir:'enemy_punk_v4_teal',         color:'#4fe3d0' },
+  { baseType:'enemy_punk',   dir:'enemy_punk_v5_blue',         color:'#4fa8ff' },
+  { baseType:'enemy_punk',   dir:'enemy_punk_v6_purple',       color:'#8a6bff' },
+  { baseType:'enemy_punk',   dir:'enemy_punk_v7_pink',         color:'#e06bff' },
 ];
 function randomSkin(){ return SKIN_VARIANTS[Math.floor(Math.random()*SKIN_VARIANTS.length)]; }
 
@@ -230,15 +247,18 @@ const CHAR_ATTACKS = {
   brawler_girl: ['jab','punch','kick'],
   enemy_punk:   ['punch'],
 };
-function loadFrames(charType){
-  const defs = CHAR_ANIMS[charType];
+// dir — конкретная (возможно перекрашенная) папка спрайтов, baseType —
+// какой набор анимаций использовать (brawler_girl/enemy_punk структура
+// одинакова у всех перекрасок одного силуэта, меняются только пиксели)
+function loadFrames(dir, baseType){
+  const defs = CHAR_ANIMS[baseType];
   const out = {};
   for (const key in defs){
     const a = defs[key];
     out[key] = [];
     for (let i=1;i<=a.count;i++){
       const img = new Image();
-      img.src = `sprites/streets_of_fight/${charType}/${a.folder}/${a.prefix}${i}.png`;
+      img.src = `sprites/streets_of_fight/${dir}/${a.folder}/${a.prefix}${i}.png`;
       out[key].push(img);
     }
   }
@@ -264,7 +284,7 @@ function initFighterRuntime(v, x, y){
   v.eliminated = false; // true = совсем убран с ринга (энергия кончилась)
   v.lastAttacker = null;
   v.roundStartStolen = v.stolenEnergy || 0; // снимок для подсчёта победителя раунда
-  v.frames = loadFrames(v.dir);
+  v.frames = loadFrames(v.dir, v.baseType);
 }
 
 // ── Реальные игроки: создаются/растут по лайкам и донатам из живого чата ──
@@ -297,7 +317,7 @@ function applyGrowth(username, gain, isGift){
     const skin = randomSkin();
     const pos = spawnRingPos();
     v = {
-      dir: skin.dir, name: username, color: skin.color, isBot: false,
+      dir: skin.dir, baseType: skin.baseType, name: username, color: skin.color, isBot: false,
       baseDir: skin.dir, baseColor: skin.color, isChamp: false,
       stolenEnergy: 0, powerDecayAcc: 0, kos: 0, allTimeStolen: 0,
     };
@@ -405,8 +425,13 @@ function getBotName(){
 function spawnBot(){
   if (VARIANTS.filter(v=>!v.eliminated).length >= MAX_FIGHTERS) return;
   if (VARIANTS.filter(v=>v.isBot && !v.eliminated).length >= MAX_BOTS) return;
+  // боты берутся из ТОГО ЖЕ общего пула скинов, что и реальные игроки —
+  // и Brawler Girl, и Enemy Punk могут быть ботом (ник всё равно серый,
+  // чтобы отличать бота от реального зрителя)
+  const skin = randomSkin();
   const v = {
-    dir: 'enemy_punk',
+    dir: skin.dir,
+    baseType: skin.baseType,
     name: getBotName(),
     color: '#9aa0a6',
     isBot: true,
@@ -1405,7 +1430,7 @@ function advanceAnim(v, dt){
     : v.state==='hurt' ? 'hurt'
     : v.state==='ko' ? 'ko'
     : 'idle';
-  const def = CHAR_ANIMS[v.dir][key];
+  const def = CHAR_ANIMS[v.baseType][key];
   v.frameTimer += dt;
   const frameDur = 1000/def.fps;
   if (v.frameTimer >= frameDur){
@@ -1555,7 +1580,7 @@ function startExchange(a, b){
 }
 
 function throwPunch(attacker, defender){
-  const punchNames = CHAR_ATTACKS[attacker.dir];
+  const punchNames = CHAR_ATTACKS[attacker.baseType];
   attacker.state='punch'; attacker.animName=punchNames[Math.floor(Math.random()*punchNames.length)]; attacker.frameIdx=0; attacker.frameTimer=0; attacker.stateTimer=PUNCH_TICK_MS;
   defender.state='hurt'; defender.animName='hurt'; defender.frameIdx=0; defender.frameTimer=0; defender.stateTimer=PUNCH_TICK_MS;
   attacker.facing = defender.x>=attacker.x ? -1 : 1;
