@@ -361,8 +361,23 @@ function onGift(username, coins){
 // applyGrowth сам оживит бойца, если тот был в нокауте).
 function applyCheat(username, hp, damage){
   if (!username) return;
-  applyGrowth(username, { giftEnergy: Math.max(0,hp|0), giftPower: Math.max(0,damage|0) }, false);
-  pushEvent(`⚡ ADMIN BOOST! @${cleanNickForSpeech(username)} +${hp|0}⚡ +${damage|0}💪`, true);
+  hp = hp|0; damage = damage|0;
+  if (hp < 0 || damage < 0){
+    // Коррекция статов уже существующего бойца (может забирать, не только
+    // давать) — например если буст применился дважды из-за дубликата
+    // сообщения в TikTok-чате. В отличие от applyGrowth не создаёт нового
+    // бойца и не запускает анимацию оживления/возврата.
+    const v = findRealFighter(username);
+    if (!v) return;
+    v.energyMax = Math.max(0, v.energyMax + hp);
+    v.powerMax  = Math.max(0, v.powerMax + damage);
+    v.energy    = Math.max(0, v.energy + hp);
+    v.power     = Math.max(0, v.power + damage);
+    pushEvent(`⚡ CORRECTION! @${cleanNickForSpeech(username)} ${hp}⚡ ${damage}💪`, true);
+    return;
+  }
+  applyGrowth(username, { giftEnergy: hp, giftPower: damage }, false);
+  pushEvent(`⚡ ADMIN BOOST! @${cleanNickForSpeech(username)} +${hp}⚡ +${damage}💪`, true);
 }
 
 // ── Боты: подсаживаются на ринг, только если реальных игроков < 2 ──
