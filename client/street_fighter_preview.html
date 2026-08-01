@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Street Fighter — Preview</title>
+<style>
+  html,body { margin:0; background:#111; display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:100vh; font-family:Arial,sans-serif; }
+  canvas { background:#1a1030; border-radius:12px; display:block; image-rendering:pixelated; }
+  h2 { color:#fff; margin:10px 0 6px; }
+  .chars { margin-top:10px; display:flex; gap:8px; }
+  .chars button { padding:8px 18px; border-radius:8px; border:none; background:#333; color:#fff; font-size:14px; font-weight:bold; cursor:pointer; }
+  .chars button.active { background:#e63946; }
+  .btns { margin-top:12px; display:flex; gap:8px; flex-wrap:wrap; justify-content:center; max-width:560px; }
+  button { padding:8px 16px; border-radius:8px; border:none; background:#4361ee; color:#fff; font-size:14px; font-weight:bold; cursor:pointer; }
+  button:hover { background:#3245c9; }
+  button.active { background:#f4a261; }
+  .label { color:#aaa; font-size:13px; margin-top:8px; }
+</style>
+</head>
+<body>
+<h2>🥊 Streets of Fight (ansimuz, CC0) — превью персонажей</h2>
+<div class="chars" id="chars"></div>
+<canvas id="c" width="480" height="320"></canvas>
+<div class="btns" id="btns"></div>
+<div class="label" id="modeLabel">Режим: idle</div>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+const CHARACTERS = {
+  brawler_girl: {
+    label: 'Brawler Girl (игрок)',
+    dir: 'brawler_girl',
+    anims: {
+      idle:      { folder:'Idle',      prefix:'idle',      count:4,  fps:8,  loop:true },
+      walk:      { folder:'Walk',      prefix:'walk',      count:10, fps:12, loop:true },
+      jab:       { folder:'Jab',       prefix:'jab',       count:3,  fps:14, loop:false },
+      punch:     { folder:'Punch',     prefix:'punch',     count:3,  fps:14, loop:false },
+      kick:      { folder:'Kick',      prefix:'kick',      count:5,  fps:14, loop:false },
+      jump:      { folder:'Jump',      prefix:'jump',      count:4,  fps:10, loop:false },
+      jump_kick: { folder:'Jump_kick', prefix:'jump_kick', count:3,  fps:12, loop:false },
+      dive_kick: { folder:'Dive_kick', prefix:'dive_kick', count:5,  fps:12, loop:false },
+      hurt:      { folder:'Hurt',      prefix:'hurt',      count:2,  fps:8,  loop:false },
+    },
+  },
+  enemy_punk: {
+    label: 'Enemy Punk (враг)',
+    dir: 'enemy_punk',
+    anims: {
+      idle:  { folder:'Idle',  prefix:'idle',  count:4, fps:8,  loop:true },
+      walk:  { folder:'Walk',  prefix:'walk',  count:4, fps:10, loop:true },
+      punch: { folder:'Punch', prefix:'punch', count:3, fps:14, loop:false },
+      hurt:  { folder:'Hurt',  prefix:'hurt',  count:4, fps:10, loop:false },
+    },
+  },
+};
+
+const frameCache = {}; // key: charKey+'/'+animKey -> [Image,...]
+function loadCharFrames(charKey) {
+  const ch = CHARACTERS[charKey];
+  for (const animKey in ch.anims) {
+    const cacheKey = charKey + '/' + animKey;
+    if (frameCache[cacheKey]) continue;
+    const a = ch.anims[animKey];
+    const arr = [];
+    for (let i = 1; i <= a.count; i++) {
+      const img = new Image();
+      img.src = `sprites/streets_of_fight/${ch.dir}/${a.folder}/${a.prefix}${i}.png`;
+      arr.push(img);
+    }
+    frameCache[cacheKey] = arr;
+  }
+}
+Object.keys(CHARACTERS).forEach(loadCharFrames);
+
+let charKey = 'brawler_girl', mode = 'idle', frameIdx = 0, lastT = 0;
+
+const charsEl = document.getElementById('chars');
+Object.keys(CHARACTERS).forEach(key => {
+  const b = document.createElement('button');
+  b.textContent = CHARACTERS[key].label;
+  b.id = 'char_' + key;
+  b.onclick = () => setChar(key);
+  charsEl.appendChild(b);
+});
+
+const btnsEl = document.getElementById('btns');
+function renderAnimButtons() {
+  btnsEl.innerHTML = '';
+  Object.keys(CHARACTERS[charKey].anims).forEach(key => {
+    const b = document.createElement('button');
+    b.textContent = key;
+    b.id = 'btn_' + key;
+    b.onclick = () => setMode(key);
+    btnsEl.appendChild(b);
+  });
+}
+
+function setChar(key) {
+  charKey = key; mode = 'idle'; frameIdx = 0; lastT = 0;
+  document.querySelectorAll('#chars button').forEach(b=>b.classList.remove('active'));
+  document.getElementById('char_'+key).classList.add('active');
+  renderAnimButtons();
+  document.getElementById('btn_idle').classList.add('active');
+  document.getElementById('modeLabel').textContent = 'Режим: idle';
+}
+function setMode(m) {
+  mode = m; frameIdx = 0; lastT = 0;
+  document.querySelectorAll('#btns button').forEach(b=>b.classList.remove('active'));
+  document.getElementById('btn_'+m).classList.add('active');
+  document.getElementById('modeLabel').textContent = 'Режим: ' + m;
+}
+setChar('brawler_girl');
+
+function drawBackground() {
+  const w = canvas.width, h = canvas.height;
+  const sky = ctx.createLinearGradient(0,0,0,h*0.7);
+  sky.addColorStop(0, '#241a3d');
+  sky.addColorStop(1, '#3d2a5c');
+  ctx.fillStyle = sky;
+  ctx.fillRect(0,0,w,h*0.7);
+  ctx.fillStyle = '#0f0a1a';
+  ctx.fillRect(0,h*0.7,w,h*0.3);
+  ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+  ctx.lineWidth = 8;
+  for (let x=-h; x<w+h; x+=30) {
+    ctx.beginPath(); ctx.moveTo(x,h); ctx.lineTo(x+h*0.3,h*0.7); ctx.stroke();
+  }
+}
+function drawShadow(cx, floorY) {
+  ctx.save();
+  ctx.globalAlpha = 0.35;
+  ctx.fillStyle = '#000';
+  ctx.beginPath();
+  ctx.ellipse(cx, floorY, 34, 8, 0, 0, Math.PI*2);
+  ctx.fill();
+  ctx.restore();
+}
+
+function loop(t) {
+  const a = CHARACTERS[charKey].anims[mode];
+  if (!lastT) lastT = t;
+  if (t - lastT > 1000/a.fps) {
+    frameIdx++;
+    if (frameIdx >= a.count) frameIdx = a.loop ? 0 : a.count-1;
+    lastT = t;
+  }
+
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  drawBackground();
+
+  const floorY = canvas.height*0.8;
+  drawShadow(canvas.width/2, floorY);
+
+  const frames = frameCache[charKey + '/' + mode];
+  const img = frames[frameIdx];
+  if (img && img.complete && img.naturalWidth) {
+    const scale = 5;
+    const dw = img.naturalWidth*scale, dh = img.naturalHeight*scale;
+    ctx.drawImage(img, canvas.width/2 - dw/2, floorY - dh + 18, dw, dh);
+  }
+
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
