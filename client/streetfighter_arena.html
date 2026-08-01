@@ -1087,6 +1087,55 @@ const imgTileset = new Image(); imgTileset.src = TILESET_SRC;
 const imgBack     = new Image(); imgBack.src = BACK_SRC;
 const imgFore     = new Image(); imgFore.src = FORE_SRC;
 
+// автомат с газировкой — своего спрайта в паке нет, рисуем процедурно;
+// шрифт "COLA" общий, без чужого товарного знака (публичный TikTok-стрим)
+function drawVendingMachine(dx, dyBase, h){
+  const w = h * 0.5;
+  const y = dyBase - h;
+  ctx.save();
+  ctx.fillStyle = 'rgba(0,0,0,0.35)';
+  ctx.beginPath(); ctx.ellipse(dx + w/2, dyBase + 2, w*0.6, 6, 0, 0, Math.PI*2); ctx.fill();
+
+  const body = ctx.createLinearGradient(dx, y, dx + w, y);
+  body.addColorStop(0, '#8f0d13'); body.addColorStop(0.5, '#e21b26'); body.addColorStop(1, '#a80f16');
+  ctx.fillStyle = body;
+  roundRectPath(dx, y, w, h, 4); ctx.fill();
+
+  ctx.fillStyle = '#333';
+  ctx.fillRect(dx - 2, y - 5, w + 4, 6);
+
+  const pw = w*0.72, ph = h*0.4, px = dx + (w-pw)/2, py = y + h*0.1;
+  ctx.fillStyle = '#150c10';
+  ctx.fillRect(px - 3, py - 3, pw + 6, ph + 6);
+  const glow = ctx.createLinearGradient(px, py, px, py + ph);
+  glow.addColorStop(0, '#124a66'); glow.addColorStop(1, '#0a2436');
+  ctx.fillStyle = glow;
+  ctx.fillRect(px, py, pw, ph);
+  ctx.fillStyle = 'rgba(230,60,60,0.85)';
+  const canW = pw/4;
+  for (let i=0;i<3;i++) ctx.fillRect(px+4+i*canW, py+ph*0.3, canW*0.55, ph*0.6);
+
+  ctx.fillStyle = '#fff';
+  ctx.textAlign = 'center';
+  ctx.font = `bold ${Math.max(8, h*0.1)}px Arial Black`;
+  ctx.fillText('COLA', dx + w/2, y + h*0.63);
+
+  ctx.fillStyle = '#1a1a1a';
+  ctx.fillRect(dx + w*0.12, y + h*0.68, w*0.76, h*0.06);
+  ctx.fillStyle = '#ffd23f';
+  for (let i=0;i<4;i++){
+    ctx.beginPath();
+    ctx.arc(dx + w*0.2 + i*w*0.2, y + h*0.71, w*0.035, 0, Math.PI*2);
+    ctx.fill();
+  }
+  ctx.fillStyle = '#111';
+  ctx.fillRect(dx + w*0.25, y + h*0.86, w*0.5, h*0.08);
+
+  ctx.strokeStyle = 'rgba(0,0,0,0.5)'; ctx.lineWidth = 2;
+  roundRectPath(dx, y, w, h, 4); ctx.stroke();
+  ctx.restore();
+}
+
 function drawTiledSource(img, tile, dx, dy, dw, dh, tileScreenW, tileScreenH){
   if (!img.complete || !img.naturalWidth) return;
   const nx = Math.ceil(dw / tileScreenW) + 1;
@@ -1113,8 +1162,9 @@ function drawBackground(t) {
 
   // стена дома — чередуем кусок с пиццерией и кусок с окном
   const wallY = WALL_TOP + SKY_H;
+  const pizzaTileW = TILE_WALL_PIZZA.sw * UNIT_SCALE;
   if (imgTileset.complete && imgTileset.naturalWidth){
-    const tw = TILE_WALL_PIZZA.sw * UNIT_SCALE;
+    const tw = pizzaTileW;
     let x = 0, i = 0;
     ctx.save();
     ctx.beginPath(); ctx.rect(0, wallY, CW, WALL_H); ctx.clip();
@@ -1158,6 +1208,9 @@ function drawBackground(t) {
   const g = ctx.createLinearGradient(0, FLOOR_TOP, 0, FLOOR_BOT);
   g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,0.35)');
   ctx.fillStyle = g; ctx.fillRect(0, FLOOR_TOP, CW, roadH);
+
+  // автомат с газировкой — справа от пиццерии, у стены на тротуаре
+  drawVendingMachine(pizzaTileW + 6, wallY + 62, 100);
 
   // фонари по бокам (только фонарь из fore.png, без куста) — для глубины
   if (imgFore.complete && imgFore.naturalWidth){
