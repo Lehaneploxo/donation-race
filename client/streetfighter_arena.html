@@ -1209,8 +1209,9 @@ function drawBackground(t) {
   g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,0.35)');
   ctx.fillStyle = g; ctx.fillRect(0, FLOOR_TOP, CW, roadH);
 
-  // автомат с газировкой — справа от пиццерии, у стены на тротуаре
-  drawVendingMachine(pizzaTileW + 6, wallY + 62, 100);
+  // автомат с газировкой — справа от пиццерии, у стены на тротуаре;
+  // низ автомата на уровне низа стены (там же, где низ пиццерии/двери)
+  drawVendingMachine(pizzaTileW + 6, FLOOR_TOP + 4, 100);
 
   // фонари по бокам (только фонарь из fore.png, без куста) — для глубины
   if (imgFore.complete && imgFore.naturalWidth){
