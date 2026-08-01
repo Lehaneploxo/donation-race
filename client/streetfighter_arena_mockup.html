@@ -35,18 +35,27 @@ window.addEventListener('resize', applyScale);
 const FIGHTER_SCALE = 0.85;
 const UNIT_SCALE = (130*FIGHTER_SCALE) / 63; // ≈1.754
 
-// ── Геометрия — та же схема, что и в boxing_arena.html (плашка сверху,
-// сцена ниже): PANEL 14-264, небо/стена/дорога ниже, высоты полос теперь
-// считаются от нативных размеров тайлов * UNIT_SCALE, не берутся с потолка ──
+// ── Геометрия — ТОЧНО как в boxing_arena.html (один в один: та же плашка,
+// тот же старт пола, та же зона движения), НЕ пересчитывается под масштаб
+// фона — общий размер карты остаётся идентичным боксу вне зависимости от
+// того, каким паком отрисован фон/бойцы ──
 const PANEL_TOP = 14, PANEL_H = 250;
-const SKY_TOP = PANEL_TOP + PANEL_H + 10; // 274
-const SKY_H = 80 * UNIT_SCALE;
+const SKY_TOP = PANEL_TOP + PANEL_H + 10; // 274, = WALL_TOP в boxing_arena.html
+const FLOOR_TOP = 480, FLOOR_BOT = 1000;  // те же числа, что и в boxing_arena.html
+const RING = { xMin:75, xMax:525, yMin:FLOOR_TOP+45, yMax:FLOOR_BOT-35 }; // те же числа, что и RING в boxing_arena.html
+const FIGHT = RING;
+
+// небо+стена делят фиксированную полосу SKY_TOP..FLOOR_TOP (206px, как в
+// боксе WALL_TOP..FLOOR_TOP) в той же пропорции, что и нативные размеры
+// тайлов (80:96) — так UNIT_SCALE не искажается, но общая высота полосы
+// всё равно точно совпадает с боксом
+const SKY_WALL_TOTAL = FLOOR_TOP - SKY_TOP; // 206
+const SKY_H  = SKY_WALL_TOTAL * (80/(80+96));
 const WALL_TOP = SKY_TOP + SKY_H;
-const WALL_H = 96 * UNIT_SCALE;
-const ROAD_TOP = WALL_TOP + WALL_H;
-const ROAD_H = CH - ROAD_TOP;
-const ROAD_TILE_H = 144 * UNIT_SCALE; // дорога тайлится и по вертикали тем же масштабом
-const FIGHT = { xMin:70, xMax:530, yMin:ROAD_TOP+60, yMax:CH-40 };
+const WALL_H = SKY_WALL_TOTAL - SKY_H;
+const ROAD_TOP = FLOOR_TOP;
+const ROAD_H = FLOOR_BOT - FLOOR_TOP; // 520, как в боксе
+const ROAD_TILE_H = 144 * UNIT_SCALE; // сама текстура дороги тайлится этим масштабом внутри фиксированной ROAD_H
 
 // ── Тайлы улицы (Streets of Fight, ansimuz, CC0) ──
 const TILESET_SRC = 'sprites/streets_of_fight/stage/tileset.png';
@@ -58,6 +67,9 @@ const FORE_SRC      = 'sprites/streets_of_fight/stage/fore.png';
 const TILE_WALL_PIZZA  = { sx:0,   sy:0,   sw:224, sh:96 };
 const TILE_WALL_WINDOW = { sx:288, sy:0,   sw:224, sh:96 };
 const TILE_ROAD        = { sx:48,  sy:224, sw:112, sh:144 };
+// fore.png содержит фонарь И куст одним изображением — куст не нужен,
+// вырезаем только фонарь (граница найдена сканированием прозрачных зазоров)
+const TILE_LAMP         = { sx:16,  sy:0,   sw:42,  sh:144 };
 
 const imgTileset = new Image(); imgTileset.src = TILESET_SRC;
 const imgBack     = new Image(); imgBack.src = BACK_SRC;
@@ -120,12 +132,13 @@ function drawBackground(){
   g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,0.35)');
   ctx.fillStyle = g; ctx.fillRect(0, ROAD_TOP, CW, ROAD_H);
 
-  // фонари по бокам (fore.png) — тот же UNIT_SCALE, для глубины, как угловые стойки в боксе
+  // фонари по бокам (только фонарь из fore.png, без куста) — тот же
+  // UNIT_SCALE, для глубины, как угловые стойки в боксе
   if (imgFore.complete && imgFore.naturalWidth){
-    const fw = imgFore.naturalWidth * UNIT_SCALE, fh = imgFore.naturalHeight * UNIT_SCALE;
-    ctx.drawImage(imgFore, 0, 0, imgFore.naturalWidth, imgFore.naturalHeight, 18, WALL_TOP - fh*0.35, fw, fh);
+    const fw = TILE_LAMP.sw * UNIT_SCALE, fh = TILE_LAMP.sh * UNIT_SCALE;
+    ctx.drawImage(imgFore, TILE_LAMP.sx, TILE_LAMP.sy, TILE_LAMP.sw, TILE_LAMP.sh, 18, WALL_TOP - fh*0.35, fw, fh);
     ctx.save(); ctx.scale(-1,1);
-    ctx.drawImage(imgFore, 0, 0, imgFore.naturalWidth, imgFore.naturalHeight, -(CW-18), WALL_TOP - fh*0.35, fw, fh);
+    ctx.drawImage(imgFore, TILE_LAMP.sx, TILE_LAMP.sy, TILE_LAMP.sw, TILE_LAMP.sh, -(CW-18), WALL_TOP - fh*0.35, fw, fh);
     ctx.restore();
   }
 }
