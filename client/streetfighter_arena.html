@@ -1288,6 +1288,17 @@ function drawBackground(t) {
   if (imgBack.complete && imgBack.naturalWidth){
     const tw = imgBack.naturalWidth * UNIT_SCALE;
     drawTiledSource(imgBack, { sx:0, sy:0, sw:imgBack.naturalWidth, sh:imgBack.naturalHeight }, 0, WALL_TOP + SKY_OPEN_H, CW, skyImgH, tw);
+
+    // у back.png фон за домами чисто чёрный (не фиолетовый, как хотелось) —
+    // "lighten" поднимает только тёмные/чёрные пиксели до фиолетового тона,
+    // яркие неоновые цвета зданий почти не трогает (max по каналам)
+    ctx.save();
+    ctx.beginPath(); ctx.rect(0, WALL_TOP + SKY_OPEN_H, CW, skyImgH); ctx.clip();
+    ctx.globalCompositeOperation = 'lighten';
+    ctx.fillStyle = '#2a1a4a';
+    ctx.fillRect(0, WALL_TOP + SKY_OPEN_H, CW, skyImgH);
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.restore();
   }
 
   // стена дома — чередуем кусок с пиццерией и кусок с окном
