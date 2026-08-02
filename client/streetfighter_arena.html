@@ -1281,8 +1281,8 @@ function drawBackground(t) {
   // низ автомата на уровне низа стены (там же, где низ пиццерии/двери)
   drawVendingMachine(pizzaTileW + 6, FLOOR_TOP + 4, 100);
 
-  // мусорный бак — слева на тротуаре, симметрично автомату справа
-  drawTrashCan(95, FLOOR_TOP + 4, 62);
+  // мусорный бак — у самого левого края тротуара, подальше от двери пиццерии
+  drawTrashCan(8, FLOOR_TOP + 4, 62);
 
   // фонари по бокам (только фонарь из fore.png, без куста) — для глубины
   if (imgFore.complete && imgFore.naturalWidth){
