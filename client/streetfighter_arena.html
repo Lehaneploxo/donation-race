@@ -1380,7 +1380,14 @@ function drawBackground(t) {
       const key = room.wallSeq[i % room.wallSeq.length];
       const tile = ROOM_TILES[key];
       const tw = tile.sw * UNIT_SCALE;
-      const th = tile.sh * UNIT_SCALE;
+      // высота — по WALL_H/96, а НЕ по UNIT_SCALE: WALL_H исторически
+      // считается отдельно (доля SKY_WALL_TOTAL), а не как 96*UNIT_SCALE,
+      // и эти значения не совпадают (WALL_H меньше). При th=sh*UNIT_SCALE
+      // обычные 96-высокие тайлы (кирпич и т.п.) рисовались выше WALL_H и
+      // "наезжали" на тротуар — из-за этого дверь клуба казалась слишком
+      // высоко. При sh=96 эта формула даёт ровно WALL_H, а 144-высокие
+      // тайлы (гараж/граффити) по-прежнему пропорционально выше стены
+      const th = tile.sh * (WALL_H / 96);
       ctx.drawImage(imgTileset, tile.sx, tile.sy, tile.sw, tile.sh, x, wallY, tw, th);
       x += tw; i++;
     }
