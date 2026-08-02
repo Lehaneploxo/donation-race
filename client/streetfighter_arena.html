@@ -1273,9 +1273,9 @@ function drawTiledSource(img, tile, dx, dy, dw, dh, tileScreenW, tileScreenH){
 
 function drawBackground(t) {
   // фон неба на всю полосу (в т.ч. под открытую полосу вверху) — один и
-  // тот же фиолетовый тон NIGHT_PURPLE и здесь, и в lighten-проходе ниже,
-  // чтобы стык между открытой полосой и фоном за домами не был виден
-  const NIGHT_PURPLE = '#2a1a4a';
+  // тот же тон NIGHT_PURPLE и здесь, и в lighten-проходе ниже, чтобы стык
+  // между открытой полосой и фоном за домами не был виден
+  const NIGHT_PURPLE = '#000000';
   ctx.fillStyle = NIGHT_PURPLE; ctx.fillRect(0, WALL_TOP, CW, SKY_H);
 
   // звёзды и луна рисуются ДО скайлайна — луна и часть звёзд лежат в
