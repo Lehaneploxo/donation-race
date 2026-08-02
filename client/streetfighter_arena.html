@@ -85,10 +85,29 @@ const SKIN_VARIANTS = [
   { baseType:'enemy_punk',   dir:'enemy_punk_v6_purple',       color:'#8a6bff' },
   { baseType:'enemy_punk',   dir:'enemy_punk_v7_pink',         color:'#e06bff' },
   // ещё три силуэта — тот же пак Urban Brawlers (Oonquil, itch.io),
-  // бесплатные версии, своих перекрасок нет — по одному варианту в пуле
+  // бесплатные версии; перекраски сгенерированы скриптом
+  // scripts/recolor_urban_brawlers.js (HSL hue-rotation, кожа не трогается)
   { baseType:'batting_girl', dir:'batting_girl',               color:'#ff8f4f' },
-  { baseType:'brute_arms',   dir:'brute_arms',                 color:'#8fd94f' },
-  { baseType:'bancho',       dir:'bancho',                     color:'#4fc3ff' },
+  { baseType:'batting_girl', dir:'batting_girl_v2_yellowgreen', color:'#c6e05a' },
+  { baseType:'batting_girl', dir:'batting_girl_v3_green',       color:'#5fe36a' },
+  { baseType:'batting_girl', dir:'batting_girl_v4_teal',        color:'#4fe3d0' },
+  { baseType:'batting_girl', dir:'batting_girl_v5_blue',        color:'#4fa8ff' },
+  { baseType:'batting_girl', dir:'batting_girl_v6_purple',      color:'#8a6bff' },
+  { baseType:'batting_girl', dir:'batting_girl_v7_pink',        color:'#e06bff' },
+  { baseType:'brute_arms',   dir:'brute_arms',                  color:'#8fd94f' },
+  { baseType:'brute_arms',   dir:'brute_arms_v2_yellowgreen',   color:'#c6e05a' },
+  { baseType:'brute_arms',   dir:'brute_arms_v3_green',         color:'#5fe36a' },
+  { baseType:'brute_arms',   dir:'brute_arms_v4_teal',          color:'#4fe3d0' },
+  { baseType:'brute_arms',   dir:'brute_arms_v5_blue',          color:'#4fa8ff' },
+  { baseType:'brute_arms',   dir:'brute_arms_v6_purple',        color:'#8a6bff' },
+  { baseType:'brute_arms',   dir:'brute_arms_v7_pink',          color:'#e06bff' },
+  { baseType:'bancho',       dir:'bancho',                      color:'#4fc3ff' },
+  { baseType:'bancho',       dir:'bancho_v2_yellowgreen',       color:'#c6e05a' },
+  { baseType:'bancho',       dir:'bancho_v3_green',             color:'#5fe36a' },
+  { baseType:'bancho',       dir:'bancho_v4_teal',              color:'#4fe3d0' },
+  { baseType:'bancho',       dir:'bancho_v5_blue',              color:'#4fa8ff' },
+  { baseType:'bancho',       dir:'bancho_v6_purple',            color:'#8a6bff' },
+  { baseType:'bancho',       dir:'bancho_v7_pink',              color:'#e06bff' },
 ];
 function randomSkin(){ return SKIN_VARIANTS[Math.floor(Math.random()*SKIN_VARIANTS.length)]; }
 
@@ -1675,12 +1694,15 @@ function drawFighter(v) {
     ctx.translate(cx, floorY);
     ctx.rotate(v.lean||0); // лёгкий наклон в сторону движения — заменяет отсутствующий цикл ходьбы
     // v.facing<0 значит "должен смотреть вправо". У базовых спрайтов
-    // ПРОТИВОПОЛОЖНЫЙ дефолт в исходных файлах (проверено покадрово, по лицу
-    // и волосам, не только по наклону ног): enemy_punk по умолчанию смотрит
-    // влево, brawler_girl и batting_girl — вправо. Флип считаем от реального
+    // ПРОТИВОПОЛОЖНЫЙ дефолт в исходных файлах — проверено ЖИВЫМ тестом
+    // (принудительная ходьба в игре, не по одному кадру стойки — на стоячем
+    // кадре направление легко спутать с наклоном позы): enemy_punk по
+    // умолчанию смотрит влево; brawler_girl и все три Urban Brawlers
+    // (batting_girl/brute_arms/bancho) — вправо. Флип считаем от реального
     // дефолта каждого типа, иначе кто-то из бойцов всегда ходит/бьёт спиной.
     const wantsRight = v.facing < 0;
-    const defaultsRight = v.baseType === 'brawler_girl' || v.baseType === 'batting_girl';
+    const defaultsRight = v.baseType === 'brawler_girl' || v.baseType === 'batting_girl'
+      || v.baseType === 'brute_arms' || v.baseType === 'bancho';
     if (wantsRight !== defaultsRight) ctx.scale(-1,1);
     ctx.drawImage(img, -dw/2, -dh+8, dw, dh);
     ctx.restore();
