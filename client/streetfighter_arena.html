@@ -1168,7 +1168,15 @@ function drawClubEntrance(cx0, text, t){
   }
   ctx.shadowBlur = 0;
 
-  neonSign(canX+4, canY-30, canW-8, 26, text, '#ff8fe0', '#ff2fb0');
+  // текст прямо в квадратном козырьке (не отдельная овальная табличка
+  // над ним) — козырёк уже с рамкой и бегущими огнями, второй рамки не нужно
+  ctx.save();
+  ctx.shadowColor = '#ff2fb0'; ctx.shadowBlur = 8;
+  ctx.fillStyle = '#ff8fe0';
+  ctx.font = `bold ${canH*0.55}px Arial Black`;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(text, canX+canW/2, canY+canH/2 - 1);
+  ctx.restore();
 }
 
 // граффити-подпись поверх голого кирпича — палитра взята с реальной
