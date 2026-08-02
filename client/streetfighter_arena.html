@@ -879,6 +879,11 @@ const UNIT_SCALE = (130*0.85) / 63; // ≈1.754
 const SKY_WALL_TOTAL = FLOOR_TOP - WALL_TOP; // 206
 const SKY_H = SKY_WALL_TOTAL * (80/(80+96));
 const WALL_H = SKY_WALL_TOTAL - SKY_H;
+// ВНИМАНИЕ: WALL_TOP тут — верх НЕБА, а не верх стены (сама стена
+// начинается ниже, см. wallY = WALL_TOP+SKY_H в drawBackground). Для
+// реквизита комнат (граффити, вход в клуб и т.п.), которому нужен именно
+// верх стены, используем этот алиас — иначе всё съезжает в небо
+const WALL_TOP_Y = WALL_TOP + SKY_H;
 // верхняя полоса неба, где НЕТ силуэта города (сама картинка скайлайна
 // сжата и прижата к низу SKY_H) — сюда кладём луну, чтобы она была
 // гарантированно позади/выше крыш, а не "перед домами". Самая высокая
@@ -902,6 +907,24 @@ const TILE_WALL_PIZZA  = { sx:0,   sy:0,   sw:224, sh:96 };
 const TILE_WALL_WINDOW = { sx:288, sy:0,   sw:224, sh:96 };
 const TILE_ROAD        = { sx:48,  sy:224, sw:112, sh:144 };
 const TILE_LAMP         = { sx:16,  sy:0,   sw:42,  sh:144 }; // fore.png содержит фонарь+куст, куст не используем
+
+// плитки для системы комнат (см. ROOMS ниже) — координаты row2/row3
+// tileset.png перепроверены прямым замером пикселей (не на глаз): sx=64
+// это ЧИСТЫЙ мелкий кирпич без пропа (не труба, как можно подумать по
+// порядку), sx=416 — решётка/ограждение, а НЕ кирпич
+const ROOM_TILES = {
+  pizza:      TILE_WALL_PIZZA,
+  window:     TILE_WALL_WINDOW,
+  brick:      { sx:0,   sy:112, sw:48,  sh:96 },  // крупный кирпич
+  smallbrick: { sx:64,  sy:112, sw:48,  sh:96 },  // мелкий кирпич, чистый
+  pipe:       { sx:128, sy:112, sw:48,  sh:96 },
+  archwin:    { sx:192, sy:112, sw:48,  sh:96 },
+  door:       { sx:256, sy:112, sw:48,  sh:96 },
+  brick2:     { sx:320, sy:112, sw:32,  sh:96 },  // тоже крупный кирпич
+  garageCar:  { sx:176, sy:224, sw:112, sh:144 },
+  garageShut: { sx:304, sy:224, sw:112, sh:144 },
+  graffiti:   { sx:432, sy:224, sw:96,  sh:144 },
+};
 
 const imgTileset = new Image(); imgTileset.src = TILESET_SRC;
 const imgBack     = new Image(); imgBack.src = BACK_SRC;
@@ -1024,6 +1047,210 @@ function drawTrashCan(dx, dyBase, h){
   ctx.restore();
 }
 
+// ── реквизит для системы комнат (см. ROOMS ниже) ──
+function neonSign(cx0, cy0, w, h, text, colFace, colGlow){
+  ctx.save();
+  ctx.shadowColor = colGlow; ctx.shadowBlur = 14;
+  ctx.strokeStyle = colGlow; ctx.lineWidth = 3;
+  roundRectPath(cx0, cy0, w, h, 6); ctx.stroke();
+  ctx.shadowBlur = 6;
+  ctx.fillStyle = colFace;
+  ctx.font = `bold ${h*0.55}px Arial Black`;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(text, cx0+w/2, cy0+h/2+1);
+  ctx.restore();
+}
+
+// луч прожектора от земли в небо — под клуб/дискотеку
+function drawSpotBeam(x, groundY, topY, tiltPx, color){
+  ctx.save();
+  const grad = ctx.createLinearGradient(x, groundY, x+tiltPx, topY);
+  grad.addColorStop(0, color.replace('ALPHA','0.55'));
+  grad.addColorStop(1, color.replace('ALPHA','0'));
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  ctx.moveTo(x-16, groundY);
+  ctx.lineTo(x+16, groundY);
+  ctx.lineTo(x+tiltPx+3, topY);
+  ctx.lineTo(x+tiltPx-3, topY);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+}
+
+// стойка-ограждение с бархатным канатом — классический вход в клуб
+function drawVelvetRope(x1, x2, groundY, h){
+  ctx.save();
+  [x1,x2].forEach(x=>{
+    ctx.fillStyle = '#2a2420';
+    ctx.fillRect(x-2, groundY-h, 4, h);
+    ctx.fillStyle = '#c9a63f';
+    ctx.beginPath(); ctx.arc(x, groundY-h-3, 4, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(x, groundY, 6, 2, 0, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    ctx.beginPath(); ctx.ellipse(x, groundY+1, 7, 2.5, 0, 0, Math.PI*2); ctx.fill();
+  });
+  const sagY = groundY-h*0.6;
+  ctx.strokeStyle = '#a01830'; ctx.lineWidth = 3.5;
+  ctx.beginPath();
+  ctx.moveTo(x1, groundY-h+4);
+  ctx.quadraticCurveTo((x1+x2)/2, sagY+10, x2, groundY-h+4);
+  ctx.stroke();
+  ctx.strokeStyle = 'rgba(255,255,255,0.25)'; ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(x1, groundY-h+3);
+  ctx.quadraticCurveTo((x1+x2)/2, sagY+8, x2, groundY-h+3);
+  ctx.stroke();
+  ctx.restore();
+}
+
+// полноценный вход в клуб — процедурный (в паке нет готовой "клубной
+// двери"): ниша, двустворчатые двери со светящейся щелью, неоновые
+// колонны по бокам, козырёк-маркиза прямо НАД дверью (не оторван от неё)
+function drawClubEntrance(cx0, text, t){
+  const doorW = 56, doorH = (FLOOR_TOP-WALL_TOP_Y)*0.72;
+  const doorY = FLOOR_TOP - doorH;
+  const doorX = cx0 - doorW/2;
+
+  const colW=7, colGap=10, segH=14;
+  [doorX-colGap-colW, doorX+doorW+colGap].forEach((cx,i)=>{
+    const segs = Math.ceil(doorH/segH);
+    for (let s=0;s<segs;s++){
+      const sy = doorY + s*segH;
+      const on = ((s + Math.floor((t||0)/220)) % 2)===0;
+      ctx.fillStyle = on ? (i===0?'#ff2fb0':'#2fe0ff') : 'rgba(255,255,255,0.15)';
+      if (on){ ctx.shadowColor = i===0?'#ff8fe0':'#9df5ff'; ctx.shadowBlur=8; } else ctx.shadowBlur=0;
+      ctx.fillRect(cx, sy+1, colW, segH-2);
+    }
+  });
+  ctx.shadowBlur=0;
+
+  ctx.fillStyle = '#0a0a0c';
+  ctx.fillRect(doorX-6, doorY-4, doorW+12, doorH+4);
+
+  const leafW = doorW/2;
+  const doorGrad = ctx.createLinearGradient(doorX,doorY,doorX+doorW,doorY);
+  doorGrad.addColorStop(0,'#2b1b12'); doorGrad.addColorStop(1,'#1a100b');
+  ctx.fillStyle = doorGrad;
+  ctx.fillRect(doorX, doorY, leafW-2, doorH);
+  ctx.fillRect(doorX+leafW+2, doorY, leafW-2, doorH);
+  ctx.fillStyle = '#cfd6dc';
+  ctx.fillRect(doorX+leafW-6, doorY+doorH*0.35, 3, doorH*0.28);
+  ctx.fillRect(doorX+leafW+3, doorY+doorH*0.35, 3, doorH*0.28);
+  const gapGlow = ctx.createLinearGradient(doorX+leafW-4,0,doorX+leafW+6,0);
+  gapGlow.addColorStop(0,'rgba(255,80,200,0)');
+  gapGlow.addColorStop(0.5,'rgba(255,120,220,0.95)');
+  gapGlow.addColorStop(1,'rgba(255,80,200,0)');
+  ctx.fillStyle = gapGlow;
+  ctx.fillRect(doorX+leafW-4, doorY, 10, doorH);
+
+  ctx.fillStyle = '#3a3a3f';
+  ctx.fillRect(doorX-10, FLOOR_TOP-3, doorW+20, 5);
+
+  const canW = doorW+52, canH = 24, canX = cx0-canW/2, canY = doorY-canH;
+  const canGrad = ctx.createLinearGradient(canX,canY,canX,canY+canH);
+  canGrad.addColorStop(0,'#160a12'); canGrad.addColorStop(1,'#2c0f1e');
+  ctx.fillStyle = canGrad;
+  ctx.fillRect(canX, canY, canW, canH);
+  ctx.strokeStyle = '#ff2fb0'; ctx.lineWidth = 1.5; ctx.strokeRect(canX,canY,canW,canH);
+  const bN = Math.floor(canW/10);
+  for (let i=0;i<bN;i++){
+    const on = Math.sin(i*1.9 + (t||0)*0.004) > 0;
+    ctx.fillStyle = on ? '#fff4c2' : 'rgba(255,244,194,0.2)';
+    if (on){ ctx.shadowColor='#ffe789'; ctx.shadowBlur=4; } else ctx.shadowBlur=0;
+    ctx.beginPath(); ctx.arc(canX+6+i*10, canY+canH-2, 1.6, 0, Math.PI*2); ctx.fill();
+  }
+  ctx.shadowBlur = 0;
+
+  neonSign(canX+4, canY-30, canW-8, 26, text, '#ff8fe0', '#ff2fb0');
+}
+
+// граффити-подпись поверх голого кирпича — палитра взята с реальной
+// плитки граффити из этого же пака (sx:432,sy:224 в tileset.png): буквы
+// ЗАЛИТЫ тёмным, а толстый контур — охристо-оранжевый (не наоборот), плюс
+// потёки краски снизу; текст строго по центру заданного прямоугольника,
+// наружу не вылезает — это стена, а не свободное место
+function drawGraffitiTag(cx0, cy0, lines, maxW, maxH){
+  ctx.save();
+  ctx.translate(cx0, cy0);
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+
+  let fontSize = Math.min(maxH/lines.length*0.82, 34);
+  const fit = () => {
+    ctx.font = `bold ${fontSize}px Arial Black`;
+    return Math.max(...lines.map(l=>ctx.measureText(l).width));
+  };
+  let w = fit();
+  if (w*1.18 > maxW) fontSize *= maxW/(w*1.18);
+  ctx.font = `bold ${fontSize}px Arial Black`;
+
+  const lineH = fontSize*1.08;
+  const totalH = lineH*lines.length;
+  lines.forEach((line,i)=>{
+    const ly = -totalH/2 + lineH*(i+0.5);
+    const lw = ctx.measureText(line).width;
+
+    ctx.strokeStyle = '#dd9a4c'; ctx.lineWidth = fontSize*0.32;
+    ctx.strokeText(line, 0, ly);
+    ctx.fillStyle = '#170d07';
+    ctx.fillText(line, 0, ly);
+
+    ctx.strokeStyle = '#dd9a4c'; ctx.lineWidth = 2.2;
+    for (let k=0;k<3;k++){
+      const dx = -lw/2 + lw*(0.22+k*0.28);
+      const dripLen = 5+((i+k)%2)*6;
+      ctx.beginPath(); ctx.moveTo(dx, ly+fontSize*0.3); ctx.lineTo(dx, ly+fontSize*0.3+dripLen); ctx.stroke();
+    }
+  });
+  ctx.restore();
+}
+
+// ── конфигурация комнат: каждые ROOM_SWITCH_MS сменяется фон/реквизит,
+// сами бойцы/бой не сбрасываются. wallSeq — последовательность плиток
+// ROOM_TILES, тайлится по ширине; каждая плитка масштабируется по СВОЕЙ
+// native-высоте (не силой под WALL_H), поэтому 144-высокие тайлы (гараж/
+// граффити) корректно уходят ниже уровня стены, на тротуар
+const ROOMS = [
+  {
+    name: 'Пиццерия',
+    wallSeq: ['pizza','window'],
+    extra(){
+      drawVendingMachine(TILE_WALL_PIZZA.sw*UNIT_SCALE + 6, FLOOR_TOP+4, 100);
+      drawTrashCan(8, FLOOR_TOP+4, 62);
+    },
+  },
+  {
+    name: 'Гараж',
+    wallSeq: ['brick','garageCar','brick2','garageShut','brick','graffiti','smallbrick'],
+    extra(){ drawTrashCan(8, FLOOR_TOP+4, 62); },
+  },
+  {
+    name: 'Тёмный переулок',
+    wallSeq: ['smallbrick','smallbrick','smallbrick','smallbrick','pipe','archwin','smallbrick','door','smallbrick','smallbrick'],
+    tint: 'rgba(20,40,20,0.28)',
+    extra(){
+      drawGraffitiTag(220, WALL_TOP_Y + WALL_H*0.5, ['LEHA','NEPLOXO'], 170, WALL_H*0.8);
+      drawTrashCan(8, FLOOR_TOP+4, 62); drawTrashCan(420, FLOOR_TOP+4, 50);
+    },
+  },
+  {
+    name: 'Ночной клуб',
+    wallSeq: ['brick'],
+    tint: 'rgba(40,0,40,0.22)',
+    extra(t){
+      drawSpotBeam(190, WALL_TOP_Y+10, WALL_TOP-SKY_EXTRA_TOP, -60, 'rgba(255,60,220,ALPHA)');
+      drawSpotBeam(410, WALL_TOP_Y+10, WALL_TOP-SKY_EXTRA_TOP, 60,  'rgba(80,220,255,ALPHA)');
+      drawClubEntrance(300, 'CLUB 21', t);
+      drawVelvetRope(255, 345, FLOOR_TOP+2, 30);
+      drawTrashCan(8, FLOOR_TOP+4, 62);
+    },
+  },
+];
+const ROOM_SWITCH_MS = 5*60*1000;
+let roomIdx = 0;
+let roomSwitchTimer = ROOM_SWITCH_MS;
+
 // звёзды и луна — рисуются ДО скайлайна (см. drawBackground), поэтому
 // силуэт города потом полностью перекрывает всё, что попало ниже
 // открытой полосы SKY_OPEN_H; сид звёзд фиксированный (не дёргаются
@@ -1126,20 +1353,38 @@ function drawBackground(t) {
     ctx.restore();
   }
 
-  // стена дома — чередуем кусок с пиццерией и кусок с окном
   const wallY = WALL_TOP + SKY_H;
-  const pizzaTileW = TILE_WALL_PIZZA.sw * UNIT_SCALE;
+  const room = ROOMS[roomIdx];
+
+  // дорога рисуется ПЕРВОЙ — тайлы гаража/граффити (144px, выше обычной
+  // стены в 96px) масштабируются СВОЕЙ native-высотой (не силой под
+  // WALL_H) и заходят ниже уровня стены, перекрывая часть тротуара —
+  // ровно как проём гаражных ворот, доходящий до земли
+  const roadH = FLOOR_BOT - FLOOR_TOP;
   if (imgTileset.complete && imgTileset.naturalWidth){
-    const tw = pizzaTileW;
+    const tw = TILE_ROAD.sw * UNIT_SCALE;
+    drawTiledSource(imgTileset, TILE_ROAD, 0, FLOOR_TOP, CW, roadH, tw, ROAD_TILE_H);
+  } else {
+    ctx.fillStyle = '#26364a'; ctx.fillRect(0, FLOOR_TOP, CW, roadH);
+  }
+
+  // лёгкое затемнение снизу для глубины
+  const g = ctx.createLinearGradient(0, FLOOR_TOP, 0, FLOOR_BOT);
+  g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,0.35)');
+  ctx.fillStyle = g; ctx.fillRect(0, FLOOR_TOP, CW, roadH);
+
+  // стена — последовательность плиток текущей комнаты (room.wallSeq),
+  // тайлится по ширине; масштаб каждой плитки — по её собственной высоте
+  if (imgTileset.complete && imgTileset.naturalWidth){
     let x = 0, i = 0;
-    ctx.save();
-    ctx.beginPath(); ctx.rect(0, wallY, CW, WALL_H); ctx.clip();
-    while (x < CW + tw){
-      const tile = (i % 2 === 0) ? TILE_WALL_PIZZA : TILE_WALL_WINDOW;
-      ctx.drawImage(imgTileset, tile.sx, tile.sy, tile.sw, tile.sh, x, wallY, tw, WALL_H);
+    while (x < CW + 40){
+      const key = room.wallSeq[i % room.wallSeq.length];
+      const tile = ROOM_TILES[key];
+      const tw = tile.sw * UNIT_SCALE;
+      const th = tile.sh * UNIT_SCALE;
+      ctx.drawImage(imgTileset, tile.sx, tile.sy, tile.sw, tile.sh, x, wallY, tw, th);
       x += tw; i++;
     }
-    ctx.restore();
   } else {
     ctx.fillStyle = '#3a2a20'; ctx.fillRect(0, wallY, CW, WALL_H);
   }
@@ -1161,28 +1406,11 @@ function drawBackground(t) {
   ctx.fillStyle = ledgeShadow;
   ctx.fillRect(0, wallY + 4, CW, 20);
 
-  // дорога/тротуар — тайлится и по ширине, и по высоте масштабом UNIT_SCALE
-  const roadH = FLOOR_BOT - FLOOR_TOP;
-  if (imgTileset.complete && imgTileset.naturalWidth){
-    const tw = TILE_ROAD.sw * UNIT_SCALE;
-    drawTiledSource(imgTileset, TILE_ROAD, 0, FLOOR_TOP, CW, roadH, tw, ROAD_TILE_H);
-  } else {
-    ctx.fillStyle = '#26364a'; ctx.fillRect(0, FLOOR_TOP, CW, roadH);
-  }
+  // лёгкий цветной тон комнаты (переулок/клуб) поверх стены+дороги
+  if (room.tint){ ctx.fillStyle = room.tint; ctx.fillRect(0, wallY, CW, FLOOR_BOT - wallY); }
 
-  // лёгкое затемнение снизу для глубины
-  const g = ctx.createLinearGradient(0, FLOOR_TOP, 0, FLOOR_BOT);
-  g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,0.35)');
-  ctx.fillStyle = g; ctx.fillRect(0, FLOOR_TOP, CW, roadH);
-
-  // автомат с газировкой — справа от пиццерии, у стены на тротуаре;
-  // низ автомата на уровне низа стены (там же, где низ пиццерии/двери)
-  drawVendingMachine(pizzaTileW + 6, FLOOR_TOP + 4, 100);
-
-  // мусорный бак — у самого левого края тротуара, подальше от двери пиццерии
-  drawTrashCan(8, FLOOR_TOP + 4, 62);
-
-  // фонари по бокам (только фонарь из fore.png, без куста) — для глубины
+  // фонари по бокам (только фонарь из fore.png, без куста) — для глубины;
+  // одинаковые во всех комнатах, не часть room.wallSeq
   if (imgFore.complete && imgFore.naturalWidth){
     const fw = TILE_LAMP.sw * UNIT_SCALE, fh = TILE_LAMP.sh * UNIT_SCALE;
     ctx.drawImage(imgFore, TILE_LAMP.sx, TILE_LAMP.sy, TILE_LAMP.sw, TILE_LAMP.sh, 18, wallY - fh*0.35, fw, fh);
@@ -1190,6 +1418,9 @@ function drawBackground(t) {
     ctx.drawImage(imgFore, TILE_LAMP.sx, TILE_LAMP.sy, TILE_LAMP.sw, TILE_LAMP.sh, -(CW-18), wallY - fh*0.35, fw, fh);
     ctx.restore();
   }
+
+  // реквизит текущей комнаты (автомат/бак/вход в клуб/граффити и т.п.)
+  if (room.extra) room.extra(t);
 }
 
 // ── ПЛАШКА (как в arena2.html): правила слева, топ справа ──
@@ -1693,6 +1924,14 @@ function update(dt){
 
   updateExchanges(dt);
   updateBotSpawns(dt);
+
+  // смена комнаты (фон/реквизит) каждые ROOM_SWITCH_MS — бой и бойцы не
+  // сбрасываются, меняется только декорация
+  roomSwitchTimer -= dt;
+  if (roomSwitchTimer <= 0){
+    roomIdx = (roomIdx + 1) % ROOMS.length;
+    roomSwitchTimer = ROOM_SWITCH_MS;
+  }
 
   // сама очередь двигается по завершению речи (см. vSpeakNext)
 }
