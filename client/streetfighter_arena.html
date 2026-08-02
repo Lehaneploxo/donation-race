@@ -676,7 +676,8 @@ function getAudioCtx(){
   return audioCtx;
 }
 function playPunchSound(){
-  if (!voiceEnabled) return;
+  // звук удара — независим от диктора (voiceEnabled там же управляет
+  // только speechSynthesis, см. voiceBtn), поэтому проверки нет
   const ac = getAudioCtx(); const now = ac.currentTime;
 
   const osc = ac.createOscillator(), gain = ac.createGain();
@@ -733,6 +734,15 @@ document.getElementById('fsBtn').addEventListener('click', ()=>{
     }).catch(()=>{});
   }
 });
+
+// звуки удара/нокаута идут через AudioContext, который браузер держит
+// "suspended" до первого жеста пользователя — раньше он разблокировался
+// только кликом по кнопке диктора (voiceBtn), из-за чего казалось, что
+// звук боя тоже управляется ею; теперь разблокируем при любом первом клике
+document.addEventListener('pointerdown', function unlockAudioOnce(){
+  try{ getAudioCtx().resume(); }catch(e){}
+  document.removeEventListener('pointerdown', unlockAudioOnce);
+}, { once: true });
 
 // ── Живое подключение к TikTok-чату (как в arena2/arena3) ──
 // Сервер шлёт общие "arena_*" события на весь стрим — тут выбираем только
