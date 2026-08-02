@@ -1215,15 +1215,10 @@ const ROOMS = [
   {
     name: 'Пиццерия',
     wallSeq: ['pizza','window'],
-    extra(){
-      drawVendingMachine(TILE_WALL_PIZZA.sw*UNIT_SCALE + 6, FLOOR_TOP+4, 100);
-      drawTrashCan(8, FLOOR_TOP+4, 62);
-    },
   },
   {
     name: 'Гараж',
     wallSeq: ['brick','garageCar','brick2','garageShut','brick','graffiti','smallbrick'],
-    extra(){ drawTrashCan(8, FLOOR_TOP+4, 62); },
   },
   {
     name: 'Тёмный переулок',
@@ -1231,7 +1226,6 @@ const ROOMS = [
     tint: 'rgba(20,40,20,0.28)',
     extra(){
       drawGraffitiTag(220, WALL_TOP_Y + WALL_H*0.5, ['LEHA','NEPLOXO'], 170, WALL_H*0.8);
-      drawTrashCan(8, FLOOR_TOP+4, 62); drawTrashCan(420, FLOOR_TOP+4, 50);
     },
   },
   {
@@ -1243,7 +1237,6 @@ const ROOMS = [
       drawSpotBeam(410, WALL_TOP_Y+10, WALL_TOP-SKY_EXTRA_TOP, 60,  'rgba(80,220,255,ALPHA)');
       drawClubEntrance(300, 'CLUB 21', t);
       drawVelvetRope(255, 345, FLOOR_TOP+2, 30);
-      drawTrashCan(8, FLOOR_TOP+4, 62);
     },
   },
 ];
