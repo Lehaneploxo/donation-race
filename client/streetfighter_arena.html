@@ -82,9 +82,11 @@ const SKIN_VARIANTS = [
   { baseType:'enemy_punk',   dir:'enemy_punk_v5_blue',         color:'#4fa8ff' },
   { baseType:'enemy_punk',   dir:'enemy_punk_v6_purple',       color:'#8a6bff' },
   { baseType:'enemy_punk',   dir:'enemy_punk_v7_pink',         color:'#e06bff' },
-  // третий силуэт — Batting Girl (пак Urban Brawlers, бесплатная версия,
-  // Oonquil, itch.io), своих перекрасок нет — один вариант в общем пуле
+  // ещё три силуэта — тот же пак Urban Brawlers (Oonquil, itch.io),
+  // бесплатные версии, своих перекрасок нет — по одному варианту в пуле
   { baseType:'batting_girl', dir:'batting_girl',               color:'#ff8f4f' },
+  { baseType:'brute_arms',   dir:'brute_arms',                 color:'#8fd94f' },
+  { baseType:'bancho',       dir:'bancho',                     color:'#4fc3ff' },
 ];
 function randomSkin(){ return SKIN_VARIANTS[Math.floor(Math.random()*SKIN_VARIANTS.length)]; }
 
@@ -257,20 +259,50 @@ const CHAR_ANIMS = {
     hurt:  { folder:'Hurt',  prefix:'hurt',  count:4,  fps:12, loop:false },
     ko:    { folder:'Hurt',  prefix:'hurt',  count:4,  fps:8,  loop:false },
   },
+  // Brute Arms (Urban Brawlers, Oonquil) — кадры 100x101 (у атак/ударов
+  // шире из-за размаха рук), Jab/Punch/Kick сверены по ширине спрайт-листов
+  // (было 4 группы атак в паке — attack01:7,02:5,03:5,04:8 — среднюю
+  // группу (03) не используем, оставили самую длинную как "kick")
+  brute_arms: {
+    idle:  { folder:'Idle',  prefix:'idle',  count:8, fps:9,  loop:true  },
+    walk:  { folder:'Walk',  prefix:'walk',  count:6, fps:11, loop:true  },
+    jab:   { folder:'Jab',   prefix:'jab',   count:7, fps:14, loop:false },
+    punch: { folder:'Punch', prefix:'punch', count:5, fps:16, loop:false },
+    kick:  { folder:'Kick',  prefix:'kick',  count:8, fps:16, loop:false },
+    hurt:  { folder:'Hurt',  prefix:'hurt',  count:4, fps:12, loop:false },
+    ko:    { folder:'Hurt',  prefix:'hurt',  count:4, fps:8,  loop:false },
+  },
+  // Bancho (Urban Brawlers, Oonquil) — кадры 100x100. У этого пака нет
+  // отдельных кадров "Hurt" (только сшитый лист) — вместо них взяты первые
+  // 4 кадра из "Damages" (7 файлов в паке, по смыслу это и есть реакция на
+  // удар, несмотря на другое название)
+  bancho: {
+    idle:  { folder:'Idle',  prefix:'idle',  count:7, fps:9,  loop:true  },
+    walk:  { folder:'Walk',  prefix:'walk',  count:6, fps:12, loop:true  },
+    jab:   { folder:'Jab',   prefix:'jab',   count:9, fps:18, loop:false },
+    punch: { folder:'Punch', prefix:'punch', count:7, fps:18, loop:false },
+    kick:  { folder:'Kick',  prefix:'kick',  count:8, fps:18, loop:false },
+    hurt:  { folder:'Hurt',  prefix:'hurt',  count:4, fps:12, loop:false },
+    ko:    { folder:'Hurt',  prefix:'hurt',  count:4, fps:8,  loop:false },
+  },
 };
-// набор ударов, из которого случайно выбирается анимация атаки — у Brawler
-// Girl и Batting Girl три разных (джеб/удар/пинок), у Enemy Punk только
-// один (punch)
+// набор ударов, из которого случайно выбирается анимация атаки — у всех
+// силуэтов из Urban Brawlers и у Brawler Girl три разных (джеб/удар/пинок),
+// у Enemy Punk только один (punch)
 const CHAR_ATTACKS = {
   brawler_girl: ['jab','punch','kick'],
   enemy_punk:   ['punch'],
   batting_girl: ['jab','punch','kick'],
+  brute_arms:   ['jab','punch','kick'],
+  bancho:       ['jab','punch','kick'],
 };
 // у каждого baseType свой корневой пак спрайтов (разные авторы/лицензии)
 const CHAR_BASE_PATH = {
   brawler_girl: 'streets_of_fight',
   enemy_punk:   'streets_of_fight',
   batting_girl: 'urban_brawlers',
+  brute_arms:   'urban_brawlers',
+  bancho:       'urban_brawlers',
 };
 // dir — конкретная (возможно перекрашенная) папка спрайтов, baseType —
 // какой набор анимаций использовать (brawler_girl/enemy_punk структура
