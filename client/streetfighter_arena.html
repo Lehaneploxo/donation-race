@@ -1136,6 +1136,74 @@ function drawVendingMachine(dx, dyBase, h){
   ctx.restore();
 }
 
+// мусорный бак в духе улиц Америки 80-х — оцинкованная сталь, помятый,
+// с ржавыми потёками и торчащим мусором; тоже рисуется процедурно
+function drawTrashCan(dx, dyBase, h){
+  const wTop = h * 0.5, wBot = h * 0.58;
+  const y = dyBase - h;
+  ctx.save();
+
+  ctx.fillStyle = 'rgba(0,0,0,0.35)';
+  ctx.beginPath(); ctx.ellipse(dx + wBot/2, dyBase + 2, wBot*0.62, 6, 0, 0, Math.PI*2); ctx.fill();
+
+  // корпус — слегка сужается кверху (классический жестяной бак)
+  const bodyTop = y + h*0.14;
+  ctx.beginPath();
+  ctx.moveTo(dx + (wBot-wTop)/2, bodyTop);
+  ctx.lineTo(dx + (wBot-wTop)/2 + wTop, bodyTop);
+  ctx.lineTo(dx + wBot, dyBase);
+  ctx.lineTo(dx, dyBase);
+  ctx.closePath();
+  const body = ctx.createLinearGradient(dx, y, dx + wBot, y);
+  body.addColorStop(0,   '#5c6068');
+  body.addColorStop(0.35,'#9aa0a8');
+  body.addColorStop(0.55,'#c4c9cf');
+  body.addColorStop(0.75,'#83898f');
+  body.addColorStop(1,   '#4a4e54');
+  ctx.fillStyle = body;
+  ctx.fill();
+
+  // гофрированные горизонтальные рёбра жёсткости
+  ctx.save();
+  ctx.clip();
+  ctx.strokeStyle = 'rgba(0,0,0,0.25)'; ctx.lineWidth = 1.5;
+  for (let i=1;i<=3;i++){
+    const ly = bodyTop + (dyBase-bodyTop)*(i/4);
+    ctx.beginPath(); ctx.moveTo(dx-2, ly); ctx.lineTo(dx+wBot+2, ly); ctx.stroke();
+  }
+  // ржавые потёки
+  ctx.fillStyle = 'rgba(140,70,20,0.35)';
+  ctx.fillRect(dx + wBot*0.22, bodyTop + (dyBase-bodyTop)*0.35, 3, (dyBase-bodyTop)*0.6);
+  ctx.fillRect(dx + wBot*0.68, bodyTop + (dyBase-bodyTop)*0.15, 2, (dyBase-bodyTop)*0.75);
+  // вмятина
+  ctx.fillStyle = 'rgba(0,0,0,0.18)';
+  ctx.beginPath(); ctx.ellipse(dx + wBot*0.4, dyBase - (dyBase-bodyTop)*0.3, wBot*0.14, wBot*0.1, 0, 0, Math.PI*2); ctx.fill();
+  ctx.restore();
+
+  ctx.strokeStyle = 'rgba(0,0,0,0.45)'; ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  // крышка с ободом
+  const lidY = bodyTop, lidRX = wTop*0.62, lidRY = h*0.055;
+  ctx.fillStyle = '#6d7178';
+  ctx.beginPath(); ctx.ellipse(dx + (wBot-wTop)/2 + wTop/2, lidY, lidRX, lidRY, 0, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#b6bac0';
+  ctx.beginPath(); ctx.ellipse(dx + (wBot-wTop)/2 + wTop/2, lidY - lidRY*0.35, lidRX*0.86, lidRY*0.7, 0, 0, Math.PI*2); ctx.fill();
+  ctx.strokeStyle = 'rgba(0,0,0,0.4)'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.ellipse(dx + (wBot-wTop)/2 + wTop/2, lidY, lidRX, lidRY, 0, 0, Math.PI*2); ctx.stroke();
+
+  // торчащий мусор — мятая бумага и обломок доски
+  ctx.fillStyle = '#e8dcc0';
+  ctx.beginPath();
+  ctx.moveTo(dx + wTop*0.35, lidY - lidRY*0.3);
+  ctx.lineTo(dx + wTop*0.55, lidY - h*0.16);
+  ctx.lineTo(dx + wTop*0.7,  lidY - lidRY*0.2);
+  ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = 'rgba(0,0,0,0.25)'; ctx.lineWidth = 1; ctx.stroke();
+
+  ctx.restore();
+}
+
 function drawTiledSource(img, tile, dx, dy, dw, dh, tileScreenW, tileScreenH){
   if (!img.complete || !img.naturalWidth) return;
   const nx = Math.ceil(dw / tileScreenW) + 1;
@@ -1212,6 +1280,9 @@ function drawBackground(t) {
   // автомат с газировкой — справа от пиццерии, у стены на тротуаре;
   // низ автомата на уровне низа стены (там же, где низ пиццерии/двери)
   drawVendingMachine(pizzaTileW + 6, FLOOR_TOP + 4, 100);
+
+  // мусорный бак — слева на тротуаре, симметрично автомату справа
+  drawTrashCan(95, FLOOR_TOP + 4, 62);
 
   // фонари по бокам (только фонарь из fore.png, без куста) — для глубины
   if (imgFore.complete && imgFore.naturalWidth){
