@@ -210,15 +210,10 @@ const FIGHT_DIST = 68;
 // "по диагонали", хотя визуально не стоят друг перед другом
 const FIGHT_Y_GAP = 30;
 
-// раунды — чисто визуальный таймер поверх непрерывного боя (не влияет на
-// нокауты/выбывание): каждые 3 минуты объявляется лучший ЭТОГО раунда,
-// бойцы расходятся по углам, проходит девушка с табличкой номера раунда,
-// после 12-го раунда счёт идёт заново с 1. Нокаутированный боец пропадает
-// с ринга насовсем и НЕ оживает автоматически по раунду — возврат бойца
-// на ринг приходит от нового лайка/доната этого же зрителя (см. applyGrowth).
-const ROUND_DURATION_MS = 3*60*1000;
-const ROUND_TOTAL = 12;
-const ROUND_GIRL_MS = 4600;
+// раунды убраны (были чисто декоративным таймером поверх непрерывного
+// боя) — бой идёт непрерывно. Нокаутированный боец пропадает с ринга
+// насовсем и НЕ оживает автоматически — возврат бойца на ринг приходит
+// от нового лайка/доната этого же зрителя (см. applyGrowth).
 
 // ── Анимации: у Brawler Girl (реальные игроки) и Enemy Punk (боты) —
 // РАЗНЫЕ наборы кадров (не просто перекраска одного пака, как в боксе).
@@ -287,7 +282,6 @@ function initFighterRuntime(v, x, y){
   v.alive = true;
   v.eliminated = false; // true = совсем убран с ринга (энергия кончилась)
   v.lastAttacker = null;
-  v.roundStartStolen = v.stolenEnergy || 0; // снимок для подсчёта победителя раунда
   v.frames = loadFrames(v.dir, v.baseType);
 }
 
@@ -372,8 +366,8 @@ function onLike(username){ applyGrowth(username, { likeEnergy:10, likePower:1 },
 
 // ── Команда "Team" в чате: тумблер красного флажка — пока боец жив, свои
 // с флажком друг друга не бьют. Флаг слетает автоматически при нокауте
-// (см. v.eliminated=true в update()), раунды на него не влияют. Боты в
-// команду вступать не могут — findRealFighter ищет только реальных.
+// (см. v.eliminated=true в update()). Боты в команду вступать не могут —
+// findRealFighter ищет только реальных.
 function toggleTeam(username){
   const v = findRealFighter(username);
   if (!v || !v.alive || v.eliminated) return;
@@ -458,10 +452,6 @@ function updateBotSpawns(dt){
   const count = Math.random()<0.5 ? 1 : 2;
   for (let i=0; i<count; i++) spawnBot();
 }
-
-let roundNum = 1;
-let roundTimer = ROUND_DURATION_MS;
-let roundGirl = null; // {t} — активна во время прохода девушки с табличкой
 
 // ── События + озвучка — архитектура как в arena2.html: очередь фраз,
 // такт задаёт РЕАЛЬНОЕ окончание речи (не фиксированный таймер), в паузах
@@ -875,187 +865,6 @@ setInterval(fetchStreetFighterTop, 30000);
   if (u) wsConnect(u);
 })();
 
-// нога как объёмная сужающаяся форма (бедро→колено→икра→щиколотка), а не
-// просто линия — даёт куда более естественный силуэт при ходьбе
-function drawGirlLeg(ctx, hipX, footX, bulgeDir, skinGrad){
-  const kneeY=-40, ankleY=-6, footY=0;
-  const hipW=6.5, kneeW=4.3, ankleW=2.6;
-  const kneeX = (hipX+footX)/2 + bulgeDir*3;
-  ctx.beginPath();
-  ctx.moveTo(hipX-hipW,-70);
-  ctx.quadraticCurveTo(kneeX-kneeW-1, kneeY, footX-ankleW, ankleY);
-  ctx.lineTo(footX-ankleW*1.3, footY);
-  ctx.lineTo(footX+ankleW*1.3, footY);
-  ctx.lineTo(footX+ankleW, ankleY);
-  ctx.quadraticCurveTo(kneeX+kneeW+1, kneeY, hipX+hipW, -70);
-  ctx.closePath();
-  ctx.fillStyle = skinGrad; ctx.fill();
-  ctx.strokeStyle = 'rgba(0,0,0,0.22)'; ctx.lineWidth = 1; ctx.stroke();
-  // каблук
-  ctx.strokeStyle = '#221'; ctx.lineWidth = 2; ctx.lineCap='round';
-  ctx.beginPath(); ctx.moveTo(footX, footY); ctx.lineTo(footX+bulgeDir*3, footY+6); ctx.stroke();
-}
-
-// девушка с табличкой номера раунда — проходит через ринг между раундами
-function drawRoundGirl() {
-  if (!roundGirl) return;
-  const p = clamp(roundGirl.t / ROUND_GIRL_MS, 0, 1);
-  const x = -60 + p*(CW+120);
-  const y = RING.yMax - 130; // ниже в ринге, ближе к камере — с учётом удвоенного роста
-  const bob = Math.sin(roundGirl.t/150)*3;
-  const walk = Math.sin(roundGirl.t/130);   // шаг ног
-  const sway = Math.sin(roundGirl.t/130 + 0.5)*2.5; // покачивание бёдрами/волосами
-  const armSwing = Math.sin(roundGirl.t/130 + Math.PI)*4; // естественный взмах свободной руки
-
-  const hair1 = '#f6d16a', hair2 = '#e0a83a';
-  const suit = '#ff2d78', suitDk = '#d61f61';
-
-  ctx.save();
-  ctx.translate(x, y+bob);
-  ctx.scale(2, 2); // в два раза крупнее
-  ctx.lineCap = 'round';
-
-  // объёмная светотень кожи: свет слева, тень справа — единая для всех частей тела
-  const skinGrad = ctx.createLinearGradient(-15,0,15,0);
-  skinGrad.addColorStop(0, '#ffe3c2');
-  skinGrad.addColorStop(0.55, '#f0c39a');
-  skinGrad.addColorStop(1, '#d9a373');
-
-  // тень на полу
-  ctx.globalAlpha = 0.22; ctx.fillStyle = '#000';
-  ctx.beginPath(); ctx.ellipse(0, 2, 15, 4, 0, 0, Math.PI*2); ctx.fill();
-  ctx.globalAlpha = 1;
-
-  // задняя (дальняя) нога — чуть темнее и тоньше, читается как дальний план
-  ctx.save(); ctx.globalAlpha = 0.85;
-  drawGirlLeg(ctx, -3, -3 - walk*13, -1, skinGrad);
-  ctx.restore();
-
-  // купальник-низ
-  ctx.fillStyle = suit;
-  ctx.beginPath(); ctx.ellipse(sway*0.3, -71, 8, 6, 0, 0, Math.PI*2); ctx.fill();
-  ctx.strokeStyle = suitDk; ctx.lineWidth = 1;
-  ctx.beginPath(); ctx.moveTo(-6,-73); ctx.quadraticCurveTo(sway*0.3,-68,6,-73); ctx.stroke();
-
-  // передняя (ближняя) нога — поверх дальней
-  drawGirlLeg(ctx, 3, 3 + walk*13, 1, skinGrad);
-
-  // торс — плавная талия/бёдра (естественные пропорции "песочные часы")
-  ctx.fillStyle = skinGrad;
-  ctx.beginPath();
-  ctx.moveTo(-8, -72);
-  ctx.quadraticCurveTo(-10+sway*0.3, -86, -5, -100);
-  ctx.lineTo(5, -100);
-  ctx.quadraticCurveTo(10+sway*0.3, -86, 8, -72);
-  ctx.closePath(); ctx.fill();
-  ctx.strokeStyle = 'rgba(0,0,0,0.15)'; ctx.lineWidth = 1; ctx.stroke();
-  // лёгкая тень под грудью/талией для объёма
-  ctx.strokeStyle = 'rgba(160,90,60,0.35)'; ctx.lineWidth = 1.4;
-  ctx.beginPath(); ctx.moveTo(-6,-90); ctx.quadraticCurveTo(0,-87,6,-90); ctx.stroke();
-
-  // дальняя рука — свободно покачивается вдоль тела при ходьбе
-  ctx.strokeStyle = skinGrad; ctx.lineWidth = 4.5;
-  ctx.beginPath(); ctx.moveTo(-7,-98); ctx.quadraticCurveTo(-14+armSwing*0.5,-84,-12+armSwing,-66); ctx.stroke();
-
-  // купальник-топ с тонкими бретельками на шею
-  ctx.strokeStyle = suit; ctx.lineWidth = 1.4;
-  ctx.beginPath(); ctx.moveTo(-5,-105); ctx.lineTo(-3,-112); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(5,-105); ctx.lineTo(3,-112); ctx.stroke();
-  const cupGrad = ctx.createRadialGradient(-6,-102,1,-5,-100,7);
-  cupGrad.addColorStop(0, '#ff6fa8'); cupGrad.addColorStop(1, suit);
-  ctx.fillStyle = cupGrad;
-  ctx.beginPath(); ctx.ellipse(-5,-100,6.5,5.5,0.15,0,Math.PI*2); ctx.fill();
-  ctx.beginPath(); ctx.ellipse(5,-100,6.5,5.5,-0.15,0,Math.PI*2); ctx.fill();
-  ctx.strokeStyle = suitDk; ctx.lineWidth = 1;
-  ctx.beginPath(); ctx.ellipse(-5,-100,6.5,5.5,0.15,0,Math.PI*2); ctx.stroke();
-  ctx.beginPath(); ctx.ellipse(5,-100,6.5,5.5,-0.15,0,Math.PI*2); ctx.stroke();
-
-  // шея
-  ctx.fillStyle = skinGrad; ctx.fillRect(-2,-108,4,8);
-
-  // длинные светлые волосы за спиной — послойно, с прядями для объёма
-  ctx.fillStyle = hair2;
-  ctx.beginPath();
-  ctx.moveTo(-8,-120);
-  ctx.quadraticCurveTo(-16,-102,-12+sway*0.5,-76);
-  ctx.quadraticCurveTo(-7,-84,-7,-104);
-  ctx.quadraticCurveTo(-8,-116,-3,-122);
-  ctx.closePath(); ctx.fill();
-  ctx.beginPath();
-  ctx.moveTo(8,-120);
-  ctx.quadraticCurveTo(16,-102,12+sway*0.5,-76);
-  ctx.quadraticCurveTo(7,-84,7,-104);
-  ctx.quadraticCurveTo(8,-116,3,-122);
-  ctx.closePath(); ctx.fill();
-  ctx.fillStyle = hair1;
-  ctx.beginPath();
-  ctx.moveTo(-7,-119);
-  ctx.quadraticCurveTo(-13,-102,-10+sway*0.5,-80);
-  ctx.quadraticCurveTo(-7,-90,-6,-105);
-  ctx.closePath(); ctx.fill();
-  ctx.beginPath();
-  ctx.moveTo(7,-119);
-  ctx.quadraticCurveTo(13,-102,10+sway*0.5,-80);
-  ctx.quadraticCurveTo(7,-90,6,-105);
-  ctx.closePath(); ctx.fill();
-  // отдельные пряди поверх для текстуры
-  ctx.strokeStyle = 'rgba(200,140,30,0.4)'; ctx.lineWidth = 1;
-  ctx.beginPath(); ctx.moveTo(-9,-115); ctx.quadraticCurveTo(-13,-98,-10+sway*0.5,-82); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(9,-115); ctx.quadraticCurveTo(13,-98,10+sway*0.5,-82); ctx.stroke();
-
-  // голова
-  ctx.fillStyle = skinGrad;
-  ctx.beginPath(); ctx.arc(0,-116,8.5,0,Math.PI*2); ctx.fill();
-
-  // лицо: брови, глаза, губы, румянец
-  ctx.fillStyle = '#7a5230';
-  ctx.beginPath(); ctx.ellipse(-3.4,-117.5,1.6,0.5,-0.15,0,Math.PI*2); ctx.fill();
-  ctx.beginPath(); ctx.ellipse(3.4,-117.5,1.6,0.5,0.15,0,Math.PI*2); ctx.fill();
-  ctx.fillStyle = '#2a1c12';
-  ctx.beginPath(); ctx.ellipse(-3.2,-115.5,1,1.3,0,0,Math.PI*2); ctx.fill();
-  ctx.beginPath(); ctx.ellipse(3.2,-115.5,1,1.3,0,0,Math.PI*2); ctx.fill();
-  ctx.fillStyle = 'rgba(255,120,140,0.35)';
-  ctx.beginPath(); ctx.ellipse(-5,-112.5,1.6,1,0,0,Math.PI*2); ctx.fill();
-  ctx.beginPath(); ctx.ellipse(5,-112.5,1.6,1,0,0,Math.PI*2); ctx.fill();
-  ctx.strokeStyle = '#c1667a'; ctx.lineWidth = 1; ctx.lineCap='round';
-  ctx.beginPath(); ctx.moveTo(-2,-110.5); ctx.quadraticCurveTo(0,-109.3,2,-110.5); ctx.stroke();
-
-  // чёлка поверх лица
-  ctx.fillStyle = hair2;
-  ctx.beginPath(); ctx.arc(0,-119,8.8,Math.PI*1.02,Math.PI*1.98); ctx.fill();
-  ctx.fillStyle = hair1;
-  ctx.beginPath(); ctx.arc(0,-120,8.5,Math.PI*1.1,Math.PI*1.55); ctx.fill();
-
-  // ближняя рука — поднята, держит табличку
-  ctx.strokeStyle = skinGrad; ctx.lineWidth = 4.8;
-  ctx.beginPath(); ctx.moveTo(7,-100); ctx.quadraticCurveTo(19,-114,23,-132); ctx.stroke();
-  ctx.fillStyle = skinGrad;
-  ctx.beginPath(); ctx.arc(23,-133,2.6,0,Math.PI*2); ctx.fill();
-
-  // табличка с номером раунда
-  ctx.save();
-  ctx.translate(29,-150);
-  ctx.rotate(-0.04);
-  ctx.fillStyle = 'rgba(0,0,0,0.18)';
-  ctx.fillRect(-22,-15,48,34);
-  ctx.fillStyle = 'rgba(255,255,255,0.97)';
-  ctx.fillRect(-24,-17,48,34);
-  ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.lineWidth = 2;
-  ctx.strokeRect(-24,-17,48,34);
-  ctx.fillStyle = '#111'; ctx.textAlign = 'center';
-  ctx.font = 'bold 10px Arial';
-  ctx.fillText('РАУНД', 0, -3);
-  ctx.font = 'bold 17px Arial Black';
-  ctx.fillText(String(roundNum), 0, 14);
-  ctx.restore();
-
-  ctx.restore();
-}
-
-function formatRoundTime(ms){
-  const s = Math.max(0, Math.ceil(ms/1000));
-  return `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;
-}
 
 // ── Единый масштаб для ВСЕХ пиксель-арт ассетов пака (персонажи и фон —
 // из одного пака Streets of Fight) — иначе дверь/стена не в пропорции с
@@ -1450,40 +1259,26 @@ function drawHUD() {
     ctx.restore();
   });
 
-  // раунд + обратный отсчёт — под правилами, тут как раз есть свободное место
-  const roundY = rY + rules.length*rStep;
-  ctx.font = 'bold 14px Arial Black'; ctx.textAlign = 'left';
-  ctx.strokeStyle = 'rgba(0,0,0,0.85)'; ctx.lineWidth = 3;
-  const roundLabel = `⏱ РАУНД ${roundNum}/${ROUND_TOTAL}`;
-  ctx.strokeText(roundLabel, 8, roundY, CW/2-10);
-  ctx.fillStyle = '#ffcf4d';
-  ctx.fillText(roundLabel, 8, roundY, CW/2-10);
-
-  ctx.font = 'bold 24px Arial Black';
-  ctx.strokeStyle = 'rgba(0,0,0,0.9)'; ctx.lineWidth = 4.5;
-  const timeLabel = formatRoundTime(roundTimer);
-  ctx.strokeText(timeLabel, 8, roundY+30, CW/2-10);
-  ctx.fillStyle = roundTimer < 30000 ? '#ff5566' : '#8fffb0';
-  ctx.fillText(timeLabel, 8, roundY+30, CW/2-10);
-
-  // телеграм-чат — правее раунда/времени, в отдельной рамке-плашке, чтобы
-  // было явно видно, что это самостоятельный блок, а не часть раунда/таймера
-  const tgBoxX = 134, tgBoxY = roundY - 22, tgBoxW = CW/2 - tgBoxX - 4, tgBoxH = 50;
+  // телеграм-чат — под правилами (раунды убраны, эта плашка теперь одна
+  // занимает весь освободившийся ряд левой колонки, а не половину)
+  const tgY = rY + rules.length*rStep;
+  const tgBoxX = 8, tgBoxY = tgY - 22, tgBoxW = CW/2 - 16, tgBoxH = 50;
+  const tgCx = tgBoxX + tgBoxW/2;
   roundRectPath(tgBoxX, tgBoxY, tgBoxW, tgBoxH, 7);
   ctx.fillStyle = 'rgba(79,195,255,0.10)'; ctx.fill();
   ctx.strokeStyle = 'rgba(79,195,255,0.55)'; ctx.lineWidth = 1.5; ctx.stroke();
 
-  ctx.textAlign = 'right';
-  ctx.font = 'bold 11px Arial Black';
+  ctx.textAlign = 'center';
+  ctx.font = 'bold 13px Arial Black';
   ctx.strokeStyle = 'rgba(0,0,0,0.85)'; ctx.lineWidth = 3;
-  ctx.strokeText('📱 ТЕЛЕГРАМ ЧАТ', CW/2-8, roundY-2, tgBoxW-12);
+  ctx.strokeText('📱 ТЕЛЕГРАМ ЧАТ', tgCx, tgY-2, tgBoxW-12);
   ctx.fillStyle = '#4fc3ff';
-  ctx.fillText('📱 ТЕЛЕГРАМ ЧАТ', CW/2-8, roundY-2, tgBoxW-12);
+  ctx.fillText('📱 ТЕЛЕГРАМ ЧАТ', tgCx, tgY-2, tgBoxW-12);
 
-  ctx.font = 'bold 17px Arial Black';
-  ctx.strokeText('boxingarena1', CW/2-8, roundY+22, tgBoxW-12);
+  ctx.font = 'bold 19px Arial Black';
+  ctx.strokeText('boxingarena1', tgCx, tgY+22, tgBoxW-12);
   ctx.fillStyle = '#7fd3ff';
-  ctx.fillText('boxingarena1', CW/2-8, roundY+22, tgBoxW-12);
+  ctx.fillText('boxingarena1', tgCx, tgY+22, tgBoxW-12);
 
   // правая колонка — топ по силе
   ctx.font = 'bold 12px Arial Black'; ctx.textAlign = 'center';
@@ -1632,8 +1427,8 @@ function drawFighter(v) {
   ctx.fillStyle = '#FF6688'; ctx.fillText(enTxt, cx, labelY + 18*s);
 
   const pwTxt = `💪 ${v.power}`;
-  ctx.strokeText(pwTxt, cx, labelY + 33*s);
-  ctx.fillStyle = '#ff9d5c'; ctx.fillText(pwTxt, cx, labelY + 33*s);
+  ctx.strokeText(pwTxt, cx, labelY + 36*s);
+  ctx.fillStyle = '#ff9d5c'; ctx.fillText(pwTxt, cx, labelY + 36*s);
 }
 
 // ── Игровая логика: движение по рингу, столкновения, урон, нокаут ──
@@ -1658,59 +1453,6 @@ function advanceAnim(v, dt){
     if (v.frameIdx >= def.count) v.frameIdx = def.loop ? 0 : def.count-1;
   }
   v.animName = key;
-}
-
-const ROUND_RESULT_LINES = [
-  (n,rd,d)=>`🏆 Раунд ${rd}: ${n} — лучший этим раундом! (+${d}⚡)`,
-  (n,rd,d)=>`👊 Раунд ${rd} за ${n} — больше всех навешал! (+${d}⚡)`,
-  (n,rd,d)=>`🎖️ ${n} выигрывает раунд ${rd}! (+${d}⚡)`,
-  (n,rd,d)=>`🔥 Раунд ${rd}: все смотрели на ${n}! (+${d}⚡)`,
-];
-const NO_LEADER_LINES = [
-  rd=>`🔔 Раунд ${rd} завершён — тишина на районе...`,
-  rd=>`😴 Раунд ${rd} прошёл вяло — где лайки?`,
-];
-
-// разводит живых бойцов по разным углам/бокам ринга на время прохода
-// девушки с табличкой — чисто визуальная пауза, бой не сбрасывается
-function sendFightersToCorners(){
-  const alive = VARIANTS.filter(v=>v.alive && !v.eliminated);
-  const rows = Math.max(1, Math.ceil(alive.length/2));
-  alive.forEach((v,i)=>{
-    const side = i%2===0 ? RING.xMin+35 : RING.xMax-35;
-    const row = Math.floor(i/2);
-    const y = RING.yMin + (row+0.5) * ((RING.yMax-RING.yMin)/rows);
-    v.tx = side; v.ty = clamp(y, RING.yMin, RING.yMax);
-    v.wanderPause = ROUND_GIRL_MS + 300;
-  });
-}
-
-// раунд — таймер поверх непрерывного боя: победитель раунда = кто больше
-// всех отжал энергии у соперников ИМЕННО за этот раунд (не all-time счёт).
-// Снимок очков хранится на самом бойце (v.roundStartStolen), а не по
-// индексу массива — ростер меняется динамически из-за подсадки ботов.
-// Боты не участвуют в подсчёте победителя раунда (не в рейтинге).
-function endRound(){
-  let best = null, bestDelta = 0;
-  VARIANTS.forEach(v=>{
-    if (v.isBot) return;
-    const delta = v.stolenEnergy - (v.roundStartStolen||0);
-    if (delta > bestDelta){ bestDelta = delta; best = v; }
-  });
-  if (best){
-    const roundBonus = 500;
-    best.stolenEnergy += roundBonus;
-    best.allTimeStolen = (best.allTimeStolen||0) + roundBonus;
-    reportStolen(best.name, roundBonus);
-    pushEvent(pick(ROUND_RESULT_LINES)(cleanNickForSpeech(best.name), roundNum, bestDelta + roundBonus), true);
-  } else pushEvent(pick(NO_LEADER_LINES)(roundNum), true);
-
-  sendFightersToCorners();
-  roundGirl = { t: 0 };
-
-  roundNum = roundNum >= ROUND_TOTAL ? 1 : roundNum + 1;
-  VARIANTS.forEach(v=>{ v.roundStartStolen = v.stolenEnergy; });
-  roundTimer = ROUND_DURATION_MS;
 }
 
 function pick(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
@@ -1869,7 +1611,7 @@ function update(dt){
     if (!v.alive){
       if (!v.eliminated){
         v.koTimer -= dt;
-        if (v.koTimer<=0){ v.eliminated = true; v.team = false; } // исчезает с ринга насовсем (до конца раунда), флажок команды слетает
+        if (v.koTimer<=0){ v.eliminated = true; v.team = false; } // исчезает с ринга насовсем, флажок команды слетает
       }
       continue;
     }
@@ -1952,14 +1694,6 @@ function update(dt){
   updateExchanges(dt);
   updateBotSpawns(dt);
 
-  // раунд — чисто визуальный таймер (3 мин × 12), не связан с нокаутами
-  roundTimer -= dt;
-  if (roundTimer<=0) endRound();
-  if (roundGirl){
-    roundGirl.t += dt;
-    if (roundGirl.t >= ROUND_GIRL_MS) roundGirl = null;
-  }
-
   // сама очередь двигается по завершению речи (см. vSpeakNext)
 }
 
@@ -1977,7 +1711,6 @@ function loop(t) {
   const sorted = [...VARIANTS].sort((a,b)=>a.y-b.y);
   for (const v of sorted) drawFighter(v);
 
-  drawRoundGirl();
   drawHUD();
 
   requestAnimationFrame(loop);
