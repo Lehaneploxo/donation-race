@@ -1076,7 +1076,11 @@ const WALL_H = SKY_WALL_TOTAL - SKY_H;
 // крыша в back.png начинается на 10% высоты картинки от верха (замерено
 // сканированием пикселей) — держим полосу настолько узкой, насколько
 // можно, чтобы дома были покрупнее, но луна её не касалась
-const SKY_OPEN_H = SKY_H * 0.235;
+const SKY_OPEN_H = SKY_H * 0.15;
+// технический зазор между низом HUD-плашки и WALL_TOP (никем больше не
+// используется — плашка рисуется поверх всего в конце кадра) даём под
+// свечение луны, чтобы его не резало ровной линией клипа
+const SKY_EXTRA_TOP = 10;
 const ROAD_TILE_H = 144 * UNIT_SCALE;
 
 const TILESET_SRC = 'sprites/streets_of_fight/stage/tileset.png';
@@ -1229,17 +1233,21 @@ function drawNightSky(t){
     }
   }
   ctx.save();
-  ctx.beginPath(); ctx.rect(0, WALL_TOP, CW, SKY_H); ctx.clip();
+  // клип расширен вверх на SKY_EXTRA_TOP — это ничейный технический зазор
+  // под HUD-плашкой, полностью перекрывается ею в конце кадра; используем
+  // его как запас, чтобы мягкое свечение луны угасало само по себе, а не
+  // обрезалось ровной линией клипа
+  ctx.beginPath(); ctx.rect(0, WALL_TOP - SKY_EXTRA_TOP, CW, SKY_H + SKY_EXTRA_TOP); ctx.clip();
 
-  // луна — прижата к самому верху открытой полосы (фикс. отступ, а не
-  // доля SKY_OPEN_H), чтобы при уменьшении полосы под более крупные дома
-  // луна не уезжала вниз ближе к крышам
-  const moonX = CW*0.83, moonR = 11, moonY = WALL_TOP + moonR + 3;
-  const glow = ctx.createRadialGradient(moonX, moonY, moonR*0.3, moonX, moonY, moonR*3);
+  // луна — маленькая и компактная, чтобы вместе с мягким свечением
+  // целиком помещаться в запас над крышами даже при узкой SKY_OPEN_H
+  const moonX = CW*0.83, moonR = 7, glowR = moonR*1.8;
+  const moonY = (WALL_TOP - SKY_EXTRA_TOP) + glowR + 1;
+  const glow = ctx.createRadialGradient(moonX, moonY, moonR*0.3, moonX, moonY, glowR);
   glow.addColorStop(0, 'rgba(255,248,214,0.4)');
   glow.addColorStop(1, 'rgba(255,248,214,0)');
   ctx.fillStyle = glow;
-  ctx.beginPath(); ctx.arc(moonX, moonY, moonR*3, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(moonX, moonY, glowR, 0, Math.PI*2); ctx.fill();
 
   ctx.fillStyle = '#fdf6d8';
   ctx.beginPath(); ctx.arc(moonX, moonY, moonR, 0, Math.PI*2); ctx.fill();
@@ -1280,7 +1288,9 @@ function drawBackground(t) {
   // тот же тон NIGHT_PURPLE и здесь, и в lighten-проходе ниже, чтобы стык
   // между открытой полосой и фоном за домами не был виден
   const NIGHT_PURPLE = '#000000';
-  ctx.fillStyle = NIGHT_PURPLE; ctx.fillRect(0, WALL_TOP, CW, SKY_H);
+  // заливаем и технический запас SKY_EXTRA_TOP над WALL_TOP — иначе там
+  // будет видна голая полоса, когда в неё зайдёт свечение луны
+  ctx.fillStyle = NIGHT_PURPLE; ctx.fillRect(0, WALL_TOP - SKY_EXTRA_TOP, CW, SKY_H + SKY_EXTRA_TOP);
 
   // звёзды и луна рисуются ДО скайлайна — луна и часть звёзд лежат в
   // открытой полосе неба над крышами (SKY_OPEN_H), силуэт города рисуется
