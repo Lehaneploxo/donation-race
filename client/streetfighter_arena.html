@@ -13,6 +13,7 @@
   #voiceBtn { top: calc(50% - 13px); right: 10px; }
   #fsBtn    { top: calc(50% + 36px); right: 10px; }
   #roomBtn  { top: calc(50% + 85px); right: 10px; }
+  #botBtn   { top: calc(50% + 134px); right: 10px; }
   #statusBadge { position: fixed; bottom: 10px; left: 50%; transform: translateX(-50%); font-size: 12px; padding: 4px 12px; border-radius: 8px; border: 2px solid #555; background: rgba(0,0,0,0.78); color: #AAA; white-space: nowrap; z-index: 99999; display: none; }
   #statusBadge.live  { color: #00FF88; border-color: #00FF88; }
   #statusBadge.demo  { color: #FF9900; border-color: #FF9900; }
@@ -24,6 +25,7 @@
 <button id="voiceBtn" class="ui-btn" title="Озвучка">🔇</button>
 <button id="fsBtn"    class="ui-btn" title="На весь экран">⛶</button>
 <button id="roomBtn"  class="ui-btn" title="Сменить карту">🗺️</button>
+<button id="botBtn"   class="ui-btn" title="Добавить бота">🤖</button>
 <div id="statusBadge"></div>
 <div id="ratingOverlay" style="position:fixed;top:27%;left:50%;transform:translateX(-50%);z-index:200;pointer-events:none;display:none;background:rgba(0,0,0,0.88);border:2px solid rgba(255,80,80,0.5);border-radius:10px;padding:8px 16px 10px;font-family:Arial,sans-serif;min-width:180px;text-align:center;"></div>
 <div id="wrap"><canvas id="c" width="600" height="1000"></canvas></div>
@@ -782,6 +784,9 @@ document.getElementById('backBtn').addEventListener('click', ()=>{ location.href
 document.getElementById('roomBtn').addEventListener('click', ()=>{
   roomIdx = (roomIdx + 1) % ROOMS.length;
   roomSwitchTimer = ROOM_SWITCH_MS; // ручное переключение сбрасывает отсчёт до автосмены
+});
+document.getElementById('botBtn').addEventListener('click', ()=>{
+  spawnBot(); // сама учитывает лимиты MAX_FIGHTERS/MAX_BOTS, переполнить ринг нельзя
 });
 document.getElementById('fsBtn').addEventListener('click', ()=>{
   if (document.fullscreenElement) { document.exitFullscreen && document.exitFullscreen(); }
