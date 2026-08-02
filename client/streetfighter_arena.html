@@ -1072,8 +1072,11 @@ const SKY_H = SKY_WALL_TOTAL * (80/(80+96));
 const WALL_H = SKY_WALL_TOTAL - SKY_H;
 // верхняя полоса неба, где НЕТ силуэта города (сама картинка скайлайна
 // сжата и прижата к низу SKY_H) — сюда кладём луну, чтобы она была
-// гарантированно позади/выше крыш, а не "перед домами"
-const SKY_OPEN_H = SKY_H * 0.34;
+// гарантированно позади/выше крыш, а не "перед домами". Самая высокая
+// крыша в back.png начинается на 10% высоты картинки от верха (замерено
+// сканированием пикселей) — держим полосу настолько узкой, насколько
+// можно, чтобы дома были покрупнее, но луна её не касалась
+const SKY_OPEN_H = SKY_H * 0.235;
 const ROAD_TILE_H = 144 * UNIT_SCALE;
 
 const TILESET_SRC = 'sprites/streets_of_fight/stage/tileset.png';
@@ -1228,9 +1231,10 @@ function drawNightSky(t){
   ctx.save();
   ctx.beginPath(); ctx.rect(0, WALL_TOP, CW, SKY_H); ctx.clip();
 
-  // луна — строго в открытой полосе неба над крышами (SKY_OPEN_H),
-  // не залезает в зону, где потом будет нарисован город
-  const moonX = CW*0.83, moonY = WALL_TOP + SKY_OPEN_H*0.5, moonR = 11;
+  // луна — прижата к самому верху открытой полосы (фикс. отступ, а не
+  // доля SKY_OPEN_H), чтобы при уменьшении полосы под более крупные дома
+  // луна не уезжала вниз ближе к крышам
+  const moonX = CW*0.83, moonR = 11, moonY = WALL_TOP + moonR + 3;
   const glow = ctx.createRadialGradient(moonX, moonY, moonR*0.3, moonX, moonY, moonR*3);
   glow.addColorStop(0, 'rgba(255,248,214,0.4)');
   glow.addColorStop(1, 'rgba(255,248,214,0)');
