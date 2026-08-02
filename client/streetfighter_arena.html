@@ -481,9 +481,11 @@ function getBotName(){
   return pool[Math.floor(Math.random()*pool.length)];
 }
 
-function spawnBot(){
-  if (VARIANTS.filter(v=>!v.eliminated).length >= MAX_FIGHTERS) return;
-  if (VARIANTS.filter(v=>v.isBot && !v.eliminated).length >= MAX_BOTS) return;
+// force=true — для ручной кнопки botBtn: игнорирует лимиты MAX_FIGHTERS/
+// MAX_BOTS, которые нужны только для автоматической подсадки ботов
+function spawnBot(force){
+  if (!force && VARIANTS.filter(v=>!v.eliminated).length >= MAX_FIGHTERS) return;
+  if (!force && VARIANTS.filter(v=>v.isBot && !v.eliminated).length >= MAX_BOTS) return;
   // боты берутся из ТОГО ЖЕ общего пула скинов, что и реальные игроки —
   // и Brawler Girl, и Enemy Punk могут быть ботом (ник всё равно серый,
   // чтобы отличать бота от реального зрителя)
@@ -786,7 +788,7 @@ document.getElementById('roomBtn').addEventListener('click', ()=>{
   roomSwitchTimer = ROOM_SWITCH_MS; // ручное переключение сбрасывает отсчёт до автосмены
 });
 document.getElementById('botBtn').addEventListener('click', ()=>{
-  spawnBot(); // сама учитывает лимиты MAX_FIGHTERS/MAX_BOTS, переполнить ринг нельзя
+  spawnBot(true); // force — без ограничений, каждый клик добавляет бота
 });
 document.getElementById('fsBtn').addEventListener('click', ()=>{
   if (document.fullscreenElement) { document.exitFullscreen && document.exitFullscreen(); }
