@@ -1070,6 +1070,10 @@ const UNIT_SCALE = (130*0.85) / 63; // ≈1.754
 const SKY_WALL_TOTAL = FLOOR_TOP - WALL_TOP; // 206
 const SKY_H = SKY_WALL_TOTAL * (80/(80+96));
 const WALL_H = SKY_WALL_TOTAL - SKY_H;
+// верхняя полоса неба, где НЕТ силуэта города (сама картинка скайлайна
+// сжата и прижата к низу SKY_H) — сюда кладём луну, чтобы она была
+// гарантированно позади/выше крыш, а не "перед домами"
+const SKY_OPEN_H = SKY_H * 0.34;
 const ROAD_TILE_H = 144 * UNIT_SCALE;
 
 const TILESET_SRC = 'sprites/streets_of_fight/stage/tileset.png';
@@ -1204,34 +1208,41 @@ function drawTrashCan(dx, dyBase, h){
   ctx.restore();
 }
 
-// звёзды и луна поверх ночного скайлайна — сид звёзд фиксированный (не
-// дёргаются между кадрами), лёгкое мерцание по времени t (мс из rAF)
+// звёзды и луна — рисуются ДО скайлайна (см. drawBackground), поэтому
+// силуэт города потом полностью перекрывает всё, что попало ниже
+// открытой полосы SKY_OPEN_H; сид звёзд фиксированный (не дёргаются
+// между кадрами), лёгкое мерцание по времени t (мс из rAF)
 let _nightStars = null;
 function drawNightSky(t){
   if (!_nightStars){
     _nightStars = [];
     let seed = 1337;
     const rnd = () => { seed = (seed*9301+49297) % 233280; return seed/233280; };
-    for (let i=0;i<44;i++){
-      _nightStars.push({ x: rnd(), y: rnd()*0.7, r: 0.6+rnd()*1.3, phase: rnd()*Math.PI*2 });
+    // держим звёзды в открытой полосе неба (SKY_OPEN_H) — та же зона, где
+    // луна, — чтобы все были гарантированно видны, а не спрятаны за домами
+    const openFrac = SKY_OPEN_H / SKY_H;
+    for (let i=0;i<80;i++){
+      _nightStars.push({ x: rnd(), y: rnd()*openFrac, r: 0.5+rnd()*1.3, phase: rnd()*Math.PI*2 });
     }
   }
   ctx.save();
   ctx.beginPath(); ctx.rect(0, WALL_TOP, CW, SKY_H); ctx.clip();
 
-  const moonX = CW*0.83, moonY = WALL_TOP + SKY_H*0.24, moonR = 15;
-  const glow = ctx.createRadialGradient(moonX, moonY, moonR*0.3, moonX, moonY, moonR*3.4);
+  // луна — строго в открытой полосе неба над крышами (SKY_OPEN_H),
+  // не залезает в зону, где потом будет нарисован город
+  const moonX = CW*0.83, moonY = WALL_TOP + SKY_OPEN_H*0.5, moonR = 11;
+  const glow = ctx.createRadialGradient(moonX, moonY, moonR*0.3, moonX, moonY, moonR*3);
   glow.addColorStop(0, 'rgba(255,248,214,0.4)');
   glow.addColorStop(1, 'rgba(255,248,214,0)');
   ctx.fillStyle = glow;
-  ctx.beginPath(); ctx.arc(moonX, moonY, moonR*3.4, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(moonX, moonY, moonR*3, 0, Math.PI*2); ctx.fill();
 
   ctx.fillStyle = '#fdf6d8';
   ctx.beginPath(); ctx.arc(moonX, moonY, moonR, 0, Math.PI*2); ctx.fill();
   ctx.fillStyle = 'rgba(196,186,148,0.55)';
-  ctx.beginPath(); ctx.arc(moonX-4, moonY-3, 2.3, 0, Math.PI*2); ctx.fill();
-  ctx.beginPath(); ctx.arc(moonX+5, moonY+4, 1.7, 0, Math.PI*2); ctx.fill();
-  ctx.beginPath(); ctx.arc(moonX+2, moonY-6, 1.2, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(moonX-3, moonY-2, 1.7, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(moonX+3.5, moonY+3, 1.3, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(moonX+1.5, moonY-4.5, 0.9, 0, Math.PI*2); ctx.fill();
 
   ctx.fillStyle = '#fff';
   for (const s of _nightStars){
@@ -1261,16 +1272,23 @@ function drawTiledSource(img, tile, dx, dy, dw, dh, tileScreenW, tileScreenH){
 }
 
 function drawBackground(t) {
-  // небо/неоновый скайлайн (back.png, тайлится по ширине, масштаб UNIT_SCALE)
+  // фон неба на всю полосу (в т.ч. под открытую полосу вверху) — тем же
+  // тёмным тоном, что и сам скайлайн, чтобы стык был бесшовным
+  ctx.fillStyle = '#1a1030'; ctx.fillRect(0, WALL_TOP, CW, SKY_H);
+
+  // звёзды и луна рисуются ДО скайлайна — луна и часть звёзд лежат в
+  // открытой полосе неба над крышами (SKY_OPEN_H), силуэт города рисуется
+  // поверх нижней части и полностью перекрывает то, что попало на него
+  drawNightSky(t);
+
+  // небо/неоновый скайлайн (back.png, тайлится по ширине) — прижат к низу
+  // полосы SKY_H и сжат по высоте, чтобы наверху осталась чистая полоса
+  // неба SKY_OPEN_H без домов
+  const skyImgH = SKY_H - SKY_OPEN_H;
   if (imgBack.complete && imgBack.naturalWidth){
     const tw = imgBack.naturalWidth * UNIT_SCALE;
-    drawTiledSource(imgBack, { sx:0, sy:0, sw:imgBack.naturalWidth, sh:imgBack.naturalHeight }, 0, WALL_TOP, CW, SKY_H, tw);
-  } else {
-    ctx.fillStyle = '#1a1030'; ctx.fillRect(0, WALL_TOP, CW, SKY_H);
+    drawTiledSource(imgBack, { sx:0, sy:0, sw:imgBack.naturalWidth, sh:imgBack.naturalHeight }, 0, WALL_TOP + SKY_OPEN_H, CW, skyImgH, tw);
   }
-
-  // звёзды и луна — чтобы сразу было видно, что дело происходит ночью
-  drawNightSky(t);
 
   // стена дома — чередуем кусок с пиццерией и кусок с окном
   const wallY = WALL_TOP + SKY_H;
