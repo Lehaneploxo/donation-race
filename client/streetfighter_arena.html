@@ -111,24 +111,30 @@ const SKIN_VARIANTS = [
 ];
 function randomSkin(){ return SKIN_VARIANTS[Math.floor(Math.random()*SKIN_VARIANTS.length)]; }
 
-// команда "skin1".."skin5" в чате — фиксированный выбор героя (базовый,
-// первый цвет каждого силуэта), закрепляется за ником навсегда через БД
-// (см. chosen_skin в server.js/db.js). Порядок соответствует тому, как
-// силуэты добавлялись в игру.
-const SKIN_CHOICES = {
-  1: SKIN_VARIANTS.find(v => v.baseType === 'brawler_girl'),
-  2: SKIN_VARIANTS.find(v => v.baseType === 'enemy_punk'),
-  3: SKIN_VARIANTS.find(v => v.baseType === 'batting_girl'),
-  4: SKIN_VARIANTS.find(v => v.baseType === 'brute_arms'),
-  5: SKIN_VARIANTS.find(v => v.baseType === 'bancho'),
+// команда "skin1".."skin5" в чате — фиксирует НАВСЕГДА только силуэт
+// (какой герой), закрепляется за ником через БД (chosen_skin в
+// server.js/db.js). Цвет внутри этого силуэта всё равно каждый раз
+// выбирается заново случайно (см. applyChosenSkin/revival в applyGrowth) —
+// закреплён только герой, не конкретная перекраска.
+const SKIN_BASE_TYPES = {
+  1: 'brawler_girl',
+  2: 'enemy_punk',
+  3: 'batting_girl',
+  4: 'brute_arms',
+  5: 'bancho',
 };
+function randomVariantForBaseType(baseType){
+  const pool = SKIN_VARIANTS.filter(v => v.baseType === baseType);
+  return pool[Math.floor(Math.random()*pool.length)];
+}
 function applyChosenSkin(v, skinIndex){
-  const skin = SKIN_CHOICES[skinIndex];
-  if (!skin || !v) return;
+  const baseType = SKIN_BASE_TYPES[skinIndex];
+  if (!baseType || !v) return;
+  const skin = randomVariantForBaseType(baseType);
   v.dir = skin.dir; v.baseType = skin.baseType; v.color = skin.color;
   v.baseDir = skin.dir; v.baseColor = skin.color;
   v.frames = loadFrames(v.dir, v.baseType); // перегружаем кадры под новый силуэт/цвет
-  v.skinChosen = true; // закреплено навсегда — при возрождении больше НЕ рандомится
+  v.skinChosen = true; // герой закреплён навсегда — при возрождении меняется только цвет
 }
 
 // ── Уровень зрителя (бейдж у ника) — по all-time ⚡ отнятой энергии,
@@ -461,10 +467,16 @@ function applyGrowth(username, gain, isGift){
     // боец был выбит с ринга — новый лайк/донат возвращает его в бой,
     // но со свежими показателями (старые уже обнулены в collapse())
     const pos = spawnRingPos();
-    // если герой НЕ закреплён командой skinN — при каждом возрождении
-    // снова случайный силуэт/цвет (как было всегда); закреплённый скин
-    // (skinChosen=true) при возрождении не трогаем
-    if (!v.skinChosen){
+    // цвет всегда новый случайный при каждом возрождении. Герой (силуэт)
+    // тоже случайный — если НЕ закреплён командой skinN; если закреплён
+    // (skinChosen=true) — силуэт остаётся тем же, рандомится только цвет
+    // внутри него.
+    if (v.skinChosen){
+      const skin = randomVariantForBaseType(v.baseType);
+      v.dir = skin.dir; v.color = skin.color;
+      v.baseDir = skin.dir; v.baseColor = skin.color;
+      v.frames = loadFrames(v.dir, v.baseType);
+    } else {
       const skin = randomSkin();
       v.dir = skin.dir; v.baseType = skin.baseType; v.color = skin.color;
       v.baseDir = skin.dir; v.baseColor = skin.color;
