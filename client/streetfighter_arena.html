@@ -1625,6 +1625,7 @@ function drawHUD() {
     { text: '🎁 1 монета = +100❤️ +10💪',   color: '#FFD700' },
     { text: '💬 Напиши "rating" — узнаешь свой топ', color: '#8fffb0' },
     { text: '🚩 Напиши "Team" — заходи в команду', color: '#ff5566' },
+    { text: '🎮 Напиши "skin1"-"skin5" — выбери героя', color: '#4fc3ff' },
     { text: '⏳ 15 мин тишины = 💪Сила -1/сек', color: '#ffa64d' },
   ];
   const rY = T+82, rStep = 26;
@@ -1648,27 +1649,6 @@ function drawHUD() {
     ctx.restore();
   });
 
-  // выбор героя — под правилами (раньше тут был телеграм-чат; заменено по
-  // просьбе на подсказку по команде skin1-skin5, раунды убраны, эта плашка
-  // занимает весь освободившийся ряд левой колонки, а не половину)
-  const tgY = rY + rules.length*rStep;
-  const tgBoxX = 8, tgBoxY = tgY - 22, tgBoxW = CW/2 - 16, tgBoxH = 50;
-  const tgCx = tgBoxX + tgBoxW/2;
-  roundRectPath(tgBoxX, tgBoxY, tgBoxW, tgBoxH, 7);
-  ctx.fillStyle = 'rgba(79,195,255,0.10)'; ctx.fill();
-  ctx.strokeStyle = 'rgba(79,195,255,0.55)'; ctx.lineWidth = 1.5; ctx.stroke();
-
-  ctx.textAlign = 'center';
-  ctx.font = 'bold 13px Arial Black';
-  ctx.strokeStyle = 'rgba(0,0,0,0.85)'; ctx.lineWidth = 3;
-  ctx.strokeText('🎮 ВЫБОР ГЕРОЯ', tgCx, tgY-2, tgBoxW-12);
-  ctx.fillStyle = '#4fc3ff';
-  ctx.fillText('🎮 ВЫБОР ГЕРОЯ', tgCx, tgY-2, tgBoxW-12);
-
-  ctx.font = 'bold 15px Arial Black';
-  ctx.strokeText('пиши "skin1"-"skin5"', tgCx, tgY+22, tgBoxW-12);
-  ctx.fillStyle = '#7fd3ff';
-  ctx.fillText('пиши "skin1"-"skin5"', tgCx, tgY+22, tgBoxW-12);
 
   // правая колонка — топ по силе
   ctx.font = 'bold 12px Arial Black'; ctx.textAlign = 'center';
