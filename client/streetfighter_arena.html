@@ -1746,7 +1746,11 @@ function drawFighter(v) {
   ctx.textAlign = 'center';
   ctx.font = `bold ${16*s}px Arial Black`;
   const tag = (v.team ? '🚩' : '') + (v.isBot ? '🤖' : '');
-  const nameTxt = v.alive ? tag+v.name : tag+v.name+' 💤';
+  // корона у короля улиц — справа от ника, прямо на арене (не только в
+  // топ-листе/карточке рейтинга). Считается частью nameTxt ДО замера
+  // ширины (nameW), чтобы тёмная подложка под ником тоже растянулась под неё.
+  const crownTag = (v.isChamp && v.alive) ? ' 👑' : '';
+  const nameTxt = v.alive ? tag+v.name+crownTag : tag+v.name+' 💤';
 
   // тёмная подложка под ником — читаемость не зависит от цвета фона за спиной
   const nameW = ctx.measureText(nameTxt).width;
