@@ -1,0 +1,10 @@
+Track: "Stage 1 - Streets" (renamed to streetfighter_theme.mp3)
+From pack: Final Punch | NES Music
+Author: maxstack (https://maxstack.itch.io/final-punch)
+License: Creative Commons Attribution-ShareAlike 4.0 (CC BY-SA 4.0)
+https://creativecommons.org/licenses/by-sa/4.0/
+
+Usage requires attribution to the author (maxstack) and, if this file is
+modified/redistributed on its own, the derivative must be shared under the
+same CC BY-SA 4.0 license. Used here as background loop for Street Fighter
+game (client/streetfighter_arena.html).
