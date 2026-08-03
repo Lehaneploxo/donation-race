@@ -175,7 +175,12 @@ function connectToTikTok(username, onGift, onStatus, onMember, onLike, onChat) {
           notify({ connected: false, mode: 'demo', message: `@${username} не в эфире, жду…` });
           _startDemo(onGift, handle, onLike, onChat, onMember);
         }
-        if (!handle._stopped) scheduleRetry(60000);
+        // при rate_limit от сервиса подписи (eulerstream) обычный ретрай раз в
+        // 60с только продлевает блокировку — каждая попытка внутри лимита
+        // засчитывается заново. Отступаем намного дольше (15 мин), чтобы дать
+        // окну лимита реально закрыться, а не долбить его бесконечно.
+        const isRateLimited = /rate_limit|rate limited/i.test(errMsg);
+        if (!handle._stopped) scheduleRetry(isRateLimited ? 15 * 60000 : 60000);
       });
   }
 
