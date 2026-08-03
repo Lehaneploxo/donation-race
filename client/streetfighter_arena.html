@@ -111,6 +111,25 @@ const SKIN_VARIANTS = [
 ];
 function randomSkin(){ return SKIN_VARIANTS[Math.floor(Math.random()*SKIN_VARIANTS.length)]; }
 
+// команда "skin1".."skin5" в чате — фиксированный выбор героя (базовый,
+// первый цвет каждого силуэта), закрепляется за ником навсегда через БД
+// (см. chosen_skin в server.js/db.js). Порядок соответствует тому, как
+// силуэты добавлялись в игру.
+const SKIN_CHOICES = {
+  1: SKIN_VARIANTS.find(v => v.baseType === 'brawler_girl'),
+  2: SKIN_VARIANTS.find(v => v.baseType === 'enemy_punk'),
+  3: SKIN_VARIANTS.find(v => v.baseType === 'batting_girl'),
+  4: SKIN_VARIANTS.find(v => v.baseType === 'brute_arms'),
+  5: SKIN_VARIANTS.find(v => v.baseType === 'bancho'),
+};
+function applyChosenSkin(v, skinIndex){
+  const skin = SKIN_CHOICES[skinIndex];
+  if (!skin || !v) return;
+  v.dir = skin.dir; v.baseType = skin.baseType; v.color = skin.color;
+  v.baseDir = skin.dir; v.baseColor = skin.color;
+  v.frames = loadFrames(v.dir, v.baseType); // перегружаем кадры под новый силуэт/цвет
+}
+
 // ── Уровень зрителя (бейдж у ника) — по all-time ⚡ отнятой энергии,
 // независимо от короны чемпиона (можно носить и то, и другое одновременно).
 // Только для реальных бойцов — у ботов нет истории в БД.
@@ -877,7 +896,19 @@ function wsConnect(username){
       if (d.type==='top_streetfighter') { _dbTop = (d.data||[]).map(p=>({ username:p.username, stolen:p.total_stolen })); syncChampionStatus(); }
       if (d.type==='streetfighter_tier_info'){
         const v = findRealFighter(d.username);
-        if (v) v.allTimeStolen = Number(d.total_stolen)||0;
+        if (v){
+          v.allTimeStolen = Number(d.total_stolen)||0;
+          // если у зрителя уже был закреплён герой командой skin1-5 в
+          // прошлый раз — применяем его сразу при спавне (round-trip тот
+          // же, что и за очками медали, отдельный запрос не нужен)
+          if (d.chosenSkin) applyChosenSkin(v, d.chosenSkin);
+        }
+      }
+      if (d.type==='streetfighter_skin_choice'){
+        // живая смена героя по команде skin1-5 прямо во время боя —
+        // применяется сразу, даже если боец уже дерётся на ринге
+        const v = findRealFighter(d.username);
+        if (v) applyChosenSkin(v, d.skinIndex);
       }
       if (d.type==='arena_streetfighter_rating'){
         if (d.rank){
@@ -1617,7 +1648,8 @@ function drawHUD() {
     ctx.restore();
   });
 
-  // телеграм-чат — под правилами (раунды убраны, эта плашка теперь одна
+  // выбор героя — под правилами (раньше тут был телеграм-чат; заменено по
+  // просьбе на подсказку по команде skin1-skin5, раунды убраны, эта плашка
   // занимает весь освободившийся ряд левой колонки, а не половину)
   const tgY = rY + rules.length*rStep;
   const tgBoxX = 8, tgBoxY = tgY - 22, tgBoxW = CW/2 - 16, tgBoxH = 50;
@@ -1629,14 +1661,14 @@ function drawHUD() {
   ctx.textAlign = 'center';
   ctx.font = 'bold 13px Arial Black';
   ctx.strokeStyle = 'rgba(0,0,0,0.85)'; ctx.lineWidth = 3;
-  ctx.strokeText('📱 ТЕЛЕГРАМ ЧАТ', tgCx, tgY-2, tgBoxW-12);
+  ctx.strokeText('🎮 ВЫБОР ГЕРОЯ', tgCx, tgY-2, tgBoxW-12);
   ctx.fillStyle = '#4fc3ff';
-  ctx.fillText('📱 ТЕЛЕГРАМ ЧАТ', tgCx, tgY-2, tgBoxW-12);
+  ctx.fillText('🎮 ВЫБОР ГЕРОЯ', tgCx, tgY-2, tgBoxW-12);
 
-  ctx.font = 'bold 19px Arial Black';
-  ctx.strokeText('boxingarena1', tgCx, tgY+22, tgBoxW-12);
+  ctx.font = 'bold 15px Arial Black';
+  ctx.strokeText('пиши "skin1"-"skin5"', tgCx, tgY+22, tgBoxW-12);
   ctx.fillStyle = '#7fd3ff';
-  ctx.fillText('boxingarena1', tgCx, tgY+22, tgBoxW-12);
+  ctx.fillText('пиши "skin1"-"skin5"', tgCx, tgY+22, tgBoxW-12);
 
   // правая колонка — топ по силе
   ctx.font = 'bold 12px Arial Black'; ctx.textAlign = 'center';

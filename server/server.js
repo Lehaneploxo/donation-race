@@ -477,6 +477,16 @@ class Room {
           this.broadcast({ type: 'arena_bot', count: 1 });
         }
 
+        // Street Fighter: "skin1".."skin5" — выбор героя, закрепляется за
+        // ником навсегда (в БД, chosen_skin), не только на текущий стрим
+        const sfSkinMatch = msgLower.match(/^skin([1-5])$/);
+        if (sfSkinMatch) {
+          const skinIndex = parseInt(sfSkinMatch[1], 10);
+          db.setStreetFighterSkin(data.username, skinIndex)
+            .catch(e => console.error('[DB] streetfighter_skin error:', e.message));
+          this.broadcast({ type: 'streetfighter_skin_choice', username: data.username, skinIndex });
+        }
+
         const lowerUser = (data.username || '').toLowerCase();
         if (msgLower.startsWith('boost')) {
           console.log(`[BOOST-ATTEMPT] from="${data.username}" lowerUser="${lowerUser}" msg="${msg}" isAdmin=${lowerUser.includes('leha') && lowerUser.includes('neplox')}`);
@@ -744,12 +754,18 @@ wss.on('connection', (ws, req) => {
         db.addStreetFighterBeltSeconds(msg.username, msg.seconds).catch(e => console.error('[DB] streetfighter_belt error:', e.message));
       }
       if (msg.type === 'streetfighter_tier_request' && msg.username) {
-        db.getUserStreetFighterRank(msg.username)
-          .then(rank => {
-            room.broadcast({ type: 'streetfighter_tier_info', username: msg.username, total_stolen: rank ? rank.total_stolen : 0 });
+        // один и тот же round-trip отдаёт и очки для медали/уровня, и
+        // сохранённый выбор героя (skin1..skin5) — не заводим отдельное
+        // сообщение только ради скина
+        Promise.all([
+          db.getUserStreetFighterRank(msg.username),
+          db.getStreetFighterSkin(msg.username),
+        ])
+          .then(([rank, chosenSkin]) => {
+            room.broadcast({ type: 'streetfighter_tier_info', username: msg.username, total_stolen: rank ? rank.total_stolen : 0, chosenSkin });
           })
           .catch(() => {
-            room.broadcast({ type: 'streetfighter_tier_info', username: msg.username, total_stolen: 0 });
+            room.broadcast({ type: 'streetfighter_tier_info', username: msg.username, total_stolen: 0, chosenSkin: null });
           });
       }
       if (msg.type === 'request_rating' && msg.username) {

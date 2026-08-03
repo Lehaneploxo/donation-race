@@ -60,6 +60,10 @@ async function init() {
   `);
   await pool.query(`ALTER TABLE streetfighter_stolen ADD COLUMN IF NOT EXISTS total_kos INTEGER NOT NULL DEFAULT 0`);
   await pool.query(`ALTER TABLE streetfighter_stolen ADD COLUMN IF NOT EXISTS belt_seconds INTEGER NOT NULL DEFAULT 0`);
+  // выбор героя командой "skin1".."skin5" в чате — закрепляется за ником
+  // навсегда (переживает рестарты стрима/сервера), NULL = скин случайный,
+  // как раньше
+  await pool.query(`ALTER TABLE streetfighter_stolen ADD COLUMN IF NOT EXISTS chosen_skin INTEGER`);
   console.log('[DB] Таблицы kills, boss_damage, race_donations, boxing_stolen, boxing_stolen_en и streetfighter_stolen готовы');
 }
 
@@ -285,6 +289,26 @@ const resetStreetFighterRating = streetFighter.reset;
 const setStreetFighterStolen = streetFighter.setStolen;
 const deleteStreetFighterUser = streetFighter.deleteUser;
 
+// выбор героя (skin1..skin5) — специфично для Street Fighter, не часть
+// общей фабрики makeBoxingApi (у бокса такого понятия нет)
+async function setStreetFighterSkin(username, skinIndex) {
+  if (!pool || !username) return;
+  await pool.query(`
+    INSERT INTO streetfighter_stolen (username, chosen_skin)
+    VALUES ($1, $2)
+    ON CONFLICT (username)
+    DO UPDATE SET chosen_skin = $2
+  `, [username, skinIndex]);
+}
+async function getStreetFighterSkin(username) {
+  if (!pool || !username) return null;
+  const res = await pool.query(
+    `SELECT chosen_skin FROM streetfighter_stolen WHERE LOWER(username) = LOWER($1)`,
+    [username]
+  );
+  return res.rows.length ? res.rows[0].chosen_skin : null;
+}
+
 function isConnected() { return pool !== null; }
 
 module.exports = {
@@ -299,5 +323,6 @@ module.exports = {
   addStreetFighterStolen, getTopStreetFighterStolen, getUserStreetFighterRank,
   addStreetFighterKO, addStreetFighterBeltSeconds, resetStreetFighterRating,
   setStreetFighterStolen, deleteStreetFighterUser, getAllStreetFighterStolen,
+  setStreetFighterSkin, getStreetFighterSkin,
   isConnected,
 };
