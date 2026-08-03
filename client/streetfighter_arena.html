@@ -27,7 +27,7 @@
 <button id="roomBtn"  class="ui-btn" title="Сменить карту">🗺️</button>
 <button id="botBtn"   class="ui-btn" title="Добавить бота">🤖</button>
 <div id="statusBadge"></div>
-<div id="ratingOverlay" style="position:fixed;top:27%;left:50%;transform:translateX(-50%);z-index:200;pointer-events:none;display:none;background:rgba(0,0,0,0.88);border:2px solid rgba(255,80,80,0.5);border-radius:10px;padding:8px 16px 10px;font-family:Arial,sans-serif;min-width:180px;text-align:center;"></div>
+<div id="ratingOverlay" style="position:fixed;top:27%;left:50%;transform:translateX(-50%);z-index:200;pointer-events:none;display:none;background:rgba(0,0,0,0.88);border:1.5px solid rgba(255,80,80,0.5);border-radius:8px;padding:6px 12px 7px;font-family:Arial,sans-serif;min-width:150px;text-align:center;line-height:1.25;"></div>
 <div id="wrap"><canvas id="c" width="600" height="1000"></canvas></div>
 <script>
 const canvas = document.getElementById('c');
@@ -892,21 +892,21 @@ function wsConnect(username){
           // сетку выше), сервер отдаёт только сырой total_stolen (d.stolen)
           const prog = levelProgress(stolenTotal);
           const rank = rankOfLevel(prog.level);
-          html += `<div style="margin-top:5px;padding-top:5px;border-top:1px dashed rgba(255,255,255,0.18);white-space:nowrap;">`
+          html += `<div style="margin-top:3px;padding-top:3px;border-top:1px dashed rgba(255,255,255,0.18);white-space:nowrap;">`
             + `<span style="color:#7fd3ff;font-size:14px;font-weight:700;">🎖️ ${prog.level} уровень — ${rank.name}</span>`;
           if (prog.next != null){
             const pct = Math.round(prog.frac*100);
             const need = (prog.next - stolenTotal).toLocaleString('ru-RU');
-            html += `<div style="margin-top:4px;background:rgba(255,255,255,0.12);border-radius:5px;height:7px;overflow:hidden;">`
+            html += `<div style="margin-top:2px;background:rgba(255,255,255,0.12);border-radius:5px;height:6px;overflow:hidden;">`
               + `<div style="width:${pct}%;height:100%;background:${rank.color};"></div></div>`
-              + `<div style="margin-top:2px;color:#aaa;font-size:11px;">ещё ${need}⚡ до ${prog.level+1} уровня</div>`;
+              + `<div style="margin-top:1px;color:#aaa;font-size:11px;">ещё ${need}⚡ до ${prog.level+1} уровня</div>`;
           } else {
-            html += `<div style="margin-top:2px;color:#ffd75e;font-size:11px;">Максимальный уровень!</div>`;
+            html += `<div style="margin-top:1px;color:#ffd75e;font-size:11px;">Максимальный уровень!</div>`;
           }
           html += `</div>`;
 
           if (d.beltSeconds > 0){
-            html += `<div style="margin-top:5px;padding-top:5px;border-top:1px dashed rgba(255,215,0,0.25);display:flex;align-items:center;justify-content:center;gap:6px;color:#fff2b0;font-size:14px;font-weight:700;">👑<span>Король улиц: ${formatBeltTime(d.beltSeconds)}</span></div>`;
+            html += `<div style="margin-top:3px;padding-top:3px;border-top:1px dashed rgba(255,215,0,0.25);display:flex;align-items:center;justify-content:center;gap:6px;color:#fff2b0;font-size:14px;font-weight:700;">👑<span>Король улиц: ${formatBeltTime(d.beltSeconds)}</span></div>`;
           }
           _showRating(html);
         } else {
