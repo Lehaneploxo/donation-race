@@ -128,6 +128,7 @@ function applyChosenSkin(v, skinIndex){
   v.dir = skin.dir; v.baseType = skin.baseType; v.color = skin.color;
   v.baseDir = skin.dir; v.baseColor = skin.color;
   v.frames = loadFrames(v.dir, v.baseType); // перегружаем кадры под новый силуэт/цвет
+  v.skinChosen = true; // закреплено навсегда — при возрождении больше НЕ рандомится
 }
 
 // ── Уровень зрителя (бейдж у ника) — по all-time ⚡ отнятой энергии,
@@ -434,6 +435,7 @@ function applyGrowth(username, gain, isGift){
       dir: skin.dir, baseType: skin.baseType, name: username, color: skin.color, isBot: false,
       baseDir: skin.dir, baseColor: skin.color, isChamp: false,
       stolenEnergy: 0, powerDecayAcc: 0, kos: 0, allTimeStolen: 0,
+      skinChosen: false, // true только после команды skinN — тогда скин закрепляется навсегда
     };
     v.energyMax = 0; v.energy = 0; v.powerMax = 0; v.power = 0;
     initFighterRuntime(v, pos.x, pos.y);
@@ -459,6 +461,15 @@ function applyGrowth(username, gain, isGift){
     // боец был выбит с ринга — новый лайк/донат возвращает его в бой,
     // но со свежими показателями (старые уже обнулены в collapse())
     const pos = spawnRingPos();
+    // если герой НЕ закреплён командой skinN — при каждом возрождении
+    // снова случайный силуэт/цвет (как было всегда); закреплённый скин
+    // (skinChosen=true) при возрождении не трогаем
+    if (!v.skinChosen){
+      const skin = randomSkin();
+      v.dir = skin.dir; v.baseType = skin.baseType; v.color = skin.color;
+      v.baseDir = skin.dir; v.baseColor = skin.color;
+      v.frames = loadFrames(v.dir, v.baseType);
+    }
     v.alive = true; v.eliminated = false;
     v.energy = v.energyMax;
     v.power = v.powerMax;
