@@ -158,19 +158,21 @@ function levelProgress(total){
   const frac = next==null ? 1 : Math.min(1, Math.max(0, (total-cur)/(next-cur)));
   return { level, cur, next, frac };
 }
-// маленький бейдж с номером уровня (вместо старой медали бронза/серебро/
-// золото) — просто цифра в кружке, цвет по рангу, чтобы даже без карточки
-// было видно "примерно насколько крутой" боец, не читая точное число
+// бейдж с номером уровня (вместо старой медали бронза/серебро/золото) —
+// светлый кружок (для максимальной контрастности цифры) + цветное кольцо
+// по рангу, тёмная жирная цифра внутри. Приоритет — читаемость числа
+// издалека на стриме, а не тонкость графики.
 function drawLevelBadge(cx, y, s, level){
-  const r = 8*s;
+  const r = 11*s;
   const color = rankOfLevel(level).color;
   ctx.save();
   ctx.beginPath(); ctx.arc(cx, y, r, 0, Math.PI*2);
-  ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fill();
-  ctx.lineWidth = 1.4; ctx.strokeStyle = color; ctx.stroke();
-  ctx.font = `bold ${9.5*s}px Arial Black`;
+  ctx.fillStyle = '#fdf6e3'; ctx.fill();
+  ctx.lineWidth = 2.4*s; ctx.strokeStyle = color; ctx.stroke();
+  ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(0,0,0,0.5)'; ctx.stroke();
+  ctx.font = `900 ${12*s}px Arial Black`;
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.fillStyle = color;
+  ctx.fillStyle = '#1a1a1a';
   ctx.fillText(String(level), cx, y + 0.5*s);
   ctx.restore();
 }
@@ -887,7 +889,7 @@ function wsConnect(username){
           const prog = levelProgress(stolenTotal);
           const rank = rankOfLevel(prog.level);
           html += `<div style="margin-top:5px;padding-top:5px;border-top:1px dashed rgba(255,255,255,0.18);">`
-            + `<span style="color:#7fd3ff;font-size:14px;font-weight:700;">🎖️ Уровень ${prog.level} — ${rank.name}</span>`;
+            + `<span style="color:#7fd3ff;font-size:14px;font-weight:700;">🎖️ ${prog.level} уровень — ${rank.name}</span>`;
           if (prog.next != null){
             const pct = Math.round(prog.frac*100);
             const need = (prog.next - stolenTotal).toLocaleString('ru-RU');
@@ -1772,7 +1774,7 @@ function drawFighter(v) {
   }
 
   if (level!=null && v.alive){
-    drawLevelBadge(cx - nameW/2 - 10*s, labelY - 5*s, s, level);
+    drawLevelBadge(cx - nameW/2 - 14*s, labelY - 5*s, s, level);
   }
 
   // ⚡ Энергия и 💪 Сила — в стиле _drawLabels из arena3.html (сердечки убраны — Энергия теперь и есть здоровье)
