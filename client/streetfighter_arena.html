@@ -690,11 +690,6 @@ function vSpeakNext(){
 
 // главное правило — гарантированно каждые 30 сек, целиком (protected)
 setInterval(()=>{ pushEvent(RULE_PRIMARY, true, true); }, 30000);
-// объявление про новый сезон/рейтинг — та же приоритетная очередь: если в
-// этот момент говорится главное правило, оно НЕ обрывается, это объявление
-// просто встаёт следующим и звучит сразу за ним
-const NEW_SEASON_LINE = 'Новый сезон! Новые правила! Новый рейтинг! Кто станет королём улиц?';
-setInterval(()=>{ pushEvent(NEW_SEASON_LINE, true, true); }, 30000);
 // остальные правила — по кругу раз в минуту, тоже protected
 setInterval(()=>{
   pushEvent(RULES_OTHER[_ruleOtherIdx % RULES_OTHER.length], true, true);
