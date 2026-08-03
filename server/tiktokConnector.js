@@ -140,8 +140,11 @@ function connectToTikTok(username, onGift, onStatus, onMember, onLike, onChat) {
       });
     });
 
-    connection.on('disconnected', () => {
-      console.log(`[TikTok][${username}] Отключился — retry через 30с`);
+    connection.on('disconnected', (info) => {
+      // диагностика: код/причина закрытия WebSocket помогают понять, кто
+      // рвёт соединение — TikTok (код с их стороны) или сеть/таймаут
+      const code = info && info.code, reason = info && info.reason;
+      console.log(`[TikTok][${username}] Отключился (code=${code}, reason=${reason||'—'}) — retry через 30с`);
       connection = null;
       handle._tiktokMode = 'demo';
       notify({ connected: false, mode: 'demo', message: `@${username} вышел из эфира` });
