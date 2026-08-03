@@ -874,7 +874,7 @@ function wsConnect(username){
             + `<span style="color:#FFD700;font-size:14.5px;">#${d.rank} место · ⚡${pts}</span><br>`
             + `<span style="color:#ffb4c4;font-size:13.5px;">🥊 Нокаутов: ${d.kos||0}</span>`;
           if (d.beltSeconds > 0){
-            html += `<div style="margin-top:5px;padding-top:5px;border-top:1px dashed rgba(255,215,0,0.25);display:flex;align-items:center;justify-content:center;gap:6px;color:#fff2b0;font-size:14px;font-weight:700;">${BELT_ICON_SVG}<b>${formatBeltTime(d.beltSeconds)}</b></div>`;
+            html += `<div style="margin-top:5px;padding-top:5px;border-top:1px dashed rgba(255,215,0,0.25);display:flex;align-items:center;justify-content:center;gap:6px;color:#fff2b0;font-size:14px;font-weight:700;">👑<span>Король улиц: ${formatBeltTime(d.beltSeconds)}</span></div>`;
           }
           _showRating(html);
         } else {
@@ -890,18 +890,6 @@ function wsConnect(username){
 // отдельное всплывающее окошко под ответ на "rating" из чата (как в
 // arena2/arena3) — не смешивается с общей очередью событий боя/диктора,
 // поэтому не теряется среди фраз
-// иконка пояса чемпиона (не 🏆-кубок) для плашки рейтинга (HTML SVG, не canvas)
-const BELT_ICON_SVG = `<svg width="30" height="14" viewBox="-25 0 90 40" style="vertical-align:middle;flex:none;">
-  <rect x="-23" y="13.5" width="25" height="13" rx="2" fill="#1f7a42" stroke="#e8c25a" stroke-width="1"/>
-  <rect x="38" y="13.5" width="25" height="13" rx="2" fill="#1f7a42" stroke="#e8c25a" stroke-width="1"/>
-  <circle cx="20" cy="20" r="17" fill="#e8c25a"/>
-  <circle cx="20" cy="20" r="13.5" fill="#1f7a42"/>
-  <rect x="18.5" y="4" width="3" height="6" rx="1" fill="#d64545"/>
-  <rect x="18.5" y="30" width="3" height="6" rx="1" fill="#2b5fa8"/>
-  <rect x="4" y="18.5" width="6" height="3" rx="1" fill="#e8c25a"/>
-  <rect x="30" y="18.5" width="6" height="3" rx="1" fill="#f2f2f2"/>
-  <circle cx="20" cy="20" r="8" fill="#2f9052" stroke="#f6dd97" stroke-width="1"/>
-</svg>`;
 function formatBeltTime(totalSeconds){
   const h = Math.floor(totalSeconds/3600);
   const m = Math.floor((totalSeconds%3600)/60);
@@ -1828,21 +1816,18 @@ function collapse(loser, winner){
     loser.powerMax = 0; loser.power = 0;
   }
   if (winner){
-    // урон от финального удара уже засчитан в throwPunch (за каждый удар) —
-    // здесь начисляем ТОЛЬКО фиксированный бонус за сам факт нокаута
-    const koBonus = 100;
+    // очки за сам нокаут НЕ начисляются — рейтинг = чисто отнятая энергия,
+    // уже засчитанная за каждый удар в throwPunch (включая добивающий).
+    // Здесь только считаем счётчик нокаутов (kos), очков он не даёт.
     const finishingDmg = damageFor(winner.power); // только для текста фразы диктора
-    winner.stolenEnergy += koBonus;
-    // боты не пишутся в БД/рейтинг — бонус за нокаут и счётчик нокаутов
-    // засчитываются только реальному зрителю-победителю
+    // боты не пишутся в БД/рейтинг — счётчик нокаутов засчитывается
+    // только реальному зрителю-победителю
     if (!winner.isBot){
-      winner.allTimeStolen = (winner.allTimeStolen||0) + koBonus;
       winner.kos = (winner.kos||0) + 1;
-      reportStolen(winner.name, koBonus);
       reportKO(winner.name);
     }
     // диктор объявляет только реальных победителей — бот-победитель молчит
-    if (!winner.isBot) pushEvent(pick(KO_LINES)(cleanNickForSpeech(winner.name), cleanNickForSpeech(loser.name), finishingDmg + koBonus), true);
+    if (!winner.isBot) pushEvent(pick(KO_LINES)(cleanNickForSpeech(winner.name), cleanNickForSpeech(loser.name), finishingDmg), true);
   } else if (!loser.isBot) {
     pushEvent(pick(TIRED_LINES)(cleanNickForSpeech(loser.name)), true);
   }
