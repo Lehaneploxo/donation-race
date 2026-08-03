@@ -897,7 +897,7 @@ function wsConnect(username){
           // сетку выше), сервер отдаёт только сырой total_stolen (d.stolen)
           const prog = levelProgress(stolenTotal);
           const rank = rankOfLevel(prog.level);
-          html += `<div style="margin-top:5px;padding-top:5px;border-top:1px dashed rgba(255,255,255,0.18);">`
+          html += `<div style="margin-top:5px;padding-top:5px;border-top:1px dashed rgba(255,255,255,0.18);white-space:nowrap;">`
             + `<span style="color:#7fd3ff;font-size:14px;font-weight:700;">🎖️ ${prog.level} уровень — ${rank.name}</span>`;
           if (prog.next != null){
             const pct = Math.round(prog.frac*100);
