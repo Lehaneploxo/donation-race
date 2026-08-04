@@ -394,30 +394,49 @@ async function getAllStreetFighterStolen() {
   }));
 }
 
-// ближайшая (текущая или прошлая) полночь понедельника по московскому
-// времени (UTC+3), возвращена как момент в UTC-миллисекундах — считаем
-// вручную через смещение, т.к. без доп. библиотек (Intl.DateTimeFormat с
-// timeZone тут избыточен для константного смещения без перехода на летнее время)
-function mostRecentMondayMskMs(nowMs) {
-  const MSK_OFFSET_MS = 3 * 60 * 60 * 1000;
-  const mskNow = new Date(nowMs + MSK_OFFSET_MS);
-  const day = mskNow.getUTCDay(); // 0=вс..6=сб (в уже сдвинутых на MSK координатах)
+// смещение таймзоны (в минутах, Киев впереди UTC) в конкретный момент —
+// через Intl.DateTimeFormat, т.к. в Киеве, В ОТЛИЧИЕ ОТ МОСКВЫ, есть переход
+// на летнее/зимнее время (EEST +3 летом / EET +2 зимой) — константный сдвиг
+// тут был бы неверен половину года
+function tzOffsetMinutes(utcMs, timeZone) {
+  const dtf = new Intl.DateTimeFormat('en-US', {
+    timeZone, hour12: false,
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+  });
+  const parts = dtf.formatToParts(new Date(utcMs));
+  const o = {};
+  for (const p of parts) if (p.type !== 'literal') o[p.type] = p.value;
+  const hour = o.hour === '24' ? '00' : o.hour; // некоторые локали отдают 24:00 вместо 00:00
+  const asUTC = Date.UTC(Number(o.year), Number(o.month)-1, Number(o.day), Number(hour), Number(o.minute), Number(o.second));
+  return Math.round((asUTC - utcMs) / 60000);
+}
+
+// ближайшая (текущая или прошлая) полночь понедельника по киевскому времени,
+// возвращена как момент в UTC-миллисекундах. Смещение считается на момент
+// `nowMs` и используется как есть для всей недели назад — раз в год (при
+// самом переходе на летнее/зимнее время) граница может съехать на час,
+// это не критично для недельного сброса
+function mostRecentMondayKyivMs(nowMs) {
+  const offsetMin = tzOffsetMinutes(nowMs, 'Europe/Kyiv');
+  const kyivNow = new Date(nowMs + offsetMin*60000);
+  const day = kyivNow.getUTCDay(); // 0=вс..6=сб (в уже сдвинутых на Киев координатах)
   const daysSinceMonday = (day + 6) % 7; // пн->0, вт->1, ..., вс->6
-  const mskMidnightUtcMs = Date.UTC(
-    mskNow.getUTCFullYear(), mskNow.getUTCMonth(), mskNow.getUTCDate() - daysSinceMonday, 0, 0, 0, 0
+  const kyivMidnightAsUtcFields = Date.UTC(
+    kyivNow.getUTCFullYear(), kyivNow.getUTCMonth(), kyivNow.getUTCDate() - daysSinceMonday, 0, 0, 0, 0
   );
-  return mskMidnightUtcMs - MSK_OFFSET_MS; // обратно в реальный момент UTC
+  return kyivMidnightAsUtcFields - offsetMin*60000; // обратно в реальный момент UTC
 }
 
 // вызывается периодически (и один раз при старте сервера) — если с прошлого
-// сброса прошёл понедельник 00:00 по Москве, архивирует короля недели
+// сброса прошёл понедельник 00:00 по Киеву, архивирует короля недели
 // (у кого было больше weekly_belt_seconds) и обнуляет total_stolen +
 // weekly_belt_seconds у всех. Безопасно при простое сервера в момент
 // границы — при следующем запуске просто досчитает пропущенный сброс один
 // раз (не пытается "проиграть" несколько пропущенных недель по отдельности).
 async function performStreetFighterWeeklyResetIfNeeded() {
   if (!pool) return null;
-  const boundaryMs = mostRecentMondayMskMs(Date.now());
+  const boundaryMs = mostRecentMondayKyivMs(Date.now());
   const boundary = new Date(boundaryMs);
 
   const metaRes = await pool.query(`SELECT last_reset_at FROM streetfighter_weekly_meta WHERE id=1`);

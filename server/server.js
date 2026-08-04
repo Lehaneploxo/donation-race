@@ -820,7 +820,7 @@ wss.on('connection', (ws, req) => {
   ws.on('error', err => console.error('[WS]', err.message));
 });
 
-// ─── Street Fighter: еженедельный сброс рейтинга (по понедельникам, MSK) ──────
+// ─── Street Fighter: еженедельный сброс рейтинга (по понедельникам, Киев) ─────
 // checkStreetFighterWeeklyReset — function-объявление, доступна выше по
 // файлу (в /admin/streetfighter-weekly-check) благодаря hoisting, ссылка на
 // `rooms` разрешается лениво в момент вызова (к этому моменту модуль уже
