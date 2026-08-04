@@ -194,25 +194,47 @@ function levelProgress(total){
 }
 // правильный N-угольник и звезда с N лучами — форма значка уровня
 // эскалирует вместе с рангом (см. drawLevelBadge ниже)
-function polygonPath(ctx, cx, cy, r, sides){
-  ctx.beginPath();
+function polygonVerts(r, sides){
+  const pts = [];
   for (let k=0; k<sides; k++){
     const a = Math.PI/180*((360/sides)*k - 90);
-    const x = cx + r*Math.cos(a), y = cy + r*Math.sin(a);
-    k===0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y);
+    pts.push([r*Math.cos(a), r*Math.sin(a)]);
   }
-  ctx.closePath();
+  return pts;
 }
-function starPath(ctx, cx, cy, rOuter, rInner, points){
-  ctx.beginPath();
+function starVerts(rOuter, rInner, points){
+  const pts = [];
   const total = points*2;
   for (let k=0; k<total; k++){
     const a = Math.PI/180*((360/total)*k - 90);
     const rad = k%2===0 ? rOuter : rInner;
-    const x = cx + rad*Math.cos(a), y = cy + rad*Math.sin(a);
-    k===0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y);
+    pts.push([rad*Math.cos(a), rad*Math.sin(a)]);
   }
+  return pts;
+}
+function pathFromVerts(ctx, cx, cy, verts){
+  ctx.beginPath();
+  verts.forEach(([x,y], k)=> k===0 ? ctx.moveTo(cx+x, cy+y) : ctx.lineTo(cx+x, cy+y));
   ctx.closePath();
+}
+// точная ширина фигуры РОВНО на высоте её центра (там, где рисуется текст)
+// — считается пересечением рёбер с горизонталью y=0, а не приблизительно.
+// Раньше maxW для текста был одним "на глаз" числом на все фигуры сразу —
+// у треугольника реальная ширина у центра (~1.15r) оказалась заметно
+// меньше того, что предполагалось (1.55r), поэтому "11" вылезала за края.
+function shapeWidthAtCenter(verts){
+  let maxX = 0;
+  const n = verts.length;
+  for (let k=0; k<n; k++){
+    const [x1,y1] = verts[k], [x2,y2] = verts[(k+1)%n];
+    if ((y1<=0 && y2>=0) || (y1>=0 && y2<=0)){
+      if (y1===y2) continue;
+      const t = (0-y1)/(y2-y1);
+      const x = x1 + t*(x2-x1);
+      if (Math.abs(x) > maxX) maxX = Math.abs(x);
+    }
+  }
+  return maxX*2;
 }
 
 // бейдж с номером уровня — форма усложняется вместе с рангом (2026-08-04):
@@ -229,15 +251,19 @@ function drawLevelBadge(cx, y, s, level){
   const rank = idx>=0 ? LEVEL_RANKS[idx] : LEVEL_RANKS[0];
   const color = rank.color;
   ctx.save();
+  let maxW; // точная ширина ИМЕННО этой фигуры на высоте центра, не общая на все
   if (idx <= 1){
     ctx.beginPath(); ctx.arc(cx, y, r, 0, Math.PI*2);
-  } else if (idx === 8){
-    starPath(ctx, cx, y, r+r*0.26, r-r*0.22, 5);
-  } else if (idx === 9){
-    starPath(ctx, cx, y, r+r*0.26, r-r*0.22, 7);
+    maxW = r*1.7; // круг — почти полный диаметр (2r) с небольшим отступом
+  } else if (idx === 8 || idx === 9){
+    const verts = starVerts(r+r*0.26, r-r*0.22, idx===8 ? 5 : 7);
+    pathFromVerts(ctx, cx, y, verts);
+    maxW = shapeWidthAtCenter(verts) * 0.85;
   } else {
     const sides = 3 + (idx-2); // idx=2 -> треугольник(3) .. idx=7 -> восьмиугольник(8)
-    polygonPath(ctx, cx, y, r, sides);
+    const verts = polygonVerts(r, sides);
+    pathFromVerts(ctx, cx, y, verts);
+    maxW = shapeWidthAtCenter(verts) * 0.85;
   }
   if (idx === 9){
     const g = ctx.createLinearGradient(cx-r, y-r, cx+r, y+r);
@@ -251,12 +277,11 @@ function drawLevelBadge(cx, y, s, level){
   ctx.fill();
   ctx.lineWidth = 2.4*s; ctx.strokeStyle = color; ctx.stroke();
   ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(0,0,0,0.5)'; ctx.stroke();
-  // ширину И высоту цифр зажимаем под фигуру (не только ширину, как раньше)
-  // — звезда особенно чувствительна, расстояние до "талии" между лучами
-  // меньше внешнего радиуса
+  // ширина текста теперь зажата под ТОЧНУЮ ширину конкретной фигуры
+  // (maxW посчитан выше по её реальным вершинам), высота — общий запас
   const txt = String(level);
   let fontSize = (txt.length > 1 ? 21 : 24) * s;
-  const maxW = r*1.55, maxH = r*1.35;
+  const maxH = r*1.35;
   fontSize = Math.min(fontSize, maxH);
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.fillStyle = '#1a1a1a';
