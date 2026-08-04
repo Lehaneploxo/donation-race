@@ -64,6 +64,47 @@ async function init() {
   // навсегда (переживает рестарты стрима/сервера), NULL = скин случайный,
   // как раньше
   await pool.query(`ALTER TABLE streetfighter_stolen ADD COLUMN IF NOT EXISTS chosen_skin INTEGER`);
+
+  // ── Недельный рейтинг "Король улиц" (2026-08-04) ──
+  // total_stolen теперь ЕЖЕНЕДЕЛЬНЫЙ показатель (обнуляется по понедельникам,
+  // см. performStreetFighterWeeklyResetIfNeeded) — именно он двигает место в
+  // топе и корону текущего чемпиона. lifetime_stolen — ОТДЕЛЬНЫЙ счётчик,
+  // копится параллельно с каждым ударом и НИКОГДА не обнуляется — от него
+  // считается уровень/ранг игрока (levelOf на клиенте), чтобы прогресс
+  // уровня не сгорал при еженедельном сбросе очков.
+  await pool.query(`ALTER TABLE streetfighter_stolen ADD COLUMN IF NOT EXISTS lifetime_stolen INTEGER NOT NULL DEFAULT 0`);
+  // при первом добавлении колонки переносим уже накопленное total_stolen в
+  // lifetime_stolen один раз (иначе уровень всех игроков обнулился бы в
+  // момент выката фичи) — условие lifetime_stolen=0 делает это безопасным
+  // при повторных запусках init() (после первого переноса больше не сработает)
+  await pool.query(`UPDATE streetfighter_stolen SET lifetime_stolen = total_stolen WHERE lifetime_stolen = 0 AND total_stolen > 0`);
+  // weekly_belt_seconds — время с короной именно на текущей неделе (обнуляется
+  // вместе с total_stolen); weekly_king_wins — сколько раз игрок ВЫИГРЫВАЛ
+  // неделю (у кого было больше weekly_belt_seconds на момент сброса) —
+  // это уже вечный счётчик, не обнуляется, показывается как "👑×N"
+  await pool.query(`ALTER TABLE streetfighter_stolen ADD COLUMN IF NOT EXISTS weekly_belt_seconds INTEGER NOT NULL DEFAULT 0`);
+  await pool.query(`ALTER TABLE streetfighter_stolen ADD COLUMN IF NOT EXISTS weekly_king_wins INTEGER NOT NULL DEFAULT 0`);
+  // архив победителей недели — навсегда, не связан со сбрасываемыми полями выше
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS streetfighter_weekly_kings (
+      id SERIAL PRIMARY KEY,
+      week_start TIMESTAMPTZ NOT NULL,
+      username TEXT NOT NULL,
+      weekly_belt_seconds INTEGER NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `);
+  // единственная строка (id=1) — когда был выполнен последний еженедельный
+  // сброс, чтобы не потерять момент сброса при перезапуске/падении сервера
+  // (см. performStreetFighterWeeklyResetIfNeeded — при старте сервер сверяет
+  // эту метку и, если понедельник уже прошёл, досчитывает сброс сразу)
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS streetfighter_weekly_meta (
+      id INTEGER PRIMARY KEY DEFAULT 1,
+      last_reset_at TIMESTAMPTZ NOT NULL
+    )
+  `);
+
   console.log('[DB] Таблицы kills, boss_damage, race_donations, boxing_stolen, boxing_stolen_en и streetfighter_stolen готовы');
 }
 
@@ -279,15 +320,142 @@ const resetBoxingRatingEn = boxingEn.reset;
 const setBoxingStolenEn = boxingEn.setStolen;
 const deleteBoxingUserEn = boxingEn.deleteUser;
 
-const addStreetFighterStolen = streetFighter.addStolen;
+// addStolen/addBeltSeconds/getUserRank/getAll У Street Fighter СВОИ версии
+// (не из фабрики) — нужно писать сразу в 2 колонки (недельную +
+// вечную) за один запрос. addKO/getTop/reset/setStolen/deleteUser — как у
+// всех остальных игр, оставляем из фабрики без изменений.
 const getTopStreetFighterStolen = streetFighter.getTop;
-const getAllStreetFighterStolen = streetFighter.getAll;
-const getUserStreetFighterRank = streetFighter.getUserRank;
 const addStreetFighterKO = streetFighter.addKO;
-const addStreetFighterBeltSeconds = streetFighter.addBeltSeconds;
 const resetStreetFighterRating = streetFighter.reset;
 const setStreetFighterStolen = streetFighter.setStolen;
 const deleteStreetFighterUser = streetFighter.deleteUser;
+
+// очки удара — сразу и в недельный total_stolen (двигает топ/корону текущей
+// недели), и в вечный lifetime_stolen (двигает уровень, никогда не обнуляется)
+async function addStreetFighterStolen(username, amount) {
+  if (!pool || !username || !amount) return;
+  await pool.query(`
+    INSERT INTO streetfighter_stolen (username, total_stolen, lifetime_stolen)
+    VALUES ($1, $2, $2)
+    ON CONFLICT (username)
+    DO UPDATE SET total_stolen = streetfighter_stolen.total_stolen + $2,
+                  lifetime_stolen = streetfighter_stolen.lifetime_stolen + $2
+  `, [username, Math.floor(amount)]);
+}
+
+// секунды с короной — сразу и в belt_seconds (вечный, как раньше, просто
+// больше не показывается на карточке rating), и в weekly_belt_seconds
+// (обнуляется по понедельникам — именно по нему выбирается "Король недели")
+async function addStreetFighterBeltSeconds(username, seconds) {
+  if (!pool || !username || !seconds) return;
+  await pool.query(`
+    INSERT INTO streetfighter_stolen (username, belt_seconds, weekly_belt_seconds)
+    VALUES ($1, $2, $2)
+    ON CONFLICT (username)
+    DO UPDATE SET belt_seconds = streetfighter_stolen.belt_seconds + $2,
+                  weekly_belt_seconds = streetfighter_stolen.weekly_belt_seconds + $2
+  `, [username, Math.floor(seconds)]);
+}
+
+async function getUserStreetFighterRank(username) {
+  if (!pool || !username) return null;
+  const res = await pool.query(`
+    SELECT username, total_stolen, total_kos, belt_seconds, lifetime_stolen, weekly_king_wins,
+           RANK() OVER (ORDER BY total_stolen DESC) AS rank
+    FROM streetfighter_stolen
+  `);
+  const row = res.rows.find(r => r.username.toLowerCase() === username.toLowerCase());
+  return row ? {
+    rank: Number(row.rank),
+    total_stolen: Number(row.total_stolen),
+    total_kos: Number(row.total_kos),
+    belt_seconds: Number(row.belt_seconds),
+    lifetime_stolen: Number(row.lifetime_stolen),
+    weekly_king_wins: Number(row.weekly_king_wins),
+  } : null;
+}
+
+async function getAllStreetFighterStolen() {
+  if (!pool) return [];
+  const res = await pool.query(`
+    SELECT username, total_stolen, total_kos, belt_seconds, lifetime_stolen, weekly_king_wins,
+           ROW_NUMBER() OVER (ORDER BY total_stolen DESC, username ASC) AS rank
+    FROM streetfighter_stolen
+    ORDER BY total_stolen DESC, username ASC
+  `);
+  return res.rows.map(r => ({
+    rank: Number(r.rank),
+    username: r.username,
+    total_stolen: Number(r.total_stolen),
+    total_kos: Number(r.total_kos),
+    belt_seconds: Number(r.belt_seconds),
+    lifetime_stolen: Number(r.lifetime_stolen),
+    weekly_king_wins: Number(r.weekly_king_wins),
+  }));
+}
+
+// ближайшая (текущая или прошлая) полночь понедельника по московскому
+// времени (UTC+3), возвращена как момент в UTC-миллисекундах — считаем
+// вручную через смещение, т.к. без доп. библиотек (Intl.DateTimeFormat с
+// timeZone тут избыточен для константного смещения без перехода на летнее время)
+function mostRecentMondayMskMs(nowMs) {
+  const MSK_OFFSET_MS = 3 * 60 * 60 * 1000;
+  const mskNow = new Date(nowMs + MSK_OFFSET_MS);
+  const day = mskNow.getUTCDay(); // 0=вс..6=сб (в уже сдвинутых на MSK координатах)
+  const daysSinceMonday = (day + 6) % 7; // пн->0, вт->1, ..., вс->6
+  const mskMidnightUtcMs = Date.UTC(
+    mskNow.getUTCFullYear(), mskNow.getUTCMonth(), mskNow.getUTCDate() - daysSinceMonday, 0, 0, 0, 0
+  );
+  return mskMidnightUtcMs - MSK_OFFSET_MS; // обратно в реальный момент UTC
+}
+
+// вызывается периодически (и один раз при старте сервера) — если с прошлого
+// сброса прошёл понедельник 00:00 по Москве, архивирует короля недели
+// (у кого было больше weekly_belt_seconds) и обнуляет total_stolen +
+// weekly_belt_seconds у всех. Безопасно при простое сервера в момент
+// границы — при следующем запуске просто досчитает пропущенный сброс один
+// раз (не пытается "проиграть" несколько пропущенных недель по отдельности).
+async function performStreetFighterWeeklyResetIfNeeded() {
+  if (!pool) return null;
+  const boundaryMs = mostRecentMondayMskMs(Date.now());
+  const boundary = new Date(boundaryMs);
+
+  const metaRes = await pool.query(`SELECT last_reset_at FROM streetfighter_weekly_meta WHERE id=1`);
+  if (metaRes.rows.length === 0) {
+    // самый первый запуск этой фичи — фиксируем текущую границу как точку
+    // отсчёта, ничего не сбрасываем (прошлой недели с данными ещё не было)
+    await pool.query(`INSERT INTO streetfighter_weekly_meta (id, last_reset_at) VALUES (1, $1)`, [boundary]);
+    return null;
+  }
+
+  const lastReset = metaRes.rows[0].last_reset_at;
+  if (boundary <= lastReset) return null; // граница с прошлого раза ещё не наступила
+
+  const winnerRes = await pool.query(`
+    SELECT username, weekly_belt_seconds FROM streetfighter_stolen
+    WHERE weekly_belt_seconds > 0
+    ORDER BY weekly_belt_seconds DESC LIMIT 1
+  `);
+  let winner = null;
+  if (winnerRes.rows.length) {
+    winner = winnerRes.rows[0];
+    await pool.query(`
+      INSERT INTO streetfighter_weekly_kings (week_start, username, weekly_belt_seconds)
+      VALUES ($1, $2, $3)
+    `, [lastReset, winner.username, winner.weekly_belt_seconds]);
+    await pool.query(`
+      UPDATE streetfighter_stolen SET weekly_king_wins = weekly_king_wins + 1
+      WHERE LOWER(username) = LOWER($1)
+    `, [winner.username]);
+  }
+
+  await pool.query(`UPDATE streetfighter_stolen SET total_stolen = 0, weekly_belt_seconds = 0`);
+  await pool.query(`UPDATE streetfighter_weekly_meta SET last_reset_at = $1 WHERE id=1`, [boundary]);
+
+  console.log(`[STREETFIGHTER] Недельный сброс выполнен, граница=${boundary.toISOString()}, король недели: ${winner ? winner.username + ' (' + winner.weekly_belt_seconds + 'с)' : 'нет (корону никто не держал)'}`);
+
+  return { winner: winner ? winner.username : null, weekStart: lastReset.toISOString() };
+}
 
 // выбор героя (skin1..skin5) — специфично для Street Fighter, не часть
 // общей фабрики makeBoxingApi (у бокса такого понятия нет)
@@ -324,5 +492,6 @@ module.exports = {
   addStreetFighterKO, addStreetFighterBeltSeconds, resetStreetFighterRating,
   setStreetFighterStolen, deleteStreetFighterUser, getAllStreetFighterStolen,
   setStreetFighterSkin, getStreetFighterSkin,
+  performStreetFighterWeeklyResetIfNeeded,
   isConnected,
 };

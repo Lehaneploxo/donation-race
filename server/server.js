@@ -329,6 +329,17 @@ app.get('/top-streetfighter', async (req, res) => {
   }
 });
 
+// ручной запуск проверки еженедельного сброса (для теста, без ожидания
+// понедельника/интервала) — тот же паттерн, что у остальных /admin/*
+app.get('/admin/streetfighter-weekly-check', async (req, res) => {
+  try {
+    const result = await checkStreetFighterWeeklyReset();
+    res.json({ ok: true, result });
+  } catch(e) {
+    res.json({ ok: false, error: e.message });
+  }
+});
+
 // ─── Rooms ───────────────────────────────────────────────────────────────────
 const rooms = new Map();
 
@@ -560,7 +571,9 @@ class Room {
             .catch(() => {
               this.broadcast({ type: 'arena_boxing_rating_en', username: data.username, rank: null, stolen: 0, kos: 0, beltSeconds: 0 });
             });
-          // Street Fighter: тот же топ, но по своей таблице
+          // Street Fighter: тот же топ, но по своей таблице. stolen/rank —
+          // НЕДЕЛЬНЫЕ (обнуляются по понедельникам), lifetimeStolen — вечный
+          // (двигает уровень), weeklyKingWins — сколько раз выигрывал неделю
           db.getUserStreetFighterRank(data.username)
             .then(rank => {
               this.broadcast({
@@ -569,11 +582,12 @@ class Room {
                 rank: rank ? rank.rank : null,
                 stolen: rank ? rank.total_stolen : 0,
                 kos: rank ? rank.total_kos : 0,
-                beltSeconds: rank ? rank.belt_seconds : 0,
+                lifetimeStolen: rank ? rank.lifetime_stolen : 0,
+                weeklyKingWins: rank ? rank.weekly_king_wins : 0,
               });
             })
             .catch(() => {
-              this.broadcast({ type: 'arena_streetfighter_rating', username: data.username, rank: null, stolen: 0, kos: 0, beltSeconds: 0 });
+              this.broadcast({ type: 'arena_streetfighter_rating', username: data.username, rank: null, stolen: 0, kos: 0, lifetimeStolen: 0, weeklyKingWins: 0 });
             });
         }
 
@@ -756,16 +770,17 @@ wss.on('connection', (ws, req) => {
       if (msg.type === 'streetfighter_tier_request' && msg.username) {
         // один и тот же round-trip отдаёт и очки для медали/уровня, и
         // сохранённый выбор героя (skin1..skin5) — не заводим отдельное
-        // сообщение только ради скина
+        // сообщение только ради скина. Уровень считается от lifetime_stolen
+        // (вечный, не обнуляется по понедельникам), не от total_stolen
         Promise.all([
           db.getUserStreetFighterRank(msg.username),
           db.getStreetFighterSkin(msg.username),
         ])
           .then(([rank, chosenSkin]) => {
-            room.broadcast({ type: 'streetfighter_tier_info', username: msg.username, total_stolen: rank ? rank.total_stolen : 0, chosenSkin });
+            room.broadcast({ type: 'streetfighter_tier_info', username: msg.username, lifetimeStolen: rank ? rank.lifetime_stolen : 0, chosenSkin });
           })
           .catch(() => {
-            room.broadcast({ type: 'streetfighter_tier_info', username: msg.username, total_stolen: 0, chosenSkin: null });
+            room.broadcast({ type: 'streetfighter_tier_info', username: msg.username, lifetimeStolen: 0, chosenSkin: null });
           });
       }
       if (msg.type === 'request_rating' && msg.username) {
@@ -804,6 +819,31 @@ wss.on('connection', (ws, req) => {
   });
   ws.on('error', err => console.error('[WS]', err.message));
 });
+
+// ─── Street Fighter: еженедельный сброс рейтинга (по понедельникам, MSK) ──────
+// checkStreetFighterWeeklyReset — function-объявление, доступна выше по
+// файлу (в /admin/streetfighter-weekly-check) благодаря hoisting, ссылка на
+// `rooms` разрешается лениво в момент вызова (к этому моменту модуль уже
+// полностью загружен, `rooms` точно проинициализирован).
+async function checkStreetFighterWeeklyReset() {
+  const result = await db.performStreetFighterWeeklyResetIfNeeded();
+  if (result) {
+    console.log('[STREETFIGHTER] Рассылаю обновлённый топ во все активные комнаты после сброса');
+    for (const room of rooms.values()) {
+      db.getTopStreetFighterStolen(5)
+        .then(top => room.broadcast({ type: 'top_streetfighter', data: top }))
+        .catch(e => console.error('[STREETFIGHTER] Ошибка рассылки топа после сброса:', e.message));
+    }
+  }
+  return result;
+}
+// проверяем раз в 10 минут — этого достаточно для недельной границы (небольшая
+// задержка в пределах интервала не критична), плюс один раз при старте с
+// небольшой задержкой (даём пулу БД время подключиться) — это же покрывает
+// случай, когда сервер был выключен ровно в момент понедельника: при
+// следующем запуске сброс досчитается сразу же
+setInterval(() => { checkStreetFighterWeeklyReset().catch(e => console.error('[STREETFIGHTER] weekly-check error:', e.message)); }, 10*60*1000);
+setTimeout(() => { checkStreetFighterWeeklyReset().catch(e => console.error('[STREETFIGHTER] weekly-check (startup) error:', e.message)); }, 15*1000);
 
 // ─── Старт ───────────────────────────────────────────────────────────────────
 server.on('error', (err) => {

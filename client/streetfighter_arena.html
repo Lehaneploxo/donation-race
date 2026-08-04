@@ -946,7 +946,9 @@ function wsConnect(username){
       if (d.type==='streetfighter_tier_info'){
         const v = findRealFighter(d.username);
         if (v){
-          v.allTimeStolen = Number(d.total_stolen)||0;
+          // lifetimeStolen — вечный счётчик (не total_stolen, тот теперь
+          // недельный и обнуляется по понедельникам) — от него уровень/бейдж
+          v.allTimeStolen = Number(d.lifetimeStolen)||0;
           // если у зрителя уже был закреплён герой командой skin1-5 в
           // прошлый раз — применяем его сразу при спавне (round-trip тот
           // же, что и за очками медали, отдельный запрос не нужен)
@@ -961,6 +963,8 @@ function wsConnect(username){
       }
       if (d.type==='arena_streetfighter_rating'){
         if (d.rank){
+          // d.stolen/d.rank — НЕДЕЛЬНЫЕ очки/место (обнуляются по
+          // понедельникам, именно они двигают корону текущей недели)
           const stolenTotal = Number(d.stolen||0);
           const pts = stolenTotal.toLocaleString('ru-RU');
           let html = `<span style="color:#FF6688;font-size:16px;font-weight:bold;">📊 @${d.username}</span><br>`
@@ -968,15 +972,16 @@ function wsConnect(username){
             + `<span style="color:#ffb4c4;font-size:13.5px;">🥊 Нокаутов: ${d.kos||0}</span>`;
 
           // уровень + название ранга + полоска прогресса до следующего —
-          // считаем на клиенте из levelOf/rankOfLevel (уже дали 50-уровневую
-          // сетку выше), сервер отдаёт только сырой total_stolen (d.stolen)
-          const prog = levelProgress(stolenTotal);
+          // считается от lifetimeStolen (ВЕЧНЫЙ счётчик, не обнуляется по
+          // понедельникам вместе с d.stolen выше — иначе уровень бы сгорал)
+          const lifetimeTotal = Number(d.lifetimeStolen||0);
+          const prog = levelProgress(lifetimeTotal);
           const rank = rankOfLevel(prog.level);
           html += `<div style="margin-top:3px;padding-top:3px;border-top:1px dashed rgba(255,255,255,0.18);white-space:nowrap;">`
             + `<span style="color:#7fd3ff;font-size:14px;font-weight:700;">🎖️ ${prog.level} уровень — ${rank.name}</span>`;
           if (prog.next != null){
             const pct = Math.round(prog.frac*100);
-            const need = (prog.next - stolenTotal).toLocaleString('ru-RU');
+            const need = (prog.next - lifetimeTotal).toLocaleString('ru-RU');
             html += `<div style="margin-top:2px;background:rgba(255,255,255,0.12);border-radius:5px;height:6px;overflow:hidden;">`
               + `<div style="width:${pct}%;height:100%;background:${rank.color};"></div></div>`
               + `<div style="margin-top:1px;color:#aaa;font-size:11px;">ещё ${need}⚡ до ${prog.level+1} уровня</div>`;
@@ -985,8 +990,11 @@ function wsConnect(username){
           }
           html += `</div>`;
 
-          if (d.beltSeconds > 0){
-            html += `<div style="margin-top:3px;padding-top:3px;border-top:1px dashed rgba(255,215,0,0.25);display:flex;align-items:center;justify-content:center;gap:6px;color:#fff2b0;font-size:14px;font-weight:700;">👑<span>Король улиц: ${formatBeltTime(d.beltSeconds)}</span></div>`;
+          // побед недели — сколько раз игрок дольше всех держал корону на
+          // момент понедельничного сброса; ВЕЧНЫЙ счётчик (не путать с
+          // недельными очками/местом выше, которые сами обнуляются)
+          if (d.weeklyKingWins > 0){
+            html += `<div style="margin-top:3px;padding-top:3px;border-top:1px dashed rgba(255,215,0,0.25);display:flex;align-items:center;justify-content:center;gap:6px;color:#fff2b0;font-size:14px;font-weight:700;">👑<span>Побед недели: ${d.weeklyKingWins}</span></div>`;
           }
           _showRating(html);
         } else {
@@ -1002,14 +1010,6 @@ function wsConnect(username){
 // отдельное всплывающее окошко под ответ на "rating" из чата (как в
 // arena2/arena3) — не смешивается с общей очередью событий боя/диктора,
 // поэтому не теряется среди фраз
-function formatBeltTime(totalSeconds){
-  const h = Math.floor(totalSeconds/3600);
-  const m = Math.floor((totalSeconds%3600)/60);
-  if (h>0) return `${h}ч ${m}м`;
-  if (m>0) return `${m}м`;
-  return `${totalSeconds}с`;
-}
-
 let _ratingHideTimer = null;
 function _showRating(html){
   const el = document.getElementById('ratingOverlay');
