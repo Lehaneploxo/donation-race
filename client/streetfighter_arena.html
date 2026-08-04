@@ -990,9 +990,11 @@ function wsConnect(username){
           // обнуляются по понедельникам, двигают корону текущей недели)
           const stolenTotal = Number(d.stolen||0);
           const pts = stolenTotal.toLocaleString('ru-RU');
+          // каждое значение — на своей строке, ничего не склеиваем через "·"
           html += `<div style="margin-top:3px;padding-top:3px;border-top:1px dashed rgba(255,255,255,0.18);">`
             + `<span style="color:#ffb4c4;font-size:13.5px;">🥊 Нокаутов: ${d.kos||0}</span><br>`
-            + `<span style="color:#FFD700;font-size:14.5px;">#${d.rank} место · ⚡${pts} за неделю</span>`
+            + `<span style="color:#FFD700;font-size:14.5px;">#${d.rank} место за неделю</span><br>`
+            + `<span style="color:#FFD700;font-size:14.5px;">⚡${pts} очков за неделю</span>`
             + `</div>`;
 
           // Король недели: сколько раз выигрывал (вечный счётчик) + сколько
