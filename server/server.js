@@ -584,10 +584,11 @@ class Room {
                 kos: rank ? rank.total_kos : 0,
                 lifetimeStolen: rank ? rank.lifetime_stolen : 0,
                 weeklyKingWins: rank ? rank.weekly_king_wins : 0,
+                weeklyBeltSeconds: rank ? rank.weekly_belt_seconds : 0,
               });
             })
             .catch(() => {
-              this.broadcast({ type: 'arena_streetfighter_rating', username: data.username, rank: null, stolen: 0, kos: 0, lifetimeStolen: 0, weeklyKingWins: 0 });
+              this.broadcast({ type: 'arena_streetfighter_rating', username: data.username, rank: null, stolen: 0, kos: 0, lifetimeStolen: 0, weeklyKingWins: 0, weeklyBeltSeconds: 0 });
             });
         }
 

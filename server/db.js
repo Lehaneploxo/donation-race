@@ -360,7 +360,7 @@ async function addStreetFighterBeltSeconds(username, seconds) {
 async function getUserStreetFighterRank(username) {
   if (!pool || !username) return null;
   const res = await pool.query(`
-    SELECT username, total_stolen, total_kos, belt_seconds, lifetime_stolen, weekly_king_wins,
+    SELECT username, total_stolen, total_kos, belt_seconds, lifetime_stolen, weekly_king_wins, weekly_belt_seconds,
            RANK() OVER (ORDER BY total_stolen DESC) AS rank
     FROM streetfighter_stolen
   `);
@@ -372,6 +372,7 @@ async function getUserStreetFighterRank(username) {
     belt_seconds: Number(row.belt_seconds),
     lifetime_stolen: Number(row.lifetime_stolen),
     weekly_king_wins: Number(row.weekly_king_wins),
+    weekly_belt_seconds: Number(row.weekly_belt_seconds),
   } : null;
 }
 
