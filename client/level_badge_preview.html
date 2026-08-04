@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Street Fighter — черновик значков уровня</title>
+<style>
+  body { background:#111; color:#eee; font-family:Arial, sans-serif; padding:20px; }
+  h1 { font-size:18px; margin:0 0 4px; }
+  .sub { color:#888; font-size:12px; margin-bottom:16px; }
+  canvas { background:#1a2230; border:2px solid #444; border-radius:6px; display:block; }
+  .rowLabel { color:#7fd3ff; font-size:13px; font-weight:bold; margin:18px 0 4px; }
+  .rowNote { color:#888; font-size:11.5px; margin-bottom:6px; }
+</style>
+</head>
+<body>
+
+<h1>Черновик: значок уровня — форма усложняется по числу углов</h1>
+<div class="sub">Без свечения/неона. 10 рангов, слева направо — от 1 до 46 уровня. Реальная игра не изменена, это отдельный файл.</div>
+
+<div class="rowLabel">Как сейчас (для сравнения)</div>
+<canvas id="cBase" width="980" height="120"></canvas>
+
+<div class="rowLabel">Финальный вариант — круг на первых двух рангах, дальше треугольник и по нарастающей, звезда с 41 уровня</div>
+<div class="rowNote">1-10 ур. (2 ранга) — круг; 11-40 ур. (6 рангов) — треугольник→...→восьмиугольник (+1 угол за ранг); с 41 ур. — звезда (5, потом 7 лучей)</div>
+<canvas id="cA" width="980" height="130"></canvas>
+
+<script>
+// новая цветовая история: тусклый металл (новичок) -> холодные яркие цвета
+// -> тёплые/огненные -> раскалённый красный -> золото (легенда). Не
+// случайный набор, а ощущение "разогрева" по мере роста уровня.
+const LEVEL_RANKS = [
+  { name:'Новичок улиц',     from:1,  to:5,  color:'#9a9a9a' },
+  { name:'Дворовый боец',    from:6,  to:10, color:'#b8752e' },
+  { name:'Хулиган квартала', from:11, to:15, color:'#3fa9f5' },
+  { name:'Уличный боец',     from:16, to:20, color:'#2ecc71' },
+  { name:'Гроза района',     from:21, to:25, color:'#17c9b2' },
+  { name:'Ветеран улиц',     from:26, to:30, color:'#9b59f6' },
+  { name:'Мастер кулака',    from:31, to:35, color:'#ef4bb0' },
+  { name:'Гроза города',     from:36, to:40, color:'#ff8c1a' },
+  { name:'Чемпион района',   from:41, to:45, color:'#ff2e4d' },
+  { name:'Легенда улиц',     from:46, to:50, color:'#ffd700' },
+];
+const SLOT_W = 96;
+const START_X = 60;
+
+function drawNumber(ctx, cx, cy, r, level){
+  const txt = String(level);
+  // крупнее, чем было, но зажато по ширине (maxW) и высоте (maxH) под
+  // радиус конкретной фигуры — чтобы не вылезало за края даже у звезды
+  // (там расстояние до "талии" между лучами меньше, чем до внешнего радиуса)
+  let fontSize = (txt.length > 1 ? 21 : 24);
+  const maxW = r*1.55;
+  const maxH = r*1.35;
+  fontSize = Math.min(fontSize, maxH);
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#1a1a1a';
+  ctx.font = `900 ${fontSize}px Arial Black`;
+  if (ctx.measureText(txt).width > maxW){
+    fontSize *= maxW / ctx.measureText(txt).width;
+    ctx.font = `900 ${fontSize}px Arial Black`;
+  }
+  ctx.fillText(txt, cx, cy + 0.5);
+}
+function drawLabel(ctx, cx, y, rankObj, extra){
+  ctx.textAlign = 'center';
+  ctx.font = '10.5px Arial';
+  ctx.fillStyle = '#aaa';
+  ctx.fillText(`${rankObj.from} ур.`, cx, y);
+  ctx.font = '10px Arial';
+  ctx.fillStyle = '#777';
+  const words = rankObj.name.split(' ');
+  if (words.length > 1 && rankObj.name.length > 12){
+    ctx.fillText(words[0], cx, y+12);
+    ctx.fillText(words.slice(1).join(' '), cx, y+23);
+  } else {
+    ctx.fillText(rankObj.name, cx, y+12);
+  }
+  if (extra){
+    ctx.fillStyle = '#555';
+    ctx.fillText(extra, cx, y + (words.length>1 && rankObj.name.length>12 ? 34 : 23));
+  }
+}
+
+// правильный N-угольник (вершина всегда смотрит вверх)
+function polygonPath(ctx, cx, cy, r, sides){
+  ctx.beginPath();
+  for (let k=0; k<sides; k++){
+    const a = Math.PI/180*((360/sides)*k - 90);
+    const x = cx + r*Math.cos(a), y = cy + r*Math.sin(a);
+    k===0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y);
+  }
+  ctx.closePath();
+}
+// звезда с N лучами
+function starPath(ctx, cx, cy, rOuter, rInner, points){
+  ctx.beginPath();
+  const total = points*2;
+  for (let k=0; k<total; k++){
+    const a = Math.PI/180*((360/total)*k - 90);
+    const rad = k%2===0 ? rOuter : rInner;
+    const x = cx + rad*Math.cos(a), y = cy + rad*Math.sin(a);
+    k===0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y);
+  }
+  ctx.closePath();
+}
+
+function drawBadgeShape(ctx, cx, cy, r, sides, isStar, starPoints, rank, level, goldFill){
+  ctx.save();
+  if (isStar){
+    starPath(ctx, cx, cy, r+6, r-5, starPoints);
+  } else if (sides >= 11){
+    ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI*2); // 11+ углов уже неотличимо от круга — просто круг
+  } else {
+    polygonPath(ctx, cx, cy, r, sides);
+  }
+  if (goldFill){
+    // без свечения/blur — просто более "богатая" заливка вместо плоской,
+    // только у самого верхнего ранга (Легенда улиц)
+    const g = ctx.createLinearGradient(cx-r, cy-r, cx+r, cy+r);
+    g.addColorStop(0, '#fff6d0');
+    g.addColorStop(0.55, '#ffd700');
+    g.addColorStop(1, '#b8860b');
+    ctx.fillStyle = g;
+  } else {
+    ctx.fillStyle = '#fdf6e3';
+  }
+  ctx.fill();
+  ctx.lineWidth = 3.5; ctx.strokeStyle = rank.color; ctx.stroke();
+  ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(0,0,0,0.5)'; ctx.stroke();
+  ctx.restore();
+  drawNumber(ctx, cx, cy, r, level);
+}
+
+// ── БАЗОВЫЙ (как сейчас) ──
+(function(){
+  const ctx = document.getElementById('cBase').getContext('2d');
+  const r = 22;
+  LEVEL_RANKS.forEach((rank, i)=>{
+    const cx = START_X + i*SLOT_W, cy = 45;
+    ctx.save();
+    ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI*2);
+    ctx.fillStyle = '#fdf6e3'; ctx.fill();
+    ctx.lineWidth = 4.5; ctx.strokeStyle = rank.color; ctx.stroke();
+    ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(0,0,0,0.5)'; ctx.stroke();
+    ctx.restore();
+    drawNumber(ctx, cx, cy, r, rank.from);
+    drawLabel(ctx, cx, cy+r+14, rank);
+  });
+})();
+
+// ── ФИНАЛЬНЫЙ ВАРИАНТ ──
+// i=0 (1 ур.), i=1 (6 ур.)   -> круг (как сейчас, без изменений)
+// i=2..7 (11..36 ур.)         -> треугольник(3) .. восьмиугольник(8), +1 угол за ранг
+// i=8 (41 ур.)                -> звезда, 5 лучей
+// i=9 (46 ур.)                -> звезда, 7 лучей (более "богатая" финальная форма)
+(function(){
+  const ctx = document.getElementById('cA').getContext('2d');
+  const r = 23;
+  LEVEL_RANKS.forEach((rank, i)=>{
+    const cx = START_X + i*SLOT_W, cy = 50;
+    let extra;
+    if (i <= 1){
+      ctx.save();
+      ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI*2);
+      ctx.fillStyle = '#fdf6e3'; ctx.fill();
+      ctx.lineWidth = 3.5; ctx.strokeStyle = rank.color; ctx.stroke();
+      ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(0,0,0,0.5)'; ctx.stroke();
+      ctx.restore();
+      drawNumber(ctx, cx, cy, r, rank.from);
+      extra = 'круг';
+    } else if (i === 8){
+      drawBadgeShape(ctx, cx, cy, r, 0, true, 5, rank, rank.from); extra='★5';
+    } else if (i === 9){
+      drawBadgeShape(ctx, cx, cy, r, 0, true, 7, rank, rank.from, true); extra='★7';
+    } else {
+      const sides = 3 + (i-2); // i=2 -> 3, i=3 -> 4, ..., i=7 -> 8
+      drawBadgeShape(ctx, cx, cy, r, sides, false, 0, rank, rank.from); extra=sides+' угл.';
+    }
+    drawLabel(ctx, cx, cy+r+16, rank, extra);
+  });
+})();
+</script>
+</body>
+</html>

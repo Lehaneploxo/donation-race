@@ -152,17 +152,20 @@ const LEVEL_THRESHOLDS = [
   20000000,22000000,25000000,27000000,30000000,33000000,36000000,40000000,43000000,47000000,
   51000000,56000000,60000000,65000000,70000000,76000000,81000000,87000000,93000000,100000000,
 ];
+// цветовая история "разогрева" (2026-08-04): тусклый металл (новичок) ->
+// холодные яркие цвета -> тёплые -> раскалённый красный -> золото
+// (легенда) — не случайный набор, а нарастающая интенсивность по рангу
 const LEVEL_RANKS = [
   { name:'Новичок улиц',     from:1,  to:5,  color:'#9a9a9a' },
-  { name:'Дворовый боец',    from:6,  to:10, color:'#7a4a25' },
-  { name:'Хулиган квартала', from:11, to:15, color:'#4fc3ff' },
-  { name:'Уличный боец',     from:16, to:20, color:'#7ee787' },
-  { name:'Гроза района',     from:21, to:25, color:'#c8c8ce' },
-  { name:'Ветеран улиц',     from:26, to:30, color:'#ff9d5c' },
-  { name:'Мастер кулака',    from:31, to:35, color:'#c58aff' },
-  { name:'Гроза города',     from:36, to:40, color:'#ff6688' },
-  { name:'Чемпион района',   from:41, to:45, color:'#ff4d4d' },
-  { name:'Легенда улиц',     from:46, to:50, color:'#ffd75e' },
+  { name:'Дворовый боец',    from:6,  to:10, color:'#b8752e' },
+  { name:'Хулиган квартала', from:11, to:15, color:'#3fa9f5' },
+  { name:'Уличный боец',     from:16, to:20, color:'#2ecc71' },
+  { name:'Гроза района',     from:21, to:25, color:'#17c9b2' },
+  { name:'Ветеран улиц',     from:26, to:30, color:'#9b59f6' },
+  { name:'Мастер кулака',    from:31, to:35, color:'#ef4bb0' },
+  { name:'Гроза города',     from:36, to:40, color:'#ff8c1a' },
+  { name:'Чемпион района',   from:41, to:45, color:'#ff2e4d' },
+  { name:'Легенда улиц',     from:46, to:50, color:'#ffd700' },
 ];
 function levelOf(total){
   total = total || 0;
@@ -185,26 +188,75 @@ function levelProgress(total){
   const frac = next==null ? 1 : Math.min(1, Math.max(0, (total-cur)/(next-cur)));
   return { level, cur, next, frac };
 }
-// бейдж с номером уровня (вместо старой медали бронза/серебро/золото) —
-// светлый кружок (для максимальной контрастности цифры) + цветное кольцо
-// по рангу, тёмная жирная цифра внутри. Приоритет — читаемость числа
-// издалека на стриме, а не тонкость графики.
+// правильный N-угольник и звезда с N лучами — форма значка уровня
+// эскалирует вместе с рангом (см. drawLevelBadge ниже)
+function polygonPath(ctx, cx, cy, r, sides){
+  ctx.beginPath();
+  for (let k=0; k<sides; k++){
+    const a = Math.PI/180*((360/sides)*k - 90);
+    const x = cx + r*Math.cos(a), y = cy + r*Math.sin(a);
+    k===0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y);
+  }
+  ctx.closePath();
+}
+function starPath(ctx, cx, cy, rOuter, rInner, points){
+  ctx.beginPath();
+  const total = points*2;
+  for (let k=0; k<total; k++){
+    const a = Math.PI/180*((360/total)*k - 90);
+    const rad = k%2===0 ? rOuter : rInner;
+    const x = cx + rad*Math.cos(a), y = cy + rad*Math.sin(a);
+    k===0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y);
+  }
+  ctx.closePath();
+}
+
+// бейдж с номером уровня — форма усложняется вместе с рангом (2026-08-04):
+// круг на первых двух рангах -> треугольник..восьмиугольник (+1 угол за
+// ранг, ранги 3-8) -> звезда на последних двух (5 лучей, потом 7). Цвет —
+// см. LEVEL_RANKS (история "разогрева"). Без свечения/неона — по явной
+// просьбе пользователя, только у самого верхнего ранга градиентная (не
+// светящаяся) золотая заливка вместо плоской. Проверено на черновике
+// (client/level_badge_preview.html) перед переносом сюда. Приоритет —
+// читаемость числа издалека на стриме, а не тонкость графики.
 function drawLevelBadge(cx, y, s, level){
   const r = 12.5*s;
-  const color = rankOfLevel(level).color;
+  const idx = LEVEL_RANKS.findIndex(rk => level>=rk.from && level<=rk.to);
+  const rank = idx>=0 ? LEVEL_RANKS[idx] : LEVEL_RANKS[0];
+  const color = rank.color;
   ctx.save();
-  ctx.beginPath(); ctx.arc(cx, y, r, 0, Math.PI*2);
-  ctx.fillStyle = '#fdf6e3'; ctx.fill();
+  if (idx <= 1){
+    ctx.beginPath(); ctx.arc(cx, y, r, 0, Math.PI*2);
+  } else if (idx === 8){
+    starPath(ctx, cx, y, r+r*0.26, r-r*0.22, 5);
+  } else if (idx === 9){
+    starPath(ctx, cx, y, r+r*0.26, r-r*0.22, 7);
+  } else {
+    const sides = 3 + (idx-2); // idx=2 -> треугольник(3) .. idx=7 -> восьмиугольник(8)
+    polygonPath(ctx, cx, y, r, sides);
+  }
+  if (idx === 9){
+    const g = ctx.createLinearGradient(cx-r, y-r, cx+r, y+r);
+    g.addColorStop(0, '#fff6d0');
+    g.addColorStop(0.55, '#ffd700');
+    g.addColorStop(1, '#b8860b');
+    ctx.fillStyle = g;
+  } else {
+    ctx.fillStyle = '#fdf6e3';
+  }
+  ctx.fill();
   ctx.lineWidth = 2.4*s; ctx.strokeStyle = color; ctx.stroke();
   ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(0,0,0,0.5)'; ctx.stroke();
-  // ширину цифр подгоняем под кружок (двузначные номера иначе вылезают
-  // за край) — считаем нужный размер шрифта под конкретное число уровня
+  // ширину И высоту цифр зажимаем под фигуру (не только ширину, как раньше)
+  // — звезда особенно чувствительна, расстояние до "талии" между лучами
+  // меньше внешнего радиуса
   const txt = String(level);
-  let fontSize = (txt.length > 1 ? 15 : 17.5) * s;
+  let fontSize = (txt.length > 1 ? 21 : 24) * s;
+  const maxW = r*1.55, maxH = r*1.35;
+  fontSize = Math.min(fontSize, maxH);
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.fillStyle = '#1a1a1a';
   ctx.font = `900 ${fontSize}px Arial Black`;
-  const maxW = r*1.5;
   if (ctx.measureText(txt).width > maxW){
     fontSize *= maxW / ctx.measureText(txt).width;
     ctx.font = `900 ${fontSize}px Arial Black`;
