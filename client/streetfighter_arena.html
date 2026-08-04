@@ -963,22 +963,19 @@ function wsConnect(username){
       }
       if (d.type==='arena_streetfighter_rating'){
         if (d.rank){
-          // d.stolen/d.rank — НЕДЕЛЬНЫЕ очки/место (обнуляются по
-          // понедельникам, именно они двигают корону текущей недели)
-          const stolenTotal = Number(d.stolen||0);
-          const pts = stolenTotal.toLocaleString('ru-RU');
-          let html = `<span style="color:#FF6688;font-size:16px;font-weight:bold;">📊 @${d.username}</span><br>`
-            + `<span style="color:#FFD700;font-size:14.5px;">#${d.rank} место · ⚡${pts}</span><br>`
-            + `<span style="color:#ffb4c4;font-size:13.5px;">🥊 Нокаутов: ${d.kos||0}</span>`;
+          // Порядок карточки — по явной просьбе пользователя: ник → уровень
+          // (это ГЛАВНОЕ в игре, сразу после ника) → нокауты → недельные
+          // очки/место → сколько раз был Королём недели → сколько держит
+          // корону прямо сейчас на этой неделе.
+          let html = `<span style="color:#FF6688;font-size:16px;font-weight:bold;">📊 @${d.username}</span><br>`;
 
-          // уровень + название ранга + полоска прогресса до следующего —
-          // считается от lifetimeStolen (ВЕЧНЫЙ счётчик, не обнуляется по
-          // понедельникам вместе с d.stolen выше — иначе уровень бы сгорал)
+          // уровень + название ранга + полоска прогресса — считается от
+          // lifetimeStolen (ВЕЧНЫЙ счётчик, не обнуляется по понедельникам
+          // вместе с недельными очками ниже — иначе уровень бы сгорал)
           const lifetimeTotal = Number(d.lifetimeStolen||0);
           const prog = levelProgress(lifetimeTotal);
           const rank = rankOfLevel(prog.level);
-          html += `<div style="margin-top:3px;padding-top:3px;border-top:1px dashed rgba(255,255,255,0.18);white-space:nowrap;">`
-            + `<span style="color:#7fd3ff;font-size:14px;font-weight:700;">🎖️ ${prog.level} уровень — ${rank.name}</span>`;
+          html += `<span style="color:#7fd3ff;font-size:15px;font-weight:700;">🎖️ ${prog.level} уровень — ${rank.name}</span>`;
           if (prog.next != null){
             const pct = Math.round(prog.frac*100);
             const need = (prog.next - lifetimeTotal).toLocaleString('ru-RU');
@@ -988,19 +985,28 @@ function wsConnect(username){
           } else {
             html += `<div style="margin-top:1px;color:#ffd75e;font-size:11px;">Максимальный уровень!</div>`;
           }
-          html += `</div>`;
 
-          // побед недели — сколько раз игрок дольше всех держал корону на
-          // момент понедельничного сброса; ВЕЧНЫЙ счётчик (не путать с
-          // недельными очками/местом выше, которые сами обнуляются)
-          if (d.weeklyKingWins > 0){
-            html += `<div style="margin-top:3px;padding-top:3px;border-top:1px dashed rgba(255,215,0,0.25);display:flex;align-items:center;justify-content:center;gap:6px;color:#fff2b0;font-size:14px;font-weight:700;">👑<span>Побед недели: ${d.weeklyKingWins}</span></div>`;
-          }
-          // сколько уже держит корону НА ЭТОЙ неделе прямо сейчас (живой
-          // прогресс к следующей победе недели) — тоже обнуляется по
-          // понедельникам, показываем только если реально держал корону
-          if (d.weeklyBeltSeconds > 0){
-            html += `<div style="margin-top:2px;color:#ffd75e;font-size:12px;">⏱ На короне уже: ${formatBeltTime(d.weeklyBeltSeconds)}</div>`;
+          // нокауты, затем недельные очки/место (d.stolen/d.rank — сами
+          // обнуляются по понедельникам, двигают корону текущей недели)
+          const stolenTotal = Number(d.stolen||0);
+          const pts = stolenTotal.toLocaleString('ru-RU');
+          html += `<div style="margin-top:3px;padding-top:3px;border-top:1px dashed rgba(255,255,255,0.18);">`
+            + `<span style="color:#ffb4c4;font-size:13.5px;">🥊 Нокаутов: ${d.kos||0}</span><br>`
+            + `<span style="color:#FFD700;font-size:14.5px;">#${d.rank} место · ⚡${pts} за неделю</span>`
+            + `</div>`;
+
+          // Король недели: сколько раз выигрывал (вечный счётчик) + сколько
+          // уже держит корону именно на этой неделе прямо сейчас (обнуляется
+          // по понедельникам вместе с очками выше)
+          if (d.weeklyKingWins > 0 || d.weeklyBeltSeconds > 0){
+            html += `<div style="margin-top:3px;padding-top:3px;border-top:1px dashed rgba(255,215,0,0.25);color:#fff2b0;">`;
+            if (d.weeklyKingWins > 0){
+              html += `<div style="display:flex;align-items:center;justify-content:center;gap:6px;font-size:14px;font-weight:700;">👑<span>Король недели ×${d.weeklyKingWins}</span></div>`;
+            }
+            if (d.weeklyBeltSeconds > 0){
+              html += `<div style="margin-top:1px;color:#ffd75e;font-size:12px;">⏱ На короне уже: ${formatBeltTime(d.weeklyBeltSeconds)}</div>`;
+            }
+            html += `</div>`;
           }
           _showRating(html);
         } else {
