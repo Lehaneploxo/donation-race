@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Street Fighter — черновик анимации нокаута</title>
+<style>
+  body { background:#111; color:#eee; font-family:Arial, sans-serif; display:flex; gap:20px; padding:20px; }
+  #wrap { position:relative; }
+  canvas { background:#1a2230; border:2px solid #444; }
+  .panel { min-width:260px; }
+  .panel h2 { font-size:16px; margin:0 0 10px; }
+  .panel label { display:block; margin:10px 0 4px; font-size:13px; color:#aaa; }
+  .panel select, .panel input[type=range] { width:100%; }
+  .panel button { width:100%; padding:10px; margin-top:14px; font-size:14px; cursor:pointer;
+    background:#ff5566; color:#fff; border:none; border-radius:6px; }
+  .panel button:hover { background:#ff7788; }
+  .row { display:flex; gap:8px; align-items:center; }
+  .row input[type=checkbox] { width:auto; }
+  .note { font-size:12px; color:#888; margin-top:16px; line-height:1.5; }
+  .phase { font-size:12px; color:#7fd3ff; margin-top:8px; }
+</style>
+</head>
+<body>
+
+<div id="wrap"><canvas id="c" width="600" height="700"></canvas></div>
+
+<div class="panel">
+  <h2>Черновик: анимация нокаута</h2>
+
+  <label>Персонаж</label>
+  <select id="charSel">
+    <option value="brawler_girl">Brawler Girl</option>
+    <option value="enemy_punk">Enemy Punk</option>
+    <option value="batting_girl">Batting Girl</option>
+    <option value="brute_arms">Brute Arms</option>
+    <option value="bancho">Bancho</option>
+  </select>
+
+  <label>Скорость воспроизведения (для оценки в замедлении)</label>
+  <input type="range" id="speedRange" min="0.1" max="2" step="0.1" value="1">
+  <div id="speedVal" style="font-size:12px;color:#7fd3ff;">1.0x</div>
+
+  <div class="row" style="margin-top:14px;">
+    <input type="checkbox" id="compareChk">
+    <label style="margin:0;">Сравнить со старой версией (замороженный Hurt)</label>
+  </div>
+
+  <button id="playBtn">▶ Запустить нокаут</button>
+
+  <div class="phase" id="phaseLbl">Готов</div>
+
+  <div class="note">
+    Логика привязана к тому же таймеру, что уже есть в игре
+    (<code>KO_FALL_MS = 1600</code>, счётчик <code>v.koTimer</code>) — так что
+    при переносе в <code>streetfighter_arena.html</code> нужно будет только
+    заменить функцию отрисовки "лежащего" состояния (сейчас застывший кадр
+    Hurt) на <code>drawKO(v, progress)</code> отсюда, где
+    <code>progress = 1 - v.koTimer/KO_FALL_MS</code>. Игровую логику
+    (падение, элиминация) трогать не нужно.
+    <br><br>
+    Это ЧЕРНОВИК — отдельный файл, реальная игра не изменена.
+  </div>
+</div>
+
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const CW = canvas.width, CH = canvas.height;
+const FLOOR_Y = 520;
+const FIGHTER_SCALE = 0.85 * 1.25;
+
+// ── те же анимации/пути, что и в streetfighter_arena.html (скопировано для черновика) ──
+const CHAR_ANIMS = {
+  brawler_girl: { idle:{folder:'Idle',prefix:'idle',count:4,fps:8}, hurt:{folder:'Hurt',prefix:'hurt',count:2,fps:12} },
+  enemy_punk:   { idle:{folder:'Idle',prefix:'idle',count:4,fps:8}, hurt:{folder:'Hurt',prefix:'hurt',count:4,fps:12} },
+  batting_girl: { idle:{folder:'Idle',prefix:'idle',count:15,fps:10}, hurt:{folder:'Hurt',prefix:'hurt',count:4,fps:12} },
+  brute_arms:   { idle:{folder:'Idle',prefix:'idle',count:8,fps:9}, hurt:{folder:'Hurt',prefix:'hurt',count:4,fps:12} },
+  bancho:       { idle:{folder:'Idle',prefix:'idle',count:7,fps:9}, hurt:{folder:'Hurt',prefix:'hurt',count:4,fps:12} },
+};
+const CHAR_BASE_PATH = {
+  brawler_girl:'streets_of_fight', enemy_punk:'streets_of_fight',
+  batting_girl:'urban_brawlers', brute_arms:'urban_brawlers', bancho:'urban_brawlers',
+};
+// смотрят вправо по умолчанию (кроме enemy_punk/bancho... на самом деле только эти два влево)
+const DEFAULTS_RIGHT = { brawler_girl:true, enemy_punk:false, batting_girl:true, brute_arms:true, bancho:true };
+
+function loadFrames(baseType){
+  const defs = CHAR_ANIMS[baseType];
+  const base = CHAR_BASE_PATH[baseType];
+  const out = {};
+  for (const key in defs){
+    const a = defs[key];
+    out[key] = [];
+    for (let i=1;i<=a.count;i++){
+      const img = new Image();
+      img.src = `sprites/${base}/${baseType}/${a.folder}/${a.prefix}${i}.png`;
+      out[key].push(img);
+    }
+  }
+  return out;
+}
+
+let frames = loadFrames('brawler_girl');
+let baseType = 'brawler_girl';
+
+// ── состояние демо ──
+const KO_FALL_MS = 1600; // тот же таймер, что в реальной игре
+let koTimer = 0;         // отсчитывает как в игре: KO_FALL_MS -> 0
+let playing = false;
+let lastTs = 0;
+
+function startKO(){
+  koTimer = KO_FALL_MS;
+  playing = true;
+}
+
+// ── фазы падения (все тайминги — доли от KO_FALL_MS=1600мс) ──
+// 0-300мс   стумбл: боец шатается назад (используется 1й/2й кадр Hurt), лёгкий наклон
+// 300-650мс собственно падение: поворот 0→90° НАЗАД (боец падает на спину, не вперёд), смещение по X
+// 650-1300мс лежит РОВНО ГОРИЗОНТАЛЬНО (90°, у ВСЕХ персонажей одинаково — раньше
+//            было 82° и угол/прижим к полу считались чуть по-разному для каждого
+//            силуэта из-за путаницы с "смотрит вправо/влево по умолчанию", из-за
+//            чего у каждого бойца поза выходила своя — теперь единая формула)
+// 1300-1600мс fade out (alpha 1→0)
+// тряску экрана намеренно не делаем — нокауты будут случаться почти каждую
+// 1-2 секунды (много бойцов на ринге), постоянная тряска быстро задолбает
+const STUMBLE_END = 300, FALL_END = 650, SETTLE_END = 1300;
+const FULL_ANGLE = Math.PI/2; // 90° — лежит строго горизонтально, у всех одинаково
+
+function easeInCubic(t){ return t*t*t; }
+function easeOutCubic(t){ return 1-Math.pow(1-t,3); }
+
+// ── реальный силуэт персонажа внутри кадра ──
+// ВАЖНО: во всех PNG пака каждый кадр — это фиксированный холст (например
+// 96×63 у brawler_girl) с прозрачными полями по краям; сам силуэт внутри
+// намного уже (например, у Hurt — реально ~28×37px). Если вращать/класть
+// на пол весь холст целиком (как было раньше, через naturalWidth/Height),
+// точка опоры и границы тела считаются от прозрачного "воздуха", а не от
+// самого персонажа — из-за этого после поворота на 90° тело выглядело не
+// прижатым к полу и "по диагонали", у каждого силуэта по-своему (зависело
+// от того, как именно персонаж сдвинут внутри своего холста). Тут это
+// измеряется по настоящим непрозрачным пикселям и кэшируется по src.
+const _bboxCache = {};
+function getBBox(img){
+  const key = img.src;
+  if (_bboxCache[key]) return _bboxCache[key];
+  const c = document.createElement('canvas');
+  c.width = img.naturalWidth; c.height = img.naturalHeight;
+  const cctx = c.getContext('2d');
+  cctx.drawImage(img,0,0);
+  const data = cctx.getImageData(0,0,c.width,c.height).data;
+  let minX=c.width, minY=c.height, maxX=-1, maxY=-1;
+  for (let y=0;y<c.height;y++){
+    for (let x=0;x<c.width;x++){
+      if (data[(y*c.width+x)*4+3] > 10){
+        if (x<minX) minX=x; if (x>maxX) maxX=x;
+        if (y<minY) minY=y; if (y>maxY) maxY=y;
+      }
+    }
+  }
+  const bbox = maxX<0
+    ? { x:0, y:0, w:c.width, h:c.height } // полностью прозрачный кадр — fallback на весь холст
+    : { x:minX, y:minY, w:maxX-minX+1, h:maxY-minY+1 };
+  _bboxCache[key] = bbox;
+  return bbox;
+}
+
+// facingRight — ЛОГИЧЕСКОЕ направление взгляда бойца в момент нокаута (не
+// зависит от того, как нативно нарисован спрайт конкретного силуэта).
+// charType — v.baseType, нужен только чтобы понять, надо ли зеркалить
+// картинку (сверяется с DEFAULTS_RIGHT), направление самого падения при
+// этом берётся ТОЛЬКО из facingRight — одинаково для всех силуэтов.
+function drawKO(progress, img, facingRight, cx, charType){
+  charType = charType || baseType;
+  // progress: 0..1 по ходу KO_FALL_MS
+  const t = progress * KO_FALL_MS;
+  const s = FIGHTER_SCALE;
+  const baseH = 130*s;
+
+  // масштаб картинки — ТА ЖЕ формула, что и в остальной игре (от полного
+  // холста, не от силуэта), чтобы персонаж не "скакал" в размере в момент
+  // нокаута. Силуэт (bbox) используется только для позиционирования/поворота.
+  let dw = baseH*0.6, dh = baseH, bx=0, by=0, bw=dw, bh=dh;
+  if (img && img.complete && img.naturalWidth){
+    const maxW = baseH*1.55;
+    let scale = baseH/img.naturalHeight;
+    if (img.naturalWidth*scale > maxW) scale = maxW/img.naturalWidth;
+    dw = img.naturalWidth*scale;
+    dh = img.naturalHeight*scale;
+    const bbox = getBBox(img);
+    bx = bbox.x*scale; by = bbox.y*scale; bw = bbox.w*scale; bh = bbox.h*scale;
+  }
+
+  let angle = 0, skidX = 0, alpha = 1;
+
+  if (t <= STUMBLE_END){
+    const p = t/STUMBLE_END;
+    angle = Math.sin(p*Math.PI*3) * 0.09 * (1-p); // мелкая тряска-шатание
+  } else if (t <= FALL_END){
+    const p = (t-STUMBLE_END)/(FALL_END-STUMBLE_END);
+    const e = easeInCubic(p);
+    angle = e * FULL_ANGLE;
+    skidX = e * (18*s) * (facingRight ? -1 : 1); // отлетает назад от направления взгляда
+  } else if (t <= SETTLE_END){
+    const p = (t-FALL_END)/(SETTLE_END-FALL_END);
+    // демпфированное доседание вокруг финального угла (не даём уйти за FULL_ANGLE)
+    const wobble = Math.sin(p*Math.PI*2.2) * 0.04 * (1-p);
+    angle = Math.min(FULL_ANGLE, FULL_ANGLE + wobble);
+    skidX = (18*s) * (facingRight ? -1 : 1);
+  } else {
+    const p = (t-SETTLE_END)/(KO_FALL_MS-SETTLE_END);
+    angle = FULL_ANGLE;
+    skidX = (18*s) * (facingRight ? -1 : 1);
+    alpha = 1 - Math.min(1,p);
+  }
+
+  // доля "прижатости" к полу — растёт вместе с углом поворота, на 0° тело
+  // стоит на ногах (пивот на полу), на 90° лежит ровно; пивот поднят на
+  // половину ширины РЕАЛЬНОГО силуэта (bw), а не всего холста (dw) — иначе
+  // прозрачные поля вокруг персонажа "приподнимают" его над полом на
+  // неправильную величину
+  const settleP = Math.min(1, Math.abs(angle)/FULL_ANGLE);
+  const px = cx + skidX;
+  const py = FLOOR_Y - (bw/2)*settleP;
+
+  // поворот ВСЕГДА в сторону, противоположную facingRight — падает на спину,
+  // и одинаково для любого силуэта (направление не зависит от нативного
+  // разворота спрайта в файле, только от facingRight)
+  const theta = (facingRight ? -1 : 1) * angle;
+
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.translate(px, py);
+  ctx.rotate(theta);
+
+  if (img && img.complete && img.naturalWidth){
+    const defaultsRight = DEFAULTS_RIGHT[charType];
+    if (facingRight !== defaultsRight) ctx.scale(-1,1);
+    // рисуем ВЕСЬ кадр (без обрезки, размер dw×dh не меняем), но сдвигаем
+    // так, чтобы центр НИЗА именно силуэта (bbox), а не холста, лёг точно
+    // на точку опоры (0, +8) — это и есть настоящая точка вращения/пола
+    ctx.drawImage(img, -(bx+bw/2), 8-(by+bh), dw, dh);
+  }
+  ctx.restore();
+
+  return alpha;
+}
+
+function drawGround(){
+  ctx.fillStyle = '#2a3648';
+  ctx.fillRect(0,0,CW,CH);
+  ctx.fillStyle = '#3b4a5f';
+  ctx.fillRect(0,FLOOR_Y,CW,CH-FLOOR_Y);
+  ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+  for (let x=0;x<CW;x+=40){ ctx.beginPath(); ctx.moveTo(x,FLOOR_Y); ctx.lineTo(x,CH); ctx.stroke(); }
+}
+
+function phaseLabel(t){
+  if (!playing) return 'Готов';
+  if (t<=STUMBLE_END) return 'Фаза 1: шатается от удара';
+  if (t<=FALL_END) return 'Фаза 2: падает';
+  if (t<=SETTLE_END) return 'Фаза 3: лежит, доседает';
+  return 'Фаза 4: исчезает (fade out)';
+}
+
+function frame(ts){
+  if (!lastTs) lastTs = ts;
+  const rawDt = ts - lastTs;
+  lastTs = ts;
+  const speed = parseFloat(document.getElementById('speedRange').value);
+  const dt = rawDt * speed;
+
+  drawGround();
+
+  const cx = CW/2;
+  // фиксированное ЛОГИЧЕСКОЕ направление для демо (все бойцы "смотрят вправо")
+  // — реальный флип картинки под нативный разворот спрайта считается внутри
+  // drawKO/ниже отдельно, направление падения теперь одинаково для всех
+  const facingRight = true;
+  const idleImg = (frames.idle && frames.idle[0]) || null;
+  const hurtFrames = frames.hurt || [];
+
+  const compare = document.getElementById('compareChk').checked;
+
+  if (playing){
+    koTimer -= dt;
+    if (koTimer < 0) koTimer = 0;
+    const progress = 1 - koTimer/KO_FALL_MS;
+
+    if (compare){
+      // слева — старая версия (застывший кадр Hurt), справа — новая
+      ctx.save();
+      const oldImg = hurtFrames[hurtFrames.length-1] || idleImg;
+      ctx.globalAlpha = 1;
+      ctx.save(); ctx.translate(-150,0);
+      ctx.drawStubOld = true;
+      drawOldKO(oldImg, facingRight, cx-150);
+      ctx.restore();
+
+      drawKO(progress, hurtFrames[0]||idleImg, facingRight, cx+150);
+      ctx.restore();
+
+      ctx.fillStyle='#888'; ctx.font='12px Arial'; ctx.textAlign='center';
+      ctx.fillText('СТАРАЯ (застывший кадр)', cx-150, 40);
+      ctx.fillStyle='#7fd3ff';
+      ctx.fillText('НОВАЯ (процедурное падение)', cx+150, 40);
+    } else {
+      // ВСЕГДА берём кадр Idle (обычная стоячая поза) для всей процедурной
+      // анимации падения, а не Hurt. Пробовал брать Hurt[0] ("ещё стоит, но
+      // пошатнулся") — не сработало у ВСЕХ силуэтов: например у brute_arms
+      // даже ПЕРВЫЙ кадр Hurt нарисован с широко раскинутыми руками (силуэт
+      // 134×72 — шире, чем выше), потому что там изначально сильный
+      // размашистый рефлекс на удар, не лёгкое пошатывание. При повороте
+      // на 90° такой "уже широкий" силуэт становится узким и вертикальным —
+      // выглядит как будто персонаж встал, а не упал. Idle-поза (руки по
+      // бокам, ноги вместе/на ширине плеч) — единственная, которая у ВСЕХ
+      // 5 силуэтов стабильно "выше, чем шире" (проверено измерением: у
+      // каждого h>w с запасом), поэтому только она даёт предсказуемый
+      // результат после поворота у любого персонажа.
+      drawKO(progress, idleImg, facingRight, cx);
+    }
+
+    document.getElementById('phaseLbl').textContent = phaseLabel(progress*KO_FALL_MS);
+
+    if (koTimer<=0){
+      playing = false;
+      document.getElementById('phaseLbl').textContent = 'Готов (боец исчез бы с ринга)';
+    }
+  } else {
+    ctx.save();
+    ctx.globalAlpha = 0.6;
+    if (idleImg && idleImg.complete && idleImg.naturalWidth){
+      const s = FIGHTER_SCALE, baseH=130*s;
+      const scale = baseH/idleImg.naturalHeight;
+      const dw = idleImg.naturalWidth*scale;
+      ctx.translate(cx, FLOOR_Y);
+      if (facingRight !== DEFAULTS_RIGHT[baseType]) ctx.scale(-1,1);
+      ctx.drawImage(idleImg, -dw/2, -baseH+8, dw, baseH);
+    }
+    ctx.restore();
+  }
+
+  requestAnimationFrame(frame);
+}
+
+// версия "как сейчас в игре" — просто застывший последний кадр Hurt, без движения
+function drawOldKO(img, facingRight, cx){
+  const s = FIGHTER_SCALE, baseH=130*s;
+  if (img && img.complete && img.naturalWidth){
+    const maxW = baseH*1.55;
+    let scale = baseH/img.naturalHeight;
+    if (img.naturalWidth*scale > maxW) scale = maxW/img.naturalWidth;
+    const dw = img.naturalWidth*scale, dh = img.naturalHeight*scale;
+    ctx.save();
+    ctx.translate(cx, FLOOR_Y);
+    if (facingRight !== DEFAULTS_RIGHT[baseType]) ctx.scale(-1,1);
+    ctx.drawImage(img, -dw/2, -dh+8, dw, dh);
+    ctx.restore();
+  }
+}
+
+document.getElementById('charSel').addEventListener('change', e=>{
+  baseType = e.target.value;
+  frames = loadFrames(baseType);
+  playing = false;
+});
+document.getElementById('speedRange').addEventListener('input', e=>{
+  document.getElementById('speedVal').textContent = parseFloat(e.target.value).toFixed(1)+'x';
+});
+document.getElementById('playBtn').addEventListener('click', startKO);
+
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
