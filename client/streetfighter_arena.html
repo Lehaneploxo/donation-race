@@ -576,6 +576,18 @@ function applyGrowth(username, gain, isGift){
     v.power  += gainedPower;
   }
 
+  // бонус энергии за уровень (2026-08-05, по просьбе пользователя): при
+  // КАЖДОМ выходе на ринг (первый спавн ИЛИ возрождение после нокаута,
+  // но не при обычной подпитке уже дерущегося бойца) начисляется энергия
+  // = номер уровня (1 уровень -> +1, 21 уровень -> +21). Уровень уже
+  // максимум 50 (см. LEVEL_THRESHOLDS), а 1 лайк = 10 энергии, 1 донат =
+  // 100 энергии за коин — бонус всегда мелкий довесок, не меняет баланс.
+  if (isNew || wasDown){
+    const lvlBonus = levelOf(v.allTimeStolen||0);
+    v.energyMax += lvlBonus;
+    v.energy    += lvlBonus;
+  }
+
   if (isNew && !wasDown) {
     pushEvent(v.isChamp ? pick(CHAMPION_ENTRANCE_LINES)(cleanNickForSpeech(v.name))
                          : pick(JOIN_LINES)(cleanNickForSpeech(v.name)), true, v.isChamp);
