@@ -182,6 +182,10 @@ function levelOf(total){
 function rankOfLevel(level){
   return LEVEL_RANKS.find(r => level>=r.from && level<=r.to) || LEVEL_RANKS[0];
 }
+function rankIndexOfLevel(level){
+  const idx = LEVEL_RANKS.findIndex(r => level>=r.from && level<=r.to);
+  return idx>=0 ? idx : 0;
+}
 // прогресс до следующего уровня — для карточки рейтинга (текущие очки,
 // сколько нужно для следующего уровня, и доля 0..1 для полоски прогресса)
 function levelProgress(total){
@@ -524,6 +528,7 @@ function applyGrowth(username, gain, isGift){
       baseDir: skin.dir, baseColor: skin.color, isChamp: false,
       stolenEnergy: 0, powerDecayAcc: 0, kos: 0, allTimeStolen: 0,
       skinChosen: false, // true только после команды skinN — тогда скин закрепляется навсегда
+      knownRankIdx: 0, // текущий известный ранг (для объявления диктором смены звания)
     };
     v.energyMax = 0; v.energy = 0; v.powerMax = 0; v.power = 0;
     initFighterRuntime(v, pos.x, pos.y);
@@ -777,6 +782,18 @@ const CHAMPION_ENTRANCE_LINES = [
   n=>`Внимание, район! Чемпион ${n} возвращается! Дрожите!`,
   n=>`Сам чемпион улиц ${n} выходит на асфальт! Это будет разгром!`,
   n=>`Тишина на районе! Чемпион улиц ${n} здесь!`,
+];
+
+// смена РАНГА (не каждого уровня — их 50, было бы слишком часто; ранг
+// меняется раз в 5 уровней) — звучит целиком, не перебивается (protect),
+// шуточный тон, как и остальные фразы диктора
+const RANK_UP_LINES = [
+  (n, rank)=>`Внимание, район! ${n} получает новое звание — ${rank}! Все встали и захлопали!`,
+  (n, rank)=>`Ого! ${n} дорос до звания «${rank}»! Соседи уже переходят на другую сторону улицы!`,
+  (n, rank)=>`Новый ранг на районе! ${n} теперь официально ${rank}!`,
+  (n, rank)=>`${n} прокачался до «${rank}»! Асфальт под ногами начинает потрескивать от гордости!`,
+  (n, rank)=>`Районная газета выйдет с заголовком: «${n} — теперь ${rank}»!`,
+  (n, rank)=>`Поздравляем! ${n} повышен до «${rank}»! Дальше только легенды!`,
 ];
 
 // urgent=true — обычно обрывает текущую фразу и говорит сразу (как
@@ -1051,6 +1068,10 @@ function wsConnect(username){
           // lifetimeStolen — вечный счётчик (не total_stolen, тот теперь
           // недельный и обнуляется по понедельникам) — от него уровень/бейдж
           v.allTimeStolen = Number(d.lifetimeStolen)||0;
+          // синхронизируем известный ранг с реальным сразу, БЕЗ объявления
+          // диктором — это просто подгрузка уже существующего статуса
+          // зрителя, а не повышение, случившееся прямо сейчас на стриме
+          v.knownRankIdx = rankIndexOfLevel(levelOf(v.allTimeStolen));
           // если у зрителя уже был закреплён герой командой skin1-5 в
           // прошлый раз — применяем его сразу при спавне (round-trip тот
           // же, что и за очками медали, отдельный запрос не нужен)
@@ -2229,6 +2250,15 @@ function throwPunch(attacker, defender){
   if (!attacker.isBot){
     attacker.allTimeStolen = (attacker.allTimeStolen||0) + stolen;
     reportStolen(attacker.name, stolen);
+    // повышение РАНГА (не каждого уровня — см. RANK_UP_LINES) — диктор
+    // объявляет целиком, не перебивая (protect=true), но не обрывая уже
+    // звучащую protected-фразу правил/чемпиона (см. pushEvent)
+    const newRankIdx = rankIndexOfLevel(levelOf(attacker.allTimeStolen));
+    if (newRankIdx > (attacker.knownRankIdx||0)){
+      attacker.knownRankIdx = newRankIdx;
+      const rankName = LEVEL_RANKS[newRankIdx].name;
+      pushEvent(pick(RANK_UP_LINES)(cleanNickForSpeech(attacker.name), rankName), true, true);
+    }
   }
 
   if (defender.energy<=0) collapse(defender, attacker);
