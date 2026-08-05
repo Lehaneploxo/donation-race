@@ -529,7 +529,6 @@ function applyGrowth(username, gain, isGift){
       stolenEnergy: 0, powerDecayAcc: 0, kos: 0, allTimeStolen: 0,
       skinChosen: false, // true только после команды skinN — тогда скин закрепляется навсегда
       knownRankIdx: 0, // текущий известный ранг (для объявления диктором смены звания)
-      streak: 0, // серия нокаутов подряд без собственного поражения
     };
     v.energyMax = 0; v.energy = 0; v.powerMax = 0; v.power = 0;
     initFighterRuntime(v, pos.x, pos.y);
@@ -2192,10 +2191,6 @@ function drawFighter(v) {
   if (level!=null && v.alive){
     drawLevelBadge(cx - nameW/2 - 14*s, labelY - 5*s, s, level);
   }
-  // бейдж серии нокаутов подряд — зеркально уровню, справа от ника
-  if (!v.isBot && v.alive && (v.streak||0) >= 2){
-    drawStreakBadge(cx + nameW/2 + 14*s, labelY - 5*s, s, v.streak);
-  }
 
   // ⚡ Энергия и 💪 Сила — в стиле _drawLabels из arena3.html (сердечки убраны — Энергия теперь и есть здоровье)
   ctx.font = `bold ${13*s}px Arial`;
@@ -2236,12 +2231,12 @@ function advanceAnim(v, dt){
 function pick(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
 
 const KO_LINES = [
-  (w,l,st)=>`⚔️ ${w} нокаутировал ${l}! (+${st}⚡)`,
-  (w,l,st)=>`💥 ${w} впечатал ${l} в стену! (+${st}⚡)`,
-  (w,l,st)=>`🥋 ${l} досчитался до десяти от ${w}! (+${st}⚡)`,
-  (w,l,st)=>`😵 ${w} выключил свет для ${l}! (+${st}⚡)`,
-  (w,l,st)=>`🌟 ${l} увидел звёзды после удара ${w}! (+${st}⚡)`,
-  (w,l,st)=>`🏥 ${l} отправляется в нокдаун стараниями ${w}! (+${st}⚡)`,
+  (w,l)=>`⚔️ ${w} нокаутировал ${l}!`,
+  (w,l)=>`💥 ${w} впечатал ${l} в стену!`,
+  (w,l)=>`🥋 ${l} досчитался до десяти от ${w}!`,
+  (w,l)=>`😵 ${w} выключил свет для ${l}!`,
+  (w,l)=>`🌟 ${l} увидел звёзды после удара ${w}!`,
+  (w,l)=>`🏥 ${l} отправляется в нокдаун стараниями ${w}!`,
 ];
 const TIRED_LINES = [
   l=>`💦 ${l} выдохся и упал!`,
@@ -2249,50 +2244,6 @@ const TIRED_LINES = [
   l=>`😮‍💨 ${l} рухнул от истощения!`,
   l=>`🫠 ${l} закончился раньше боя!`,
 ];
-
-// ── Киллстрик (2026-08-05, по просьбе пользователя): серия нокаутов
-// подряд одним бойцом — чисто визуал/фраза диктора, на силу/урон НЕ
-// влияет (тот же принцип, что и с рангами/уровнем). Тиры 3/5/8, значок —
-// боксёрская перчатка 🥊 (тот же символ, что у "Нокаутов" в карточке
-// rating — единый визуальный язык, не костёр). Отработано на черновике
-// client/killstreak_bigdonation_preview.html перед переносом сюда.
-const STREAK_LINES = {
-  3: [
-    n=>`${n} набирает ход! Уже 3 нокаута подряд!`,
-    n=>`Серия из 3! ${n} сегодня без остановки!`,
-  ],
-  5: [
-    n=>`5 подряд! ${n} устроил настоящую зачистку района!`,
-    n=>`Кто-нибудь остановите ${n}! Пятая жертва за вечер!`,
-  ],
-  8: [
-    n=>`ВОСЕМЬ НОКАУТОВ ПОДРЯД! ${n} — это уже не боец, это стихийное бедствие!`,
-    n=>`Район эвакуируют! ${n} на серии из 8 нокаутов подряд!`,
-  ],
-};
-function streakTierFor(s){
-  if (s>=8) return 8;
-  if (s>=5) return 5;
-  if (s>=3) return 3;
-  return null;
-}
-// бейдж серии — справа от ника, зеркально уровню (тот слева); появляется с 2+
-function drawStreakBadge(cx, y, s, streak){
-  const tier = streak>=8?8:streak>=5?5:3;
-  const colors = { 3:'#ffcf3f', 5:'#ff8c1a', 8:'#ff2e4d' };
-  const rBase = { 3:12.5, 5:15, 8:18 };
-  const r = rBase[tier]*s;
-  ctx.save();
-  ctx.beginPath(); ctx.arc(cx, y, r, 0, Math.PI*2);
-  ctx.fillStyle = '#fdf6e3'; ctx.fill();
-  ctx.lineWidth = 2.4*s; ctx.strokeStyle = colors[tier]; ctx.stroke();
-  ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(0,0,0,0.5)'; ctx.stroke();
-  ctx.fillStyle = '#1a1a1a';
-  ctx.font = `900 ${r*0.85}px Arial Black`;
-  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.fillText('🥊'+streak, cx, y+0.5*s);
-  ctx.restore();
-}
 
 function collapse(loser, winner){
   if (!loser.alive) return;
@@ -2307,26 +2258,19 @@ function collapse(loser, winner){
   if (!loser.isBot){
     loser.energyMax = 0; loser.energy = 0;
     loser.powerMax = 0; loser.power = 0;
-    loser.streak = 0; // серия нокаутов подряд сгорает при собственном поражении
   }
   if (winner){
     // очки за сам нокаут НЕ начисляются — рейтинг = чисто отнятая энергия,
     // уже засчитанная за каждый удар в throwPunch (включая добивающий).
     // Здесь только считаем счётчик нокаутов (kos), очков он не даёт.
-    const finishingDmg = damageFor(winner.power); // только для текста фразы диктора
     // боты не пишутся в БД/рейтинг — счётчик нокаутов засчитывается
     // только реальному зрителю-победителю
     if (!winner.isBot){
       winner.kos = (winner.kos||0) + 1;
       reportKO(winner.name);
-      winner.streak = (winner.streak||0) + 1;
-      const tier = streakTierFor(winner.streak);
-      if (tier && winner.streak===tier){ // именно момент пересечения тира, не каждый нокаут после него
-        pushEvent(pick(STREAK_LINES[tier])(cleanNickForSpeech(winner.name)), true);
-      }
     }
     // диктор объявляет только реальных победителей — бот-победитель молчит
-    if (!winner.isBot) pushEvent(pick(KO_LINES)(cleanNickForSpeech(winner.name), cleanNickForSpeech(loser.name), finishingDmg), true);
+    if (!winner.isBot) pushEvent(pick(KO_LINES)(cleanNickForSpeech(winner.name), cleanNickForSpeech(loser.name)), true);
   } else if (!loser.isBot) {
     pushEvent(pick(TIRED_LINES)(cleanNickForSpeech(loser.name)), true);
   }
