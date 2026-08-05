@@ -12,8 +12,6 @@
   #backBtn  { top: calc(50% - 62px); right: 10px; }
   #voiceBtn { top: calc(50% - 13px); right: 10px; }
   #fsBtn    { top: calc(50% + 36px); right: 10px; }
-  #roomBtn  { top: calc(50% + 85px); right: 10px; }
-  #botBtn   { top: calc(50% + 134px); right: 10px; }
   #statusBadge { position: fixed; bottom: 10px; left: 50%; transform: translateX(-50%); font-size: 12px; padding: 4px 12px; border-radius: 8px; border: 2px solid #555; background: rgba(0,0,0,0.78); color: #AAA; white-space: nowrap; z-index: 99999; display: none; }
   #statusBadge.live  { color: #00FF88; border-color: #00FF88; }
   #statusBadge.demo  { color: #FF9900; border-color: #FF9900; }
@@ -24,8 +22,6 @@
 <button id="backBtn"  class="ui-btn" title="Главное меню">⌂</button>
 <button id="voiceBtn" class="ui-btn" title="Озвучка">🔇</button>
 <button id="fsBtn"    class="ui-btn" title="На весь экран">⛶</button>
-<button id="roomBtn"  class="ui-btn" title="Сменить карту">🗺️</button>
-<button id="botBtn"   class="ui-btn" title="Добавить бота">🤖</button>
 <div id="statusBadge"></div>
 <div id="ratingOverlay" style="position:fixed;top:27%;left:50%;transform:translateX(-50%);z-index:200;pointer-events:none;display:none;background:rgba(0,0,0,0.88);border:1.5px solid rgba(255,80,80,0.5);border-radius:8px;padding:6px 12px 7px;font-family:Arial,sans-serif;min-width:150px;text-align:center;line-height:1.25;white-space:nowrap;"></div>
 <audio id="bgMusic" src="audio/streetfighter_theme.mp3" loop preload="auto"></audio>
@@ -351,7 +347,23 @@ setInterval(flushBeltTime, 60000);
 // ростер бойцов стартует ПУСТЫМ — реальные бойцы появляются по первому
 // лайку/донату конкретного зрителя (см. applyGrowth ниже); пока их <2 на
 // ринге, слоты подсаживаются ботами (см. секцию ботов ниже).
+//
+// ВАЖНО (2026-08-05, фикс просадки производительности на телефоне
+// стримера): VARIANTS должен содержать только реально АКТИВНЫХ сейчас
+// бойцов — выбывшие (v.eliminated=true) физически удаляются из массива
+// в update() (см. ниже), а не просто помечаются и остаются навечно. Раньше
+// на длинном активном стриме массив рос без остановки (каждый уникальный
+// зритель, хоть раз лайкнувший, оставался в нём навсегда), и КАЖДЫЙ кадр
+// (сортировка+отрисовка) и КАЖДОЕ событие (поиск бойца в applyGrowth)
+// становились дороже пропорционально общему числу зрителей за весь стрим,
+// а не текущему рингу — на популярном стриме это реально грузило телефон,
+// который параллельно ещё и кодирует видео для эфира.
 const VARIANTS = [];
+// лёгкий кэш "уровень/закреплённый скин" для выбывших реальных бойцов —
+// заполняется перед удалением из VARIANTS (см. update()), читается в
+// applyGrowth при возврате того же зрителя, чтобы не ждать асинхронный
+// round-trip к серверу за уже известными данными
+const _fighterCache = new Map();
 
 // ── Геометрия экрана: плашка сверху, ринг ниже ──
 const PANEL_TOP = 14, PANEL_H = 250;
@@ -531,6 +543,20 @@ function applyGrowth(username, gain, isGift){
       knownRankIdx: 0, // текущий известный ранг (для объявления диктором смены звания)
     };
     v.energyMax = 0; v.energy = 0; v.powerMax = 0; v.power = 0;
+    // если этот зритель уже был на ринге в этом стриме и выбыл — вернём
+    // сразу его известный уровень/ранг и закреплённый скин из кэша, не
+    // дожидаясь ответа сервера (тот всё равно придёт следом и просто
+    // подтвердит/обновит те же данные, см. requestTier ниже)
+    const cached = _fighterCache.get(username);
+    if (cached){
+      v.allTimeStolen = cached.allTimeStolen;
+      v.knownRankIdx = cached.knownRankIdx;
+      if (cached.skinChosen){
+        v.skinChosen = true;
+        v.dir = cached.dir; v.baseType = cached.baseType; v.color = cached.color;
+        v.baseDir = cached.baseDir; v.baseColor = cached.baseColor;
+      }
+    }
     initFighterRuntime(v, pos.x, pos.y);
     VARIANTS.push(v);
     requestTier(username); // подтягиваем all-time очки для медали (клиент знает только топ-5)
@@ -650,6 +676,15 @@ function makeCoin(spread){
     sway: Math.random()*Math.PI*2,
   };
 }
+// градиент монеты создан ОДИН раз в единичном радиусе (не на каждый кадр
+// для каждой монеты, как было — до 300 монет × ~60 кадров/сек создавали
+// новый градиент каждый раз, ощутимая нагрузка именно в момент доната,
+// когда телефон стримера и так занят кодированием видео). Масштабируется
+// под размер/сплющивание конкретной монеты через ctx.scale перед заливкой.
+const COIN_GRADIENT = ctx.createRadialGradient(-0.3,-0.3,0.02, 0,0,1);
+COIN_GRADIENT.addColorStop(0, '#fff6c8');
+COIN_GRADIENT.addColorStop(0.55, '#ffd700');
+COIN_GRADIENT.addColorStop(1, '#b8860b');
 function updateDrawCoinRain(dt){
   ctx.save();
   for (let i=coinRain.length-1; i>=0; i--){
@@ -661,14 +696,10 @@ function updateDrawCoinRain(dt){
     const scaleX = Math.max(0.18, Math.abs(Math.cos(c.rot)));
     ctx.save();
     ctx.translate(c.x, c.y);
-    ctx.scale(scaleX, 1);
-    const g = ctx.createRadialGradient(-c.size*0.3,-c.size*0.3,1, 0,0,c.size);
-    g.addColorStop(0, '#fff6c8');
-    g.addColorStop(0.55, '#ffd700');
-    g.addColorStop(1, '#b8860b');
-    ctx.fillStyle = g;
-    ctx.beginPath(); ctx.arc(0,0,c.size,0,Math.PI*2); ctx.fill();
-    ctx.lineWidth = 1.4; ctx.strokeStyle = 'rgba(120,80,0,0.6)'; ctx.stroke();
+    ctx.scale(scaleX*c.size, c.size);
+    ctx.fillStyle = COIN_GRADIENT;
+    ctx.beginPath(); ctx.arc(0,0,1,0,Math.PI*2); ctx.fill();
+    ctx.lineWidth = 1.4/c.size; ctx.strokeStyle = 'rgba(120,80,0,0.6)'; ctx.stroke();
     ctx.restore();
   }
   ctx.restore();
@@ -741,8 +772,8 @@ function getBotName(){
   return pool[Math.floor(Math.random()*pool.length)];
 }
 
-// force=true — для ручной кнопки botBtn: игнорирует лимиты MAX_FIGHTERS/
-// MAX_BOTS, которые нужны только для автоматической подсадки ботов
+// force=true игнорирует лимиты MAX_FIGHTERS/MAX_BOTS (сейчас ничем не
+// вызывается — раньше это была тестовая кнопка botBtn, убрана из UI)
 function spawnBot(force){
   if (!force && VARIANTS.filter(v=>!v.eliminated).length >= MAX_FIGHTERS) return;
   if (!force && VARIANTS.filter(v=>v.isBot && !v.eliminated).length >= MAX_BOTS) return;
@@ -1061,13 +1092,6 @@ document.getElementById('voiceBtn').addEventListener('click', ()=>{
   try{ getAudioCtx().resume(); }catch(e){}
 });
 document.getElementById('backBtn').addEventListener('click', ()=>{ location.href='/'; });
-document.getElementById('roomBtn').addEventListener('click', ()=>{
-  roomIdx = (roomIdx + 1) % ROOMS.length;
-  roomSwitchTimer = ROOM_SWITCH_MS; // ручное переключение сбрасывает отсчёт до автосмены
-});
-document.getElementById('botBtn').addEventListener('click', ()=>{
-  spawnBot(true); // force — без ограничений, каждый клик добавляет бота
-});
 document.getElementById('fsBtn').addEventListener('click', ()=>{
   if (document.fullscreenElement) { document.exitFullscreen && document.exitFullscreen(); }
   else {
@@ -2478,6 +2502,22 @@ function update(dt){
   if (roomSwitchTimer <= 0){
     roomIdx = (roomIdx + 1) % ROOMS.length;
     roomSwitchTimer = ROOM_SWITCH_MS;
+  }
+
+  // удаляем выбывших бойцов из активного списка (см. комментарий у
+  // VARIANTS выше) — реальных зрителей перед удалением кэшируем
+  // (уровень/закреплённый скин), боты просто выбрасываются, им кэш не нужен
+  for (let i=VARIANTS.length-1; i>=0; i--){
+    const v = VARIANTS[i];
+    if (!v.eliminated) continue;
+    if (!v.isBot){
+      _fighterCache.set(v.name, {
+        allTimeStolen: v.allTimeStolen, knownRankIdx: v.knownRankIdx,
+        skinChosen: v.skinChosen, dir: v.dir, baseType: v.baseType,
+        color: v.color, baseDir: v.baseDir, baseColor: v.baseColor,
+      });
+    }
+    VARIANTS.splice(i, 1);
   }
 
   // сама очередь двигается по завершению речи (см. vSpeakNext)
