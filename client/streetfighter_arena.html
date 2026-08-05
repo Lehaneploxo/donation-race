@@ -1897,8 +1897,11 @@ function drawHUD() {
 
   ctx.font = 'bold 24px Arial Black'; ctx.textAlign = 'center';
   ctx.strokeStyle = 'rgba(0,0,0,0.9)'; ctx.lineWidth = 4;
-  ctx.strokeText('🥋 STREET FIGHTERS 🥋', CW/2, T+34, CW-20);
-  ctx.fillStyle = '#4fc3ff'; ctx.fillText('🥋 STREET FIGHTERS 🥋', CW/2, T+34, CW-20);
+  ctx.strokeText('STREET FIGHTERS', CW/2, T+34, CW-20);
+  ctx.save();
+  ctx.shadowColor = '#ff2020'; ctx.shadowBlur = 10;
+  ctx.fillStyle = '#ff2020'; ctx.fillText('STREET FIGHTERS', CW/2, T+34, CW-20);
+  ctx.restore();
 
   const hg = ctx.createLinearGradient(0,0,CW,0);
   hg.addColorStop(0,'rgba(80,180,255,0)'); hg.addColorStop(0.2,'rgba(80,180,255,0.4)');
