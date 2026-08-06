@@ -29,6 +29,34 @@
 <script>
 const canvas = document.getElementById('c');
 const ctx = canvas.getContext('2d');
+
+// Adaptive perf mode — на слабых телефонах shadowBlur (свечения) самая
+// дорогая операция Canvas 2D. Меряем, сколько реально занимает update+отрисовка
+// кадра первые ~2-3 сек; если телефон не тянет — на весь остаток сессии
+// свечения отключаются. Перехватываем сеттер shadowBlur на самом объекте ctx,
+// чтобы не переписывать каждое из мест в коде отрисовки, где он используется.
+let _lowPerfMode = false, _perfSamples = 0, _perfSlowFrames = 0, _perfChecked = false;
+(function(){
+  let proto = ctx, desc;
+  while (proto && !desc) { desc = Object.getOwnPropertyDescriptor(proto, 'shadowBlur'); proto = Object.getPrototypeOf(proto); }
+  if (desc && desc.set) {
+    Object.defineProperty(ctx, 'shadowBlur', {
+      get(){ return desc.get.call(this); },
+      set(v){ desc.set.call(this, _lowPerfMode ? 0 : v); },
+      configurable: true
+    });
+  }
+})();
+function trackPerf(workMs){
+  if (_perfChecked) return;
+  _perfSamples++;
+  if (workMs > 18) _perfSlowFrames++; // дольше 18мс из бюджета ~33мс (30fps) = телефон не тянет
+  if (_perfSamples >= 90){ // ~2-3 секунды наблюдения при 30fps
+    _perfChecked = true;
+    if (_perfSlowFrames / _perfSamples > 0.35) _lowPerfMode = true;
+  }
+}
+
 const wrap = document.getElementById('wrap');
 const CW = canvas.width;
 
@@ -2527,10 +2555,17 @@ function update(dt){
 }
 
 let _lastT = 0;
+let _lastFrameT = 0;
+const FRAME_INTERVAL = 1000/30; // FPS-cap: 30 кадров/сек вместо неограниченных ~60 — вдвое меньше нагрузки на CPU/GPU телефона, визуально почти незаметно
 function loop(t) {
+  if (t - _lastFrameT < FRAME_INTERVAL) { requestAnimationFrame(loop); return; }
+  _lastFrameT = t;
+
   if (!_lastT) _lastT = t;
   const dt = Math.min(50, t-_lastT);
   _lastT = t;
+
+  const _workStart = performance.now();
 
   update(dt);
 
@@ -2544,6 +2579,8 @@ function loop(t) {
 
   updateDrawCoinRain(dt); // дождь монет крупного доната — поверх всего, на весь экран
   drawGiftBanner();
+
+  trackPerf(performance.now() - _workStart);
 
   requestAnimationFrame(loop);
 }
