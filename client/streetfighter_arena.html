@@ -858,7 +858,6 @@ const RULES_OTHER = [
   'Напиши в чате слово рейтинг — узнаешь своё место в топе!',
   'Нокаутированный боец вернётся в бой, если его снова лайкнуть или задонатить!',
   'Забыл про бойца на 15 минут? Его Сила начнёт слабеть — лайкни, чтобы не терять форму!',
-  'Заходите в наш телеграм чат — ссылка прямо на табло!',
 ];
 let _ruleOtherIdx = 0;
 const FILLER = [
@@ -1060,7 +1059,10 @@ function speak(text, onDone){
   let finished = false;
   const finish = ()=>{ if(finished) return; finished = true; unduckBgMusic(); done(); };
   u.onend = u.onerror = finish;
-  setTimeout(finish, 8000);
+  // страховка на случай если браузер не пришлёт onend вовсе — с запасом
+  // под длинные фразы (правила уровней/короны), чтобы не обрывать протэкт
+  // раньше, чем реальная озвучка договорит фразу до конца (было фикс. 8000)
+  setTimeout(finish, Math.max(8000, clean.length*90 + 2500));
   try{ window.speechSynthesis.speak(u); }catch(e){ finish(); }
 }
 if(window.speechSynthesis) window.speechSynthesis.onvoiceschanged = ()=>{ _cachedVoice = null; };
