@@ -1963,7 +1963,7 @@ function drawWeeklyChampionBadge(){
   // отступ от плашки правил — ДВЕ толщины (высоты) бейджа (было WALL_TOP+4).
   // Пробовали добавить ещё +0.5*ширины бейджа — оказалось слишком много
   // (бейдж широкий текстовый, его ширина намного больше высоты), откатили.
-  const bx = 10, by = WALL_TOP + 4 + 2*bh;
+  const bx = 10, by = WALL_TOP + 4 + 2*bh + 12;
 
   ctx.fillStyle = 'rgba(15,10,0,0.85)';
   ctx.strokeStyle = '#ffd24f'; ctx.lineWidth = 1.5;
