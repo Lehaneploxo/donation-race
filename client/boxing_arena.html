@@ -446,7 +446,10 @@ let vSpeaking = false;
 let vProtected = false; // пока true — текущую фразу нельзя оборвать другим urgent-событием
 let vQuietPool = [];
 let vQuietTimer = null;
-let currentEvent = null; // {text, timer, max} — для баннера (drawEventBanner)
+// 2026-08-08: текстовый баннер на экране убран (озвучка диктора осталась
+// нетронутой) — currentEvent больше нигде не отображается, но продолжает
+// вестись как таймер синхронно с очередью озвучки в vSpeakNext()/update()
+let currentEvent = null;
 
 // главное правило — звучит ГАРАНТИРОВАННО каждые 30 сек, целиком, вне
 // очереди (см. setInterval ниже и RULES_OTHER для остальных правил)
@@ -1145,29 +1148,6 @@ function drawRoundGirl() {
 function formatRoundTime(ms){
   const s = Math.max(0, Math.ceil(ms/1000));
   return `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;
-}
-
-function drawEventBanner() {
-  if (!currentEvent) return;
-  const { text, timer, max } = currentEvent;
-  const fadeIn = Math.min(1, (max-timer)/350);
-  const fadeOut = Math.min(1, timer/350);
-  const alpha = Math.min(fadeIn, fadeOut);
-  if (alpha<=0) return;
-
-  const y = WALL_TOP + 40;
-  ctx.save();
-  ctx.globalAlpha = alpha;
-  ctx.font = 'bold 19px Arial Black';
-  ctx.textAlign = 'center';
-  const tw = Math.min(ctx.measureText(text).width, CW-40);
-  ctx.fillStyle = 'rgba(0,0,0,0.55)';
-  ctx.fillRect(CW/2 - tw/2 - 14, y-24, tw+28, 34);
-  ctx.strokeStyle = 'rgba(0,0,0,0.9)'; ctx.lineWidth = 4;
-  ctx.strokeText(text, CW/2, y, CW-40);
-  ctx.fillStyle = '#ffcf4d';
-  ctx.fillText(text, CW/2, y, CW-40);
-  ctx.restore();
 }
 
 function drawCrowd(t, w, wallBot) {
@@ -2021,7 +2001,6 @@ function loop(t) {
   for (const v of sorted) drawFighter(v);
 
   drawRoundGirl();
-  drawEventBanner();
   drawHUD();
 
   requestAnimationFrame(loop);
