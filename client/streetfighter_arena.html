@@ -1058,10 +1058,17 @@ document.addEventListener('pointerdown', function unlockAudioOnce(){
 const BG_MUSIC_VOLUME = 0.14, BG_MUSIC_DUCK_VOLUME = 0.035;
 const bgMusic = document.getElementById('bgMusic');
 bgMusic.volume = BG_MUSIC_VOLUME;
-document.addEventListener('pointerdown', function unlockMusicOnce(){
-  bgMusic.play().catch(()=>{}); // может не сработать без жеста — но жест уже есть
-  document.removeEventListener('pointerdown', unlockMusicOnce);
-}, { once: true });
+// разблокировка С ПОВТОРОМ — раньше была {once:true}: если самая первая
+// попытка play() почему-либо не удавалась (например, файл ещё не успел
+// подгрузиться в момент клика), слушатель снимался навсегда и музыка не
+// запускалась до конца сессии, сколько потом ни щёлкай. Теперь пробуем на
+// КАЖДОМ клике, пока реально не заиграет, и только тогда отписываемся.
+function tryUnlockMusic(){
+  bgMusic.play().then(()=>{
+    document.removeEventListener('pointerdown', tryUnlockMusic);
+  }).catch(()=>{});
+}
+document.addEventListener('pointerdown', tryUnlockMusic);
 
 // отдельная кнопка только для музыки — через .muted, не трогает .volume,
 // поэтому существующий duck/unduck (приглушение музыки на время фраз
