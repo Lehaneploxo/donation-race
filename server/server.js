@@ -329,6 +329,16 @@ app.get('/top-streetfighter', async (req, res) => {
   }
 });
 
+// чемпион прошлой недели — постоянный бейдж на арене, живёт до следующего сброса
+app.get('/streetfighter-weekly-champion', async (req, res) => {
+  try {
+    const champion = await db.getLastStreetFighterWeeklyChampion();
+    res.json({ ok: true, champion });
+  } catch(e) {
+    res.json({ ok: false, error: e.message });
+  }
+});
+
 // ручной запуск проверки еженедельного сброса (для теста, без ожидания
 // понедельника/интервала) — тот же паттерн, что у остальных /admin/*
 app.get('/admin/streetfighter-weekly-check', async (req, res) => {
@@ -829,11 +839,14 @@ wss.on('connection', (ws, req) => {
 async function checkStreetFighterWeeklyReset() {
   const result = await db.performStreetFighterWeeklyResetIfNeeded();
   if (result) {
-    console.log('[STREETFIGHTER] Рассылаю обновлённый топ во все активные комнаты после сброса');
+    console.log('[STREETFIGHTER] Рассылаю обновлённый топ и нового чемпиона недели во все активные комнаты после сброса');
     for (const room of rooms.values()) {
       db.getTopStreetFighterStolen(5)
         .then(top => room.broadcast({ type: 'top_streetfighter', data: top }))
         .catch(e => console.error('[STREETFIGHTER] Ошибка рассылки топа после сброса:', e.message));
+      db.getLastStreetFighterWeeklyChampion()
+        .then(champion => room.broadcast({ type: 'streetfighter_weekly_champion', champion }))
+        .catch(e => console.error('[STREETFIGHTER] Ошибка рассылки чемпиона после сброса:', e.message));
     }
   }
   return result;

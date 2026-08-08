@@ -1199,6 +1199,7 @@ function wsConnect(username){
       if (d.type==='arena_gift' && _gameMode==='tiktok') onGift(d.username, d.coins);
       if (d.type==='arena_cheat' && _gameMode==='tiktok') applyCheat(d.username, d.hp, d.damage);
       if (d.type==='top_streetfighter') { _dbTop = (d.data||[]).map(p=>({ username:p.username, stolen:p.total_stolen })); syncChampionStatus(); }
+      if (d.type==='streetfighter_weekly_champion') { _weeklyChampion = d.champion || null; }
       if (d.type==='streetfighter_tier_info'){
         const v = findRealFighter(d.username);
         if (v){
@@ -1342,6 +1343,18 @@ function fetchStreetFighterTop(){
 }
 fetchStreetFighterTop();
 setInterval(fetchStreetFighterTop, 30000);
+
+// чемпион ПРОШЛОЙ недели — постоянный бейдж под плашкой правил (см. drawHUD),
+// живёт до следующего понедельника; null = сброса ещё ни разу не было
+// (самая первая неделя фичи) — тогда бейдж приглашает стать первым чемпионом
+let _weeklyChampion = null;
+function fetchStreetFighterWeeklyChampion(){
+  fetch('/streetfighter-weekly-champion').then(r=>r.json()).then(d=>{
+    if (d.ok) _weeklyChampion = d.champion || null;
+  }).catch(()=>{});
+}
+fetchStreetFighterWeeklyChampion();
+setInterval(fetchStreetFighterWeeklyChampion, 30000);
 
 (function initLive(){
   const p = new URLSearchParams(location.search);
@@ -1999,7 +2012,7 @@ function drawHUD() {
   // _dbTop, не сбрасывается между боями/стримами), НЕ текущая сила/энергия боя
   const top = _dbTop.slice(0,5).map(p=>({ name:p.username, stolenEnergy:p.stolen }));
   const rankColors = ['#FFD700','#C0C0C0','#CD7F32','#AAAAAA','#666666'];
-  const ranks = ['👑','2.','3.','4.','5.'];
+  const ranks = ['1.','2.','3.','4.','5.'];
   const tX = CW/2 + 8, tY = T+108, tStep = 29;
   for (let i=0;i<top.length;i++){
     const p = top[i], y = tY + i*tStep;
@@ -2019,6 +2032,41 @@ function drawHUD() {
   }
   ctx.font = '9px Arial'; ctx.fillStyle = 'rgba(255,255,255,0.18)';
   ctx.textAlign = 'center'; ctx.fillText('all-time отнятая энергия', CW*0.75, T+TH-6);
+
+  drawWeeklyChampionBadge();
+}
+
+// чемпион ПРОШЛОЙ недели — маленький постоянный бейдж слева, сразу под
+// плашкой правил (WALL_TOP — там начинается городской фон, место пустое).
+// Пока ни разу не было сброса (_weeklyChampion===null, самая первая неделя
+// фичи) — вместо ника приглашение "Тут можешь быть ты".
+function drawWeeklyChampionBadge(){
+  const bx = 10, by = WALL_TOP + 4;
+  const line1 = '👑 Чемпион недели';
+  const nameTxt = _weeklyChampion ? '@'+_weeklyChampion.username : 'Тут можешь быть ты';
+
+  ctx.save();
+  ctx.font = 'bold 11px Arial Black';
+  const w1 = ctx.measureText(line1).width;
+  ctx.font = 'bold 14px Arial Black';
+  const w2 = ctx.measureText(nameTxt).width;
+  const bw = Math.max(w1, w2) + 20;
+  const bh = 40;
+
+  ctx.fillStyle = 'rgba(15,10,0,0.85)';
+  ctx.strokeStyle = '#ffd24f'; ctx.lineWidth = 1.5;
+  roundRectPath(bx, by, bw, bh, 7);
+  ctx.fill(); ctx.stroke();
+
+  ctx.textAlign = 'left';
+  ctx.font = 'bold 11px Arial Black';
+  ctx.fillStyle = '#ffe98a';
+  ctx.fillText(line1, bx+9, by+16);
+
+  ctx.font = 'bold 14px Arial Black';
+  ctx.fillStyle = _weeklyChampion ? '#fff2b0' : 'rgba(255,242,176,0.65)';
+  ctx.fillText(nameTxt, bx+9, by+32);
+  ctx.restore();
 }
 
 // все бойцы ОДНОГО размера (как totalSc в arena2) — глубина влияет только на позицию/порядок отрисовки, не на масштаб

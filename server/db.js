@@ -503,6 +503,22 @@ async function getStreetFighterSkin(username) {
   return res.rows.length ? res.rows[0].chosen_skin : null;
 }
 
+// чемпион ПРОШЛОЙ недели — последняя запись архива (или null, если ни разу
+// ещё не было сброса/победителя, например в самую первую неделю фичи).
+// Показывается на арене постоянно, пока не пройдёт следующий сброс.
+async function getLastStreetFighterWeeklyChampion() {
+  if (!pool) return null;
+  const res = await pool.query(`
+    SELECT username, weekly_points, week_start FROM streetfighter_weekly_kings
+    ORDER BY week_start DESC LIMIT 1
+  `);
+  return res.rows.length ? {
+    username: res.rows[0].username,
+    weeklyPoints: Number(res.rows[0].weekly_points),
+    weekStart: res.rows[0].week_start,
+  } : null;
+}
+
 function isConnected() { return pool !== null; }
 
 module.exports = {
@@ -518,6 +534,6 @@ module.exports = {
   addStreetFighterKO, addStreetFighterBeltSeconds, resetStreetFighterRating,
   setStreetFighterStolen, deleteStreetFighterUser, getAllStreetFighterStolen,
   setStreetFighterSkin, getStreetFighterSkin,
-  performStreetFighterWeeklyResetIfNeeded,
+  performStreetFighterWeeklyResetIfNeeded, getLastStreetFighterWeeklyChampion,
   isConnected,
 };
