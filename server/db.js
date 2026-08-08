@@ -79,8 +79,9 @@ async function init() {
   // при повторных запусках init() (после первого переноса больше не сработает)
   await pool.query(`UPDATE streetfighter_stolen SET lifetime_stolen = total_stolen WHERE lifetime_stolen = 0 AND total_stolen > 0`);
   // weekly_belt_seconds — время с короной именно на текущей неделе (обнуляется
-  // вместе с total_stolen); weekly_king_wins — сколько раз игрок ВЫИГРЫВАЛ
-  // неделю (у кого было больше weekly_belt_seconds на момент сброса) —
+  // вместе с total_stolen), хранится для истории/статистики, но с 2026-08-08
+  // больше НЕ решает победителя недели; weekly_king_wins — сколько раз игрок
+  // ВЫИГРЫВАЛ неделю (у кого было больше total_stolen на момент сброса) —
   // это уже вечный счётчик, не обнуляется, показывается как "👑×N"
   await pool.query(`ALTER TABLE streetfighter_stolen ADD COLUMN IF NOT EXISTS weekly_belt_seconds INTEGER NOT NULL DEFAULT 0`);
   await pool.query(`ALTER TABLE streetfighter_stolen ADD COLUMN IF NOT EXISTS weekly_king_wins INTEGER NOT NULL DEFAULT 0`);
@@ -94,6 +95,10 @@ async function init() {
       created_at TIMESTAMPTZ NOT NULL DEFAULT now()
     )
   `);
+  // 2026-08-08: победитель недели теперь определяется по очкам (weekly_points =
+  // total_stolen на момент сброса), а не по времени с короной — weekly_belt_seconds
+  // в архиве остаётся как было (для истории), просто больше не решает победителя
+  await pool.query(`ALTER TABLE streetfighter_weekly_kings ADD COLUMN IF NOT EXISTS weekly_points INTEGER NOT NULL DEFAULT 0`);
   // единственная строка (id=1) — когда был выполнен последний еженедельный
   // сброс, чтобы не потерять момент сброса при перезапуске/падении сервера
   // (см. performStreetFighterWeeklyResetIfNeeded — при старте сервер сверяет
@@ -432,8 +437,8 @@ function mostRecentMondayKyivMs(nowMs) {
 
 // вызывается периодически (и один раз при старте сервера) — если с прошлого
 // сброса прошёл понедельник 00:00 по Киеву, архивирует короля недели
-// (у кого было больше weekly_belt_seconds) и обнуляет total_stolen +
-// weekly_belt_seconds у всех. Безопасно при простое сервера в момент
+// (у кого было больше total_stolen, т.е. очков за неделю) и обнуляет
+// total_stolen + weekly_belt_seconds у всех. Безопасно при простое сервера в момент
 // границы — при следующем запуске просто досчитает пропущенный сброс один
 // раз (не пытается "проиграть" несколько пропущенных недель по отдельности).
 async function performStreetFighterWeeklyResetIfNeeded() {
@@ -453,17 +458,17 @@ async function performStreetFighterWeeklyResetIfNeeded() {
   if (boundary <= lastReset) return null; // граница с прошлого раза ещё не наступила
 
   const winnerRes = await pool.query(`
-    SELECT username, weekly_belt_seconds FROM streetfighter_stolen
-    WHERE weekly_belt_seconds > 0
-    ORDER BY weekly_belt_seconds DESC LIMIT 1
+    SELECT username, total_stolen, weekly_belt_seconds FROM streetfighter_stolen
+    WHERE total_stolen > 0
+    ORDER BY total_stolen DESC LIMIT 1
   `);
   let winner = null;
   if (winnerRes.rows.length) {
     winner = winnerRes.rows[0];
     await pool.query(`
-      INSERT INTO streetfighter_weekly_kings (week_start, username, weekly_belt_seconds)
-      VALUES ($1, $2, $3)
-    `, [lastReset, winner.username, winner.weekly_belt_seconds]);
+      INSERT INTO streetfighter_weekly_kings (week_start, username, weekly_belt_seconds, weekly_points)
+      VALUES ($1, $2, $3, $4)
+    `, [lastReset, winner.username, winner.weekly_belt_seconds, winner.total_stolen]);
     await pool.query(`
       UPDATE streetfighter_stolen SET weekly_king_wins = weekly_king_wins + 1
       WHERE LOWER(username) = LOWER($1)
@@ -473,7 +478,7 @@ async function performStreetFighterWeeklyResetIfNeeded() {
   await pool.query(`UPDATE streetfighter_stolen SET total_stolen = 0, weekly_belt_seconds = 0`);
   await pool.query(`UPDATE streetfighter_weekly_meta SET last_reset_at = $1 WHERE id=1`, [boundary]);
 
-  console.log(`[STREETFIGHTER] Недельный сброс выполнен, граница=${boundary.toISOString()}, король недели: ${winner ? winner.username + ' (' + winner.weekly_belt_seconds + 'с)' : 'нет (корону никто не держал)'}`);
+  console.log(`[STREETFIGHTER] Недельный сброс выполнен, граница=${boundary.toISOString()}, король недели: ${winner ? winner.username + ' (' + winner.total_stolen + ' очков)' : 'нет (очков никто не набрал)'}`);
 
   return { winner: winner ? winner.username : null, weekStart: lastReset.toISOString() };
 }
