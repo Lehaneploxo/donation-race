@@ -222,105 +222,26 @@ function levelProgress(total){
   const frac = next==null ? 1 : Math.min(1, Math.max(0, (total-cur)/(next-cur)));
   return { level, cur, next, frac };
 }
-// правильный N-угольник и звезда с N лучами — форма значка уровня
-// эскалирует вместе с рангом (см. drawLevelBadge ниже)
-function polygonVerts(r, sides){
-  const pts = [];
-  for (let k=0; k<sides; k++){
-    const a = Math.PI/180*((360/sides)*k - 90);
-    pts.push([r*Math.cos(a), r*Math.sin(a)]);
-  }
-  return pts;
-}
-function starVerts(rOuter, rInner, points){
-  const pts = [];
-  const total = points*2;
-  for (let k=0; k<total; k++){
-    const a = Math.PI/180*((360/total)*k - 90);
-    const rad = k%2===0 ? rOuter : rInner;
-    pts.push([rad*Math.cos(a), rad*Math.sin(a)]);
-  }
-  return pts;
-}
-function pathFromVerts(ctx, cx, cy, verts){
-  ctx.beginPath();
-  verts.forEach(([x,y], k)=> k===0 ? ctx.moveTo(cx+x, cy+y) : ctx.lineTo(cx+x, cy+y));
-  ctx.closePath();
-}
-// точная ширина фигуры РОВНО на высоте её центра (там, где рисуется текст)
-// — считается пересечением рёбер с горизонталью y=0, а не приблизительно.
-// Раньше maxW для текста был одним "на глаз" числом на все фигуры сразу —
-// у треугольника реальная ширина у центра (~1.15r) оказалась заметно
-// меньше того, что предполагалось (1.55r), поэтому "11" вылезала за края.
-function shapeWidthAtCenter(verts){
-  let maxX = 0;
-  const n = verts.length;
-  for (let k=0; k<n; k++){
-    const [x1,y1] = verts[k], [x2,y2] = verts[(k+1)%n];
-    if ((y1<=0 && y2>=0) || (y1>=0 && y2<=0)){
-      if (y1===y2) continue;
-      const t = (0-y1)/(y2-y1);
-      const x = x1 + t*(x2-x1);
-      if (Math.abs(x) > maxX) maxX = Math.abs(x);
-    }
-  }
-  return maxX*2;
-}
-
-// бейдж с номером уровня — форма усложняется вместе с рангом (2026-08-04):
-// круг на первых двух рангах -> треугольник..восьмиугольник (+1 угол за
-// ранг, ранги 3-8) -> звезда на последних двух (5 лучей, потом 7). Цвет —
-// см. LEVEL_RANKS (история "разогрева"). Без свечения/неона — по явной
-// просьбе пользователя, только у самого верхнего ранга градиентная (не
-// светящаяся) золотая заливка вместо плоской. Проверено на черновике
-// (client/level_badge_preview.html) перед переносом сюда. Приоритет —
-// читаемость числа издалека на стриме, а не тонкость графики.
-function drawLevelBadge(cx, y, s, level){
-  const r = 12.5*s;
+// уровень зрителя — просто текст "ур.NN" слева от ника, цвет по рангу
+// (см. LEVEL_RANKS). Раньше был фигурный значок (круг/многоугольник/звезда,
+// см. историю в client/level_badge_preview.html) — заменили на 2026-08-08
+// по просьбе пользователя: фигуры на маленьком экране телефона были
+// нечитаемы, а простой текст компактнее и понятнее с одного взгляда.
+function drawLevelText(rightEdgeX, y, s, level){
   const idx = LEVEL_RANKS.findIndex(rk => level>=rk.from && level<=rk.to);
   const rank = idx>=0 ? LEVEL_RANKS[idx] : LEVEL_RANKS[0];
-  const color = rank.color;
+  const txt = 'ур.' + level;
   ctx.save();
-  let maxW; // точная ширина ИМЕННО этой фигуры на высоте центра, не общая на все
-  if (idx <= 1){
-    ctx.beginPath(); ctx.arc(cx, y, r, 0, Math.PI*2);
-    maxW = r*1.7; // круг — почти полный диаметр (2r) с небольшим отступом
-  } else if (idx === 8 || idx === 9){
-    const verts = starVerts(r+r*0.26, r-r*0.22, idx===8 ? 5 : 7);
-    pathFromVerts(ctx, cx, y, verts);
-    maxW = shapeWidthAtCenter(verts) * 0.85;
-  } else {
-    const sides = 3 + (idx-2); // idx=2 -> треугольник(3) .. idx=7 -> восьмиугольник(8)
-    const verts = polygonVerts(r, sides);
-    pathFromVerts(ctx, cx, y, verts);
-    maxW = shapeWidthAtCenter(verts) * 0.85;
-  }
-  if (idx === 9){
-    const g = ctx.createLinearGradient(cx-r, y-r, cx+r, y+r);
-    g.addColorStop(0, '#fff6d0');
-    g.addColorStop(0.55, '#ffd700');
-    g.addColorStop(1, '#b8860b');
-    ctx.fillStyle = g;
-  } else {
-    ctx.fillStyle = '#fdf6e3';
-  }
-  ctx.fill();
-  ctx.lineWidth = 2.4*s; ctx.strokeStyle = color; ctx.stroke();
-  ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(0,0,0,0.5)'; ctx.stroke();
-  // ширина текста теперь зажата под ТОЧНУЮ ширину конкретной фигуры
-  // (maxW посчитан выше по её реальным вершинам), высота — общий запас
-  const txt = String(level);
-  let fontSize = (txt.length > 1 ? 21 : 24) * s;
-  const maxH = r*1.35;
-  fontSize = Math.min(fontSize, maxH);
-  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.fillStyle = '#1a1a1a';
-  ctx.font = `900 ${fontSize}px Arial Black`;
-  if (ctx.measureText(txt).width > maxW){
-    fontSize *= maxW / ctx.measureText(txt).width;
-    ctx.font = `900 ${fontSize}px Arial Black`;
-  }
-  ctx.fillText(txt, cx, y + 0.5*s);
+  ctx.font = `bold ${15*s}px Arial Black`;
+  const w = ctx.measureText(txt).width;
+  const x = rightEdgeX - w;
+  ctx.fillStyle = 'rgba(0,0,0,0.45)';
+  ctx.fillRect(x - 5*s, y - 12*s, w + 10*s, 16*s);
+  ctx.textAlign = 'left';
+  ctx.lineWidth = 3.5*s; ctx.strokeStyle = 'rgba(0,0,0,0.95)';
+  ctx.strokeText(txt, x, y);
+  ctx.fillStyle = rank.color;
+  ctx.fillText(txt, x, y);
   ctx.restore();
 }
 
@@ -2302,7 +2223,7 @@ function drawFighter(v) {
   }
 
   if (level!=null && v.alive){
-    drawLevelBadge(cx - nameW/2 - 14*s, labelY - 5*s, s, level);
+    drawLevelText(cx - nameW/2 - 8*s, labelY, s, level);
   }
 
   // ⚡ Энергия и 💪 Сила — в стиле _drawLabels из arena3.html (сердечки убраны — Энергия теперь и есть здоровье)
