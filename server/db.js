@@ -44,6 +44,33 @@ async function init() {
   `);
   await pool.query(`ALTER TABLE boxing_stolen ADD COLUMN IF NOT EXISTS total_kos INTEGER NOT NULL DEFAULT 0`);
   await pool.query(`ALTER TABLE boxing_stolen ADD COLUMN IF NOT EXISTS belt_seconds INTEGER NOT NULL DEFAULT 0`);
+
+  // ── Недельный рейтинг "Пояс чемпиона" (2026-08-08, RU-версия бокса ТОЛЬКО,
+  // EN не трогаем) — 1-в-1 схема Street Fighter, см. streetfighter_stolen ниже
+  // для подробных комментариев по каждому полю.
+  await pool.query(`ALTER TABLE boxing_stolen ADD COLUMN IF NOT EXISTS lifetime_stolen INTEGER NOT NULL DEFAULT 0`);
+  // перенос уже накопленного total_stolen в lifetime_stolen один раз — у
+  // реальных игроков уже много очков за всё время, уровень не должен сгореть
+  await pool.query(`UPDATE boxing_stolen SET lifetime_stolen = total_stolen WHERE lifetime_stolen = 0 AND total_stolen > 0`);
+  await pool.query(`ALTER TABLE boxing_stolen ADD COLUMN IF NOT EXISTS weekly_belt_seconds INTEGER NOT NULL DEFAULT 0`);
+  await pool.query(`ALTER TABLE boxing_stolen ADD COLUMN IF NOT EXISTS weekly_king_wins INTEGER NOT NULL DEFAULT 0`);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS boxing_weekly_kings (
+      id SERIAL PRIMARY KEY,
+      week_start TIMESTAMPTZ NOT NULL,
+      username TEXT NOT NULL,
+      weekly_belt_seconds INTEGER NOT NULL,
+      weekly_points INTEGER NOT NULL DEFAULT 0,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS boxing_weekly_meta (
+      id INTEGER PRIMARY KEY DEFAULT 1,
+      last_reset_at TIMESTAMPTZ NOT NULL
+    )
+  `);
+
   await pool.query(`
     CREATE TABLE IF NOT EXISTS boxing_stolen_en (
       username TEXT PRIMARY KEY,
@@ -305,12 +332,12 @@ const boxingRu = makeBoxingApi('boxing_stolen');
 const boxingEn = makeBoxingApi('boxing_stolen_en');
 const streetFighter = makeBoxingApi('streetfighter_stolen');
 
-const addBoxingStolen = boxingRu.addStolen;
+// addStolen/addBeltSeconds/getUserRank/getAll У boxing_stolen (RU) СВОИ
+// версии ниже (не из фабрики) — та же причина, что у Street Fighter:
+// нужно писать сразу в недельную + вечную колонку за один запрос.
+// addKO/getTop/reset/setStolen/deleteUser — как у всех, из фабрики без изменений.
 const getTopBoxingStolen = boxingRu.getTop;
-const getAllBoxingStolen = boxingRu.getAll;
-const getUserBoxingRank = boxingRu.getUserRank;
 const addBoxingKO = boxingRu.addKO;
-const addBoxingBeltSeconds = boxingRu.addBeltSeconds;
 const resetBoxingRating = boxingRu.reset;
 const setBoxingStolen = boxingRu.setStolen;
 const deleteBoxingUser = boxingRu.deleteUser;
@@ -519,6 +546,127 @@ async function getLastStreetFighterWeeklyChampion() {
   } : null;
 }
 
+// ── Boxing Arena RU: тот же еженедельный "Пояс чемпиона" (2026-08-08) ──
+// 1-в-1 логика Street Fighter выше, только своя таблица/архив/метка сброса.
+// EN-версия бокса НЕ трогается — остаётся на старой all-time схеме (фабрика
+// makeBoxingApi, boxingEn.* выше).
+
+async function addBoxingStolen(username, amount) {
+  if (!pool || !username || !amount) return;
+  await pool.query(`
+    INSERT INTO boxing_stolen (username, total_stolen, lifetime_stolen)
+    VALUES ($1, $2, $2)
+    ON CONFLICT (username)
+    DO UPDATE SET total_stolen = boxing_stolen.total_stolen + $2,
+                  lifetime_stolen = boxing_stolen.lifetime_stolen + $2
+  `, [username, Math.floor(amount)]);
+}
+
+async function addBoxingBeltSeconds(username, seconds) {
+  if (!pool || !username || !seconds) return;
+  await pool.query(`
+    INSERT INTO boxing_stolen (username, belt_seconds, weekly_belt_seconds)
+    VALUES ($1, $2, $2)
+    ON CONFLICT (username)
+    DO UPDATE SET belt_seconds = boxing_stolen.belt_seconds + $2,
+                  weekly_belt_seconds = boxing_stolen.weekly_belt_seconds + $2
+  `, [username, Math.floor(seconds)]);
+}
+
+async function getUserBoxingRank(username) {
+  if (!pool || !username) return null;
+  const res = await pool.query(`
+    SELECT username, total_stolen, total_kos, belt_seconds, lifetime_stolen, weekly_king_wins, weekly_belt_seconds,
+           RANK() OVER (ORDER BY total_stolen DESC) AS rank
+    FROM boxing_stolen
+  `);
+  const row = res.rows.find(r => r.username.toLowerCase() === username.toLowerCase());
+  return row ? {
+    rank: Number(row.rank),
+    total_stolen: Number(row.total_stolen),
+    total_kos: Number(row.total_kos),
+    belt_seconds: Number(row.belt_seconds),
+    lifetime_stolen: Number(row.lifetime_stolen),
+    weekly_king_wins: Number(row.weekly_king_wins),
+    weekly_belt_seconds: Number(row.weekly_belt_seconds),
+  } : null;
+}
+
+async function getAllBoxingStolen() {
+  if (!pool) return [];
+  const res = await pool.query(`
+    SELECT username, total_stolen, total_kos, belt_seconds, lifetime_stolen, weekly_king_wins, weekly_belt_seconds,
+           ROW_NUMBER() OVER (ORDER BY total_stolen DESC, username ASC) AS rank
+    FROM boxing_stolen
+    ORDER BY total_stolen DESC, username ASC
+  `);
+  return res.rows.map(r => ({
+    rank: Number(r.rank),
+    username: r.username,
+    total_stolen: Number(r.total_stolen),
+    total_kos: Number(r.total_kos),
+    belt_seconds: Number(r.belt_seconds),
+    lifetime_stolen: Number(r.lifetime_stolen),
+    weekly_king_wins: Number(r.weekly_king_wins),
+    weekly_belt_seconds: Number(r.weekly_belt_seconds),
+  }));
+}
+
+async function performBoxingWeeklyResetIfNeeded() {
+  if (!pool) return null;
+  const boundaryMs = mostRecentMondayKyivMs(Date.now());
+  const boundary = new Date(boundaryMs);
+
+  const metaRes = await pool.query(`SELECT last_reset_at FROM boxing_weekly_meta WHERE id=1`);
+  if (metaRes.rows.length === 0) {
+    await pool.query(`INSERT INTO boxing_weekly_meta (id, last_reset_at) VALUES (1, $1)`, [boundary]);
+    return null;
+  }
+
+  const lastReset = metaRes.rows[0].last_reset_at;
+  if (boundary <= lastReset) return null;
+
+  const winnerRes = await pool.query(`
+    SELECT username, total_stolen, weekly_belt_seconds FROM boxing_stolen
+    WHERE total_stolen > 0
+    ORDER BY total_stolen DESC LIMIT 1
+  `);
+  let winner = null;
+  if (winnerRes.rows.length) {
+    winner = winnerRes.rows[0];
+    await pool.query(`
+      INSERT INTO boxing_weekly_kings (week_start, username, weekly_belt_seconds, weekly_points)
+      VALUES ($1, $2, $3, $4)
+    `, [lastReset, winner.username, winner.weekly_belt_seconds, winner.total_stolen]);
+    await pool.query(`
+      UPDATE boxing_stolen SET weekly_king_wins = weekly_king_wins + 1
+      WHERE LOWER(username) = LOWER($1)
+    `, [winner.username]);
+  }
+
+  await pool.query(`UPDATE boxing_stolen SET total_stolen = 0, weekly_belt_seconds = 0`);
+  await pool.query(`UPDATE boxing_weekly_meta SET last_reset_at = $1 WHERE id=1`, [boundary]);
+
+  console.log(`[BOXING] Недельный сброс выполнен, граница=${boundary.toISOString()}, чемпион недели: ${winner ? winner.username + ' (' + winner.total_stolen + ' очков)' : 'нет (очков никто не набрал)'}`);
+
+  return { winner: winner ? winner.username : null, weekStart: lastReset.toISOString() };
+}
+
+// чемпион ПРОШЛОЙ недели (пояс) — последняя запись архива, или null если
+// сброса ещё ни разу не было
+async function getLastBoxingWeeklyChampion() {
+  if (!pool) return null;
+  const res = await pool.query(`
+    SELECT username, weekly_points, week_start FROM boxing_weekly_kings
+    ORDER BY week_start DESC LIMIT 1
+  `);
+  return res.rows.length ? {
+    username: res.rows[0].username,
+    weeklyPoints: Number(res.rows[0].weekly_points),
+    weekStart: res.rows[0].week_start,
+  } : null;
+}
+
 function isConnected() { return pool !== null; }
 
 module.exports = {
@@ -526,7 +674,7 @@ module.exports = {
   resetBossDamage, getUserBossDamageRank, addRaceCoins, getTopRaceDonations,
   addBoxingStolen, getTopBoxingStolen, getUserBoxingRank, addBoxingKO,
   addBoxingBeltSeconds, resetBoxingRating, setBoxingStolen, deleteBoxingUser,
-  getAllBoxingStolen,
+  getAllBoxingStolen, performBoxingWeeklyResetIfNeeded, getLastBoxingWeeklyChampion,
   addBoxingStolenEn, getTopBoxingStolenEn, getUserBoxingRankEn, addBoxingKOEn,
   addBoxingBeltSecondsEn, resetBoxingRatingEn, setBoxingStolenEn, deleteBoxingUserEn,
   getAllBoxingStolenEn,

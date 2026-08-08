@@ -223,6 +223,28 @@ app.get('/top-boxing', async (req, res) => {
   }
 });
 
+// чемпион прошлой недели (пояс) — постоянный бейдж на арене, живёт до
+// следующего сброса в понедельник. EN-версия бокса не участвует.
+app.get('/boxing-weekly-champion', async (req, res) => {
+  try {
+    const champion = await db.getLastBoxingWeeklyChampion();
+    res.json({ ok: true, champion });
+  } catch(e) {
+    res.json({ ok: false, error: e.message });
+  }
+});
+
+// ручной запуск проверки еженедельного сброса (для теста, без ожидания
+// понедельника/интервала) — тот же паттерн, что у /admin/streetfighter-weekly-check
+app.get('/admin/boxing-weekly-check', async (req, res) => {
+  try {
+    const result = await checkBoxingWeeklyReset();
+    res.json({ ok: true, result });
+  } catch(e) {
+    res.json({ ok: false, error: e.message });
+  }
+});
+
 app.get('/api/boxing-db-en', async (req, res) => {
   try {
     const rows = await db.getAllBoxingStolenEn();
@@ -550,7 +572,9 @@ class Room {
             .catch(() => {
               this.broadcast({ type: 'arena_boss_rating', username: data.username, rank: null, damage: 0 });
             });
-          // Boxing Arena: same command, ranked by all-time отнятая энергия
+          // Boxing Arena: тот же топ, но по своей таблице. stolen/rank —
+          // НЕДЕЛЬНЫЕ (обнуляются по понедельникам), lifetimeStolen — вечный
+          // (двигает уровень), weeklyKingWins — сколько раз выигрывал неделю
           db.getUserBoxingRank(data.username)
             .then(rank => {
               this.broadcast({
@@ -559,11 +583,13 @@ class Room {
                 rank: rank ? rank.rank : null,
                 stolen: rank ? rank.total_stolen : 0,
                 kos: rank ? rank.total_kos : 0,
-                beltSeconds: rank ? rank.belt_seconds : 0,
+                lifetimeStolen: rank ? rank.lifetime_stolen : 0,
+                weeklyKingWins: rank ? rank.weekly_king_wins : 0,
+                weeklyBeltSeconds: rank ? rank.weekly_belt_seconds : 0,
               });
             })
             .catch(() => {
-              this.broadcast({ type: 'arena_boxing_rating', username: data.username, rank: null, stolen: 0, kos: 0, beltSeconds: 0 });
+              this.broadcast({ type: 'arena_boxing_rating', username: data.username, rank: null, stolen: 0, kos: 0, lifetimeStolen: 0, weeklyKingWins: 0, weeklyBeltSeconds: 0 });
             });
           // Boxing Arena EN: тот же топ, но по английской таблице —
           // рассылается всегда, EN-страница слушает только свой тип, RU игнорирует
@@ -733,12 +759,14 @@ wss.on('connection', (ws, req) => {
         db.addBoxingBeltSeconds(msg.username, msg.seconds).catch(e => console.error('[DB] boxing_belt error:', e.message));
       }
       if (msg.type === 'boxing_tier_request' && msg.username) {
+        // уровень считается от lifetime_stolen (вечный, не обнуляется по
+        // понедельникам), не от total_stolen — та же логика, что у Street Fighter
         db.getUserBoxingRank(msg.username)
           .then(rank => {
-            room.broadcast({ type: 'boxing_tier_info', username: msg.username, total_stolen: rank ? rank.total_stolen : 0 });
+            room.broadcast({ type: 'boxing_tier_info', username: msg.username, lifetimeStolen: rank ? rank.lifetime_stolen : 0 });
           })
           .catch(() => {
-            room.broadcast({ type: 'boxing_tier_info', username: msg.username, total_stolen: 0 });
+            room.broadcast({ type: 'boxing_tier_info', username: msg.username, lifetimeStolen: 0 });
           });
       }
       if (msg.type === 'boxing_stolen_en' && msg.username && msg.amount) {
@@ -858,6 +886,26 @@ async function checkStreetFighterWeeklyReset() {
 // следующем запуске сброс досчитается сразу же
 setInterval(() => { checkStreetFighterWeeklyReset().catch(e => console.error('[STREETFIGHTER] weekly-check error:', e.message)); }, 10*60*1000);
 setTimeout(() => { checkStreetFighterWeeklyReset().catch(e => console.error('[STREETFIGHTER] weekly-check (startup) error:', e.message)); }, 15*1000);
+
+// ─── Boxing Arena RU: еженедельный сброс "Пояса чемпиона" (по понедельникам, Киев) ─────
+// 1-в-1 паттерн Street Fighter выше. EN-версия бокса не участвует.
+async function checkBoxingWeeklyReset() {
+  const result = await db.performBoxingWeeklyResetIfNeeded();
+  if (result) {
+    console.log('[BOXING] Рассылаю обновлённый топ и нового чемпиона недели во все активные комнаты после сброса');
+    for (const room of rooms.values()) {
+      db.getTopBoxingStolen(5)
+        .then(top => room.broadcast({ type: 'top_boxing', data: top }))
+        .catch(e => console.error('[BOXING] Ошибка рассылки топа после сброса:', e.message));
+      db.getLastBoxingWeeklyChampion()
+        .then(champion => room.broadcast({ type: 'boxing_weekly_champion', champion }))
+        .catch(e => console.error('[BOXING] Ошибка рассылки чемпиона после сброса:', e.message));
+    }
+  }
+  return result;
+}
+setInterval(() => { checkBoxingWeeklyReset().catch(e => console.error('[BOXING] weekly-check error:', e.message)); }, 10*60*1000);
+setTimeout(() => { checkBoxingWeeklyReset().catch(e => console.error('[BOXING] weekly-check (startup) error:', e.message)); }, 15*1000);
 
 // ─── Старт ───────────────────────────────────────────────────────────────────
 server.on('error', (err) => {

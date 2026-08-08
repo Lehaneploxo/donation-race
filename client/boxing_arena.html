@@ -73,84 +73,84 @@ const SKIN_VARIANTS = [
 ];
 function randomSkin(){ return SKIN_VARIANTS[Math.floor(Math.random()*SKIN_VARIANTS.length)]; }
 
-// ── Уровень зрителя (медаль у ника) — по all-time ⚡ отнятой энергии,
+// ── Уровень зрителя (текст у ника) — по all-time ⚡ отнятой энергии,
 // независимо от пояса чемпиона (можно носить и то, и другое одновременно).
-// Только для реальных бойцов — у ботов нет истории в БД.
-const TIER_BRONZE = 100000, TIER_SILVER = 1000000, TIER_GOLD = 10000000;
-function tierOf(total){
-  if (total >= TIER_GOLD) return 'gold';
-  if (total >= TIER_SILVER) return 'silver';
-  if (total >= TIER_BRONZE) return 'bronze';
-  return null;
-}
-const TIER_COLORS = {
-  bronze: { outer:'#7a4a25', inner:'#95582c', ring:'#3d2410' },
-  silver: { outer:'#c8c8ce', inner:'#e8e8ee', ring:'#8b8b93' },
-  gold:   { outer:'#ffd75e', inner:'#fff2b0', ring:'#a8790a' },
-};
-function drawTierMedal(cx, y, s, tier){
-  const c = TIER_COLORS[tier];
-  if (!c) return;
-  const r = 7*s;
-  ctx.save();
-
-  // лента над диском — треугольный "галстук" + два коротких хвостика по
-  // бокам, чтобы силуэт читался как настоящая медаль, а не просто кружок.
-  // Цвет ленты общий для всех уровней — металл диска (бронза/серебро/
-  // золото) остаётся единственным, что показывает уровень.
-  const ribbonColor = '#c62839', ribbonDark = '#8f1c29';
-  const topY = y - r*2.3, apexY = y - r*0.8;
-  ctx.fillStyle = ribbonColor;
-  ctx.beginPath();
-  ctx.moveTo(cx - r*0.9, topY);
-  ctx.lineTo(cx + r*0.9, topY);
-  ctx.lineTo(cx, apexY);
-  ctx.closePath();
-  ctx.fill();
-  ctx.lineWidth = 0.6*s; ctx.strokeStyle = ribbonDark; ctx.stroke();
-  ctx.fillStyle = ribbonDark;
-  ctx.beginPath();
-  ctx.moveTo(cx - r*0.9, topY); ctx.lineTo(cx - r*1.15, topY+r*0.65); ctx.lineTo(cx - r*0.5, topY+r*0.3);
-  ctx.closePath(); ctx.fill();
-  ctx.beginPath();
-  ctx.moveTo(cx + r*0.9, topY); ctx.lineTo(cx + r*1.15, topY+r*0.65); ctx.lineTo(cx + r*0.5, topY+r*0.3);
-  ctx.closePath(); ctx.fill();
-
-  // диск медали
-  ctx.beginPath(); ctx.arc(cx, y, r, 0, Math.PI*2);
-  ctx.fillStyle = c.outer; ctx.fill();
-  ctx.lineWidth = 1.3; ctx.strokeStyle = c.ring; ctx.stroke();
-  ctx.beginPath(); ctx.arc(cx, y, r*0.6, 0, Math.PI*2);
-  ctx.fillStyle = c.inner; ctx.fill();
-  if (tier === 'gold'){
-    ctx.shadowColor = '#ffcc33'; ctx.shadowBlur = 6*s;
-    ctx.beginPath(); ctx.arc(cx, y, r, 0, Math.PI*2);
-    ctx.lineWidth = 1; ctx.strokeStyle = '#ffcc33'; ctx.stroke();
-    ctx.shadowBlur = 0;
+// Только для реальных бойцов — у ботов нет истории в БД. 2026-08-08:
+// перенесено 1-в-1 из Street Fighter (та же кривая порогов/цветов, тот же
+// текстовый формат "ур.NN" вместо значка) — раньше тут была медаль
+// бронза/серебро/золото (3 порога), теперь 50 уровней/10 рангов, названия
+// рангов адаптированы под бокс.
+const LEVEL_THRESHOLDS = [
+  0,30,250,1000,2500,5000,10000,16000,25000,35000,
+  55000,70000,95000,125000,150000,200000,250000,300000,375000,450000,
+  525000,600000,700000,825000,950000,1100000,1200000,1400000,1600000,1800000,
+  2000000,2200000,2500000,2700000,3000000,3300000,3600000,4000000,4300000,4700000,
+  5100000,5600000,6000000,6500000,7000000,7600000,8100000,8700000,9300000,10000000,
+];
+const LEVEL_RANKS = [
+  { name:'Новичок ринга',      from:1,  to:5,  color:'#9a9a9a' },
+  { name:'Дворовый боксёр',    from:6,  to:10, color:'#b8752e' },
+  { name:'Боец с окраины',     from:11, to:15, color:'#3fa9f5' },
+  { name:'Ринговый боец',      from:16, to:20, color:'#2ecc71' },
+  { name:'Гроза зала',         from:21, to:25, color:'#17c9b2' },
+  { name:'Ветеран ринга',      from:26, to:30, color:'#9b59f6' },
+  { name:'Мастер апперкота',   from:31, to:35, color:'#ef4bb0' },
+  { name:'Гроза арены',        from:36, to:40, color:'#ff8c1a' },
+  { name:'Чемпион зала',       from:41, to:45, color:'#ff2e4d' },
+  { name:'Легенда ринга',      from:46, to:50, color:'#ffd700' },
+];
+function levelOf(total){
+  total = total || 0;
+  let lvl = 1;
+  for (let i=0; i<LEVEL_THRESHOLDS.length; i++){
+    if (total >= LEVEL_THRESHOLDS[i]) lvl = i+1; else break;
   }
+  return lvl;
+}
+function rankOfLevel(level){
+  return LEVEL_RANKS.find(r => level>=r.from && level<=r.to) || LEVEL_RANKS[0];
+}
+function rankIndexOfLevel(level){
+  const idx = LEVEL_RANKS.findIndex(r => level>=r.from && level<=r.to);
+  return idx>=0 ? idx : 0;
+}
+function levelProgress(total){
+  total = total || 0;
+  const level = levelOf(total);
+  const cur = LEVEL_THRESHOLDS[level-1];
+  const next = LEVEL_THRESHOLDS[level] ?? null;
+  const frac = next==null ? 1 : Math.min(1, Math.max(0, (total-cur)/(next-cur)));
+  return { level, cur, next, frac };
+}
+// уровень — просто текст "ур.NN" слева от ника, цвет по рангу (см. LEVEL_RANKS)
+function drawLevelText(rightEdgeX, y, s, level){
+  const idx = LEVEL_RANKS.findIndex(rk => level>=rk.from && level<=rk.to);
+  const rank = idx>=0 ? LEVEL_RANKS[idx] : LEVEL_RANKS[0];
+  const txt = 'ур.' + level;
+  ctx.save();
+  ctx.font = `bold ${15*s}px Arial Black`;
+  const w = ctx.measureText(txt).width;
+  const x = rightEdgeX - w;
+  ctx.fillStyle = 'rgba(0,0,0,0.45)';
+  ctx.fillRect(x - 5*s, y - 12*s, w + 10*s, 16*s);
+  ctx.textAlign = 'left';
+  ctx.lineWidth = 3.5*s; ctx.strokeStyle = 'rgba(0,0,0,0.95)';
+  ctx.strokeText(txt, x, y);
+  ctx.fillStyle = rank.color;
+  ctx.fillText(txt, x, y);
   ctx.restore();
 }
 
-// ── Чемпион ринга: текущий #1 в all-time рейтинге отнятой энергии ──
-// получает золотую перекраску (перчатки/шорты) + золотой ник вместо своей
-// обычной, пока держит первое место. При смене лидера золото переходит на
-// нового, у старого возвращается обычный (сохранённый) скин.
+// ── Чемпион ринга: победитель ПРОШЛОЙ недели (см. _weeklyChampion ниже) ──
+// получает золотую перекраску (перчатки/шорты) + золотой ник, пока не
+// пройдёт следующий понедельничный сброс. 2026-08-08: раньше это был
+// "живой" текущий #1 в рейтинге (менялся от каждого доната) — переключили
+// на уже РЕШЁННОГО чемпиона прошлой недели, того же, что в постоянном
+// бейдже под правилами (см. drawHUD). Заодно убрали репорт "секунд с
+// поясом" (flushBeltTime/reportBelt) — был нужен только старому "живому"
+// чемпиону, для недельного (одна и та же неделя целиком) смысла не имеет.
 const CHAMPION_SKIN = { dir:'boxer_v5_gold', color:'#fff2b0' };
 let _championName = null;
-let _championSince = null; // Date.now() с последнего флаша времени владения поясом
-
-// сбрасывает накопленное с последнего флаша время владения поясом на
-// сервер (по 60 сек, чтобы не терять много при перезагрузке/рестарте) —
-// только пока реально идёт эфир (не в demo/connecting)
-function flushBeltTime(){
-  if (!_championName || !_championSince) return;
-  const now = Date.now();
-  const elapsedSec = Math.floor((now - _championSince) / 1000);
-  if (elapsedSec > 0 && typeof _gameMode !== 'undefined' && _gameMode === 'tiktok') {
-    reportBelt(_championName, elapsedSec);
-  }
-  _championSince = now;
-}
 
 function applyChampionSkin(v){
   if (v.isChamp) return;
@@ -164,29 +164,26 @@ function revertChampionSkin(v){
   v.frames = loadFrames(v.dir);
   v.isChamp = false;
 }
-// вызывается после каждого обновления _dbTop (и сразу после спавна нового
-// бойца) — синхронизирует, кто именно сейчас должен носить золото
+// вызывается после каждого обновления _weeklyChampion (и сразу после
+// спавна нового бойца) — синхронизирует, кто именно сейчас должен носить золото
 function syncChampionStatus(){
-  const newName = (_dbTop[0] && _dbTop[0].username) || null;
+  const newName = (_weeklyChampion && _weeklyChampion.username) || null;
   if (newName === _championName){
-    // лидер не поменялся, но он мог только что заспавниться — на всякий
+    // чемпион не поменялся, но он мог только что заспавниться — на всякий
     // случай убеждаемся, что золото на нём, если он уже на ринге
     if (newName){ const v = findRealFighter(newName); if (v) applyChampionSkin(v); }
     return;
   }
-  flushBeltTime(); // закрываем отрезок владения поясом старым чемпионом перед сменой
   if (_championName){
     const old = findRealFighter(_championName);
     if (old) revertChampionSkin(old);
   }
   _championName = newName;
-  _championSince = newName ? Date.now() : null;
   if (_championName){
     const now = findRealFighter(_championName);
     if (now) applyChampionSkin(now);
   }
 }
-setInterval(flushBeltTime, 60000);
 
 // ростер бойцов стартует ПУСТЫМ — реальные бойцы появляются по первому
 // лайку/донату конкретного зрителя (см. applyGrowth ниже); пока их <2 на
@@ -293,6 +290,7 @@ function applyGrowth(username, gain, isGift){
       dir: skin.dir, name: username, color: skin.color, isBot: false,
       baseDir: skin.dir, baseColor: skin.color, isChamp: false,
       stolenEnergy: 0, powerDecayAcc: 0, kos: 0, allTimeStolen: 0,
+      knownRankIdx: 0, // текущий известный ранг (для объявления диктором смены звания)
     };
     v.energyMax = 0; v.energy = 0; v.powerMax = 0; v.power = 0;
     initFighterRuntime(v, pos.x, pos.y);
@@ -328,6 +326,17 @@ function applyGrowth(username, gain, isGift){
   } else {
     v.energy += gainedEnergy;
     v.power  += gainedPower;
+  }
+
+  // бонус энергии за уровень (перенесено из Street Fighter): при КАЖДОМ
+  // выходе на ринг (первый спавн ИЛИ возрождение после нокаута, но не при
+  // обычной подпитке уже дерущегося бойца) начисляется энергия = номер
+  // уровня — уровень максимум 50, 1 лайк = 10 энергии, 1 донат = 100
+  // энергии за коин, так что бонус всегда мелкий довесок, не меняет баланс
+  if (isNew || wasDown){
+    const lvlBonus = levelOf(v.allTimeStolen||0);
+    v.energyMax += lvlBonus;
+    v.energy    += lvlBonus;
   }
 
   if (isNew && !wasDown) {
@@ -515,6 +524,18 @@ const CHAMPION_ENTRANCE_LINES = [
   n=>`Тишина в зале! Чемпион ринга ${n} на ринге!`,
 ];
 
+// смена РАНГА (не каждого уровня — их 50, было бы слишком часто; ранг
+// меняется раз в 5 уровней) — звучит целиком, не перебивается (protect),
+// шуточный тон, как и остальные фразы диктора
+const RANK_UP_LINES = [
+  (n, rank)=>`Внимание, зал! ${n} получает новое звание — ${rank}! Все встали и захлопали!`,
+  (n, rank)=>`Ого! ${n} дорос до звания «${rank}»! Тренер уже не успевает за прогрессом!`,
+  (n, rank)=>`Новый ранг на ринге! ${n} теперь официально ${rank}!`,
+  (n, rank)=>`${n} прокачался до «${rank}»! Канаты начинают потрескивать от гордости!`,
+  (n, rank)=>`Ринговая газета выйдет с заголовком: «${n} — теперь ${rank}»!`,
+  (n, rank)=>`Поздравляем! ${n} повышен до «${rank}»! Дальше только легенды!`,
+];
+
 // urgent=true — обычно обрывает текущую фразу и говорит сразу (как
 // donation-хайп в arena2); НО если сейчас играет protected-фраза (чемпион
 // ринга/главное правило) — её не обрываем, новая просто становится
@@ -568,11 +589,15 @@ function vSpeakNext(){
 
 // главное правило — гарантированно каждые 30 сек, целиком (protected)
 setInterval(()=>{ pushEvent(RULE_PRIMARY, true, true); }, 30000);
-// объявление про новый сезон/рейтинг — та же приоритетная очередь: если в
-// этот момент говорится главное правило, оно НЕ обрывается, это объявление
-// просто встаёт следующим и звучит сразу за ним
-const NEW_SEASON_LINE = 'Новый сезон! Новые правила! Новый рейтинг! Кто станет королём ринга?';
-setInterval(()=>{ pushEvent(NEW_SEASON_LINE, true, true); }, 30000);
+// объясняют механику уровней/недельного пояса (2026-08-08, перенесено из
+// Street Fighter) — каждая на СВОЁМ отдельном таймере раз в минуту,
+// protected (как RULE_PRIMARY). Раньше тут звучала общая промо-фраза про
+// "новый сезон" каждые 30 сек — убрали как устаревшую и неточную, теперь
+// объявляем реальную механику.
+const RULE_LEVELS = 'Твой уровень растёт от каждого удара и никогда не обнуляется — дерись, качай ранг от новичка до легенды ринга!';
+const RULE_WEEKLY_BELT = 'Каждый понедельник пояс чемпиона обнуляется — кто заработает больше всех очков за неделю, станет чемпионом недели!';
+setInterval(()=>{ pushEvent(RULE_LEVELS, true, true); }, 60000);
+setInterval(()=>{ pushEvent(RULE_WEEKLY_BELT, true, true); }, 60000);
 // остальные правила — по кругу раз в минуту, тоже protected
 setInterval(()=>{
   pushEvent(RULES_OTHER[_ruleOtherIdx % RULES_OTHER.length], true, true);
@@ -799,19 +824,56 @@ function wsConnect(username){
       if (d.type==='arena_team' && _gameMode==='tiktok') toggleTeam(d.username);
       if (d.type==='arena_gift' && _gameMode==='tiktok') onGift(d.username, d.coins);
       if (d.type==='arena_cheat' && _gameMode==='tiktok') applyCheat(d.username, d.hp, d.damage);
-      if (d.type==='top_boxing') { _dbTop = (d.data||[]).map(p=>({ username:p.username, stolen:p.total_stolen })); syncChampionStatus(); }
+      if (d.type==='top_boxing') { _dbTop = (d.data||[]).map(p=>({ username:p.username, stolen:p.total_stolen })); }
+      if (d.type==='boxing_weekly_champion') { _weeklyChampion = d.champion || null; syncChampionStatus(); }
       if (d.type==='boxing_tier_info'){
         const v = findRealFighter(d.username);
-        if (v) v.allTimeStolen = Number(d.total_stolen)||0;
+        if (v){
+          v.allTimeStolen = Number(d.lifetimeStolen)||0;
+          v.knownRankIdx = rankIndexOfLevel(levelOf(v.allTimeStolen));
+        }
       }
       if (d.type==='arena_boxing_rating'){
         if (d.rank){
-          const pts = Number(d.stolen||0).toLocaleString('ru-RU');
-          let html = `<span style="color:#FF6688;font-size:16px;font-weight:bold;">📊 @${d.username}</span><br>`
-            + `<span style="color:#FFD700;font-size:14.5px;">#${d.rank} место · ⚡${pts}</span><br>`
-            + `<span style="color:#ffb4c4;font-size:13.5px;">🥊 Нокаутов: ${d.kos||0}</span>`;
-          if (d.beltSeconds > 0){
-            html += `<div style="margin-top:5px;padding-top:5px;border-top:1px dashed rgba(255,215,0,0.25);display:flex;align-items:center;justify-content:center;gap:6px;color:#fff2b0;font-size:14px;font-weight:700;">${BELT_ICON_SVG}<b>${formatBeltTime(d.beltSeconds)}</b></div>`;
+          // Порядок карточки — как в Street Fighter: ник → уровень (ГЛАВНОЕ,
+          // сразу после ника) → нокауты → недельные очки/место → сколько раз
+          // был чемпионом недели (пояс, не корона — это бокс).
+          let html = `<span style="color:#FF6688;font-size:16px;font-weight:bold;">📊 @${d.username}</span><br>`;
+
+          // уровень + название ранга + полоска прогресса — от lifetimeStolen
+          // (ВЕЧНЫЙ счётчик, не обнуляется по понедельникам вместе с
+          // недельными очками ниже — иначе уровень бы сгорал)
+          const lifetimeTotal = Number(d.lifetimeStolen||0);
+          const prog = levelProgress(lifetimeTotal);
+          const rank = rankOfLevel(prog.level);
+          html += `<span style="color:#7fd3ff;font-size:15px;font-weight:700;">🎖️ ${prog.level} уровень — ${rank.name}</span>`;
+          if (prog.next != null){
+            const pct = Math.round(prog.frac*100);
+            const need = (prog.next - lifetimeTotal).toLocaleString('ru-RU');
+            html += `<div style="margin-top:2px;background:rgba(255,255,255,0.12);border-radius:5px;height:6px;overflow:hidden;">`
+              + `<div style="width:${pct}%;height:100%;background:${rank.color};"></div></div>`
+              + `<div style="margin-top:1px;color:#aaa;font-size:11px;">ещё ${need}⚡ до ${prog.level+1} уровня</div>`;
+          } else {
+            html += `<div style="margin-top:1px;color:#ffd75e;font-size:11px;">Максимальный уровень!</div>`;
+          }
+
+          // нокауты, затем недельные очки/место (d.stolen/d.rank — сами
+          // обнуляются по понедельникам, двигают пояс текущей недели)
+          const stolenTotal = Number(d.stolen||0);
+          const pts = stolenTotal.toLocaleString('ru-RU');
+          html += `<div style="margin-top:3px;padding-top:3px;border-top:1px dashed rgba(255,255,255,0.18);">`
+            + `<span style="color:#ffb4c4;font-size:13.5px;">🥊 Нокаутов: ${d.kos||0}</span><br>`
+            + `<span style="color:#FFD700;font-size:14.5px;">#${d.rank} место за неделю</span><br>`
+            + `<span style="color:#FFD700;font-size:14.5px;">⚡${pts} очков за неделю</span>`
+            + `</div>`;
+
+          // Чемпион недели (пояс): сколько раз выигрывал — вечный счётчик.
+          // Строку "время с поясом" не показываем — с новыми правилами
+          // (побеждает по очкам) она уже ничего не решает.
+          if (d.weeklyKingWins > 0){
+            html += `<div style="margin-top:3px;padding-top:3px;border-top:1px dashed rgba(255,215,0,0.25);color:#fff2b0;">`
+              + `<div style="display:flex;align-items:center;justify-content:center;gap:6px;font-size:14px;font-weight:700;">${BELT_ICON_SVG}<span>Чемпион недели ×${d.weeklyKingWins}</span></div>`
+              + `</div>`;
           }
           _showRating(html);
         } else {
@@ -840,14 +902,6 @@ const BELT_ICON_SVG = `<svg width="30" height="14" viewBox="-25 0 90 40" style="
   <rect x="30" y="18.5" width="6" height="3" rx="1" fill="#f2f2f2"/>
   <circle cx="20" cy="20" r="8" fill="#2f9052" stroke="#f6dd97" stroke-width="1"/>
 </svg>`;
-function formatBeltTime(totalSeconds){
-  const h = Math.floor(totalSeconds/3600);
-  const m = Math.floor((totalSeconds%3600)/60);
-  if (h>0) return `${h}ч ${m}м`;
-  if (m>0) return `${m}м`;
-  return `${totalSeconds}с`;
-}
-
 let _ratingHideTimer = null;
 function _showRating(html){
   const el = document.getElementById('ratingOverlay');
@@ -879,22 +933,31 @@ setInterval(()=>{
 function reportKO(username){
   if (_ws && _ws.readyState===1) _ws.send(JSON.stringify({ type:'boxing_ko', username }));
 }
-function reportBelt(username, seconds){
-  if (_ws && _ws.readyState===1) _ws.send(JSON.stringify({ type:'boxing_belt', username, seconds }));
-}
 function requestTier(username){
   if (_ws && _ws.readyState===1) _ws.send(JSON.stringify({ type:'boxing_tier_request', username }));
 }
 
-// ── ТОП-лист: all-time из БД (не сбрасывается между стримами) ──
+// ── ТОП-лист: недельный, из БД (обнуляется по понедельникам) ──
 let _dbTop = []; // [{username, stolen}]
 function fetchBoxingTop(){
   fetch('/top-boxing?limit=5').then(r=>r.json()).then(d=>{
-    if (d.ok && d.top) { _dbTop = d.top.map(p=>({ username:p.username, stolen:p.total_stolen })); syncChampionStatus(); }
+    if (d.ok && d.top) _dbTop = d.top.map(p=>({ username:p.username, stolen:p.total_stolen }));
   }).catch(()=>{});
 }
 fetchBoxingTop();
 setInterval(fetchBoxingTop, 30000);
+
+// чемпион ПРОШЛОЙ недели (пояс) — постоянный бейдж под правилами (см.
+// drawHUD), живёт до следующего понедельника; null = сброса ещё ни разу
+// не было — тогда бейдж приглашает стать первым чемпионом
+let _weeklyChampion = null;
+function fetchBoxingWeeklyChampion(){
+  fetch('/boxing-weekly-champion').then(r=>r.json()).then(d=>{
+    if (d.ok) { _weeklyChampion = d.champion || null; syncChampionStatus(); }
+  }).catch(()=>{});
+}
+fetchBoxingWeeklyChampion();
+setInterval(fetchBoxingWeeklyChampion, 30000);
 
 (function initLive(){
   const p = new URLSearchParams(location.search);
@@ -1334,7 +1397,7 @@ function drawHUD() {
   // _dbTop, не сбрасывается между боями/стримами), НЕ текущая сила/энергия боя
   const top = _dbTop.slice(0,5).map(p=>({ name:p.username, stolenEnergy:p.stolen }));
   const rankColors = ['#FFD700','#C0C0C0','#CD7F32','#AAAAAA','#666666'];
-  const ranks = ['👑','2.','3.','4.','5.'];
+  const ranks = ['1.','2.','3.','4.','5.'];
   const tX = CW/2 + 8, tY = T+108, tStep = 29;
   for (let i=0;i<top.length;i++){
     const p = top[i], y = tY + i*tStep;
@@ -1354,6 +1417,36 @@ function drawHUD() {
   }
   ctx.font = '9px Arial'; ctx.fillStyle = 'rgba(255,255,255,0.18)';
   ctx.textAlign = 'center'; ctx.fillText('all-time отнятая энергия', CW*0.75, T+TH-6);
+
+  drawWeeklyChampionBadge();
+}
+
+// чемпион ПРОШЛОЙ недели (пояс) — маленький постоянный бейдж слева, сразу
+// под плашкой правил (WALL_TOP — там начинается фон, место пустое). Пока
+// ни разу не было сброса (_weeklyChampion===null, самая первая неделя
+// фичи) — вместо ника приглашение "Тут можешь быть ты". 1-в-1 перенесено
+// из Street Fighter, только 🥊 вместо 👑 (в боксе это пояс, не корона).
+function drawWeeklyChampionBadge(){
+  const bx = 10, by = WALL_TOP + 4;
+  const txt = '🥊 ' + (_weeklyChampion ? '@'+_weeklyChampion.username : 'Тут можешь быть ты');
+
+  ctx.save();
+  ctx.font = 'bold 19px Arial Black';
+  const tw = ctx.measureText(txt).width;
+  const bw = tw + 20, bh = 32;
+
+  ctx.fillStyle = 'rgba(15,10,0,0.85)';
+  ctx.strokeStyle = '#ffd24f'; ctx.lineWidth = 1.5;
+  roundRectPath(bx, by, bw, bh, 7);
+  ctx.fill(); ctx.stroke();
+
+  ctx.textAlign = 'left';
+  ctx.font = 'bold 19px Arial Black';
+  ctx.strokeStyle = 'rgba(0,0,0,0.9)'; ctx.lineWidth = 3.5;
+  ctx.strokeText(txt, bx+10, by+23);
+  ctx.fillStyle = '#FFD700';
+  ctx.fillText(txt, bx+10, by+23);
+  ctx.restore();
 }
 
 // все бойцы ОДНОГО размера (как totalSc в arena2) — глубина влияет только на позицию/порядок отрисовки, не на масштаб
@@ -1529,23 +1622,20 @@ function drawFighter(v) {
 
   // уровень зрителя (медаль слева от ника) — только у реальных бойцов,
   // независимо от пояса чемпиона (можно носить и то, и другое сразу)
-  const tier = (!v.isBot) ? tierOf(v.allTimeStolen||0) : null;
+  const level = (!v.isBot) ? levelOf(v.allTimeStolen||0) : null;
+  const isTopRank = level!=null && level >= 46; // "Легенда ринга" — тот же приём свечения, что раньше был у золота
 
   if (v.isChamp && v.alive){
     drawChampionBelt(cx, labelY - 28*s, s);
-    // чемпион ринга — золотое свечение вокруг ника вместо обычного цвета
+    // чемпион ПРОШЛОЙ недели — сплошной золотой ник, БЕЗ shadowBlur-свечения
+    // (по просьбе пользователя: жрёт производительность на слабых телефонах)
     ctx.lineWidth = 4.5*s;
-    ctx.lineJoin = 'round';
     ctx.strokeStyle = 'rgba(40,20,0,0.95)';
     ctx.strokeText(nameTxt, cx, labelY);
-    ctx.shadowColor = '#ffcc33';
-    ctx.shadowBlur = 12*s;
-    ctx.fillStyle = '#fff2b0';
+    ctx.fillStyle = '#FFD700';
     ctx.fillText(nameTxt, cx, labelY);
-    ctx.shadowBlur = 0;
-    ctx.fillText(nameTxt, cx, labelY);
-  } else if (tier === 'gold' && v.alive){
-    // золотой уровень (не чемпион) — тот же приём, но свечение слабее
+  } else if (isTopRank && v.alive){
+    // топ-ранг "Легенда ринга" (не чемпион) — тот же приём, но свечение слабее
     ctx.lineWidth = 4.5;
     ctx.strokeStyle = 'rgba(0,0,0,0.95)';
     ctx.strokeText(nameTxt, cx, labelY);
@@ -1562,8 +1652,8 @@ function drawFighter(v) {
     ctx.fillText(nameTxt, cx, labelY);
   }
 
-  if (tier && v.alive){
-    drawTierMedal(cx - nameW/2 - 12*s, labelY - 5*s, s, tier);
+  if (level!=null && v.alive){
+    drawLevelText(cx - nameW/2 - 8*s, labelY, s, level);
   }
 
   // ⚡ Энергия и 💪 Сила — в стиле _drawLabels из arena3.html (сердечки убраны — Энергия теперь и есть здоровье)
@@ -1763,6 +1853,15 @@ function throwPunch(attacker, defender){
   if (!attacker.isBot){
     attacker.allTimeStolen = (attacker.allTimeStolen||0) + stolen;
     reportStolen(attacker.name, stolen);
+    // повышение РАНГА (не каждого уровня — см. RANK_UP_LINES) — диктор
+    // объявляет целиком, не перебивая (protect=true), но не обрывая уже
+    // звучащую protected-фразу правил/чемпиона (см. pushEvent)
+    const newRankIdx = rankIndexOfLevel(levelOf(attacker.allTimeStolen));
+    if (newRankIdx > (attacker.knownRankIdx||0)){
+      attacker.knownRankIdx = newRankIdx;
+      const rankName = LEVEL_RANKS[newRankIdx].name;
+      pushEvent(pick(RANK_UP_LINES)(cleanNickForSpeech(attacker.name), rankName), true, true);
+    }
   }
 
   if (defender.energy<=0) collapse(defender, attacker);
