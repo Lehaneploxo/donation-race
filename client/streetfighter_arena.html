@@ -245,25 +245,16 @@ function drawLevelText(rightEdgeX, y, s, level){
   ctx.restore();
 }
 
-// ── Чемпион улицы: текущий #1 в all-time рейтинге отнятой энергии ──
-// получает золотой ник вместо обычного, пока держит первое место.
-// В отличие от бокса — нет отдельного золотого скина (только 1 вариант
-// спрайта Brawler Girl), так что смены спрайта тут нет, только подсветка ника.
+// ── Чемпион улицы: победитель ПРОШЛОЙ недели (см. _weeklyChampion ниже) ──
+// получает золотой ник + золотой костюм на ринге, пока не пройдёт
+// следующий понедельничный сброс. 2026-08-08: раньше это был "живой"
+// текущий #1 в рейтинге (менялся от каждого доната) — по просьбе
+// пользователя переключили на уже РЕШЁННОГО чемпиона прошлой недели,
+// того же, что показан в постоянном бейдже под правилами (drawHUD).
+// Заодно убрали репорт "секунд с поясом" (flushBeltTime/reportBelt) —
+// он был нужен только старому "живому" чемпиону, а для недельного
+// победителя (одна и та же неделя целиком) больше не имеет смысла.
 let _championName = null;
-let _championSince = null; // Date.now() с последнего флаша времени владения поясом
-
-// сбрасывает накопленное с последнего флаша время владения поясом на
-// сервер (по 60 сек, чтобы не терять много при перезагрузке/рестарте) —
-// только пока реально идёт эфир (не в demo/connecting)
-function flushBeltTime(){
-  if (!_championName || !_championSince) return;
-  const now = Date.now();
-  const elapsedSec = Math.floor((now - _championSince) / 1000);
-  if (elapsedSec > 0 && typeof _gameMode !== 'undefined' && _gameMode === 'tiktok') {
-    reportBelt(_championName, elapsedSec);
-  }
-  _championSince = now;
-}
 
 function applyChampionSkin(v){
   v.isChamp = true;
@@ -271,29 +262,26 @@ function applyChampionSkin(v){
 function revertChampionSkin(v){
   v.isChamp = false;
 }
-// вызывается после каждого обновления _dbTop (и сразу после спавна нового
-// бойца) — синхронизирует, кто именно сейчас должен носить золото
+// вызывается после каждого обновления _weeklyChampion (и сразу после
+// спавна нового бойца) — синхронизирует, кто именно сейчас должен носить золото
 function syncChampionStatus(){
-  const newName = (_dbTop[0] && _dbTop[0].username) || null;
+  const newName = (_weeklyChampion && _weeklyChampion.username) || null;
   if (newName === _championName){
-    // лидер не поменялся, но он мог только что заспавниться — на всякий
+    // чемпион не поменялся, но он мог только что заспавниться — на всякий
     // случай убеждаемся, что золото на нём, если он уже на ринге
     if (newName){ const v = findRealFighter(newName); if (v) applyChampionSkin(v); }
     return;
   }
-  flushBeltTime(); // закрываем отрезок владения поясом старым чемпионом перед сменой
   if (_championName){
     const old = findRealFighter(_championName);
     if (old) revertChampionSkin(old);
   }
   _championName = newName;
-  _championSince = newName ? Date.now() : null;
   if (_championName){
     const now = findRealFighter(_championName);
     if (now) applyChampionSkin(now);
   }
 }
-setInterval(flushBeltTime, 60000);
 
 // ростер бойцов стартует ПУСТЫМ — реальные бойцы появляются по первому
 // лайку/донату конкретного зрителя (см. applyGrowth ниже); пока их <2 на
@@ -1130,8 +1118,8 @@ function wsConnect(username){
       if (d.type==='arena_team' && _gameMode==='tiktok') toggleTeam(d.username);
       if (d.type==='arena_gift' && _gameMode==='tiktok') onGift(d.username, d.coins);
       if (d.type==='arena_cheat' && _gameMode==='tiktok') applyCheat(d.username, d.hp, d.damage);
-      if (d.type==='top_streetfighter') { _dbTop = (d.data||[]).map(p=>({ username:p.username, stolen:p.total_stolen })); syncChampionStatus(); }
-      if (d.type==='streetfighter_weekly_champion') { _weeklyChampion = d.champion || null; }
+      if (d.type==='top_streetfighter') { _dbTop = (d.data||[]).map(p=>({ username:p.username, stolen:p.total_stolen })); }
+      if (d.type==='streetfighter_weekly_champion') { _weeklyChampion = d.champion || null; syncChampionStatus(); }
       if (d.type==='streetfighter_tier_info'){
         const v = findRealFighter(d.username);
         if (v){
@@ -1244,9 +1232,6 @@ setInterval(()=>{
 function reportKO(username){
   if (_ws && _ws.readyState===1) _ws.send(JSON.stringify({ type:'streetfighter_ko', username }));
 }
-function reportBelt(username, seconds){
-  if (_ws && _ws.readyState===1) _ws.send(JSON.stringify({ type:'streetfighter_belt', username, seconds }));
-}
 function requestTier(username){
   if (_ws && _ws.readyState===1) _ws.send(JSON.stringify({ type:'streetfighter_tier_request', username }));
 }
@@ -1255,7 +1240,7 @@ function requestTier(username){
 let _dbTop = []; // [{username, stolen}]
 function fetchStreetFighterTop(){
   fetch('/top-streetfighter?limit=5').then(r=>r.json()).then(d=>{
-    if (d.ok && d.top) { _dbTop = d.top.map(p=>({ username:p.username, stolen:p.total_stolen })); syncChampionStatus(); }
+    if (d.ok && d.top) _dbTop = d.top.map(p=>({ username:p.username, stolen:p.total_stolen }));
   }).catch(()=>{});
 }
 fetchStreetFighterTop();
@@ -1267,7 +1252,7 @@ setInterval(fetchStreetFighterTop, 30000);
 let _weeklyChampion = null;
 function fetchStreetFighterWeeklyChampion(){
   fetch('/streetfighter-weekly-champion').then(r=>r.json()).then(d=>{
-    if (d.ok) _weeklyChampion = d.champion || null;
+    if (d.ok) { _weeklyChampion = d.champion || null; syncChampionStatus(); }
   }).catch(()=>{});
 }
 fetchStreetFighterWeeklyChampion();
@@ -2108,6 +2093,28 @@ function drawKOPose(v, cx, floorY, s){
   return dh;
 }
 
+// золотой костюм чемпиона прошлой недели — тонирует ЛЮБОЙ выбранный спрайт
+// целиком (силуэт не меняется). Рисуем через офскрин-буфер: source-atop
+// прямо на основном canvas красил бы весь прямоугольник (там уже
+// непрозрачный фон под спрайтом), а не только пиксели персонажа — поэтому
+// сначала переносим кадр на отдельный прозрачный canvas и тонируем ТАМ.
+// Один переиспользуемый буфер (не новый canvas каждый кадр) — чемпион
+// прошлой недели всегда только один на ринге, так что это дёшево.
+const _tintCanvas = document.createElement('canvas');
+const _tintCtx = _tintCanvas.getContext('2d');
+function tintGold(img){
+  _tintCanvas.width = img.naturalWidth;
+  _tintCanvas.height = img.naturalHeight;
+  _tintCtx.drawImage(img, 0, 0);
+  _tintCtx.globalCompositeOperation = 'source-atop';
+  _tintCtx.globalAlpha = 0.55;
+  _tintCtx.fillStyle = '#ffd700';
+  _tintCtx.fillRect(0, 0, _tintCanvas.width, _tintCanvas.height);
+  _tintCtx.globalCompositeOperation = 'source-over';
+  _tintCtx.globalAlpha = 1;
+  return _tintCanvas;
+}
+
 function drawFighter(v) {
   if (v.eliminated) return; // насовсем исчез с ринга
 
@@ -2150,7 +2157,11 @@ function drawFighter(v) {
     const defaultsRight = v.baseType === 'brawler_girl' || v.baseType === 'batting_girl'
       || v.baseType === 'brute_arms' || v.baseType === 'bancho';
     if (wantsRight !== defaultsRight) ctx.scale(-1,1);
-    ctx.drawImage(img, -dw/2, -dh+8, dw, dh);
+    if (v.isChamp && v.alive){
+      ctx.drawImage(tintGold(img), -dw/2, -dh+8, dw, dh);
+    } else {
+      ctx.drawImage(img, -dw/2, -dh+8, dw, dh);
+    }
     ctx.restore();
   }
 
@@ -2177,17 +2188,13 @@ function drawFighter(v) {
   const isTopRank = level!=null && level >= 46; // "Легенда улиц" — тот же приём свечения, что раньше был у золота
 
   if (v.isChamp && v.alive){
-    // чемпион улицы — золотое свечение вокруг ника вместо обычного цвета
-    // (своего золотого скина/пояса, в отличие от бокса, тут нет)
+    // чемпион ПРОШЛОЙ недели — сплошной золотой ник, БЕЗ shadowBlur-свечения
+    // (по просьбе пользователя: жрёт производительность на слабых телефонах,
+    // тот же приём, что у бейджа/уровня — просто обводка+заливка)
     ctx.lineWidth = 4.5*s;
-    ctx.lineJoin = 'round';
     ctx.strokeStyle = 'rgba(40,20,0,0.95)';
     ctx.strokeText(nameTxt, cx, labelY);
-    ctx.shadowColor = '#ffcc33';
-    ctx.shadowBlur = 12*s;
-    ctx.fillStyle = '#fff2b0';
-    ctx.fillText(nameTxt, cx, labelY);
-    ctx.shadowBlur = 0;
+    ctx.fillStyle = '#FFD700';
     ctx.fillText(nameTxt, cx, labelY);
   } else if (isTopRank && v.alive){
     // топ-ранг "Легенда улиц" (не чемпион) — тот же приём, но свечение слабее
