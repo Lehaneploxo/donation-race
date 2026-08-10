@@ -801,15 +801,30 @@ document.addEventListener('pointerdown', function unlockVideoSoundOnce(){
 });
 
 // ручное тестирование без реального доната/эфира — ?debug=1 в адресе,
-// жмёт ровно ту же ветку кода, что и реальный подарок "Money Gun"
+// каждая кнопка жмёт ровно ту же ветку кода, что и настоящее событие
+// (отдельный тестовый юзернейм на кнопку — чтобы уловы не толкались в одну очередь)
 if (new URLSearchParams(location.search).get('debug') === '1'){
-  const btn = document.createElement('button');
-  btn.textContent = '🧪 TEST MONEY GUN';
-  btn.style.cssText = 'position:fixed;left:8px;bottom:8px;z-index:99999;padding:8px 12px;'+
-    'font-weight:bold;font-family:Arial,sans-serif;background:#1a4a6e;color:#fff;'+
-    'border:1px solid rgba(255,255,255,0.4);border-radius:8px;cursor:pointer;';
-  btn.addEventListener('click', ()=> triggerMoneyGun('TestUser', 500));
-  document.body.appendChild(btn);
+  const panel = document.createElement('div');
+  panel.style.cssText = 'position:fixed;left:8px;bottom:8px;z-index:99999;display:flex;'+
+    'flex-direction:column;gap:4px;font-family:Arial,sans-serif;';
+
+  const buttons = [
+    ['🐟 SMALL (5)',   ()=>{ spawnCatch('TestSmall', 5, tierForCoins(5)); reportFish('TestSmall', 5); }],
+    ['🐠 MEDIUM (50)', ()=>{ spawnCatch('TestMedium', 50, tierForCoins(50)); reportFish('TestMedium', 50); }],
+    ['🐡 PIKE (200)',  ()=>{ spawnCatch('TestPike', 200, tierForCoins(200)); reportFish('TestPike', 200); }],
+    ['🦈 SHARK (1500)',()=>{ spawnCatch('TestShark', 1500, tierForCoins(1500)); reportFish('TestShark', 1500); }],
+    ['❤️ LIKE x100',   ()=>{ spawnCatch('TestLike', 1, LIKE_TIER); reportFish('TestLike', 1); }],
+    ['🔫 MONEY GUN',   ()=> triggerMoneyGun('TestGun', 500)],
+  ];
+  buttons.forEach(([label, fn])=>{
+    const btn = document.createElement('button');
+    btn.textContent = '🧪 '+label;
+    btn.style.cssText = 'padding:8px 12px;font-weight:bold;background:#1a4a6e;color:#fff;'+
+      'border:1px solid rgba(255,255,255,0.4);border-radius:8px;cursor:pointer;';
+    btn.addEventListener('click', fn);
+    panel.appendChild(btn);
+  });
+  document.body.appendChild(panel);
 }
 </script>
 </body>
