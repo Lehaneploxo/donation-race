@@ -342,8 +342,6 @@ function drawSplash(x, y, power){
 }
 
 const BOBBER_COLORS = ['#ff5566','#4fa8ff','#5fe36a','#c26bff','#4fe3d0'];
-const ME = { name:'@ТЫ (стример)', baseX:300, px:0.5, py:0.55 };
-
 // ── зрители — фиксированный пул "мест" на воде (не резиновый список: у
 // реального стрима может быть много уникальных донатеров за эфир). Место
 // занимает тот, кто первым закинул монету/добил 100 лайков; если все места
@@ -584,13 +582,11 @@ function loop(t){
 
   drawBucket(BUCKET_X, BUCKET_Y, 1.6);
 
-  const meRest = bobberPos(ME);
-  drawRod(ME.baseX, meRest.x, meRest.y, '#ffd24f', 1.7);
-
+  // своей удочки стримера на воде нет — ловят только реальные зрители
+  // (донат/лайк-порог), стример тут камера, а не игрок
   const anglers = Array.from(anglersByUser.values());
   const renders = anglers.map(a => ({ a, r: renderAngler(a, t, 1.15) }));
 
-  drawBobber(meRest.x, meRest.y, 1.4, '#ffd24f', ME.name, false, t);
   renders.forEach(({a,r})=>{
     if (!r.showBobber) return;
     const isChamp = topList.length>0 && topList[0].name.toLowerCase() === a.name.toLowerCase();
