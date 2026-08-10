@@ -119,46 +119,43 @@ moneyGunIcon.src = 'img/fishing_moneygun_icon.webp';
 const tsunamiIcon = new Image();
 tsunamiIcon.src = 'img/fishing_tsunami_icon.png';
 
-// без плашки-фона, всё в левом углу, на английском
+// без плашки-фона, всё в левом углу, на английском; названия игры тут
+// нет специально — и так понятно, что это рыбалка
 function drawTopPanel(){
-  ctx.font = 'bold 20px Arial Black'; ctx.textAlign = 'left';
-  ctx.strokeStyle = 'rgba(0,0,0,0.9)'; ctx.lineWidth = 4;
-  ctx.strokeText('🎣 FISHING', 12, 30);
-  ctx.fillStyle = '#7fd3ff'; ctx.fillText('🎣 FISHING', 12, 30);
-
   const rules = [
     { text:'❤️ LIKE (100)', color:'#8fffb0' },
     { text:'🌹 1 COINS',    color:'#FFD700' },
   ];
-  ctx.font = 'bold 15px Arial Black'; ctx.textAlign = 'left';
+  ctx.font = 'bold 30px Arial Black'; ctx.textAlign = 'left';
   rules.forEach((r,i)=>{
-    const ry = 56 + i*22;
-    ctx.strokeStyle = 'rgba(0,0,0,0.85)'; ctx.lineWidth = 3;
+    const ry = 40 + i*44;
+    ctx.strokeStyle = 'rgba(0,0,0,0.85)'; ctx.lineWidth = 6;
     ctx.strokeText(r.text, 12, ry);
     ctx.fillStyle = r.color; ctx.fillText(r.text, 12, ry);
   });
 
-  const iconRy = 56 + rules.length*22, iconSize = 22;
-  if (moneyGunIcon.complete) ctx.drawImage(moneyGunIcon, 12, iconRy-17, iconSize, iconSize);
-  ctx.font = 'bold 15px Arial Black';
-  ctx.strokeStyle = 'rgba(0,0,0,0.85)'; ctx.lineWidth = 3;
-  ctx.strokeText('=', 12+iconSize+6, iconRy);
-  ctx.fillStyle = '#7fd3ff'; ctx.fillText('=', 12+iconSize+6, iconRy);
-  if (tsunamiIcon.complete) ctx.drawImage(tsunamiIcon, 12+iconSize+24, iconRy-17, iconSize, iconSize);
+  const iconRy = 40 + rules.length*44, iconSize = 44;
+  if (moneyGunIcon.complete) ctx.drawImage(moneyGunIcon, 12, iconRy-34, iconSize, iconSize);
+  ctx.font = 'bold 30px Arial Black';
+  ctx.strokeStyle = 'rgba(0,0,0,0.85)'; ctx.lineWidth = 6;
+  ctx.strokeText('=', 12+iconSize+12, iconRy);
+  ctx.fillStyle = '#7fd3ff'; ctx.fillText('=', 12+iconSize+12, iconRy);
+  if (tsunamiIcon.complete) ctx.drawImage(tsunamiIcon, 12+iconSize+48, iconRy-34, iconSize, iconSize);
 
-  ctx.font = 'bold 13px Arial Black'; ctx.textAlign = 'left';
-  ctx.strokeStyle = 'rgba(0,0,0,0.9)'; ctx.lineWidth = 3;
-  ctx.strokeText('🏆 TOP OF THE DAY', 12, 140);
-  ctx.fillStyle = '#ffd24f'; ctx.fillText('🏆 TOP OF THE DAY', 12, 140);
+  const topHeaderY = iconRy + 50;
+  ctx.font = 'bold 20px Arial Black'; ctx.textAlign = 'left';
+  ctx.strokeStyle = 'rgba(0,0,0,0.9)'; ctx.lineWidth = 4;
+  ctx.strokeText('🏆 TOP OF THE DAY', 12, topHeaderY);
+  ctx.fillStyle = '#ffd24f'; ctx.fillText('🏆 TOP OF THE DAY', 12, topHeaderY);
 
   // до 10 строк — приходит с сервера (дневной топ), если участников меньше
   // список просто короче, без заглушек
   const rankColors = ['#FFD700','#C0C0C0','#CD7F32'];
   topList.forEach((p,i)=>{
-    const ry = 162 + i*18;
+    const ry = topHeaderY + 33 + i*27;
     const line = (i+1)+'. '+p.name+'  🐟'+p.count;
-    ctx.font = 'bold 12px Arial Black';
-    ctx.strokeStyle = 'rgba(0,0,0,0.85)'; ctx.lineWidth = 2.5;
+    ctx.font = 'bold 18px Arial Black';
+    ctx.strokeStyle = 'rgba(0,0,0,0.85)'; ctx.lineWidth = 4;
     ctx.strokeText(line, 12, ry);
     ctx.fillStyle = rankColors[i] || '#dddddd'; ctx.fillText(line, 12, ry);
   });
