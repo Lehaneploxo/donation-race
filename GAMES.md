@@ -12,6 +12,8 @@
 | 📊 Boxing Arena (EN) — база данных | `/boxing-db-en` | `client/boxing_db_en.html` | |
 | 🥋 Street Fighters | `/streetfighter` | `client/streetfighter_arena.html` | Текущая активная игра, чат-команда "rating" |
 | 📊 Street Fighters — база данных | `/streetfighter-db` | `client/streetfighter_db.html` | |
+| 🎣 Рыбалка | `/fishing` | `client/fishing.html` | 8-я игра (10.08.2026). Фон — зацикленное видео причала/моря (`client/img/fishing_bg_video.mp4`). Рейтинг = сумма рыбок: 1 монета/100 лайков = 1 рыбка, размер подарка определяет только вид рыбы (мелкая/щука 100+/акула 1000+), не влияет на счёт. "ТОП ЗА СЕГОДНЯ" сбрасывается в полночь по Киеву, всего рыбок — вечный счётчик. Чат-команда "rating" |
+| 📊 Рыбалка — база данных | `/fishing-db` | `client/fishing_db.html` | |
 | 🏛️ Цивилизация | `/civilization` | `client/civilization.html` | Перемещена в самый низ списка (02.08.2026) — редко используется, но актуальна |
 
 ## Скрытые (убраны со старта 02.08.2026, файлы НЕ удалены — можно вернуть в любой момент)

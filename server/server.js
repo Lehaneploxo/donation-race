@@ -66,6 +66,8 @@ app.get('/boxing-en',    serveHtml('boxing_arena_en.html'));
 app.get('/boxing-db-en', serveHtml('boxing_db_en.html'));
 app.get('/streetfighter',    serveHtml('streetfighter_arena.html'));
 app.get('/streetfighter-db', serveHtml('streetfighter_db.html'));
+app.get('/fishing',    serveHtml('fishing.html'));
+app.get('/fishing-db', serveHtml('fishing_db.html'));
 
 // Локальный no-op сервис подписи — возвращает URL без изменений
 // Библиотека tiktok-live-connector использует его вместо eulerstream
@@ -372,6 +374,70 @@ app.get('/admin/streetfighter-weekly-check', async (req, res) => {
   }
 });
 
+app.get('/api/fishing-db', async (req, res) => {
+  try {
+    const rows = await db.getAllFishing();
+    res.json({ ok: true, count: rows.length, rows });
+  } catch(e) {
+    res.json({ ok: false, error: e.message });
+  }
+});
+
+// "ТОП ЗА СЕГОДНЯ" в самой игре — ежедневный (обнуляется в полночь по Киеву)
+app.get('/top-fishing', async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 10;
+    const top = await db.getTopFishingDaily(limit);
+    res.json({ ok: true, count: top.length, top });
+  } catch(e) {
+    res.json({ ok: false, error: e.message });
+  }
+});
+
+app.get('/admin/reset-fishing-rating', async (req, res) => {
+  try {
+    await db.resetFishingRating();
+    res.json({ ok: true });
+  } catch(e) {
+    res.json({ ok: false, error: e.message });
+  }
+});
+
+app.get('/admin/set-fishing-total', async (req, res) => {
+  try {
+    const username = req.query.username || '';
+    const value = parseInt(req.query.value);
+    if (!username || Number.isNaN(value)) return res.json({ ok: false, error: 'username and value required' });
+    await db.setFishingTotal(username, value);
+    console.log(`[ADMIN-SET-FISHING-TOTAL] username="${username}" value=${value}`);
+    res.json({ ok: true, username, value });
+  } catch(e) {
+    res.json({ ok: false, error: e.message });
+  }
+});
+
+app.get('/admin/delete-fishing-user', async (req, res) => {
+  try {
+    const username = req.query.username || '';
+    if (!username) return res.json({ ok: false, error: 'username required' });
+    await db.deleteFishingUser(username);
+    console.log(`[ADMIN-DELETE-FISHING-USER] username="${username}"`);
+    res.json({ ok: true, username });
+  } catch(e) {
+    res.json({ ok: false, error: e.message });
+  }
+});
+
+// ручной запуск проверки дневного сброса (для теста, без ожидания полуночи)
+app.get('/admin/fishing-daily-check', async (req, res) => {
+  try {
+    const result = await checkFishingDailyReset();
+    res.json({ ok: true, result });
+  } catch(e) {
+    res.json({ ok: false, error: e.message });
+  }
+});
+
 // ─── Rooms ───────────────────────────────────────────────────────────────────
 const rooms = new Map();
 
@@ -626,6 +692,14 @@ class Room {
             .catch(() => {
               this.broadcast({ type: 'arena_streetfighter_rating', username: data.username, rank: null, stolen: 0, kos: 0, lifetimeStolen: 0, weeklyKingWins: 0, weeklyBeltSeconds: 0 });
             });
+          // Рыбалка: место в дневном топе + вечный счёт рыбок
+          db.getUserFishingRank(data.username)
+            .then(rank => {
+              this.broadcast({ type: 'arena_fishing_rating', username: data.username, rank: rank ? rank.rank : null, totalFish: rank ? rank.total_fish : 0, dailyFish: rank ? rank.daily_fish : 0 });
+            })
+            .catch(() => {
+              this.broadcast({ type: 'arena_fishing_rating', username: data.username, rank: null, totalFish: 0, dailyFish: 0 });
+            });
         }
 
       }
@@ -822,6 +896,14 @@ wss.on('connection', (ws, req) => {
             room.broadcast({ type: 'streetfighter_tier_info', username: msg.username, lifetimeStolen: 0, chosenSkin: null });
           });
       }
+      if (msg.type === 'fishing_catch' && msg.username && msg.fish) {
+        db.addFishingCatch(msg.username, msg.fish)
+          .then(() => db.getTopFishingDaily(10))
+          .then(top => {
+            room.broadcast({ type: 'top_fishing', data: top });
+          })
+          .catch(e => console.error('[DB] fishing_catch error:', e.message));
+      }
       if (msg.type === 'request_rating' && msg.username) {
         db.getUserRank(msg.username)
           .then(rank => {
@@ -906,6 +988,22 @@ async function checkBoxingWeeklyReset() {
 }
 setInterval(() => { checkBoxingWeeklyReset().catch(e => console.error('[BOXING] weekly-check error:', e.message)); }, 10*60*1000);
 setTimeout(() => { checkBoxingWeeklyReset().catch(e => console.error('[BOXING] weekly-check (startup) error:', e.message)); }, 15*1000);
+
+// ─── Рыбалка: ежедневный сброс "ТОП ЗА СЕГОДНЯ" (полночь по Киеву) ─────
+async function checkFishingDailyReset() {
+  const result = await db.performFishingDailyResetIfNeeded();
+  if (result) {
+    console.log('[FISHING] Рассылаю обновлённый (пустой) дневной топ во все активные комнаты после сброса');
+    for (const room of rooms.values()) {
+      db.getTopFishingDaily(10)
+        .then(top => room.broadcast({ type: 'top_fishing', data: top }))
+        .catch(e => console.error('[FISHING] Ошибка рассылки топа после сброса:', e.message));
+    }
+  }
+  return result;
+}
+setInterval(() => { checkFishingDailyReset().catch(e => console.error('[FISHING] daily-check error:', e.message)); }, 10*60*1000);
+setTimeout(() => { checkFishingDailyReset().catch(e => console.error('[FISHING] daily-check (startup) error:', e.message)); }, 15*1000);
 
 // ─── Старт ───────────────────────────────────────────────────────────────────
 server.on('error', (err) => {

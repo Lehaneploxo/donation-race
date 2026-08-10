@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>🎣 Fishing — черновик визуала</title>
+<style>
+  html, body { width:100vw; height:100vh; margin:0; background:#000; overflow:hidden; font-family:Arial,sans-serif; }
+  #wrap { position:absolute; left:0; top:0; width:600px; height:1000px; transform-origin:0 0; }
+  canvas { display:block; background:#000; }
+  #note { position:fixed; bottom:8px; left:8px; color:rgba(255,255,255,0.4); font-size:11px; z-index:99999; }
+</style>
+</head>
+<body>
+<div id="wrap"><canvas id="c" width="600" height="1000"></canvas></div>
+<div id="note">Черновик визуала, не рабочая игра — client/fishing_preview.html</div>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const wrap = document.getElementById('wrap');
+const CW = canvas.width, CH = canvas.height;
+
+function applyScale(){
+  const vw = document.documentElement.clientWidth || window.innerWidth;
+  const vh = document.documentElement.clientHeight || window.innerHeight;
+  const s = Math.min(vw/CW, vh/CH);
+  const x = (vw - CW*s)/2, y = (vh - CH*s)/2;
+  wrap.style.transform = `translate(${x}px,${y}px) scale(${s})`;
+}
+window.addEventListener('resize', applyScale);
+applyScale();
+
+// горизонт — линия, где небо переходит в воду. Ниже неё вид "от первого
+// лица" на воду, выше — закатное небо (та же логика PANEL_TOP/WALL_TOP,
+// что и в остальных играх, просто без верхней плашки правил — тут вся
+// высота под сцену). DOCK_TOP — где вода кончается и начинается причал
+// (наши ноги/точка обзора) — вся зрительская "рыбалка" держится на
+// удочках, закреплённых на этом причале, а не просто висит в воде.
+const HORIZON_Y = 330;
+const DOCK_TOP = 830;
+const PANEL_TOP = 14, PANEL_H = 190; // плашка правил+топа — поверх верхней части неба, солнце ниже неё остаётся видно
+
+// плашка правил + топ дня — тот же стиль, что HUD-плашки в Boxing/Street
+// Fighter (тёмный полупрозрачный фон, золотая обводка), но не толкает
+// сцену вниз: сидит НА неб, солнце и горизонт остаются видны ниже неё —
+// закрывает только верхнюю декоративную часть неба (птиц/облака).
+function drawTopPanel(){
+  const T = PANEL_TOP, TH = PANEL_H;
+  const bg = ctx.createLinearGradient(0,T,0,T+TH);
+  bg.addColorStop(0,'rgba(10,10,20,0.92)'); bg.addColorStop(1,'rgba(4,4,10,0.92)');
+  ctx.fillStyle = bg; ctx.fillRect(0,T,CW,TH);
+  ctx.strokeStyle = 'rgba(255,210,80,0.35)'; ctx.lineWidth = 1.5;
+  ctx.strokeRect(2,T+2,CW-4,TH-4);
+
+  ctx.font = 'bold 20px Arial Black'; ctx.textAlign = 'center';
+  ctx.strokeStyle = 'rgba(0,0,0,0.9)'; ctx.lineWidth = 4;
+  ctx.strokeText('🎣 РЫБАЛКА', CW/2, T+26);
+  ctx.fillStyle = '#7fd3ff'; ctx.fillText('🎣 РЫБАЛКА', CW/2, T+26);
+
+  // правила — ровно 2 строки, как попросили
+  const rules = [
+    { text:'👍 100 лайков = 1 попытка', color:'#8fffb0' },
+    { text:'🎁 1 монета = 1 попытка',   color:'#FFD700' },
+  ];
+  ctx.font = 'bold 16px Arial Black'; ctx.textAlign = 'left';
+  rules.forEach((r,i)=>{
+    const ry = T+52 + i*25;
+    ctx.strokeStyle = 'rgba(0,0,0,0.85)'; ctx.lineWidth = 3;
+    ctx.strokeText(r.text, 14, ry);
+    ctx.fillStyle = r.color; ctx.fillText(r.text, 14, ry);
+  });
+
+  ctx.strokeStyle = 'rgba(255,255,255,0.15)'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(10,T+106); ctx.lineTo(CW-10,T+106); ctx.stroke();
+
+  ctx.font = 'bold 15px Arial Black'; ctx.textAlign = 'center';
+  ctx.strokeStyle = 'rgba(0,0,0,0.9)'; ctx.lineWidth = 3;
+  ctx.strokeText('🏆 ТОП ЗА СЕГОДНЯ', CW/2, T+126);
+  ctx.fillStyle = '#ffd24f'; ctx.fillText('🏆 ТОП ЗА СЕГОДНЯ', CW/2, T+126);
+
+  // демо-данные топа — в реальной игре подставится с сервера (улов за
+  // текущие сутки, сбрасывается в полночь)
+  const DEMO_TOP_TODAY = [
+    { name:'@golden_carp', count:14 },
+    { name:'@rybak_88',    count:9  },
+    { name:'@LehaTvel',    count:6  },
+    { name:'@zritel_kek',  count:3  },
+  ];
+  const rankColors = ['#FFD700','#C0C0C0','#CD7F32','#AAAAAA'];
+  DEMO_TOP_TODAY.forEach((p,i)=>{
+    const ry = T+148 + i*18;
+    ctx.font = 'bold 14px Arial Black';
+    ctx.textAlign = 'left';
+    ctx.strokeStyle = 'rgba(0,0,0,0.85)'; ctx.lineWidth = 2.5;
+    ctx.strokeText((i+1)+'.', 16, ry);
+    ctx.fillStyle = rankColors[i]; ctx.fillText((i+1)+'.', 16, ry);
+    ctx.strokeText(p.name, 40, ry);
+    ctx.fillStyle = '#eee'; ctx.fillText(p.name, 40, ry);
+    ctx.textAlign = 'right';
+    ctx.strokeText('🐟'+p.count, CW-14, ry);
+    ctx.fillStyle = '#7fd3ff'; ctx.fillText('🐟'+p.count, CW-14, ry);
+  });
+}
+
+function drawSky(t){
+  const sky = ctx.createLinearGradient(0, 0, 0, HORIZON_Y);
+  sky.addColorStop(0,   '#2b1a4a');
+  sky.addColorStop(0.35,'#6a3b6e');
+  sky.addColorStop(0.65,'#e0703f');
+  sky.addColorStop(1,   '#ffc36b');
+  ctx.fillStyle = sky;
+  ctx.fillRect(0, 0, CW, HORIZON_Y);
+
+  // солнце, наполовину скрытое горизонтом
+  const sunY = HORIZON_Y - 6;
+  const sunGrad = ctx.createRadialGradient(CW/2, sunY, 4, CW/2, sunY, 110);
+  sunGrad.addColorStop(0, 'rgba(255,235,180,0.95)');
+  sunGrad.addColorStop(0.5, 'rgba(255,190,110,0.45)');
+  sunGrad.addColorStop(1, 'rgba(255,190,110,0)');
+  ctx.fillStyle = sunGrad;
+  ctx.beginPath(); ctx.arc(CW/2, sunY, 110, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(CW/2, sunY, 46, 0, Math.PI*2);
+  ctx.fillStyle = '#fff2c8'; ctx.fill();
+
+  // птицы-галочки, летящий силуэт для атмосферы
+  ctx.strokeStyle = 'rgba(40,20,40,0.5)'; ctx.lineWidth = 2;
+  [[90,70],[130,90],[470,60],[510,85]].forEach(([bx,by_])=>{
+    const bob = Math.sin(t/700 + bx)*3;
+    ctx.beginPath();
+    ctx.moveTo(bx-8, by_+bob); ctx.quadraticCurveTo(bx, by_-6+bob, bx+8, by_+bob);
+    ctx.stroke();
+  });
+
+  // облака
+  ctx.fillStyle = 'rgba(255,255,255,0.12)';
+  [[70,150,60],[420,110,80],[220,60,50]].forEach(([cx,cy,r])=>{
+    ctx.beginPath(); ctx.ellipse(cx,cy,r,r*0.35,0,0,Math.PI*2); ctx.fill();
+  });
+}
+
+function drawWater(t){
+  const water = ctx.createLinearGradient(0, HORIZON_Y, 0, DOCK_TOP);
+  water.addColorStop(0,   '#5b8fae');
+  water.addColorStop(0.15,'#3f6f92');
+  water.addColorStop(1,   '#123a55');
+  ctx.fillStyle = water;
+  ctx.fillRect(0, HORIZON_Y, CW, DOCK_TOP-HORIZON_Y);
+
+  // дорожка от солнца на воде — мерцающие блики
+  ctx.save();
+  ctx.globalAlpha = 0.5;
+  for (let i=0;i<22;i++){
+    const py = HORIZON_Y + 8 + i*(DOCK_TOP-HORIZON_Y-8)/22;
+    const wobble = Math.sin(t/500 + i*1.3)*8;
+    const w = 10 + i*1.6;
+    ctx.fillStyle = i%2===0 ? 'rgba(255,224,160,0.55)' : 'rgba(255,190,110,0.35)';
+    ctx.fillRect(CW/2 - w/2 + wobble, py, w, 3);
+  }
+  ctx.restore();
+
+  // волны — тонкие изогнутые линии, светлее к горизонту (перспектива)
+  ctx.strokeStyle = 'rgba(255,255,255,0.10)';
+  for (let i=0;i<12;i++){
+    const py = HORIZON_Y + 14 + i*(DOCK_TOP-HORIZON_Y-14)/12;
+    ctx.lineWidth = 1 + i*0.25;
+    ctx.beginPath();
+    for (let x=0;x<=CW;x+=20){
+      const yy = py + Math.sin(x/40 + t/900 + i)*3;
+      x===0 ? ctx.moveTo(x,yy) : ctx.lineTo(x,yy);
+    }
+    ctx.stroke();
+  }
+}
+
+// ── Причал на переднем плане — то, на чём "стоит" камера. Доски с лёгкой
+// перспективой (сходятся к горизонту), деревянное ограждение по верхнему
+// краю (DOCK_TOP), в держателях на ограждении торчат удочки зрителей.
+function drawDock(t){
+  const wood = ctx.createLinearGradient(0, DOCK_TOP, 0, CH);
+  wood.addColorStop(0, '#8a5a34');
+  wood.addColorStop(1, '#4a3218');
+  ctx.fillStyle = wood;
+  ctx.fillRect(0, DOCK_TOP, CW, CH-DOCK_TOP);
+
+  // доски вдоль (перспектива: расходятся книзу от центра горизонта)
+  ctx.strokeStyle = 'rgba(0,0,0,0.28)'; ctx.lineWidth = 2;
+  const vanishX = CW/2;
+  for (let i=-5;i<=5;i++){
+    const topX = vanishX + i*10;
+    const botX = vanishX + i*70;
+    ctx.beginPath(); ctx.moveTo(topX, DOCK_TOP); ctx.lineTo(botX, CH); ctx.stroke();
+  }
+  // поперечные стыки досок
+  for (let i=0;i<4;i++){
+    const py = DOCK_TOP + (i+1)*(CH-DOCK_TOP)/4.4;
+    ctx.strokeStyle = 'rgba(0,0,0,0.22)'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(0,py); ctx.lineTo(CW,py); ctx.stroke();
+  }
+
+  // деревянное ограждение по верхнему краю причала
+  ctx.fillStyle = '#5c3d20';
+  ctx.fillRect(0, DOCK_TOP-14, CW, 14);
+  ctx.fillStyle = '#7a5230';
+  ctx.fillRect(0, DOCK_TOP-14, CW, 3);
+  ctx.strokeStyle = 'rgba(0,0,0,0.3)'; ctx.lineWidth = 1;
+  for (let x=20; x<CW; x+=48){ ctx.beginPath(); ctx.moveTo(x,DOCK_TOP-14); ctx.lineTo(x,DOCK_TOP); ctx.stroke(); }
+}
+
+// ведро с уловом — стоит на причале, номер = сколько поймано за стрим
+function drawBucket(x, y, s){
+  ctx.save();
+  ctx.translate(x,y); ctx.scale(s,s);
+
+  // тень на досках
+  ctx.fillStyle = 'rgba(0,0,0,0.3)';
+  ctx.beginPath(); ctx.ellipse(0, 32, 30, 8, 0, 0, Math.PI*2); ctx.fill();
+
+  // корпус — сужается книзу (реалистичная форма ведра), объёмный градиент
+  // слева-направо (блик по центру-слева, тень по краям — цилиндр)
+  const bodyGrad = ctx.createLinearGradient(-26,0,26,0);
+  bodyGrad.addColorStop(0,   '#1c4a63');
+  bodyGrad.addColorStop(0.32,'#4f95bd');
+  bodyGrad.addColorStop(0.5, '#6fb8de');
+  bodyGrad.addColorStop(0.68,'#3d7ea6');
+  bodyGrad.addColorStop(1,   '#173d52');
+  ctx.fillStyle = bodyGrad;
+  ctx.beginPath();
+  ctx.moveTo(-26,-1); ctx.lineTo(-19,33); ctx.lineTo(19,33); ctx.lineTo(26,-1); ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(0,0,0,0.4)'; ctx.lineWidth = 1.2; ctx.stroke();
+
+  // рёбра жёсткости (горизонтальные пояски, как на настоящих пластиковых вёдрах)
+  ctx.strokeStyle = 'rgba(0,0,0,0.18)'; ctx.lineWidth = 1.5;
+  [10, 21].forEach(ry=>{
+    const rw = 26 - (ry/33)*7;
+    ctx.beginPath(); ctx.ellipse(0, ry, rw, 2.6, 0, 0, Math.PI); ctx.stroke();
+  });
+
+  // блик — узкая светлая полоса слева, продаёт объём
+  ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.lineWidth = 2.5; ctx.lineCap='round';
+  ctx.beginPath(); ctx.moveTo(-16,4); ctx.lineTo(-12,29); ctx.stroke();
+
+  // верхний ободок (толстый эллипс-кольцо — это то, что делает форму
+  // объёмной, а не плоской трапецией)
+  ctx.beginPath(); ctx.ellipse(0,-1,26,7.5,0,0,Math.PI*2);
+  ctx.fillStyle = '#8fd0f0'; ctx.fill();
+  ctx.strokeStyle = 'rgba(0,0,0,0.4)'; ctx.lineWidth = 1.2; ctx.stroke();
+
+  // вода внутри — тёмная линза чуть ниже ободка
+  ctx.beginPath(); ctx.ellipse(0,1,22,6.2,0,0,Math.PI*2);
+  const waterGrad = ctx.createRadialGradient(-4,0,2,0,1,22);
+  waterGrad.addColorStop(0,'#bfe7f5'); waterGrad.addColorStop(1,'#1f5570');
+  ctx.fillStyle = waterGrad; ctx.fill();
+  ctx.strokeStyle = 'rgba(0,0,0,0.3)'; ctx.lineWidth = 1; ctx.stroke();
+
+  // пара рыбин у поверхности воды (не одна нога-хвост, а реально похоже
+  // на рыбок сверху) — маленькие эллипс-тело + треугольник-хвост
+  [[-9,0,-0.35,'#dfeef2'], [7,2,0.5,'#cfe8ee']].forEach(([fx,fy,rot,col])=>{
+    ctx.save();
+    ctx.translate(fx,fy); ctx.rotate(rot); ctx.scale(1,0.55);
+    ctx.fillStyle = col;
+    ctx.beginPath(); ctx.ellipse(0,0,7,2.6,0,0,Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(-6,0); ctx.lineTo(-11,-3.5); ctx.lineTo(-11,3.5); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle='rgba(0,0,0,0.25)'; ctx.lineWidth=0.6; ctx.stroke();
+    ctx.restore();
+  });
+
+  // дужка (ручка) — с "ушками" крепления по бокам ведра
+  ctx.fillStyle = '#555';
+  ctx.beginPath(); ctx.arc(-25,-2,2.6,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(25,-2,2.6,0,Math.PI*2); ctx.fill();
+  ctx.strokeStyle = '#7a7a7a'; ctx.lineWidth = 2.2;
+  ctx.beginPath(); ctx.arc(0,-6,26,Math.PI*1.12,Math.PI*1.88); ctx.stroke();
+  ctx.strokeStyle = 'rgba(255,255,255,0.3)'; ctx.lineWidth = 0.8;
+  ctx.beginPath(); ctx.arc(0,-6,26,Math.PI*1.15,Math.PI*1.5); ctx.stroke();
+
+  ctx.restore();
+}
+
+// удочка держит "человек за кадром" — комель начинается НИЖЕ нижнего края
+// экрана (canvas обрезает его — как будто зритель стоит прямо за камерой,
+// в кадре только сама удочка), удилище сужается к кончику как настоящее,
+// с кольцами-направляющими и катушкой у комля. От кончика леска уходит к
+// поплавку в воде. Максимум ощущения "ты тут не один" при минимуме графики.
+function drawRod(baseX, bobberX, bobberY, color, scale){
+  const s = scale||1;
+  const baseX_ = baseX, baseY_ = CH + 60*s; // комель специально ЗА кадром снизу
+  // кончик САМОГО удилища — только часть пути до поплавка (не дотягивается
+  // до воды физически), дальше уже тонкая леска до самого поплавка
+  const tipX = baseX_ + (bobberX-baseX_)*0.4;
+  const tipY = baseY_ + (bobberY-baseY_)*0.62;
+
+  // лёгкий изгиб удилища под собственным весом — квадратичная кривая,
+  // не прямая линия (прямая палка не читается как удочка)
+  const bendX = tipX > baseX_ ? -18*s : 18*s;
+  const midX = (baseX_+tipX)/2 + bendX, midY = (baseY_+tipY)/2;
+  const steps = 20;
+  const pts = [];
+  for (let i=0;i<=steps;i++){
+    const u = i/steps;
+    const x = (1-u)*(1-u)*baseX_ + 2*(1-u)*u*midX + u*u*tipX;
+    const y = (1-u)*(1-u)*baseY_ + 2*(1-u)*u*midY + u*u*tipY;
+    pts.push([x,y]);
+  }
+  // сужающийся силуэт (полигон, не одна линия постоянной толщины) —
+  // толстый комель, тонкий гибкий кончик, как у настоящего удилища
+  const baseW = 9*s, tipW = 1.4*s;
+  const left = [], right = [];
+  for (let i=0;i<pts.length;i++){
+    const u = i/steps;
+    const w = baseW*(1-u) + tipW*u;
+    const prev = pts[Math.max(0,i-1)], next = pts[Math.min(steps,i+1)];
+    const dx = next[0]-prev[0], dy = next[1]-prev[1];
+    const len = Math.hypot(dx,dy) || 1;
+    const nx = -dy/len, ny = dx/len;
+    left.push([pts[i][0]+nx*w/2, pts[i][1]+ny*w/2]);
+    right.push([pts[i][0]-nx*w/2, pts[i][1]-ny*w/2]);
+  }
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(left[0][0], left[0][1]);
+  for (let i=1;i<left.length;i++) ctx.lineTo(left[i][0], left[i][1]);
+  for (let i=right.length-1;i>=0;i--) ctx.lineTo(right[i][0], right[i][1]);
+  ctx.closePath();
+  const grad = ctx.createLinearGradient(baseX_, baseY_, tipX, tipY);
+  grad.addColorStop(0, '#2e2116'); grad.addColorStop(1, '#9a7a48');
+  ctx.fillStyle = grad; ctx.fill();
+  ctx.strokeStyle = 'rgba(0,0,0,0.4)'; ctx.lineWidth = 0.8*s; ctx.stroke();
+
+  // кольца-направляющие лески вдоль удилища
+  ctx.strokeStyle = 'rgba(0,0,0,0.55)'; ctx.lineWidth = 1*s;
+  [0.3, 0.55, 0.78].forEach(u=>{
+    const idx = Math.round(u*steps);
+    const w = baseW*(1-u) + tipW*u;
+    ctx.beginPath(); ctx.arc(pts[idx][0], pts[idx][1], w*0.9, 0, Math.PI*2); ctx.stroke();
+  });
+
+  // катушка у комля (там, где удочка ещё видна над нижним краем экрана)
+  ctx.fillStyle = '#232323';
+  ctx.beginPath(); ctx.ellipse(baseX_, baseY_-6*s, 9*s, 6*s, 0.3, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = color;
+  ctx.beginPath(); ctx.arc(baseX_, baseY_-6*s, 3.5*s, 0, Math.PI*2); ctx.fill();
+  ctx.restore();
+
+  // леска от кончика удилища ДАЛЬШЕ до самого поплавка (тонкая, отдельно
+  // от толстого удилища — реалистичное соотношение)
+  ctx.save();
+  ctx.strokeStyle = 'rgba(255,255,255,0.4)'; ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(tipX, tipY);
+  ctx.quadraticCurveTo((tipX+bobberX)/2, Math.min(tipY,bobberY)-10, bobberX, bobberY);
+  ctx.stroke();
+  ctx.restore();
+}
+
+// ── Поплавки зрителей — вид сверху-от-первого-лица, просто цветной
+// поплавок + тёмная подложка с ником (тот же приём читаемости, что и в
+// nameTxt у бойцов в Boxing/Street Fighter), НЕ полноценный персонаж —
+// специально легче для телефона, тут не нужна анимация ходьбы/боя.
+const BOBBER_COLORS = ['#ff5566','#4fa8ff','#5fe36a','#c26bff','#4fe3d0'];
+// baseX — где вдоль НИЖНЕГО края экрана "стоит" зритель (за кадром, видна
+// только удочка) — ровно распределены по ширине; px/py — где в воде
+// плавает поплавок этого зрителя (доля от зоны воды, не всего экрана).
+// "Ты" (стример) — отдельно, крупнее и по центру, ближе всех к камере.
+const DEMO_ANGLERS = [
+  { name:'@LehaTvel',     baseX:60,  px:0.20, py:0.32, colorIdx:0 },
+  { name:'@rybak_88',     baseX:210, px:0.42, py:0.22, colorIdx:1 },
+  { name:'@zritel_kek',   baseX:400, px:0.62, py:0.40, colorIdx:2 },
+  { name:'@golden_carp',  baseX:550, px:0.84, py:0.26, colorIdx:4, champ:true },
+];
+const ME = { name:'@ТЫ (стример)', baseX:300, px:0.5, py:0.55 };
+
+function bobberPos(a){
+  return { x: a.px*CW, y: HORIZON_Y + a.py*(DOCK_TOP-HORIZON_Y) };
+}
+
+function drawBobber(x, y, s, color, name, isChamp, t){
+  const bob = Math.sin(t/450 + x*0.05)*3;
+  y += bob;
+
+  // тень/рябь под поплавком
+  ctx.save();
+  ctx.globalAlpha = 0.25;
+  ctx.fillStyle = '#000';
+  ctx.beginPath(); ctx.ellipse(x, y+6*s, 14*s, 4*s, 0, 0, Math.PI*2); ctx.fill();
+  ctx.restore();
+
+  // сам поплавок — классическая красно-белая форма (конус+шар)
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(x, y-16*s);
+  ctx.quadraticCurveTo(x+7*s, y-4*s, x, y+2*s);
+  ctx.quadraticCurveTo(x-7*s, y-4*s, x, y-16*s);
+  ctx.closePath();
+  ctx.fillStyle = '#e8433f'; ctx.fill();
+  ctx.strokeStyle = 'rgba(0,0,0,0.4)'; ctx.lineWidth = 1; ctx.stroke();
+
+  ctx.beginPath(); ctx.ellipse(x, y+6*s, 6*s, 9*s, 0, 0, Math.PI*2);
+  ctx.fillStyle = '#fdfdfd'; ctx.fill();
+  ctx.strokeStyle = 'rgba(0,0,0,0.35)'; ctx.stroke();
+
+  ctx.beginPath(); ctx.moveTo(x, y-16*s); ctx.lineTo(x, y-24*s);
+  ctx.strokeStyle = '#c9982f'; ctx.lineWidth = 1.5*s; ctx.stroke();
+  ctx.restore();
+
+  if (isChamp){
+    ctx.save();
+    ctx.font = `${13*s}px Arial`;
+    ctx.textAlign = 'center';
+    ctx.fillText('🏆', x, y-28*s);
+    ctx.restore();
+  }
+
+  // ник — тёмная подложка + белый текст, как над бойцами в других играх
+  ctx.font = `bold ${12*s}px Arial Black`;
+  ctx.textAlign = 'center';
+  const w = ctx.measureText(name).width;
+  ctx.fillStyle = 'rgba(0,0,0,0.5)';
+  ctx.fillRect(x-w/2-5, y-40*s, w+10, 15*s);
+  ctx.strokeStyle = 'rgba(0,0,0,0.9)'; ctx.lineWidth = 2.5;
+  ctx.strokeText(name, x, y-29*s);
+  ctx.fillStyle = isChamp ? '#FFD700' : color;
+  ctx.fillText(name, x, y-29*s);
+}
+
+// маленькая рыбка — для полёта в ведро при "поклёвке" (не хвост-нога, а
+// нормальный силуэт сбоку: тело+хвост+глаз)
+function drawFish(x, y, s, rot, color){
+  ctx.save();
+  ctx.translate(x,y); ctx.rotate(rot); ctx.scale(s,s);
+  ctx.fillStyle = color || '#bfe0e8';
+  ctx.beginPath(); ctx.ellipse(0,0,10,4.2,0,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(-8,0); ctx.lineTo(-16,-6); ctx.lineTo(-16,6); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = 'rgba(0,0,0,0.3)'; ctx.lineWidth = 0.8; ctx.stroke();
+  ctx.fillStyle = '#1a1a1a';
+  ctx.beginPath(); ctx.arc(6,-0.5,1.2,0,Math.PI*2); ctx.fill();
+  ctx.restore();
+}
+function easeInOut(u){ return u<0.5 ? 2*u*u : 1-Math.pow(-2*u+2,2)/2; }
+
+// ── Цикл поклёвки (демо на своём поплавке) — по кругу: спокойно плавает →
+// резко задёргался (поклёвка) → подтягивается к причалу (подсечка) →
+// рыбка летит в ведро → заброс обратно в воду → снова спокойно. Пока это
+// просто демонстрация тайминга/движения для черновика, не завязана на
+// реальные лайки/донаты.
+const CATCH_CYCLE_MS = 7000;
+const PHASE = { idleEnd:3000, biteEnd:4000, reelEnd:5600, depositEnd:6100, recastEnd:6800 };
+function getCatchPhase(t){
+  const u = t % CATCH_CYCLE_MS;
+  if (u < PHASE.idleEnd)    return { phase:'idle' };
+  if (u < PHASE.biteEnd)    return { phase:'bite',    u:(u-PHASE.idleEnd)/(PHASE.biteEnd-PHASE.idleEnd) };
+  if (u < PHASE.reelEnd)    return { phase:'reel',    u:easeInOut((u-PHASE.biteEnd)/(PHASE.reelEnd-PHASE.biteEnd)) };
+  if (u < PHASE.depositEnd) return { phase:'deposit', u:(u-PHASE.reelEnd)/(PHASE.depositEnd-PHASE.reelEnd) };
+  if (u < PHASE.recastEnd)  return { phase:'recast',  u:easeInOut((u-PHASE.depositEnd)/(PHASE.recastEnd-PHASE.depositEnd)) };
+  return { phase:'idle' };
+}
+
+const BUCKET_X = CW*0.72, BUCKET_Y = DOCK_TOP + 14;
+// точка "у причала", куда подтягивается поплавок при подсечке — близко к
+// комлю своей удочки, чуть выше кромки воды (рыбу приподняли из воды)
+const REEL_TARGET = { x: ME.baseX + 40, y: DOCK_TOP - 20 };
+
+function loop(t){
+  ctx.clearRect(0,0,CW,CH);
+  drawSky(t);
+  drawWater(t);
+  drawDock(t);
+
+  // ведро стоит НА причале — дальше от камеры, чем удочки (те растут от
+  // самого нижнего края кадра, ближе всех к зрителю), поэтому рисуем его
+  // ДО удочек: удочка по логике перспективы всегда должна перекрывать
+  // ведро, а не наоборот
+  drawBucket(BUCKET_X, BUCKET_Y, 1.6);
+
+  // ── своя (стримера) удочка — проходит через полный цикл поклёвки, см.
+  // getCatchPhase(). Остальные поплавки просто спокойно покачиваются —
+  // это только для демонстрации тайминга анимации.
+  const waterPos = bobberPos(ME);
+  const ph = getCatchPhase(t);
+  let meX = waterPos.x, meY = waterPos.y;
+  let flyingFish = null;
+  let showMeBobber = true;
+
+  if (ph.phase === 'bite'){
+    // резкая поклёвка — дёргается и ныряет, амплитуда нарастает-спадает
+    const env = Math.sin(ph.u * Math.PI);
+    meX = waterPos.x + Math.sin(t/55)*5*env;
+    meY = waterPos.y + env*16 + Math.sin(t/40)*3*env;
+  } else if (ph.phase === 'reel'){
+    // подсечка — поплавок тянется от воды к причалу
+    meX = waterPos.x + (REEL_TARGET.x-waterPos.x)*ph.u;
+    meY = waterPos.y + (REEL_TARGET.y-waterPos.y)*ph.u;
+  } else if (ph.phase === 'deposit'){
+    // поплавок замер у причала, рыбка летит дальше в ведро по дуге
+    meX = REEL_TARGET.x; meY = REEL_TARGET.y;
+    const fx = REEL_TARGET.x + (BUCKET_X-REEL_TARGET.x)*ph.u;
+    const fy = REEL_TARGET.y + (BUCKET_Y-REEL_TARGET.y)*ph.u - Math.sin(ph.u*Math.PI)*46;
+    const rot = -0.3 + ph.u*1.1;
+    flyingFish = { x:fx, y:fy, rot };
+    if (ph.u > 0.7) showMeBobber = false; // рыбка почти у ведра — поплавок больше не нужен на экране
+  } else if (ph.phase === 'recast'){
+    // заброс обратно — дуга от причала в исходную точку в воде
+    meX = REEL_TARGET.x + (waterPos.x-REEL_TARGET.x)*ph.u;
+    meY = REEL_TARGET.y + (waterPos.y-REEL_TARGET.y)*ph.u - Math.sin(ph.u*Math.PI)*70;
+  }
+
+  // удочки "растут" снизу-за-кадром (см. drawRod) — леска уходит в воду;
+  // поплавки — поверх лески, отдельным проходом
+  drawRod(ME.baseX, meX, meY, '#ffd24f', 1.7);
+  DEMO_ANGLERS.forEach(a=>{
+    const b = bobberPos(a);
+    drawRod(a.baseX, b.x, b.y, BOBBER_COLORS[a.colorIdx], 1.15);
+  });
+
+  DEMO_ANGLERS.forEach(a=>{
+    const b = bobberPos(a);
+    drawBobber(b.x, b.y, 1, BOBBER_COLORS[a.colorIdx], a.name, !!a.champ, t + a.px*1000);
+  });
+  if (showMeBobber) drawBobber(meX, meY, 1.4, '#ffd24f', ME.name, false, t);
+  if (flyingFish) drawFish(flyingFish.x, flyingFish.y, 1.3, flyingFish.rot, '#fff2c8');
+
+  if (ph.phase === 'deposit' && ph.u > 0.85){
+    ctx.save();
+    ctx.font = 'bold 15px Arial Black'; ctx.textAlign = 'center';
+    ctx.strokeStyle = 'rgba(0,0,0,0.9)'; ctx.lineWidth = 3;
+    ctx.strokeText('🐟 Поймал!', BUCKET_X, BUCKET_Y-46);
+    ctx.fillStyle = '#ffe98a';
+    ctx.fillText('🐟 Поймал!', BUCKET_X, BUCKET_Y-46);
+    ctx.restore();
+  }
+
+  drawTopPanel();
+
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

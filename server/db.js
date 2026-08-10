@@ -137,7 +137,27 @@ async function init() {
     )
   `);
 
-  console.log('[DB] Таблицы kills, boss_damage, race_donations, boxing_stolen, boxing_stolen_en и streetfighter_stolen готовы');
+  // ── Рыбалка (2026-08-10) — рейтинг строится на количестве "рыбок", не
+  // донатов: 1 монета/100 лайков = 1 рыбка, total_fish копится вечно (по
+  // нему db-страница), daily_fish — ЕЖЕДНЕВНЫЙ (обнуляется в полночь по
+  // Киеву, см. performFishingDailyResetIfNeeded) — по нему "ТОП ЗА СЕГОДНЯ"
+  // прямо в игре.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS fishing_catches (
+      username TEXT PRIMARY KEY,
+      total_fish BIGINT NOT NULL DEFAULT 0,
+      daily_fish INTEGER NOT NULL DEFAULT 0,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS fishing_daily_meta (
+      id INTEGER PRIMARY KEY DEFAULT 1,
+      last_reset_at TIMESTAMPTZ NOT NULL
+    )
+  `);
+
+  console.log('[DB] Таблицы kills, boss_damage, race_donations, boxing_stolen, boxing_stolen_en, streetfighter_stolen и fishing_catches готовы');
 }
 
 async function addBossDamage(username, amount) {
@@ -667,6 +687,117 @@ async function getLastBoxingWeeklyChampion() {
   } : null;
 }
 
+// ── Рыбалка ── 1 монета/лайк-порог = 1 рыбка, пишем сразу в оба счётчика:
+// total_fish (вечный, для db-страницы) и daily_fish (для "ТОП ЗА СЕГОДНЯ")
+async function addFishingCatch(username, fish) {
+  if (!pool || !username || !fish) return;
+  await pool.query(`
+    INSERT INTO fishing_catches (username, total_fish, daily_fish, updated_at)
+    VALUES ($1, $2, $2, now())
+    ON CONFLICT (username)
+    DO UPDATE SET total_fish = fishing_catches.total_fish + $2,
+                  daily_fish = fishing_catches.daily_fish + $2,
+                  updated_at = now()
+  `, [username, Math.floor(fish)]);
+}
+
+async function getTopFishingDaily(limit = 10) {
+  if (!pool) return [];
+  const res = await pool.query(
+    `SELECT username, daily_fish FROM fishing_catches WHERE daily_fish > 0 ORDER BY daily_fish DESC LIMIT $1`,
+    [limit]
+  );
+  return res.rows.map(r => ({ username: r.username, daily_fish: Number(r.daily_fish) }));
+}
+
+async function getAllFishing() {
+  if (!pool) return [];
+  const res = await pool.query(`
+    SELECT username, total_fish, daily_fish,
+           ROW_NUMBER() OVER (ORDER BY total_fish DESC, username ASC) AS rank
+    FROM fishing_catches
+    ORDER BY total_fish DESC, username ASC
+  `);
+  return res.rows.map(r => ({
+    rank: Number(r.rank),
+    username: r.username,
+    total_fish: Number(r.total_fish),
+    daily_fish: Number(r.daily_fish),
+  }));
+}
+
+async function getUserFishingRank(username) {
+  if (!pool || !username) return null;
+  const res = await pool.query(`
+    SELECT username, total_fish, daily_fish,
+           RANK() OVER (ORDER BY total_fish DESC) AS rank
+    FROM fishing_catches
+  `);
+  const row = res.rows.find(r => r.username.toLowerCase() === username.toLowerCase());
+  return row ? {
+    rank: Number(row.rank),
+    total_fish: Number(row.total_fish),
+    daily_fish: Number(row.daily_fish),
+  } : null;
+}
+
+async function resetFishingRating() {
+  if (!pool) return;
+  await pool.query('DELETE FROM fishing_catches');
+}
+
+async function setFishingTotal(username, value) {
+  if (!pool || !username) return;
+  await pool.query(`
+    INSERT INTO fishing_catches (username, total_fish, daily_fish, updated_at)
+    VALUES ($1, $2, $2, now())
+    ON CONFLICT (username)
+    DO UPDATE SET total_fish = $2, updated_at = now()
+  `, [username, Math.floor(value)]);
+}
+
+async function deleteFishingUser(username) {
+  if (!pool || !username) return;
+  await pool.query(`DELETE FROM fishing_catches WHERE username = $1`, [username]);
+}
+
+// ближайшая (текущая или прошлая) полночь по киевскому времени — та же
+// идея, что mostRecentMondayKyivMs выше, только без сдвига на день недели
+function mostRecentMidnightKyivMs(nowMs) {
+  const offsetMin = tzOffsetMinutes(nowMs, 'Europe/Kyiv');
+  const kyivNow = new Date(nowMs + offsetMin*60000);
+  const kyivMidnightAsUtcFields = Date.UTC(
+    kyivNow.getUTCFullYear(), kyivNow.getUTCMonth(), kyivNow.getUTCDate(), 0, 0, 0, 0
+  );
+  return kyivMidnightAsUtcFields - offsetMin*60000;
+}
+
+// вызывается периодически (и раз при старте) — если с прошлого сброса
+// прошла полночь по Киеву, обнуляет daily_fish у всех. total_fish (вечный)
+// не трогается. Тот же безопасный при простое сервера паттерн, что и у
+// еженедельных сбросов выше (досчитывает пропущенный сброс при рестарте).
+async function performFishingDailyResetIfNeeded() {
+  if (!pool) return null;
+  const boundaryMs = mostRecentMidnightKyivMs(Date.now());
+  const boundary = new Date(boundaryMs);
+
+  const metaRes = await pool.query(`SELECT last_reset_at FROM fishing_daily_meta WHERE id=1`);
+  if (metaRes.rows.length === 0) {
+    await pool.query(`INSERT INTO fishing_daily_meta (id, last_reset_at) VALUES (1, $1)`, [boundary]);
+    return null;
+  }
+
+  const lastReset = metaRes.rows[0].last_reset_at;
+  if (boundary <= lastReset) return null;
+
+  await pool.query(`UPDATE fishing_catches SET daily_fish = 0`);
+  await pool.query(`UPDATE fishing_daily_meta SET last_reset_at = $1 WHERE id=1`, [boundary]);
+
+  console.log(`[FISHING] Дневной сброс выполнен, граница=${boundary.toISOString()}`);
+
+  return { reset: true, day: boundary.toISOString() };
+}
+
 function isConnected() { return pool !== null; }
 
 module.exports = {
@@ -683,5 +814,8 @@ module.exports = {
   setStreetFighterStolen, deleteStreetFighterUser, getAllStreetFighterStolen,
   setStreetFighterSkin, getStreetFighterSkin,
   performStreetFighterWeeklyResetIfNeeded, getLastStreetFighterWeeklyChampion,
+  addFishingCatch, getTopFishingDaily, getAllFishing, getUserFishingRank,
+  resetFishingRating, setFishingTotal, deleteFishingUser,
+  performFishingDailyResetIfNeeded,
   isConnected,
 };

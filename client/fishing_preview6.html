@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>🎣 Fishing v6 — твоё видео как фон</title>
+<style>
+  html, body { width:100vw; height:100vh; margin:0; background:#000; overflow:hidden; font-family:Arial,sans-serif; }
+  #wrap { position:absolute; left:0; top:0; width:600px; height:1000px; transform-origin:0 0; }
+  canvas { display:block; background:#000; }
+  #note { position:fixed; bottom:8px; left:8px; color:rgba(255,255,255,0.4); font-size:11px; z-index:99999; }
+  #testPanel { position:fixed; left:0; right:0; bottom:0; z-index:100000; display:flex; flex-wrap:wrap; gap:8px; align-items:center; justify-content:center; padding:10px; background:rgba(0,0,0,0.78); }
+  #testPanel .testLabel { width:100%; text-align:center; color:#ffd24f; font-size:11px; font-weight:bold; opacity:0.85; }
+  #testPanel button { padding:8px 14px; border-radius:8px; border:none; background:#2fae66; color:#fff; font-weight:bold; font-size:14px; cursor:pointer; }
+  #testPanel button:active { background:#1f8a4e; }
+</style>
+</head>
+<body>
+<div id="wrap"><canvas id="c" width="600" height="1000"></canvas></div>
+<div id="note">Черновик v6 — твоё видео (IMG_6358.MP4) как живой фон — client/fishing_preview6.html</div>
+<div id="testPanel">
+  <div class="testLabel">TEST — симуляция подарков (не часть игры)</div>
+  <button onclick="triggerGift(1)">🪙 1 coin</button>
+  <button onclick="triggerGift(10)">🪙 10 coins</button>
+  <button onclick="triggerGift(100)">🪙 100 coins</button>
+  <button onclick="triggerGift(1000)">🪙 1000 coins</button>
+  <button onclick="triggerGift('like')">❤️ 100 likes</button>
+</div>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const wrap = document.getElementById('wrap');
+const CW = canvas.width, CH = canvas.height;
+
+function applyScale(){
+  const vw = document.documentElement.clientWidth || window.innerWidth;
+  const vh = document.documentElement.clientHeight || window.innerHeight;
+  const s = Math.min(vw/CW, vh/CH);
+  const x = (vw - CW*s)/2, y = (vh - CH*s)/2;
+  wrap.style.transform = `translate(${x}px,${y}px) scale(${s})`;
+}
+window.addEventListener('resize', applyScale);
+applyScale();
+
+const DOCK_TOP = 830;
+
+// ── твоё видео как живой фон. Кросс-фейд между двумя сдвинутыми копиями
+// (что стояло тут раньше) ломает конкретно ЭТОТ ролик: чайка летит через
+// весь кадр слева направо и ролик УЖЕ смонтирован так, что это один цельный
+// пролёт от входа до выхода за кадр — смешивание с копией, сдвинутой на
+// половину длительности, показывало бы вторую чайку в другом месте кадра.
+// Раз пролёт чайки сам по себе и есть готовый бесшовный цикл — просто
+// крутим один <video> с нативным loop, без всяких фейдов.
+const bgVideo = document.createElement('video');
+bgVideo.src = 'img/fishing_bg_video.mp4';
+bgVideo.muted = true;
+bgVideo.loop = true;
+bgVideo.autoplay = true;
+bgVideo.playsInline = true;
+bgVideo.preload = 'auto';
+bgVideo.play().catch(()=>{});
+
+// я не могу посмотреть содержимое видео сам — поэтому линия горизонта
+// подобрана "на глазок" (40% высоты фонового блока). Если в браузере
+// горизонт/сцена выглядят не на своём месте — скажи, где именно, и я
+// поправлю HORIZON_FRAC и/или обрезку кадра ниже.
+const HORIZON_FRAC = 0.40;
+
+const BG = { ready:false, sx:0, sy:0, sw:0, sh:0, horizonY: CH*0.4 };
+function computeCrop(){
+  const vw = bgVideo.videoWidth, vh = bgVideo.videoHeight;
+  const destAspect = CW/CH;
+  const srcAspect = vw/vh;
+  let sw, sh, sx, sy;
+  if (srcAspect > destAspect){
+    // видео шире цели — обрезаем по бокам
+    sh = vh; sw = vh*destAspect;
+    sx = (vw-sw)/2; sy = 0;
+  } else {
+    // видео уже цели (наш случай для портретного 720×1280) — обрезаем сверху/снизу, по центру
+    sw = vw; sh = vw/destAspect;
+    sx = 0; sy = (vh-sh)/2;
+  }
+  BG.sx=sx; BG.sy=sy; BG.sw=sw; BG.sh=sh;
+  BG.horizonY = CH*HORIZON_FRAC;
+  BG.ready = true;
+}
+bgVideo.addEventListener('loadedmetadata', computeCrop);
+
+const SPARKLES = Array.from({length:150}, ()=>({
+  u: Math.random(),
+  spread: Math.random(),
+  side: Math.random()<0.5?-1:1,
+  size: 1 + Math.random()*2.8,
+  phase: Math.random()*1000,
+  speed: 260 + Math.random()*480,
+}));
+
+const RIPPLE_EVENTS = Array.from({length:5}, ()=>({
+  x: 60 + Math.random()*(CW-120),
+  yFrac: 0.12 + Math.random()*0.68,
+  period: 5000 + Math.random()*5000,
+  offset: Math.random()*8000,
+}));
+
+const GRAIN_SIZE = 96;
+const grainCanvas = document.createElement('canvas');
+grainCanvas.width = GRAIN_SIZE; grainCanvas.height = GRAIN_SIZE;
+(function buildGrain(){
+  const gctx = grainCanvas.getContext('2d');
+  const img = gctx.createImageData(GRAIN_SIZE, GRAIN_SIZE);
+  for (let i=0;i<img.data.length;i+=4){
+    const v = Math.random()*255;
+    img.data[i]=v; img.data[i+1]=v; img.data[i+2]=v; img.data[i+3]=Math.random()*30;
+  }
+  gctx.putImageData(img,0,0);
+})();
+const grainPattern = ctx.createPattern(grainCanvas,'repeat');
+
+// без плашки-фона, всё в левом углу, на английском
+function drawTopPanel(){
+  ctx.font = 'bold 20px Arial Black'; ctx.textAlign = 'left';
+  ctx.strokeStyle = 'rgba(0,0,0,0.9)'; ctx.lineWidth = 4;
+  ctx.strokeText('🎣 FISHING', 12, 30);
+  ctx.fillStyle = '#7fd3ff'; ctx.fillText('🎣 FISHING', 12, 30);
+
+  const rules = [
+    { text:'❤️ LIKE (100)', color:'#8fffb0' },
+    { text:'🌹 1 COINS',    color:'#FFD700' },
+  ];
+  ctx.font = 'bold 15px Arial Black'; ctx.textAlign = 'left';
+  rules.forEach((r,i)=>{
+    const ry = 56 + i*22;
+    ctx.strokeStyle = 'rgba(0,0,0,0.85)'; ctx.lineWidth = 3;
+    ctx.strokeText(r.text, 12, ry);
+    ctx.fillStyle = r.color; ctx.fillText(r.text, 12, ry);
+  });
+
+  ctx.font = 'bold 13px Arial Black'; ctx.textAlign = 'left';
+  ctx.strokeStyle = 'rgba(0,0,0,0.9)'; ctx.lineWidth = 3;
+  ctx.strokeText('🏆 TOP OF THE DAY', 12, 118);
+  ctx.fillStyle = '#ffd24f'; ctx.fillText('🏆 TOP OF THE DAY', 12, 118);
+
+  // до 10 строк; если участников меньше — просто короче список, без заглушек
+  const rankColors = ['#FFD700','#C0C0C0','#CD7F32'];
+  topList.forEach((p,i)=>{
+    const ry = 140 + i*18;
+    const line = (i+1)+'. '+p.name+'  🐟'+p.count;
+    ctx.font = 'bold 12px Arial Black';
+    ctx.strokeStyle = 'rgba(0,0,0,0.85)'; ctx.lineWidth = 2.5;
+    ctx.strokeText(line, 12, ry);
+    ctx.fillStyle = rankColors[i] || '#dddddd'; ctx.fillText(line, 12, ry);
+  });
+}
+
+function drawBackground(){
+  if (BG.ready && bgVideo.readyState >= 2){
+    ctx.drawImage(bgVideo, BG.sx, BG.sy, BG.sw, BG.sh, 0, 0, CW, CH);
+  } else {
+    const g = ctx.createLinearGradient(0,0,0,CH);
+    g.addColorStop(0,'#1a2c4a'); g.addColorStop(0.4,'#3a5a72'); g.addColorStop(1,'#123a4f');
+    ctx.fillStyle = g; ctx.fillRect(0,0,CW,CH);
+    ctx.save();
+    ctx.font = 'bold 14px Arial'; ctx.fillStyle='rgba(255,255,255,0.5)'; ctx.textAlign='center';
+    ctx.fillText('видео загружается…', CW/2, CH/2);
+    ctx.restore();
+  }
+}
+
+function drawWaterFX(t){
+  const waterH = DOCK_TOP - BG.horizonY;
+  if (waterH <= 0) return;
+
+  ctx.save();
+  ctx.beginPath(); ctx.rect(0, BG.horizonY, CW, waterH); ctx.clip();
+
+  SPARKLES.forEach(sp=>{
+    const py = BG.horizonY + sp.u*waterH;
+    const widthAtY = 8 + sp.u*68;
+    const px = CW/2 + sp.side*sp.spread*widthAtY;
+    const tw = Math.abs(Math.sin(t/sp.speed + sp.phase));
+    if (tw < 0.4) return;
+    ctx.globalAlpha = tw*0.6*(1-sp.spread*0.25);
+    ctx.fillStyle = sp.spread < 0.4 ? 'rgba(255,244,214,0.95)' : 'rgba(255,214,160,0.55)';
+    ctx.fillRect(px, py, sp.size, sp.size*0.6);
+  });
+  ctx.globalAlpha = 1;
+
+  RIPPLE_EVENTS.forEach(r=>{
+    const cyc = (t + r.offset) % r.period;
+    if (cyc > 1500) return;
+    const y = BG.horizonY + r.yFrac*waterH;
+    const maxR = 9 + r.yFrac*24;
+    [0, 0.42].forEach(dl=>{
+      const uu = cyc/1500 + dl;
+      if (uu > 1) return;
+      const rad = uu*maxR;
+      const alpha = (1-uu)*0.3;
+      ctx.strokeStyle = `rgba(255,255,255,${alpha})`;
+      ctx.lineWidth = 1.1;
+      ctx.beginPath(); ctx.ellipse(r.x, y, rad, rad*0.32, 0, 0, Math.PI*2); ctx.stroke();
+    });
+  });
+
+  ctx.save();
+  ctx.globalAlpha = 0.4;
+  for (let x=6;x<CW;x+=34){
+    const foam = Math.sin(t/480 + x*0.12)*0.5+0.5;
+    if (foam>0.55){
+      ctx.fillStyle = 'rgba(255,255,255,0.55)';
+      ctx.fillRect(x, DOCK_TOP-8-foam*3, 7+foam*5, 1.6);
+    }
+  }
+  ctx.restore();
+
+  ctx.restore();
+}
+
+function drawBucket(x, y, s){
+  ctx.save();
+  ctx.translate(x,y); ctx.scale(s,s);
+
+  ctx.fillStyle = 'rgba(0,0,0,0.3)';
+  ctx.beginPath(); ctx.ellipse(0, 32, 30, 8, 0, 0, Math.PI*2); ctx.fill();
+
+  const bodyGrad = ctx.createLinearGradient(-26,0,26,0);
+  bodyGrad.addColorStop(0,   '#1c4a63');
+  bodyGrad.addColorStop(0.32,'#4f95bd');
+  bodyGrad.addColorStop(0.5, '#6fb8de');
+  bodyGrad.addColorStop(0.68,'#3d7ea6');
+  bodyGrad.addColorStop(1,   '#173d52');
+  ctx.fillStyle = bodyGrad;
+  ctx.beginPath();
+  ctx.moveTo(-26,-1); ctx.lineTo(-19,33); ctx.lineTo(19,33); ctx.lineTo(26,-1); ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(0,0,0,0.4)'; ctx.lineWidth = 1.2; ctx.stroke();
+
+  ctx.strokeStyle = 'rgba(0,0,0,0.18)'; ctx.lineWidth = 1.5;
+  [10, 21].forEach(ry=>{
+    const rw = 26 - (ry/33)*7;
+    ctx.beginPath(); ctx.ellipse(0, ry, rw, 2.6, 0, 0, Math.PI); ctx.stroke();
+  });
+
+  ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.lineWidth = 2.5; ctx.lineCap='round';
+  ctx.beginPath(); ctx.moveTo(-16,4); ctx.lineTo(-12,29); ctx.stroke();
+
+  ctx.beginPath(); ctx.ellipse(0,-1,26,7.5,0,0,Math.PI*2);
+  ctx.fillStyle = '#8fd0f0'; ctx.fill();
+  ctx.strokeStyle = 'rgba(0,0,0,0.4)'; ctx.lineWidth = 1.2; ctx.stroke();
+
+  ctx.beginPath(); ctx.ellipse(0,1,22,6.2,0,0,Math.PI*2);
+  const waterGrad = ctx.createRadialGradient(-4,0,2,0,1,22);
+  waterGrad.addColorStop(0,'#bfe7f5'); waterGrad.addColorStop(1,'#1f5570');
+  ctx.fillStyle = waterGrad; ctx.fill();
+  ctx.strokeStyle = 'rgba(0,0,0,0.3)'; ctx.lineWidth = 1; ctx.stroke();
+
+  [[-9,0,-0.35,'#dfeef2'], [7,2,0.5,'#cfe8ee']].forEach(([fx,fy,rot,col])=>{
+    ctx.save();
+    ctx.translate(fx,fy); ctx.rotate(rot); ctx.scale(1,0.55);
+    ctx.fillStyle = col;
+    ctx.beginPath(); ctx.ellipse(0,0,7,2.6,0,0,Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(-6,0); ctx.lineTo(-11,-3.5); ctx.lineTo(-11,3.5); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle='rgba(0,0,0,0.25)'; ctx.lineWidth=0.6; ctx.stroke();
+    ctx.restore();
+  });
+
+  ctx.fillStyle = '#555';
+  ctx.beginPath(); ctx.arc(-25,-2,2.6,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(25,-2,2.6,0,Math.PI*2); ctx.fill();
+  ctx.strokeStyle = '#7a7a7a'; ctx.lineWidth = 2.2;
+  ctx.beginPath(); ctx.arc(0,-6,26,Math.PI*1.12,Math.PI*1.88); ctx.stroke();
+  ctx.strokeStyle = 'rgba(255,255,255,0.3)'; ctx.lineWidth = 0.8;
+  ctx.beginPath(); ctx.arc(0,-6,26,Math.PI*1.15,Math.PI*1.5); ctx.stroke();
+
+  ctx.restore();
+}
+
+function drawRod(baseX, bobberX, bobberY, color, scale, tension){
+  const s = scale||1;
+  const ten = tension||0; // 0..1 — насколько рыба сейчас тянет (щука/акула на сопротивлении)
+  const baseX_ = baseX, baseY_ = CH + 60*s;
+  const tipX = baseX_ + (bobberX-baseX_)*0.4;
+  const tipY = baseY_ + (bobberY-baseY_)*0.62;
+
+  const bendX = (tipX > baseX_ ? -18*s : 18*s) * (1 + ten*1.4);
+  const midX = (baseX_+tipX)/2 + bendX, midY = (baseY_+tipY)/2;
+  const steps = 20;
+  const pts = [];
+  for (let i=0;i<=steps;i++){
+    const u = i/steps;
+    const x = (1-u)*(1-u)*baseX_ + 2*(1-u)*u*midX + u*u*tipX;
+    const y = (1-u)*(1-u)*baseY_ + 2*(1-u)*u*midY + u*u*tipY;
+    pts.push([x,y]);
+  }
+  const baseW = 9*s, tipW = 1.4*s;
+  const left = [], right = [];
+  for (let i=0;i<pts.length;i++){
+    const u = i/steps;
+    const w = baseW*(1-u) + tipW*u;
+    const prev = pts[Math.max(0,i-1)], next = pts[Math.min(steps,i+1)];
+    const dx = next[0]-prev[0], dy = next[1]-prev[1];
+    const len = Math.hypot(dx,dy) || 1;
+    const nx = -dy/len, ny = dx/len;
+    left.push([pts[i][0]+nx*w/2, pts[i][1]+ny*w/2]);
+    right.push([pts[i][0]-nx*w/2, pts[i][1]-ny*w/2]);
+  }
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(left[0][0], left[0][1]);
+  for (let i=1;i<left.length;i++) ctx.lineTo(left[i][0], left[i][1]);
+  for (let i=right.length-1;i>=0;i--) ctx.lineTo(right[i][0], right[i][1]);
+  ctx.closePath();
+  const grad = ctx.createLinearGradient(baseX_, baseY_, tipX, tipY);
+  grad.addColorStop(0, '#2e2116'); grad.addColorStop(1, '#9a7a48');
+  ctx.fillStyle = grad; ctx.fill();
+  ctx.strokeStyle = 'rgba(0,0,0,0.4)'; ctx.lineWidth = 0.8*s; ctx.stroke();
+
+  ctx.strokeStyle = 'rgba(0,0,0,0.55)'; ctx.lineWidth = 1*s;
+  [0.3, 0.55, 0.78].forEach(u=>{
+    const idx = Math.round(u*steps);
+    const w = baseW*(1-u) + tipW*u;
+    ctx.beginPath(); ctx.arc(pts[idx][0], pts[idx][1], w*0.9, 0, Math.PI*2); ctx.stroke();
+  });
+
+  ctx.fillStyle = '#232323';
+  ctx.beginPath(); ctx.ellipse(baseX_, baseY_-6*s, 9*s, 6*s, 0.3, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = color;
+  ctx.beginPath(); ctx.arc(baseX_, baseY_-6*s, 3.5*s, 0, Math.PI*2); ctx.fill();
+  ctx.restore();
+
+  ctx.save();
+  ctx.strokeStyle = ten>0.15 ? 'rgba(255,255,255,0.8)' : 'rgba(255,255,255,0.4)';
+  ctx.lineWidth = 1 + ten*1.5;
+  ctx.beginPath();
+  ctx.moveTo(tipX, tipY);
+  ctx.quadraticCurveTo((tipX+bobberX)/2, Math.min(tipY,bobberY)-10, bobberX, bobberY);
+  ctx.stroke();
+  ctx.restore();
+}
+
+// всплеск-брызги — рыба рвётся у поверхности во время сопротивления
+function drawSplash(x, y, power){
+  ctx.save();
+  const n = 6;
+  for (let i=0;i<n;i++){
+    const a = (i/n)*Math.PI*2 + power*3;
+    const len = 6 + power*22;
+    const dx = Math.cos(a)*len, dy = Math.sin(a)*len*0.6 - power*6;
+    ctx.strokeStyle = `rgba(255,255,255,${0.25+power*0.5})`;
+    ctx.lineWidth = 1.4;
+    ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(x+dx, y+dy); ctx.stroke();
+  }
+  ctx.fillStyle = `rgba(255,255,255,${0.15+power*0.25})`;
+  ctx.beginPath(); ctx.ellipse(x, y+3, 10+power*14, 3+power*4, 0, 0, Math.PI*2); ctx.fill();
+  ctx.restore();
+}
+
+const BOBBER_COLORS = ['#ff5566','#4fa8ff','#5fe36a','#c26bff','#4fe3d0'];
+// active:false — удочки нет на воде, пока человек не закинул монету или не
+// набрал 100 лайков (см. triggerGift). totalFish — копится в рейтинг.
+const DEMO_ANGLERS = [
+  { name:'@LehaTvel',     baseX:60,  px:0.20, py:0.32, colorIdx:0, active:false, totalFish:0, catch:null },
+  { name:'@rybak_88',     baseX:210, px:0.42, py:0.22, colorIdx:1, active:false, totalFish:0, catch:null },
+  { name:'@zritel_kek',   baseX:400, px:0.62, py:0.40, colorIdx:2, active:false, totalFish:0, catch:null },
+  { name:'@golden_carp',  baseX:550, px:0.84, py:0.26, colorIdx:4, active:false, totalFish:0, catch:null },
+];
+const ME = { name:'@ТЫ (стример)', baseX:300, px:0.5, py:0.55 };
+
+function bobberPos(a){
+  return { x: a.px*CW, y: BG.horizonY + a.py*(DOCK_TOP-BG.horizonY) };
+}
+
+function drawBobber(x, y, s, color, name, isChamp, t){
+  const bob = Math.sin(t/450 + x*0.05)*3;
+  y += bob;
+
+  ctx.save();
+  ctx.globalAlpha = 0.25;
+  ctx.fillStyle = '#000';
+  ctx.beginPath(); ctx.ellipse(x, y+6*s, 14*s, 4*s, 0, 0, Math.PI*2); ctx.fill();
+  ctx.restore();
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(x, y-16*s);
+  ctx.quadraticCurveTo(x+7*s, y-4*s, x, y+2*s);
+  ctx.quadraticCurveTo(x-7*s, y-4*s, x, y-16*s);
+  ctx.closePath();
+  ctx.fillStyle = '#e8433f'; ctx.fill();
+  ctx.strokeStyle = 'rgba(0,0,0,0.4)'; ctx.lineWidth = 1; ctx.stroke();
+
+  ctx.beginPath(); ctx.ellipse(x, y+6*s, 6*s, 9*s, 0, 0, Math.PI*2);
+  ctx.fillStyle = '#fdfdfd'; ctx.fill();
+  ctx.strokeStyle = 'rgba(0,0,0,0.35)'; ctx.stroke();
+
+  ctx.beginPath(); ctx.moveTo(x, y-16*s); ctx.lineTo(x, y-24*s);
+  ctx.strokeStyle = '#c9982f'; ctx.lineWidth = 1.5*s; ctx.stroke();
+  ctx.restore();
+
+  if (isChamp){
+    ctx.save();
+    ctx.font = `${13*s}px Arial`;
+    ctx.textAlign = 'center';
+    ctx.fillText('🏆', x, y-28*s);
+    ctx.restore();
+  }
+
+  ctx.font = `bold ${12*s}px Arial Black`;
+  ctx.textAlign = 'center';
+  const w = ctx.measureText(name).width;
+  ctx.fillStyle = 'rgba(0,0,0,0.5)';
+  ctx.fillRect(x-w/2-5, y-40*s, w+10, 15*s);
+  ctx.strokeStyle = 'rgba(0,0,0,0.9)'; ctx.lineWidth = 2.5;
+  ctx.strokeText(name, x, y-29*s);
+  ctx.fillStyle = isChamp ? '#FFD700' : color;
+  ctx.fillText(name, x, y-29*s);
+}
+
+// вид рыбы определяется размером ОДНОГО конкретного подарка (не суммой
+// накопленного зрителем) — 1 монета/лайк это обычная рыбка, 10 монет за
+// раз чуть покрупнее, 100 — щука, 1000 — акула. В счёт/рейтинг при этом
+// всегда падает число рыбок = размер этого подарка (щука = +100 и т.д.)
+const FISH_VISUAL = {
+  small:  { scale:1,    color:'#bfe0e8' },
+  medium: { scale:1.6,  color:'#8fd0c0' },
+  pike:   { scale:2.1,  color:'#6fae5a' },
+  shark:  { scale:2.9,  color:'#9aa7b0' },
+};
+function drawFish(x, y, s, rot, kind, wigglePhase){
+  const vis = FISH_VISUAL[kind] || FISH_VISUAL.small;
+  const wig = wigglePhase!=null ? Math.sin(wigglePhase)*0.55 : 0;
+  ctx.save();
+  ctx.translate(x,y); ctx.rotate(rot); ctx.scale(s*vis.scale, s*vis.scale);
+  ctx.fillStyle = vis.color;
+
+  // хвост качается отдельным поворотом вокруг точки крепления — тело не
+  // болтается целиком, реально похоже на плавательный гребок
+  function tail(attachX, len, spread){
+    ctx.save();
+    ctx.translate(attachX, 0); ctx.rotate(wig);
+    ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(-len,-spread); ctx.lineTo(-len,spread); ctx.closePath(); ctx.fill();
+    ctx.restore();
+  }
+
+  if (kind === 'shark'){
+    ctx.beginPath(); ctx.ellipse(0,0,13,4.6,0,0,Math.PI*2); ctx.fill();
+    tail(-10, 9, 7);
+    ctx.beginPath(); ctx.moveTo(-1,-4); ctx.lineTo(3,-13); ctx.lineTo(6,-4); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#eef4f6';
+    ctx.beginPath(); ctx.ellipse(1,2.6,9,2,0,0,Math.PI*2); ctx.fill();
+  } else if (kind === 'pike'){
+    ctx.beginPath(); ctx.ellipse(0,0,12,3.4,0,0,Math.PI*2); ctx.fill();
+    tail(-9, 8, 5);
+  } else {
+    ctx.beginPath(); ctx.ellipse(0,0,10,4.2,0,0,Math.PI*2); ctx.fill();
+    tail(-8, 8, 6);
+  }
+  ctx.strokeStyle = 'rgba(0,0,0,0.3)'; ctx.lineWidth = 0.8; ctx.stroke();
+  ctx.fillStyle = '#1a1a1a';
+  ctx.beginPath(); ctx.arc(kind==='shark'?8:6,-0.5,1.2,0,Math.PI*2); ctx.fill();
+  ctx.restore();
+}
+function easeInOut(u){ return u<0.5 ? 2*u*u : 1-Math.pow(-2*u+2,2)/2; }
+
+// поклёвка запускается ПО СОБЫТИЮ (донат/лайк-порог), а не по таймеру —
+// у каждого зрителя своя независимая анимация от момента триггера.
+// Длительность и сопротивление ("struggle") — свои у каждого вида рыбы:
+// мелкую выхватывают сразу, щуку тащат пару секунд, акулу — реально долго,
+// и всё это время она рвётся обратно в воду, а не просто едет по прямой.
+function getCatchPhaseFor(elapsed, tier){
+  const D = tier.durMs;
+  if (elapsed < D.bite) return { phase:'bite', u: elapsed/D.bite };
+  let e = elapsed - D.bite;
+  if (e < D.reel){
+    const raw = e/D.reel;
+    const segs = tier.struggle;
+    let tension = 0;
+    let u = raw;
+    if (segs>0){
+      const local = (raw*segs) % 1;
+      // рыба рвётся назад первые 40% каждого цикла, потом сдаёт немного —
+      // сила рывков затухает к концу вываживания (рыба устаёт)
+      if (local < 0.4){
+        tension = Math.sin(local/0.4*Math.PI) * (1-raw);
+        u = raw - tension*0.26;
+      }
+    }
+    u = Math.max(0, Math.min(1, u));
+    return { phase:'reel', u: easeInOut(u), tension };
+  }
+  e -= D.reel;
+  if (e < D.deposit) return { phase:'deposit', u: e/D.deposit };
+  e -= D.deposit;
+  if (e < D.recast) return { phase:'recast', u: easeInOut(e/D.recast) };
+  return { phase:'done' };
+}
+function reelTargetFor(a){
+  return { x: Math.min(CW-30, Math.max(30, a.baseX+40)), y: DOCK_TOP-20 };
+}
+
+const BUCKET_X = CW*0.84, BUCKET_Y = CH*0.90;
+
+// какой размер подарка — какая рыба, сколько рыбок в счёт, и насколько
+// долго/яростно она сопротивляется вываживанию (durMs.reel, struggle)
+const FISH_TIERS = {
+  1:      { fish:1,    kind:'small',  label:'1 coin',     struggle:0, durMs:{ bite:700,  reel:900,   deposit:500, recast:700  } },
+  10:     { fish:10,   kind:'medium', label:'10 coins',   struggle:1, durMs:{ bite:800,  reel:1800,  deposit:500, recast:700  } },
+  100:    { fish:100,  kind:'pike',   label:'100 coins',  struggle:3, durMs:{ bite:900,  reel:4500,  deposit:650, recast:800  } },
+  1000:   { fish:1000, kind:'shark',  label:'1000 coins', struggle:6, durMs:{ bite:1100, reel:10000, deposit:900, recast:1000 } },
+  'like': { fish:1,    kind:'small',  label:'100 likes',  struggle:0, durMs:{ bite:700,  reel:900,   deposit:500, recast:700  } },
+};
+
+let lastT = 0;
+let topList = [];
+function updateTopList(){
+  topList = DEMO_ANGLERS
+    .filter(a=>a.totalFish>0)
+    .sort((a,b)=>b.totalFish-a.totalFish)
+    .slice(0,10)
+    .map(a=>({name:a.name, count:a.totalFish}));
+}
+// удочка/поплавок зрителя появляется только по первому донату/лайк-порогу
+// (см. DEMO_ANGLERS active:false) — эта функция как раз и "включает" его
+function triggerGift(tierKey){
+  const tier = FISH_TIERS[tierKey];
+  if (!tier) return;
+  const idx = Math.floor(Math.random()*DEMO_ANGLERS.length);
+  const a = DEMO_ANGLERS[idx];
+  a.active = true;
+  a.totalFish += tier.fish;
+  a.catch = { tier, startTime: lastT };
+  updateTopList();
+}
+window.triggerGift = triggerGift;
+
+function drawPostProcess(){
+  ctx.save();
+  ctx.globalCompositeOperation = 'overlay';
+  ctx.globalAlpha = 0.35;
+  ctx.fillStyle = grainPattern;
+  ctx.fillRect(0,0,CW,CH);
+  ctx.restore();
+
+  const vg = ctx.createRadialGradient(CW/2, CH*0.4, CH*0.28, CW/2, CH*0.4, CH*0.78);
+  vg.addColorStop(0,'rgba(0,0,0,0)');
+  vg.addColorStop(1,'rgba(0,0,0,0.34)');
+  ctx.fillStyle = vg;
+  ctx.fillRect(0,0,CW,CH);
+}
+
+// считает текущее положение поплавка/удочки зрителя и, если у него идёт
+// поклёвка (a.catch), ведёт её через bite→reel→deposit→recast от момента
+// триггера (a.catch.startTime), независимо от анимаций остальных зрителей
+function renderAngler(a, t, scale){
+  const rest = bobberPos(a);
+  let x = rest.x, y = rest.y;
+  let flyingFish = null, showBobber = true, caughtText = null, splash = null, tension = 0;
+
+  if (a.catch){
+    const target = reelTargetFor(a);
+    const ph = getCatchPhaseFor(t - a.catch.startTime, a.catch.tier);
+    if (ph.phase === 'bite'){
+      const env = Math.sin(ph.u * Math.PI);
+      x = rest.x + Math.sin(t/55)*5*env;
+      y = rest.y + env*16 + Math.sin(t/40)*3*env;
+      if (env > 0.6) splash = { x, y, power: env };
+    } else if (ph.phase === 'reel'){
+      // мелкую дрожь добавляем поверх основного натяжения — леска "звенит"
+      const jitter = ph.tension>0.05 ? Math.sin(t/30)*ph.tension*4 : 0;
+      x = rest.x + (target.x-rest.x)*ph.u + jitter;
+      y = rest.y + (target.y-rest.y)*ph.u;
+      tension = ph.tension;
+      if (ph.tension > 0.12) splash = { x, y, power: ph.tension };
+    } else if (ph.phase === 'deposit'){
+      x = target.x; y = target.y;
+      const fx = target.x + (BUCKET_X-target.x)*ph.u;
+      const fy = target.y + (BUCKET_Y-target.y)*ph.u - Math.sin(ph.u*Math.PI)*46;
+      const rot = -0.3 + ph.u*1.1;
+      flyingFish = { x:fx, y:fy, rot, kind:a.catch.tier.kind };
+      if (ph.u > 0.7) showBobber = false;
+      if (ph.u > 0.85) caughtText = `🐟 +${a.catch.tier.fish}!`;
+    } else if (ph.phase === 'recast'){
+      x = target.x + (rest.x-target.x)*ph.u;
+      y = target.y + (rest.y-target.y)*ph.u - Math.sin(ph.u*Math.PI)*70;
+    } else if (ph.phase === 'done'){
+      a.catch = null;
+    }
+  }
+
+  drawRod(a.baseX, x, y, BOBBER_COLORS[a.colorIdx] || '#ffd24f', scale, tension);
+  return { x, y, flyingFish, showBobber, caughtText, splash };
+}
+
+function loop(t){
+  lastT = t; // нужен вне rAF, чтобы кнопки теста знали "текущее время"
+  ctx.clearRect(0,0,CW,CH);
+
+  drawBackground();
+  drawWaterFX(t);
+
+  drawBucket(BUCKET_X, BUCKET_Y, 1.6);
+
+  // свой (стримера) поплавок — просто спокойно плавает, он не участвует
+  // в донат-очереди зрителей
+  const meRest = bobberPos(ME);
+  drawRod(ME.baseX, meRest.x, meRest.y, '#ffd24f', 1.7);
+
+  const active = DEMO_ANGLERS.filter(a=>a.active);
+  const renders = active.map(a => ({ a, r: renderAngler(a, t, 1.15) }));
+
+  drawBobber(meRest.x, meRest.y, 1.4, '#ffd24f', ME.name, false, t);
+  renders.forEach(({a,r})=>{
+    if (!r.showBobber) return;
+    const isChamp = topList.length>0 && topList[0].name === a.name;
+    drawBobber(r.x, r.y, 1, BOBBER_COLORS[a.colorIdx], a.name, isChamp, t + a.px*1000);
+  });
+  renders.forEach(({r})=>{
+    if (r.splash) drawSplash(r.splash.x, r.splash.y, r.splash.power);
+  });
+  renders.forEach(({r})=>{
+    // лёгкое "трепыхание" в полёте — не просто по прямой в ведро, хвост
+    // бьётся отдельно от тела, как у живой рыбы, вырванной из воды
+    if (r.flyingFish) drawFish(r.flyingFish.x, r.flyingFish.y, 1.3, r.flyingFish.rot + Math.sin(t/50)*0.15, r.flyingFish.kind, t/40);
+  });
+  renders.forEach(({r})=>{
+    if (!r.caughtText) return;
+    ctx.save();
+    ctx.font = 'bold 15px Arial Black'; ctx.textAlign = 'center';
+    ctx.strokeStyle = 'rgba(0,0,0,0.9)'; ctx.lineWidth = 3;
+    ctx.strokeText(r.caughtText, BUCKET_X, BUCKET_Y-46);
+    ctx.fillStyle = '#ffe98a';
+    ctx.fillText(r.caughtText, BUCKET_X, BUCKET_Y-46);
+    ctx.restore();
+  });
+
+  drawPostProcess();
+  drawTopPanel();
+
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

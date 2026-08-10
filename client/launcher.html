@@ -283,6 +283,30 @@
     <a class="btn-start" href="/streetfighter-db" style="display:block;text-align:center;text-decoration:none;background:linear-gradient(90deg,#2e1466,#8858ff);color:#fff;box-shadow:0 4px 20px rgba(120,80,255,0.4)">📊 ОТКРЫТЬ БАЗУ ДАННЫХ</a>
   </div>
 
+  <!-- ── РЫБАЛКА ── -->
+  <div class="game-panel panel-arena" style="border-left:1px solid rgba(80,180,255,0.3)">
+    <div class="panel-title" style="color:#7fd3ff;text-shadow:0 0 18px #3aa8ff">🎣 РЫБАЛКА 🎣</div>
+    <div class="panel-sub">Монеты/лайки = рыбки · щука за 100, акула за 1000 · пиши "rating" в чате</div>
+
+    <input class="nick-input" id="fishingInput" type="text"
+           placeholder="@your_username"
+           autocomplete="off" autocorrect="off" spellcheck="false">
+
+    <div class="error-msg" id="fishingError">Введи никнейм TikTok</div>
+
+    <button class="btn-start" id="fishingStart" style="background:linear-gradient(90deg,#0a4a6e,#4fc3ff);color:#fff;box-shadow:0 4px 20px rgba(80,180,255,0.4)">🎣 START FISHING</button>
+
+    <div class="status-msg" id="fishingStatus">⏳ Открываю игру…</div>
+  </div>
+
+  <!-- ── РЫБАЛКА: БАЗА ДАННЫХ ── -->
+  <div class="game-panel panel-arena" style="border-left:1px solid rgba(80,180,255,0.3)">
+    <div class="panel-title" style="color:#7fd3ff;text-shadow:0 0 18px #3aa8ff">📊 БАЗА ДАННЫХ РЫБАЛКИ</div>
+    <div class="panel-sub">Полный список рыбаков и их улов</div>
+
+    <a class="btn-start" href="/fishing-db" style="display:block;text-align:center;text-decoration:none;background:linear-gradient(90deg,#0a3350,#3aa8ff);color:#fff;box-shadow:0 4px 20px rgba(80,180,255,0.4)">📊 ОТКРЫТЬ БАЗУ ДАННЫХ</a>
+  </div>
+
   <!-- ── ЦИВИЛИЗАЦИЯ ── -->
   <div class="game-panel panel-civ">
     <div class="panel-title">🏛️ ЦИВИЛИЗАЦИЯ 🏛️</div>
@@ -310,12 +334,13 @@
   document.getElementById('boxingInput').value = saved;
   document.getElementById('boxingEnInput').value = saved;
   document.getElementById('streetfighterInput').value = saved;
+  document.getElementById('fishingInput').value = saved;
 
   // Sync all inputs when typing
-  ['civInput','boxingInput','boxingEnInput','streetfighterInput'].forEach(id => {
+  ['civInput','boxingInput','boxingEnInput','streetfighterInput','fishingInput'].forEach(id => {
     document.getElementById(id).addEventListener('input', function() {
       if (this.value.startsWith('@')) this.value = this.value.slice(1);
-      ['civInput','boxingInput','boxingEnInput','streetfighterInput'].forEach(oid => {
+      ['civInput','boxingInput','boxingEnInput','streetfighterInput','fishingInput'].forEach(oid => {
         if (oid !== id) document.getElementById(oid).value = this.value;
       });
     });
@@ -364,6 +389,13 @@
     handleClick('streetfighterInput','streetfighterError','streetfighterStatus','streetfighterStart','/streetfighter'));
   document.getElementById('streetfighterInput').addEventListener('keydown', e => {
     if (e.key === 'Enter') document.getElementById('streetfighterStart').click();
+  });
+
+  // Fishing
+  document.getElementById('fishingStart').addEventListener('click', () =>
+    handleClick('fishingInput','fishingError','fishingStatus','fishingStart','/fishing'));
+  document.getElementById('fishingInput').addEventListener('keydown', e => {
+    if (e.key === 'Enter') document.getElementById('fishingStart').click();
   });
 </script>
 
