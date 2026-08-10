@@ -8,6 +8,11 @@
   html, body { width:100vw; height:100vh; margin:0; background:#000; overflow:hidden; font-family:Arial,sans-serif; }
   #wrap { position:absolute; left:0; top:0; width:600px; height:1000px; transform-origin:0 0; }
   canvas { display:block; background:#000; }
+  .ui-btn { position:fixed; z-index:99999; width:26px; height:26px; font-size:12px; background:rgba(0,0,0,0.55);
+    color:rgba(255,255,255,0.55); border:1px solid rgba(255,255,255,0.2); border-radius:6px; cursor:pointer;
+    display:flex; align-items:center; justify-content:center; }
+  #backBtn { top:calc(50% - 30px); right:10px; }
+  #fsBtn   { top:calc(50% + 20px); right:10px; }
   #statusBadge { position:fixed; top:8px; right:8px; z-index:99999; padding:5px 10px; border-radius:8px;
     font-size:11px; font-weight:bold; font-family:Arial,sans-serif; display:none; }
   #statusBadge.connecting { background:rgba(80,80,80,0.7); color:#ddd; display:block; }
@@ -20,6 +25,8 @@
 </style>
 </head>
 <body>
+<button id="backBtn" class="ui-btn" title="Главное меню">⌂</button>
+<button id="fsBtn"   class="ui-btn" title="На весь экран">⛶</button>
 <div id="wrap"><canvas id="c" width="600" height="1000"></canvas></div>
 <div id="statusBadge"></div>
 <div id="ratingOverlay"></div>
@@ -725,6 +732,26 @@ setInterval(fetchFishingTop, 30000);
   const u = (p.get('username')||'').replace(/^@/,'').trim();
   if (u) wsConnect(u);
 })();
+
+document.getElementById('backBtn').addEventListener('click', ()=>{ location.href='/'; });
+document.getElementById('fsBtn').addEventListener('click', ()=>{
+  if (document.fullscreenElement) { document.exitFullscreen && document.exitFullscreen(); }
+  else {
+    document.documentElement.requestFullscreen && document.documentElement.requestFullscreen().then(()=>{
+      if (screen.orientation && screen.orientation.lock) screen.orientation.lock('portrait').catch(()=>{});
+    }).catch(()=>{});
+  }
+});
+
+// звук видео — автоплей со звуком браузер блокирует (разрешён только
+// muted-автоплей), поэтому видео стартует беззвучно и включает звук по
+// первому касанию/клику где угодно на странице
+document.addEventListener('pointerdown', function unlockVideoSoundOnce(){
+  bgVideo.muted = false;
+  bgVideo.volume = 0.6;
+  bgVideo.play().catch(()=>{});
+  document.removeEventListener('pointerdown', unlockVideoSoundOnce);
+});
 </script>
 </body>
 </html>
