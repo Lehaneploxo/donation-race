@@ -112,6 +112,13 @@ grainCanvas.width = GRAIN_SIZE; grainCanvas.height = GRAIN_SIZE;
 })();
 const grainPattern = ctx.createPattern(grainCanvas,'repeat');
 
+// иконки для строки правил "Money Gun = Tsunami" — сам подарок из TikTok
+// и кадр, вырезанный из ролика цунами, вместо эмодзи-заглушек
+const moneyGunIcon = new Image();
+moneyGunIcon.src = 'img/fishing_moneygun_icon.webp';
+const tsunamiIcon = new Image();
+tsunamiIcon.src = 'img/fishing_tsunami_icon.png';
+
 // без плашки-фона, всё в левом углу, на английском
 function drawTopPanel(){
   ctx.font = 'bold 20px Arial Black'; ctx.textAlign = 'left';
@@ -122,7 +129,6 @@ function drawTopPanel(){
   const rules = [
     { text:'❤️ LIKE (100)', color:'#8fffb0' },
     { text:'🌹 1 COINS',    color:'#FFD700' },
-    { text:'🔫 MONEY GUN = 🌊 TSUNAMI', color:'#7fd3ff' },
   ];
   ctx.font = 'bold 15px Arial Black'; ctx.textAlign = 'left';
   rules.forEach((r,i)=>{
@@ -131,6 +137,14 @@ function drawTopPanel(){
     ctx.strokeText(r.text, 12, ry);
     ctx.fillStyle = r.color; ctx.fillText(r.text, 12, ry);
   });
+
+  const iconRy = 56 + rules.length*22, iconSize = 22;
+  if (moneyGunIcon.complete) ctx.drawImage(moneyGunIcon, 12, iconRy-17, iconSize, iconSize);
+  ctx.font = 'bold 15px Arial Black';
+  ctx.strokeStyle = 'rgba(0,0,0,0.85)'; ctx.lineWidth = 3;
+  ctx.strokeText('=', 12+iconSize+6, iconRy);
+  ctx.fillStyle = '#7fd3ff'; ctx.fillText('=', 12+iconSize+6, iconRy);
+  if (tsunamiIcon.complete) ctx.drawImage(tsunamiIcon, 12+iconSize+24, iconRy-17, iconSize, iconSize);
 
   ctx.font = 'bold 13px Arial Black'; ctx.textAlign = 'left';
   ctx.strokeStyle = 'rgba(0,0,0,0.9)'; ctx.lineWidth = 3;
