@@ -112,12 +112,11 @@ grainCanvas.width = GRAIN_SIZE; grainCanvas.height = GRAIN_SIZE;
 })();
 const grainPattern = ctx.createPattern(grainCanvas,'repeat');
 
-// иконки для строки правил "Money Gun = Tsunami" — сам подарок из TikTok
-// и кадр, вырезанный из ролика цунами, вместо эмодзи-заглушек
+// иконка подарка Money Gun в строке правил "Money Gun = 🌊" — сам подарок
+// из TikTok картинкой, цунами эмодзи-волной (кадр из видео был неразборчив
+// в таком маленьком размере)
 const moneyGunIcon = new Image();
 moneyGunIcon.src = 'img/fishing_moneygun_icon.webp';
-const tsunamiIcon = new Image();
-tsunamiIcon.src = 'img/fishing_tsunami_icon.png';
 
 // без плашки-фона, всё в левом углу, на английском; названия игры тут
 // нет специально — и так понятно, что это рыбалка
@@ -140,7 +139,8 @@ function drawTopPanel(){
   ctx.strokeStyle = 'rgba(0,0,0,0.85)'; ctx.lineWidth = 6;
   ctx.strokeText('=', 12+iconSize+12, iconRy);
   ctx.fillStyle = '#7fd3ff'; ctx.fillText('=', 12+iconSize+12, iconRy);
-  if (tsunamiIcon.complete) ctx.drawImage(tsunamiIcon, 12+iconSize+48, iconRy-34, iconSize, iconSize);
+  ctx.font = (iconSize)+'px Arial';
+  ctx.fillText('🌊', 12+iconSize+48, iconRy+6);
 
   const topHeaderY = iconRy + 50;
   ctx.font = 'bold 20px Arial Black'; ctx.textAlign = 'left';
