@@ -809,10 +809,10 @@ if (new URLSearchParams(location.search).get('debug') === '1'){
     'flex-direction:column;gap:4px;font-family:Arial,sans-serif;';
 
   const buttons = [
-    ['🐟 SMALL (5)',   ()=>{ spawnCatch('TestSmall', 5, tierForCoins(5)); reportFish('TestSmall', 5); }],
-    ['🐠 MEDIUM (50)', ()=>{ spawnCatch('TestMedium', 50, tierForCoins(50)); reportFish('TestMedium', 50); }],
-    ['🐡 PIKE (200)',  ()=>{ spawnCatch('TestPike', 200, tierForCoins(200)); reportFish('TestPike', 200); }],
-    ['🦈 SHARK (1500)',()=>{ spawnCatch('TestShark', 1500, tierForCoins(1500)); reportFish('TestShark', 1500); }],
+    ['🐟 SMALL (1)',   ()=>{ spawnCatch('TestSmall', 1, tierForCoins(1)); reportFish('TestSmall', 1); }],
+    ['🐠 MEDIUM (10)', ()=>{ spawnCatch('TestMedium', 10, tierForCoins(10)); reportFish('TestMedium', 10); }],
+    ['🐡 PIKE (100)',  ()=>{ spawnCatch('TestPike', 100, tierForCoins(100)); reportFish('TestPike', 100); }],
+    ['🦈 SHARK (1000)',()=>{ spawnCatch('TestShark', 1000, tierForCoins(1000)); reportFish('TestShark', 1000); }],
     ['❤️ LIKE x100',   ()=>{ spawnCatch('TestLike', 1, LIKE_TIER); reportFish('TestLike', 1); }],
     ['🔫 MONEY GUN',   ()=> triggerMoneyGun('TestGun', 500)],
   ];
