@@ -491,17 +491,36 @@ function drawBobber(x, y, s, color, name, isChamp, t){
   ctx.fillText(name, x, y-29*s);
 }
 
+// размер рыбки плавно растёт вместе с точной суммой ЭТОГО конкретного улова
+// (2026-08-11, по просьбе пользователя) — раньше все "средние" рыбки от 10
+// до 99 монет выглядели одинаково, теперь 12 монет заметно мельче 95. Вид
+// (форма/цвет/сколько сопротивляется — durMs в tierForCoins) по-прежнему
+// решает диапазон монет, scaleRange растёт ТОЛЬКО внутри своего диапазона —
+// поведение вываживания не трогаем, риск сломать баланс минимальный.
+// Диапазоны scaleRange подобраны так, что верх одного вида ниже низа
+// следующего — рост всегда монотонный по всей шкале, без скачков вниз на
+// границе видов. Интерполяция по логарифму (не линейно) — донаты различаются
+// на порядки, линейная шкала сделала бы рост незаметным у мелких сумм.
 const FISH_VISUAL = {
-  small:  { scale:1,    color:'#bfe0e8' },
-  medium: { scale:1.6,  color:'#8fd0c0' },
-  pike:   { scale:2.1,  color:'#6fae5a' },
-  shark:  { scale:2.9,  color:'#9aa7b0' },
+  small:  { color:'#bfe0e8', coinsRange:[1, 9],       scaleRange:[0.85, 1.15] },
+  medium: { color:'#8fd0c0', coinsRange:[10, 99],     scaleRange:[1.3,  1.9]  },
+  pike:   { color:'#6fae5a', coinsRange:[100, 999],   scaleRange:[2.0,  2.6]  },
+  shark:  { color:'#9aa7b0', coinsRange:[1000, 5000], scaleRange:[2.8,  3.6]  }, // 5000+ монет — потолок размера
 };
-function drawFish(x, y, s, rot, kind, wigglePhase){
+function fishVisualScale(kind, coins){
   const vis = FISH_VISUAL[kind] || FISH_VISUAL.small;
+  const [lo, hi] = vis.coinsRange;
+  const c = Math.max(lo, Math.min(hi, Number(coins) || lo));
+  const u = hi > lo ? Math.log(c/lo) / Math.log(hi/lo) : 0;
+  const [sLo, sHi] = vis.scaleRange;
+  return sLo + (sHi-sLo)*u;
+}
+function drawFish(x, y, s, rot, kind, coins, wigglePhase){
+  const vis = FISH_VISUAL[kind] || FISH_VISUAL.small;
+  const sizeScale = fishVisualScale(kind, coins);
   const wig = wigglePhase!=null ? Math.sin(wigglePhase)*0.55 : 0;
   ctx.save();
-  ctx.translate(x,y); ctx.rotate(rot); ctx.scale(s*vis.scale, s*vis.scale);
+  ctx.translate(x,y); ctx.rotate(rot); ctx.scale(s*sizeScale, s*sizeScale);
   ctx.fillStyle = vis.color;
 
   function tail(attachX, len, spread){
@@ -629,7 +648,7 @@ function renderAngler(a, t, scale){
       const fx = target.x + (BUCKET_X-target.x)*ph.u;
       const fy = target.y + (BUCKET_Y-target.y)*ph.u - Math.sin(ph.u*Math.PI)*46;
       const rot = -0.3 + ph.u*1.1;
-      flyingFish = { x:fx, y:fy, rot, kind:a.catch.tier.kind };
+      flyingFish = { x:fx, y:fy, rot, kind:a.catch.tier.kind, coins:a.catch.fish };
       if (ph.u > 0.7) showBobber = false;
       if (ph.u > 0.85) caughtText = `🐟 +${a.catch.fish}!`;
     } else if (ph.phase === 'recast'){
@@ -669,7 +688,7 @@ function loop(t){
     if (r.splash) drawSplash(r.splash.x, r.splash.y, r.splash.power);
   });
   renders.forEach(({r})=>{
-    if (r.flyingFish) drawFish(r.flyingFish.x, r.flyingFish.y, 1.3, r.flyingFish.rot + Math.sin(t/50)*0.15, r.flyingFish.kind, t/40);
+    if (r.flyingFish) drawFish(r.flyingFish.x, r.flyingFish.y, 1.3, r.flyingFish.rot + Math.sin(t/50)*0.15, r.flyingFish.kind, r.flyingFish.coins, t/40);
   });
   renders.forEach(({r})=>{
     if (!r.caughtText) return;
