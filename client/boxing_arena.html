@@ -346,6 +346,34 @@ function applyGrowth(username, gain, isGift){
   // обычный лайк на уже живого бойца — молча, диктор не озвучивает каждый лайк
 }
 
+// восстановление бойца из снапшота сервера (см. boxing_state_restore в
+// wsConnect) — при перезапуске стрима/переоткрытии страницы, бесшумно (без
+// реплики диктора, иначе он захлёбывался бы при массовом восстановлении).
+// Уровень подтянется сам следующим round-trip'ом requestTier — как и при
+// обычном спавне.
+function restoreFighter(entry){
+  if (!entry || !entry.username) return;
+  if (findRealFighter(entry.username)) return; // уже на ринге
+  const energy = Math.max(0, Number(entry.energy)||0);
+  if (energy <= 0) return; // нечего восстанавливать
+  const skin = randomSkin();
+  const pos = spawnRingPos();
+  const v = {
+    dir: skin.dir, name: entry.username, color: skin.color, isBot: false,
+    baseDir: skin.dir, baseColor: skin.color, isChamp: false,
+    stolenEnergy: 0, powerDecayAcc: 0, kos: 0, allTimeStolen: 0,
+    knownRankIdx: 0,
+  };
+  v.energyMax = Math.max(0, Number(entry.energyMax)||0);
+  v.energy    = energy;
+  v.powerMax  = Math.max(0, Number(entry.powerMax)||0);
+  v.power     = Math.max(0, Number(entry.power)||0);
+  initFighterRuntime(v, pos.x, pos.y);
+  VARIANTS.push(v);
+  requestTier(entry.username);
+  syncChampionStatus();
+}
+
 function onLike(username){ applyGrowth(username, { likeEnergy:10, likePower:1 }, false); }
 
 // ── Команда "Team" в чате: тумблер красного флажка — пока боец жив, свои
@@ -811,10 +839,18 @@ function wsConnect(username){
   if (_ws && _ws.readyState < 2){ _ws.onclose = null; _ws.close(); }
   const proto = location.protocol==='https:' ? 'wss:' : 'ws:';
   _ws = new WebSocket(`${proto}//${location.host}?username=${encodeURIComponent(username)}`);
-  _ws.onopen = ()=> setStatus('connecting', '⏳ @'+username+'…');
+  _ws.onopen = ()=>{
+    setStatus('connecting', '⏳ @'+username+'…');
+    // Восстановление энергии/силы бойцов после перезапуска стрима (обновление
+    // /переоткрытие страницы игры) — сервер помнит последний снапшот боя
+    _ws.send(JSON.stringify({ type:'boxing_state_request' }));
+  };
   _ws.onmessage = (e)=>{
     try {
       const d = JSON.parse(e.data);
+      if (d.type==='boxing_state_restore'){
+        (d.players||[]).forEach(restoreFighter);
+      }
       if (d.type==='init' || d.type==='status'){
         const m = d.tiktokMode || d.mode;
         _gameMode = m || 'connecting';
@@ -946,6 +982,21 @@ function reportKO(username){
 function requestTier(username){
   if (_ws && _ws.readyState===1) _ws.send(JSON.stringify({ type:'boxing_tier_request', username }));
 }
+
+// ── Автосейв энергии/силы боя (2026-08-11) — чтобы при перезапуске стрима
+// (переоткрытие страницы) реальные бойцы не начинали с нуля. Раз в 15 сек
+// + сразу при сворачивании/закрытии вкладки — совсем маленький payload
+// (только активные реальные бойцы), сервер сам решает как часто писать в БД.
+function saveStateSnapshot(){
+  if (!_ws || _ws.readyState!==1) return;
+  const players = VARIANTS
+    .filter(v=>!v.isBot && v.alive && !v.eliminated && v.energy>0)
+    .map(v=>({ username:v.name, energyMax:v.energyMax, energy:v.energy, powerMax:v.powerMax, power:v.power }));
+  _ws.send(JSON.stringify({ type:'boxing_state_save', players }));
+}
+setInterval(saveStateSnapshot, 15000);
+document.addEventListener('visibilitychange', ()=>{ if (document.hidden) saveStateSnapshot(); });
+window.addEventListener('pagehide', saveStateSnapshot);
 
 // ── ТОП-лист: недельный, из БД (обнуляется по понедельникам) ──
 let _dbTop = []; // [{username, stolen}]

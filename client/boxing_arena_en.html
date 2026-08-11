@@ -337,6 +337,32 @@ function applyGrowth(username, gain, isGift){
   // обычный лайк на уже живого бойца — молча, диктор не озвучивает каждый лайк
 }
 
+// restore a fighter from the server snapshot (see boxing_state_restore_en in
+// wsConnect) — after a stream restart/page reload, silently (no announcer
+// line, otherwise it would spam when many fighters restore at once). Level
+// gets refreshed by the same requestTier round-trip as a normal spawn.
+function restoreFighter(entry){
+  if (!entry || !entry.username) return;
+  if (findRealFighter(entry.username)) return; // already on the ring
+  const energy = Math.max(0, Number(entry.energy)||0);
+  if (energy <= 0) return; // nothing to restore
+  const skin = randomSkin();
+  const pos = spawnRingPos();
+  const v = {
+    dir: skin.dir, name: entry.username, color: skin.color, isBot: false,
+    baseDir: skin.dir, baseColor: skin.color, isChamp: false,
+    stolenEnergy: 0, powerDecayAcc: 0, kos: 0, allTimeStolen: 0,
+  };
+  v.energyMax = Math.max(0, Number(entry.energyMax)||0);
+  v.energy    = energy;
+  v.powerMax  = Math.max(0, Number(entry.powerMax)||0);
+  v.power     = Math.max(0, Number(entry.power)||0);
+  initFighterRuntime(v, pos.x, pos.y);
+  VARIANTS.push(v);
+  requestTier(entry.username);
+  syncChampionStatus();
+}
+
 function onLike(username){ applyGrowth(username, { likeEnergy:10, likePower:1 }, false); }
 
 // ── Команда "Team" в чате: тумблер красного флажка — пока боец жив, свои
@@ -781,10 +807,18 @@ function wsConnect(username){
   if (_ws && _ws.readyState < 2){ _ws.onclose = null; _ws.close(); }
   const proto = location.protocol==='https:' ? 'wss:' : 'ws:';
   _ws = new WebSocket(`${proto}//${location.host}?username=${encodeURIComponent(username)}`);
-  _ws.onopen = ()=> setStatus('connecting', '⏳ @'+username+'…');
+  _ws.onopen = ()=>{
+    setStatus('connecting', '⏳ @'+username+'…');
+    // Restore fighters' energy/power after a stream restart (page reload) —
+    // server remembers the last snapshot of the fight
+    _ws.send(JSON.stringify({ type:'boxing_state_request_en' }));
+  };
   _ws.onmessage = (e)=>{
     try {
       const d = JSON.parse(e.data);
+      if (d.type==='boxing_state_restore_en'){
+        (d.players||[]).forEach(restoreFighter);
+      }
       if (d.type==='init' || d.type==='status'){
         const m = d.tiktokMode || d.mode;
         _gameMode = m || 'connecting';
@@ -883,6 +917,21 @@ function reportBelt(username, seconds){
 function requestTier(username){
   if (_ws && _ws.readyState===1) _ws.send(JSON.stringify({ type:'boxing_tier_request_en', username }));
 }
+
+// ── Fight state autosave (2026-08-11) — so fighters don't start from zero
+// after a stream restart (page reload). Every 15s + immediately when the
+// tab is hidden/closed — tiny payload (only active real fighters), the
+// server decides how often to persist it to the database.
+function saveStateSnapshot(){
+  if (!_ws || _ws.readyState!==1) return;
+  const players = VARIANTS
+    .filter(v=>!v.isBot && v.alive && !v.eliminated && v.energy>0)
+    .map(v=>({ username:v.name, energyMax:v.energyMax, energy:v.energy, powerMax:v.powerMax, power:v.power }));
+  _ws.send(JSON.stringify({ type:'boxing_state_save_en', players }));
+}
+setInterval(saveStateSnapshot, 15000);
+document.addEventListener('visibilitychange', ()=>{ if (document.hidden) saveStateSnapshot(); });
+window.addEventListener('pagehide', saveStateSnapshot);
 
 // ── ТОП-лист: all-time из БД (не сбрасывается между стримами) ──
 let _dbTop = []; // [{username, stolen}]

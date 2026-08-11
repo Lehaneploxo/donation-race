@@ -441,6 +441,15 @@ app.get('/admin/fishing-daily-check', async (req, res) => {
 // ─── Rooms ───────────────────────────────────────────────────────────────────
 const rooms = new Map();
 
+// снапшоты боя Street Fighter / Boxing Arena — см. Room.saveStateSnapshot/
+// sendStateSnapshot и обработку streetfighter_state_*/boxing_state_* ниже
+const STATE_DB_SAVE_MIN_INTERVAL_MS = 60 * 1000;
+const STATE_RESTORE_TYPE = {
+  streetfighter: 'streetfighter_state_restore',
+  boxing: 'boxing_state_restore',
+  boxing_en: 'boxing_state_restore_en',
+};
+
 class Room {
   constructor(username) {
     this.username   = username;
@@ -449,6 +458,14 @@ class Room {
     this._carMeters  = 0;   // общий пробег машины (метры), сбрасывается только при рестарте сервера
     this._giftCount  = 0;
     this._lastGift   = null;
+    // Снапшоты энергии/силы бойцов Street Fighter / Boxing Arena (2026-08-11):
+    // {streetfighter, boxing, boxing_en} → массив [{username,energyMax,energy,powerMax,power}].
+    // Живёт в памяти комнаты, переживает обновление/переоткрытие страницы игры
+    // (комната не уничтожается 5 минут после ухода последнего клиента, см.
+    // removeClient). Резервная копия в БД — на случай перезапуска сервера,
+    // см. _stateDbSavedAt/saveStateSnapshot ниже.
+    this._stateSnapshots = {};
+    this._stateDbSavedAt = {};
     this._connect();
   }
 
@@ -755,6 +772,62 @@ class Room {
       clearInterval(c._demoArenaGiftIv);
       clearInterval(c._demoArenaHelpIv);
     }
+    // финальный сброс снапшотов боя в БД перед уничтожением комнаты — не
+    // ждём следующего троттлингового окна (см. saveStateSnapshot), иначе
+    // последние секунды перед долгим простоем/рестартом сервера потерялись бы
+    for (const game of Object.keys(this._stateSnapshots)) {
+      const players = this._stateSnapshots[game];
+      if (players) db.saveGameStateSnapshot(game, this.username, players).catch(() => {});
+    }
+  }
+
+  // сохранить снапшот энергии/силы реальных бойцов конкретной игры — в
+  // память сразу (дёшево, используется при обычном переоткрытии страницы),
+  // в БД не чаще раза в минуту на комнату+игру (резерв на случай рестарта
+  // сервера, не хотим лишний раз грузить БД на каждый тик клиента)
+  saveStateSnapshot(game, players) {
+    const clean = (Array.isArray(players) ? players : [])
+      .filter(p => p && typeof p.username === 'string' && p.username)
+      .slice(0, 500)
+      .map(p => ({
+        username: String(p.username).slice(0, 100),
+        energyMax: Math.max(0, Math.floor(Number(p.energyMax)) || 0),
+        energy:    Math.max(0, Math.floor(Number(p.energy))    || 0),
+        powerMax:  Math.max(0, Math.floor(Number(p.powerMax))  || 0),
+        power:     Math.max(0, Math.floor(Number(p.power))     || 0),
+      }));
+    this._stateSnapshots[game] = clean;
+
+    const now = Date.now();
+    const lastDbSave = this._stateDbSavedAt[game] || 0;
+    if (now - lastDbSave >= STATE_DB_SAVE_MIN_INTERVAL_MS) {
+      this._stateDbSavedAt[game] = now;
+      db.saveGameStateSnapshot(game, this.username, clean)
+        .catch(e => console.error(`[DB] state_snapshot(${game}) error:`, e.message));
+    }
+  }
+
+  // отдать снапшот конкретному клиенту, что только что подключился —
+  // сперва из памяти (мгновенно), если её нет (сервер только что
+  // перезапустился) — подтягиваем резервную копию из БД
+  sendStateSnapshot(ws, game) {
+    const restoreType = STATE_RESTORE_TYPE[game];
+    if (!restoreType) return;
+    const inMemory = this._stateSnapshots[game];
+    if (inMemory) {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: restoreType, players: inMemory }));
+      }
+      return;
+    }
+    db.getGameStateSnapshot(game, this.username)
+      .then(players => {
+        if (players && players.length) this._stateSnapshots[game] = players;
+        if (players && players.length && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: restoreType, players }));
+        }
+      })
+      .catch(() => {});
   }
 
   broadcast(data) {
@@ -903,6 +976,27 @@ wss.on('connection', (ws, req) => {
             room.broadcast({ type: 'top_fishing', data: top });
           })
           .catch(e => console.error('[DB] fishing_catch error:', e.message));
+      }
+      // Street Fighter / Boxing Arena (RU/EN): автосейв энергии/силы бойцов и
+      // восстановление при перезапуске стрима (обновление/переоткрытие
+      // страницы игры) — см. Room.saveStateSnapshot/sendStateSnapshot
+      if (msg.type === 'streetfighter_state_save') {
+        room.saveStateSnapshot('streetfighter', msg.players);
+      }
+      if (msg.type === 'streetfighter_state_request') {
+        room.sendStateSnapshot(ws, 'streetfighter');
+      }
+      if (msg.type === 'boxing_state_save') {
+        room.saveStateSnapshot('boxing', msg.players);
+      }
+      if (msg.type === 'boxing_state_request') {
+        room.sendStateSnapshot(ws, 'boxing');
+      }
+      if (msg.type === 'boxing_state_save_en') {
+        room.saveStateSnapshot('boxing_en', msg.players);
+      }
+      if (msg.type === 'boxing_state_request_en') {
+        room.sendStateSnapshot(ws, 'boxing_en');
       }
       if (msg.type === 'request_rating' && msg.username) {
         db.getUserRank(msg.username)

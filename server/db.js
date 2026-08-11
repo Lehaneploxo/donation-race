@@ -157,7 +157,45 @@ async function init() {
     )
   `);
 
-  console.log('[DB] Таблицы kills, boss_damage, race_donations, boxing_stolen, boxing_stolen_en, streetfighter_stolen и fishing_catches готовы');
+  // ── Снапшоты энергии/силы бойцов Street Fighter / Boxing Arena (2026-08-11) ──
+  // Резервная копия в БД для восстановления после ПЕРЕЗАПУСКА СЕРВЕРА
+  // (обычный ре-коннект/обновление страницы восстанавливается быстрее — из
+  // памяти комнаты на сервере, см. Room._stateSnapshots в server.js). Пишется
+  // редко (раз в минуту максимум на комнату+игру), payload маленький — не
+  // нагружает БД. game: 'streetfighter'|'boxing'|'boxing_en', room — ник стримера.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS game_state_snapshots (
+      game TEXT NOT NULL,
+      room TEXT NOT NULL,
+      players JSONB NOT NULL DEFAULT '[]',
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      PRIMARY KEY (game, room)
+    )
+  `);
+
+  console.log('[DB] Таблицы kills, boss_damage, race_donations, boxing_stolen, boxing_stolen_en, streetfighter_stolen, fishing_catches и game_state_snapshots готовы');
+}
+
+// снапшот текущей энергии/силы реальных бойцов на ринге — бэкап на случай
+// перезапуска сервера (Railway redeploy), чтобы бойцы не начинали с нуля.
+// Основной источник восстановления — память комнаты (быстрее), это резерв.
+async function saveGameStateSnapshot(game, room, players) {
+  if (!pool || !game || !room) return;
+  await pool.query(`
+    INSERT INTO game_state_snapshots (game, room, players, updated_at)
+    VALUES ($1, $2, $3, now())
+    ON CONFLICT (game, room)
+    DO UPDATE SET players = $3, updated_at = now()
+  `, [game, room, JSON.stringify(players || [])]);
+}
+
+async function getGameStateSnapshot(game, room) {
+  if (!pool || !game || !room) return null;
+  const res = await pool.query(
+    `SELECT players FROM game_state_snapshots WHERE game=$1 AND room=$2`,
+    [game, room]
+  );
+  return res.rows.length ? res.rows[0].players : null;
 }
 
 async function addBossDamage(username, amount) {
@@ -817,5 +855,6 @@ module.exports = {
   addFishingCatch, getTopFishingDaily, getAllFishing, getUserFishingRank,
   resetFishingRating, setFishingTotal, deleteFishingUser,
   performFishingDailyResetIfNeeded,
+  saveGameStateSnapshot, getGameStateSnapshot,
   isConnected,
 };
