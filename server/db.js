@@ -729,12 +729,17 @@ async function getLastBoxingWeeklyChampion() {
 // total_fish (вечный, для db-страницы) и daily_fish (для "ТОП ЗА СЕГОДНЯ")
 async function addFishingCatch(username, fish) {
   if (!pool || !username || !fish) return;
+  // total_fish (BIGINT) и daily_fish (INTEGER) — разные типы колонок, поэтому
+  // $2 без явного каста в обоих местах ловит ошибку Postgres "inconsistent
+  // types deduced for parameter $2" (обнаружено 2026-08-11: ни одна рыбка ни
+  // разу не записалась в БД с момента запуска игры). Явные касты убирают
+  // неоднозначность для каждого использования параметра по отдельности.
   await pool.query(`
     INSERT INTO fishing_catches (username, total_fish, daily_fish, updated_at)
-    VALUES ($1, $2, $2, now())
+    VALUES ($1, $2::bigint, $2::integer, now())
     ON CONFLICT (username)
-    DO UPDATE SET total_fish = fishing_catches.total_fish + $2,
-                  daily_fish = fishing_catches.daily_fish + $2,
+    DO UPDATE SET total_fish = fishing_catches.total_fish + $2::bigint,
+                  daily_fish = fishing_catches.daily_fish + $2::integer,
                   updated_at = now()
   `, [username, Math.floor(fish)]);
 }
@@ -786,11 +791,13 @@ async function resetFishingRating() {
 
 async function setFishingTotal(username, value) {
   if (!pool || !username) return;
+  // тот же каст, что и в addFishingCatch выше — total_fish/daily_fish разных
+  // типов, $2 без явного каста в обоих местах ловит ошибку Postgres
   await pool.query(`
     INSERT INTO fishing_catches (username, total_fish, daily_fish, updated_at)
-    VALUES ($1, $2, $2, now())
+    VALUES ($1, $2::bigint, $2::integer, now())
     ON CONFLICT (username)
-    DO UPDATE SET total_fish = $2, updated_at = now()
+    DO UPDATE SET total_fish = $2::bigint, updated_at = now()
   `, [username, Math.floor(value)]);
 }
 
