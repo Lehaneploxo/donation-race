@@ -22,14 +22,14 @@
   #ratingOverlay { position:fixed; left:50%; top:14%; transform:translateX(-50%); z-index:99999;
     background:rgba(5,5,10,0.88); border:1px solid rgba(255,210,80,0.4); border-radius:12px;
     padding:12px 16px; text-align:center; display:none; max-width:80vw; font-family:Arial,sans-serif; }
-  #tsunamiVideo { position:absolute; left:0; top:0; width:600px; height:1000px; object-fit:cover;
+  #tsunamiVideo, #specialEventVideo { position:absolute; left:0; top:0; width:600px; height:1000px; object-fit:cover;
     display:none; background:#000; }
 </style>
 </head>
 <body>
 <button id="backBtn" class="ui-btn" title="Главное меню">⌂</button>
 <button id="fsBtn"   class="ui-btn" title="На весь экран">⛶</button>
-<div id="wrap"><canvas id="c" width="600" height="1000"></canvas><video id="tsunamiVideo" muted playsinline></video></div>
+<div id="wrap"><canvas id="c" width="600" height="1000"></canvas><video id="tsunamiVideo" muted playsinline></video><video id="specialEventVideo" muted playsinline></video></div>
 <div id="statusBadge"></div>
 <div id="ratingOverlay"></div>
 <script>
@@ -745,6 +745,38 @@ function triggerMoneyGun(username, coins){
     for (let i=0;i<fishCount;i++) spawnCatch(username, 100, tierForCoins(100));
   });
 }
+
+// ── Спец-события (2026-08-12) — раз в 3 минуты на весь экран проигрывается
+// одно из 3 видео по кругу (6388→6400→6403→снова 6388…), НЕ привязано к
+// донату/лайку — чисто по таймеру, для разнообразия картинки на стриме.
+// Тот же приём, что и у цунами Money Gun (полноэкранное video поверх канвы,
+// приглушено — автоплей со звуком браузер всё равно блокирует), но
+// отдельный <video>-элемент и отдельный таймер, чтобы не мешать друг другу.
+const SPECIAL_EVENT_VIDEOS = ['img/fishing_special1.mp4', 'img/fishing_special2.mp4', 'img/fishing_special3.mp4'];
+const SPECIAL_EVENT_INTERVAL_MS = 3 * 60 * 1000;
+const specialEventVideo = document.getElementById('specialEventVideo');
+let _specialEventIdx = 0;
+let _specialEventPlaying = false;
+function playSpecialEvent(){
+  if (_specialEventPlaying || _tsunamiPlaying) return; // не перекрываем себя же или цунами Money Gun
+  _specialEventPlaying = true;
+  specialEventVideo.src = SPECIAL_EVENT_VIDEOS[_specialEventIdx % SPECIAL_EVENT_VIDEOS.length];
+  _specialEventIdx++;
+  let done = false;
+  const finish = ()=>{
+    if (done) return;
+    done = true;
+    specialEventVideo.style.display = 'none';
+    specialEventVideo.onended = null;
+    _specialEventPlaying = false;
+  };
+  specialEventVideo.currentTime = 0;
+  specialEventVideo.style.display = 'block';
+  specialEventVideo.onended = finish;
+  specialEventVideo.play().catch(finish);
+  setTimeout(finish, 15000); // страховка, если 'ended' не пришло
+}
+setInterval(playSpecialEvent, SPECIAL_EVENT_INTERVAL_MS);
 
 let _ws = null, _wsUser = '', _gameMode = 'connecting';
 const _likeCounts = new Map(); // username -> накопленные лайки этого стрима
