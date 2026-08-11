@@ -366,8 +366,12 @@ const BOBBER_COLORS = ['#ff5566','#4fa8ff','#5fe36a','#c26bff','#4fe3d0'];
 // ── зрители — фиксированный пул "мест" на воде (не резиновый список: у
 // реального стрима может быть много уникальных донатеров за эфир). Место
 // занимает тот, кто первым закинул монету/добил 100 лайков; если все места
-// заняты — выселяем того, кто дольше всех бездействует (и не тащит рыбу
-// прямо сейчас), это освобождает слот новому донатеру
+// заняты — выселяем "самого выселяемого" (см. getOrAssignAngler ниже:
+// приоритет по донату — чем больше зритель донатил в этом сеансе, тем
+// дольше держится его место, но не навсегда). 15 мест (2026-08-11,
+// увеличено с 8 по просьбе пользователя) — рендер удочки лёгкий, никакой
+// физики/коллизий между зрителями тут нет, потолок только в разметке
+// экрана (координаты подобраны руками, чтобы не налезали друг на друга).
 const SLOTS = [
   { baseX:40,  px:0.10, py:0.28 },
   { baseX:130, px:0.24, py:0.46 },
@@ -377,8 +381,37 @@ const SLOTS = [
   { baseX:560, px:0.88, py:0.44 },
   { baseX:90,  px:0.16, py:0.60 },
   { baseX:520, px:0.80, py:0.60 },
+  { baseX:18,  px:0.03, py:0.16 },
+  { baseX:180, px:0.30, py:0.10 },
+  { baseX:300, px:0.50, py:0.08 },
+  { baseX:348, px:0.58, py:0.62 },
+  { baseX:252, px:0.42, py:0.80 },
+  { baseX:48,  px:0.08, py:0.80 },
+  { baseX:564, px:0.94, py:0.80 },
 ].map((s,i)=>({ ...s, colorIdx: i % BOBBER_COLORS.length, occupant:null }));
 const anglersByUser = new Map(); // usernameLower -> angler
+
+// зрители, которым в моменте не хватило места (редкий случай: все 15 мест
+// заняты активным вываживанием прямо сейчас) — не теряются, ждут своей
+// очереди и рассаживаются автоматически, как только освобождается место
+// (см. drainWaitingQueue в loop()). Рейтинг в БД при этом не страдает —
+// reportFish пишется независимо от того, нашлось ли место на экране.
+let waitingQueue = []; // [{ username, fish, tier }]
+function queueWaiting(username, fish, tier){
+  waitingQueue.push({ username, fish, tier });
+  if (waitingQueue.length > 200) waitingQueue.shift(); // защита от неограниченного роста при вирусном донат-шторме
+}
+function drainWaitingQueue(t){
+  while (waitingQueue.length){
+    const next = waitingQueue[0];
+    const a = getOrAssignAngler(next.username, t);
+    if (!a) break; // всё ещё нет места — ждём следующего кадра
+    waitingQueue.shift();
+    a.totalFish = (a.totalFish||0) + next.fish;
+    if (a.catch) a.queue.push({ tier: next.tier, fish: next.fish });
+    else a.catch = { tier: next.tier, fish: next.fish, startTime: t };
+  }
+}
 
 function getOrAssignAngler(username, t){
   const key = username.toLowerCase();
@@ -387,12 +420,22 @@ function getOrAssignAngler(username, t){
 
   let slot = SLOTS.find(s => !s.occupant);
   if (!slot){
-    const free = SLOTS.filter(s => !s.occupant.catch).sort((x,y)=>x.occupant.lastActive-y.occupant.lastActive);
+    // приоритет по донату: "выселяемость" = время бездействия, делённое на
+    // (1 + сколько рыбок принёс зрителю донат/лайки в этом сеансе). Крупный
+    // донатер держит место намного дольше при равном простое, но не вечно —
+    // при достаточно долгом отсутствии он всё равно наберёт высокий счёт и
+    // уступит место новому зрителю.
+    const free = SLOTS.filter(s => s.occupant && !s.occupant.catch);
+    if (!free.length) return null; // все прямо сейчас тащат рыбу — некуда посадить нового
+    free.sort((x,y)=>{
+      const sx = (t - x.occupant.lastActive) / (1 + (x.occupant.totalFish||0));
+      const sy = (t - y.occupant.lastActive) / (1 + (y.occupant.totalFish||0));
+      return sy - sx; // самый выселяемый (наибольший счёт) — первый
+    });
     slot = free[0];
-    if (!slot) return null; // все прямо сейчас тащат рыбу — некуда посадить нового
     anglersByUser.delete(slot.occupant.key);
   }
-  a = { key, name:'@'+username, baseX:slot.baseX, px:slot.px, py:slot.py, colorIdx:slot.colorIdx, catch:null, queue:[], lastActive:t };
+  a = { key, name:'@'+username, baseX:slot.baseX, px:slot.px, py:slot.py, colorIdx:slot.colorIdx, catch:null, queue:[], lastActive:t, totalFish:0 };
   slot.occupant = a;
   anglersByUser.set(key, a);
   return a;
@@ -538,7 +581,8 @@ let topList = []; // с сервера — дневной топ, см. wsConnec
 // как только текущий долетит до ведра (нужно для money gun: 5 поклёвок подряд)
 function spawnCatch(username, fish, tier){
   const a = getOrAssignAngler(username, lastT);
-  if (!a) return; // все места заняты активным вываживанием — рыбку всё равно засчитаем в БД
+  if (!a){ queueWaiting(username, fish, tier); return; } // все 15 мест заняты активным вываживанием — встаёт в очередь (см. drainWaitingQueue), рыбку в БД всё равно засчитаем
+  a.totalFish = (a.totalFish||0) + fish; // копится для приоритета по донату, см. getOrAssignAngler
   if (a.catch){
     a.queue.push({ tier, fish });
   } else {
@@ -603,6 +647,7 @@ function renderAngler(a, t, scale){
 
 function loop(t){
   lastT = t;
+  drainWaitingQueue(t); // рассаживаем зрителей из очереди ожидания, если освободилось место
   ctx.clearRect(0,0,CW,CH);
 
   drawBackground();
