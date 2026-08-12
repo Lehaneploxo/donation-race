@@ -22,14 +22,14 @@
   #ratingOverlay { position:fixed; left:50%; top:14%; transform:translateX(-50%); z-index:99999;
     background:rgba(5,5,10,0.88); border:1px solid rgba(255,210,80,0.4); border-radius:12px;
     padding:12px 16px; text-align:center; display:none; max-width:80vw; font-family:Arial,sans-serif; }
-  #tsunamiVideo, #specialEventVideo { position:absolute; left:0; top:0; width:600px; height:1000px; object-fit:cover;
+  #tsunamiVideo { position:absolute; left:0; top:0; width:600px; height:1000px; object-fit:cover;
     display:none; background:#000; }
 </style>
 </head>
 <body>
 <button id="backBtn" class="ui-btn" title="Главное меню">⌂</button>
 <button id="fsBtn"   class="ui-btn" title="На весь экран">⛶</button>
-<div id="wrap"><canvas id="c" width="600" height="1000"></canvas><video id="tsunamiVideo" muted playsinline></video><video id="specialEventVideo" muted playsinline></video></div>
+<div id="wrap"><canvas id="c" width="600" height="1000"></canvas><video id="tsunamiVideo" muted playsinline webkit-playsinline></video></div>
 <div id="statusBadge"></div>
 <div id="ratingOverlay"></div>
 <script>
@@ -81,6 +81,39 @@ function computeCrop(){
   BG.ready = true;
 }
 bgVideo.addEventListener('loadedmetadata', computeCrop);
+
+// ── спец-событие (раз в 3 минуты) — ПОДМЕНЯЕТ фоновое видео на канвасе,
+// а не закрывает весь экран отдельным слоем поверх игры (2026-08-12, по
+// просьбе пользователя: "ничего не должно пропадать с экрана" — рыбаки,
+// поплавки, правила и топ дня должны оставаться видны поверх спец-видео,
+// как обычно). Тот же приём, что и bgVideo выше — off-DOM <video>,
+// рисуется в canvas через drawImage, а не отдельный видимый DOM-элемент.
+// Это заодно убирает риск того, что браузер на телефоне решит открыть
+// видео в нативном полноэкранном плеере (что могло приводить к зависанию
+// анимации — см. watchdog в конце файла).
+const specialVideo = document.createElement('video');
+specialVideo.muted = true;
+specialVideo.playsInline = true;
+specialVideo.preload = 'auto';
+let _specialEventActive = false;
+const SPECIAL_BG = { ready:false, sx:0, sy:0, sw:0, sh:0 };
+function computeSpecialCrop(){
+  const vw = specialVideo.videoWidth, vh = specialVideo.videoHeight;
+  if (!vw || !vh) return;
+  const destAspect = CW/CH;
+  const srcAspect = vw/vh;
+  let sw, sh, sx, sy;
+  if (srcAspect > destAspect){
+    sh = vh; sw = vh*destAspect;
+    sx = (vw-sw)/2; sy = 0;
+  } else {
+    sw = vw; sh = vw/destAspect;
+    sx = 0; sy = (vh-sh)/2;
+  }
+  SPECIAL_BG.sx=sx; SPECIAL_BG.sy=sy; SPECIAL_BG.sw=sw; SPECIAL_BG.sh=sh;
+  SPECIAL_BG.ready = true;
+}
+specialVideo.addEventListener('loadedmetadata', computeSpecialCrop);
 
 const SPARKLES = Array.from({length:150}, ()=>({
   u: Math.random(),
@@ -183,7 +216,9 @@ function drawTopPanel(){
 }
 
 function drawBackground(){
-  if (BG.ready && bgVideo.readyState >= 2){
+  if (_specialEventActive && SPECIAL_BG.ready && specialVideo.readyState >= 2){
+    ctx.drawImage(specialVideo, SPECIAL_BG.sx, SPECIAL_BG.sy, SPECIAL_BG.sw, SPECIAL_BG.sh, 0, 0, CW, CH);
+  } else if (BG.ready && bgVideo.readyState >= 2){
     ctx.drawImage(bgVideo, BG.sx, BG.sy, BG.sw, BG.sh, 0, 0, CW, CH);
   } else {
     const g = ctx.createLinearGradient(0,0,0,CH);
@@ -775,8 +810,10 @@ function renderAngler(a, t, scale){
   return { x, y, flyingFish, showBobber, caughtText, caughtRare, splash };
 }
 
+let lastFrameWallClock = Date.now(); // для watchdog ниже — реальное время последнего кадра
 function loop(t){
   lastT = t;
+  lastFrameWallClock = Date.now();
   drainWaitingQueue(t); // рассаживаем зрителей из очереди ожидания, если освободилось место
   ctx.clearRect(0,0,CW,CH);
 
@@ -826,6 +863,21 @@ function loop(t){
 }
 requestAnimationFrame(loop);
 
+// ── Watchdog (2026-08-12) — если requestAnimationFrame молчит дольше 3с,
+// цикл сам себя перезапускает. На телефоне видео со звуком (цунами/спец-
+// события) иногда триггерит нативный полноэкранный проигрыватель ОС, тот
+// приостанавливает JS-таймеры страницы, и после возврата requestAnimationFrame
+// не всегда возобновляется сам — картинка "замерзает" на последнем кадре
+// до ручного обновления страницы. setInterval переживает такие паузы лучше,
+// чем rAF-цепочка, поэтому проверяем именно им. В норме (60 кадров/сек)
+// этот таймер вообще ничего не делает — просто наблюдает.
+setInterval(()=>{
+  if (Date.now() - lastFrameWallClock > 3000){
+    lastFrameWallClock = Date.now();
+    requestAnimationFrame(loop);
+  }
+}, 2000);
+
 // ══════════════════════════════════════════════════════════════════════
 // Живое подключение к TikTok-чату — тот же паттерн, что у остальных игр
 // (streetfighter_arena.html и т.п.): сервер шлёт общие "arena_*" события
@@ -864,34 +916,30 @@ function triggerMoneyGun(username, coins){
   });
 }
 
-// ── Спец-события (2026-08-12) — раз в 3 минуты на весь экран проигрывается
-// одно из 3 видео по кругу (6388→6400→6403→снова 6388…), НЕ привязано к
-// донату/лайку — чисто по таймеру, для разнообразия картинки на стриме.
-// Тот же приём, что и у цунами Money Gun (полноэкранное video поверх канвы,
-// приглушено — автоплей со звуком браузер всё равно блокирует), но
-// отдельный <video>-элемент и отдельный таймер, чтобы не мешать друг другу.
+// ── Спец-события (раз в 3 минуты, 2026-08-12, переделано в тот же день по
+// просьбе пользователя) — одно из 3 видео по кругу (6388→6400→6403→снова
+// 6388…) ПОДМЕНЯЕТ фоновое видео причала прямо на канвасе (см. drawBackground
+// выше), НЕ закрывая экран отдельным слоем — рыбаки/поплавки/правила/топ дня
+// остаются видны поверх, как обычно, ничего не пропадает с экрана.
 const SPECIAL_EVENT_VIDEOS = ['img/fishing_special1.mp4', 'img/fishing_special2.mp4', 'img/fishing_special3.mp4'];
 const SPECIAL_EVENT_INTERVAL_MS = 3 * 60 * 1000;
-const specialEventVideo = document.getElementById('specialEventVideo');
 let _specialEventIdx = 0;
-let _specialEventPlaying = false;
 function playSpecialEvent(){
-  if (_specialEventPlaying || _tsunamiPlaying) return; // не перекрываем себя же или цунами Money Gun
-  _specialEventPlaying = true;
-  specialEventVideo.src = SPECIAL_EVENT_VIDEOS[_specialEventIdx % SPECIAL_EVENT_VIDEOS.length];
+  if (_specialEventActive) return; // не перекрываем сами себя (цунами Money Gun больше не мешает — разные слои)
+  _specialEventActive = true;
+  SPECIAL_BG.ready = false; // до loadedmetadata нового ролика — доля секунды фон просто останется прежним кадром
+  specialVideo.src = SPECIAL_EVENT_VIDEOS[_specialEventIdx % SPECIAL_EVENT_VIDEOS.length];
   _specialEventIdx++;
   let done = false;
   const finish = ()=>{
     if (done) return;
     done = true;
-    specialEventVideo.style.display = 'none';
-    specialEventVideo.onended = null;
-    _specialEventPlaying = false;
+    specialVideo.onended = null;
+    _specialEventActive = false;
   };
-  specialEventVideo.currentTime = 0;
-  specialEventVideo.style.display = 'block';
-  specialEventVideo.onended = finish;
-  specialEventVideo.play().catch(finish);
+  specialVideo.currentTime = 0;
+  specialVideo.onended = finish;
+  specialVideo.play().catch(finish);
   setTimeout(finish, 15000); // страховка, если 'ended' не пришло
 }
 setInterval(playSpecialEvent, SPECIAL_EVENT_INTERVAL_MS);
@@ -1032,17 +1080,18 @@ document.getElementById('fsBtn').addEventListener('click', ()=>{
 // muted-автоплей), поэтому все видео стартуют беззвучно и включают звук по
 // первому касанию/клику где угодно на странице. Раньше размучивался только
 // фон (bgVideo) — цунами Money Gun и спец-события каждые 3 минуты
-// (tsunamiVideo/specialEventVideo, оба созданы с атрибутом muted в разметке)
-// оставались без звука навсегда, хотя сам звук в роликах есть (2026-08-12,
-// по просьбе пользователя — заметил тишину у спец-видео).
+// (tsunamiVideo/specialVideo) оставались без звука навсегда, хотя сам звук
+// в роликах есть (2026-08-12, по просьбе пользователя — заметил тишину у
+// спец-видео). specialVideo — off-DOM (как bgVideo), звук всё равно идёт в
+// колонки независимо от того, показан ли он на экране как отдельный элемент.
 document.addEventListener('pointerdown', function unlockVideoSoundOnce(){
   bgVideo.muted = false;
   bgVideo.volume = 0.6;
   bgVideo.play().catch(()=>{});
   tsunamiVideo.muted = false;
   tsunamiVideo.volume = 0.8;
-  specialEventVideo.muted = false;
-  specialEventVideo.volume = 0.8;
+  specialVideo.muted = false;
+  specialVideo.volume = 0.8;
   document.removeEventListener('pointerdown', unlockVideoSoundOnce);
 });
 
