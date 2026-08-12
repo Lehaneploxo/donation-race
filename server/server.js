@@ -849,7 +849,7 @@ class Room {
   }
 }
 
-const ALLOWED_STREAMERS = new Set(['lehaneploxo', 'utilizator11123', 'tiktokgame8805', 'demo']);
+const ALLOWED_STREAMERS = new Set(['lehaneploxo', 'utilizator11123', 'tiktokgame8805', 'tiktok.game261', 'demo']);
 
 function getOrCreateRoom(username) {
   const key = username.toLowerCase();
