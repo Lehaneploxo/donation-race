@@ -930,11 +930,14 @@ function triggerMoneyGun(username, coins){
 }
 
 // ── Спец-события (раз в 3 минуты, 2026-08-12, переделано в тот же день по
-// просьбе пользователя) — одно из 3 видео по кругу (6388→6400→6403→снова
-// 6388…) ПОДМЕНЯЕТ фоновое видео причала прямо на канвасе (см. drawBackground
-// выше), НЕ закрывая экран отдельным слоем — рыбаки/поплавки/правила/топ дня
-// остаются видны поверх, как обычно, ничего не пропадает с экрана.
-const SPECIAL_EVENT_VIDEOS = ['img/fishing_special1.mp4', 'img/fishing_special2.mp4', 'img/fishing_special3.mp4'];
+// просьбе пользователя) — одно из 5 видео по кругу (было 3, добавили ещё 2:
+// IMG_6416/IMG_6417) ПОДМЕНЯЕТ фоновое видео причала прямо на канвасе (см.
+// drawBackground выше), НЕ закрывая экран отдельным слоем — рыбаки/поплавки/
+// правила/топ дня остаются видны поверх, как обычно, ничего не пропадает с экрана.
+const SPECIAL_EVENT_VIDEOS = [
+  'img/fishing_special1.mp4', 'img/fishing_special2.mp4', 'img/fishing_special3.mp4',
+  'img/fishing_special4.mp4', 'img/fishing_special5.mp4',
+];
 const SPECIAL_EVENT_INTERVAL_MS = 3 * 60 * 1000;
 let _specialEventIdx = 0;
 function playSpecialEvent(){
