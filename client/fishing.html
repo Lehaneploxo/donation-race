@@ -215,10 +215,22 @@ function drawTopPanel(){
   }
 }
 
+// многие телефоны декодируют аппаратно только ОДНО видео разом — пока
+// играет specialVideo, браузер сам может поставить bgVideo на паузу, чтобы
+// освободить декодер, и без явного .play() он потом навсегда остаётся на
+// паузе ("стандартное видео после спецэффекта не идёт", 2026-08-12). Поэтому
+// каждый кадр подстраховываемся: если видео, которое должно сейчас играть,
+// вдруг оказалось на паузе — сами его перезапускаем, не дожидаясь, пока
+// кто-то явно об этом попросит.
+function ensurePlaying(video){
+  if (video.paused) video.play().catch(()=>{});
+}
 function drawBackground(){
   if (_specialEventActive && SPECIAL_BG.ready && specialVideo.readyState >= 2){
+    ensurePlaying(specialVideo);
     ctx.drawImage(specialVideo, SPECIAL_BG.sx, SPECIAL_BG.sy, SPECIAL_BG.sw, SPECIAL_BG.sh, 0, 0, CW, CH);
   } else if (BG.ready && bgVideo.readyState >= 2){
+    ensurePlaying(bgVideo);
     ctx.drawImage(bgVideo, BG.sx, BG.sy, BG.sw, BG.sh, 0, 0, CW, CH);
   } else {
     const g = ctx.createLinearGradient(0,0,0,CH);
@@ -898,7 +910,9 @@ function playTsunami(onDone){
     done = true;
     tsunamiVideo.style.display = 'none';
     tsunamiVideo.onended = null;
+    tsunamiVideo.pause(); // освобождаем декодер — та же причина, что и у specialVideo (см. finish в playSpecialEvent)
     _tsunamiPlaying = false;
+    bgVideo.play().catch(()=>{}); // явно возвращаем фон, если телефон поставил его на паузу ради декодера цунами
     onDone();
   };
   tsunamiVideo.currentTime = 0;
@@ -935,7 +949,9 @@ function playSpecialEvent(){
     if (done) return;
     done = true;
     specialVideo.onended = null;
+    specialVideo.pause(); // сразу освобождаем декодер, не ждём следующего кадра
     _specialEventActive = false;
+    bgVideo.play().catch(()=>{}); // явно требуем вернуть фон — не полагаемся только на ensurePlaying в drawBackground
   };
   specialVideo.currentTime = 0;
   specialVideo.onended = finish;
