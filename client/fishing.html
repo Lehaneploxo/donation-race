@@ -151,31 +151,43 @@ const grainPattern = ctx.createPattern(grainCanvas,'repeat');
 const moneyGunIcon = new Image();
 moneyGunIcon.src = 'img/fishing_moneygun_icon.webp';
 
-// без плашки-фона, всё в левом углу, на английском; названия игры тут
-// нет специально — и так понятно, что это рыбалка
+// правила — в правом верхнем углу (2026-08-12, по просьбе: раньше были
+// слева, теперь топ дня поднялся туда, где раньше стояли правила). Каждая
+// строка правил получила своё "= 🐟" (кроме Money Gun — там как и было
+// "= 🌊", сами правила не меняем, только добавляем знак равно и рыбку).
 function drawTopPanel(){
+  const RULES_RIGHT_X = CW - 12; // общий правый край блока правил
   const rules = [
-    { text:'❤️ LIKE (100)', color:'#8fffb0' },
-    { text:'🌹 1 COINS',    color:'#FFD700' },
+    { text:'❤️ LIKE (100) = 🐟', color:'#8fffb0' },
+    { text:'🌹 1 COINS = 🐟',    color:'#FFD700' },
   ];
-  ctx.font = 'bold 30px Arial Black'; ctx.textAlign = 'left';
+  ctx.font = 'bold 30px Arial Black'; ctx.textAlign = 'right';
   rules.forEach((r,i)=>{
     const ry = 40 + i*44;
     ctx.strokeStyle = 'rgba(0,0,0,0.85)'; ctx.lineWidth = 6;
-    ctx.strokeText(r.text, 12, ry);
-    ctx.fillStyle = r.color; ctx.fillText(r.text, 12, ry);
+    ctx.strokeText(r.text, RULES_RIGHT_X, ry);
+    ctx.fillStyle = r.color; ctx.fillText(r.text, RULES_RIGHT_X, ry);
   });
 
+  // строка Money Gun строится справа налево: сперва волна у правого края,
+  // затем "=" слева от неё, затем иконка подарка слева от знака — те же
+  // элементы и тот же порядок, что и раньше, просто зеркально от левого
+  // края к правому
   const iconRy = 40 + rules.length*44, iconSize = 44;
-  if (moneyGunIcon.complete) ctx.drawImage(moneyGunIcon, 12, iconRy-34, iconSize, iconSize);
+  ctx.font = iconSize+'px Arial';
+  ctx.fillText('🌊', RULES_RIGHT_X, iconRy+6);
+  const waveWidth = ctx.measureText('🌊').width;
   ctx.font = 'bold 30px Arial Black';
+  const eqX = RULES_RIGHT_X - waveWidth - 12;
   ctx.strokeStyle = 'rgba(0,0,0,0.85)'; ctx.lineWidth = 6;
-  ctx.strokeText('=', 12+iconSize+12, iconRy);
-  ctx.fillStyle = '#7fd3ff'; ctx.fillText('=', 12+iconSize+12, iconRy);
-  ctx.font = (iconSize)+'px Arial';
-  ctx.fillText('🌊', 12+iconSize+48, iconRy+6);
+  ctx.strokeText('=', eqX, iconRy);
+  ctx.fillStyle = '#7fd3ff'; ctx.fillText('=', eqX, iconRy);
+  const eqWidth = ctx.measureText('=').width;
+  const iconX = eqX - eqWidth - 12 - iconSize;
+  if (moneyGunIcon.complete) ctx.drawImage(moneyGunIcon, iconX, iconRy-34, iconSize, iconSize);
 
-  const topHeaderY = iconRy + 50;
+  // топ дня — теперь слева вверху, там, где раньше начинались правила
+  const topHeaderY = 40;
   ctx.font = 'bold 20px Arial Black'; ctx.textAlign = 'left';
   ctx.strokeStyle = 'rgba(0,0,0,0.9)'; ctx.lineWidth = 4;
   ctx.strokeText('🏆 TOP OF THE DAY', 12, topHeaderY);
