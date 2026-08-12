@@ -156,6 +156,10 @@ async function init() {
       last_reset_at TIMESTAMPTZ NOT NULL
     )
   `);
+  // yesterday_top — снапшот топа дня, снятый прямо перед обнулением daily_fish
+  // (см. performFishingDailyResetIfNeeded), чтобы "ТОП ЗА СЕГОДНЯ" не пропадал
+  // бесследно в полночь, а был виден весь следующий день как "ТОП ВЧЕРА"
+  await pool.query(`ALTER TABLE fishing_daily_meta ADD COLUMN IF NOT EXISTS yesterday_top JSONB NOT NULL DEFAULT '[]'`);
 
   // ── Снапшоты энергии/силы бойцов Street Fighter / Boxing Arena (2026-08-11) ──
   // Резервная копия в БД для восстановления после ПЕРЕЗАПУСКА СЕРВЕРА
@@ -835,12 +839,28 @@ async function performFishingDailyResetIfNeeded() {
   const lastReset = metaRes.rows[0].last_reset_at;
   if (boundary <= lastReset) return null;
 
-  await pool.query(`UPDATE fishing_catches SET daily_fish = 0`);
-  await pool.query(`UPDATE fishing_daily_meta SET last_reset_at = $1 WHERE id=1`, [boundary]);
+  // снимаем топ дня ДО обнуления — он и станет "ТОП ВЧЕРА" на весь следующий день
+  const topRes = await pool.query(
+    `SELECT username, daily_fish FROM fishing_catches WHERE daily_fish > 0 ORDER BY daily_fish DESC LIMIT 10`
+  );
+  const yesterdayTop = topRes.rows.map(r => ({ username: r.username, daily_fish: Number(r.daily_fish) }));
 
-  console.log(`[FISHING] Дневной сброс выполнен, граница=${boundary.toISOString()}`);
+  await pool.query(`UPDATE fishing_catches SET daily_fish = 0`);
+  await pool.query(
+    `UPDATE fishing_daily_meta SET last_reset_at = $1, yesterday_top = $2::jsonb WHERE id=1`,
+    [boundary, JSON.stringify(yesterdayTop)]
+  );
+
+  console.log(`[FISHING] Дневной сброс выполнен, граница=${boundary.toISOString()}, топ вчера сохранён (${yesterdayTop.length} строк)`);
 
   return { reset: true, day: boundary.toISOString() };
+}
+
+async function getYesterdayTopFishing() {
+  if (!pool) return [];
+  const res = await pool.query(`SELECT yesterday_top FROM fishing_daily_meta WHERE id=1`);
+  if (!res.rows.length) return [];
+  return res.rows[0].yesterday_top || [];
 }
 
 function isConnected() { return pool !== null; }
@@ -861,7 +881,7 @@ module.exports = {
   performStreetFighterWeeklyResetIfNeeded, getLastStreetFighterWeeklyChampion,
   addFishingCatch, getTopFishingDaily, getAllFishing, getUserFishingRank,
   resetFishingRating, setFishingTotal, deleteFishingUser,
-  performFishingDailyResetIfNeeded,
+  performFishingDailyResetIfNeeded, getYesterdayTopFishing,
   saveGameStateSnapshot, getGameStateSnapshot,
   isConnected,
 };

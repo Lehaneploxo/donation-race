@@ -394,6 +394,17 @@ app.get('/top-fishing', async (req, res) => {
   }
 });
 
+// "ТОП ВЧЕРА" — снапшот дневного топа, снятый перед полуночным сбросом,
+// виден весь следующий день (см. db.performFishingDailyResetIfNeeded)
+app.get('/top-fishing-yesterday', async (req, res) => {
+  try {
+    const top = await db.getYesterdayTopFishing();
+    res.json({ ok: true, count: top.length, top });
+  } catch(e) {
+    res.json({ ok: false, error: e.message });
+  }
+});
+
 app.get('/admin/reset-fishing-rating', async (req, res) => {
   try {
     await db.resetFishingRating();
@@ -1087,11 +1098,14 @@ setTimeout(() => { checkBoxingWeeklyReset().catch(e => console.error('[BOXING] w
 async function checkFishingDailyReset() {
   const result = await db.performFishingDailyResetIfNeeded();
   if (result) {
-    console.log('[FISHING] Рассылаю обновлённый (пустой) дневной топ во все активные комнаты после сброса');
+    console.log('[FISHING] Рассылаю обновлённый (пустой) дневной топ и топ вчера во все активные комнаты после сброса');
     for (const room of rooms.values()) {
       db.getTopFishingDaily(10)
         .then(top => room.broadcast({ type: 'top_fishing', data: top }))
         .catch(e => console.error('[FISHING] Ошибка рассылки топа после сброса:', e.message));
+      db.getYesterdayTopFishing()
+        .then(top => room.broadcast({ type: 'top_fishing_yesterday', data: top }))
+        .catch(e => console.error('[FISHING] Ошибка рассылки топа вчера после сброса:', e.message));
     }
   }
   return result;

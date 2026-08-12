@@ -159,6 +159,27 @@ function drawTopPanel(){
     ctx.strokeText(line, 12, ry);
     ctx.fillStyle = rankColors[i] || '#dddddd'; ctx.fillText(line, 12, ry);
   });
+
+  // "ТОП ВЧЕРА" (2026-08-12) — снапшот вчерашнего топа дня, виден весь
+  // следующий день после полуночного сброса (см. top_fishing_yesterday
+  // ниже). Показываем только топ-3, приглушённым цветом, чтобы не спорить
+  // за внимание с сегодняшним топом. Если вчера никто не рыбачил — блок
+  // просто не рисуется (без заглушек, как и у топа дня).
+  if (yesterdayTopList.length){
+    const yHeaderY = topHeaderY + 33 + topList.length*27 + 24;
+    ctx.font = 'bold 16px Arial Black'; ctx.textAlign = 'left';
+    ctx.strokeStyle = 'rgba(0,0,0,0.9)'; ctx.lineWidth = 4;
+    ctx.strokeText('🕐 ТОП ВЧЕРА', 12, yHeaderY);
+    ctx.fillStyle = '#9fb8c4'; ctx.fillText('🕐 ТОП ВЧЕРА', 12, yHeaderY);
+    yesterdayTopList.slice(0,3).forEach((p,i)=>{
+      const ry = yHeaderY + 24 + i*22;
+      const line = (i+1)+'. '+p.name+'  🐟'+p.count;
+      ctx.font = 'bold 15px Arial Black';
+      ctx.strokeStyle = 'rgba(0,0,0,0.85)'; ctx.lineWidth = 3.5;
+      ctx.strokeText(line, 12, ry);
+      ctx.fillStyle = 'rgba(220,220,220,0.75)'; ctx.fillText(line, 12, ry);
+    });
+  }
 }
 
 function drawBackground(){
@@ -673,6 +694,7 @@ function rollRareItem(){
 
 let lastT = 0;
 let topList = []; // с сервера — дневной топ, см. wsConnect/top_fishing
+let yesterdayTopList = []; // с сервера — снапшот топа за прошлый день, см. wsConnect/top_fishing_yesterday
 
 // если у удильщика уже идёт улов — новый встаёт в очередь и стартует сам,
 // как только текущий долетит до ведра (нужно для money gun: 5 поклёвок подряд)
@@ -924,7 +946,10 @@ function wsConnect(username){
       if (d.type==='top_fishing'){
         topList = (d.data||[]).map(p=>({ name:'@'+p.username, count:p.daily_fish }));
       }
-      if (d.type==='arena_fishing_rating'){
+      if (d.type==='top_fishing_yesterday'){
+        yesterdayTopList = (d.data||[]).map(p=>({ name:'@'+p.username, count:p.daily_fish }));
+      }
+      if (d.type==='arena_fishing_rating' && _gameMode==='tiktok'){
         if (d.rank){
           _showRating(
             `<span style="color:#7fd3ff;font-size:16px;font-weight:bold;">🎣 @${d.username}</span><br>`+
@@ -977,6 +1002,16 @@ function fetchFishingTop(){
 fetchFishingTop();
 setInterval(fetchFishingTop, 30000);
 
+// топ вчера меняется всего раз в сутки (в полночь) — достаточно подтянуть
+// один раз при загрузке страницы, дальше обновится сам через WS-broadcast
+// top_fishing_yesterday в момент сброса (см. checkFishingDailyReset на сервере)
+function fetchFishingYesterdayTop(){
+  fetch('/top-fishing-yesterday').then(r=>r.json()).then(d=>{
+    if (d.ok && d.top) yesterdayTopList = d.top.map(p=>({ name:'@'+p.username, count:p.daily_fish }));
+  }).catch(()=>{});
+}
+fetchFishingYesterdayTop();
+
 (function initLive(){
   const p = new URLSearchParams(location.search);
   const u = (p.get('username')||'').replace(/^@/,'').trim();
@@ -994,12 +1029,20 @@ document.getElementById('fsBtn').addEventListener('click', ()=>{
 });
 
 // звук видео — автоплей со звуком браузер блокирует (разрешён только
-// muted-автоплей), поэтому видео стартует беззвучно и включает звук по
-// первому касанию/клику где угодно на странице
+// muted-автоплей), поэтому все видео стартуют беззвучно и включают звук по
+// первому касанию/клику где угодно на странице. Раньше размучивался только
+// фон (bgVideo) — цунами Money Gun и спец-события каждые 3 минуты
+// (tsunamiVideo/specialEventVideo, оба созданы с атрибутом muted в разметке)
+// оставались без звука навсегда, хотя сам звук в роликах есть (2026-08-12,
+// по просьбе пользователя — заметил тишину у спец-видео).
 document.addEventListener('pointerdown', function unlockVideoSoundOnce(){
   bgVideo.muted = false;
   bgVideo.volume = 0.6;
   bgVideo.play().catch(()=>{});
+  tsunamiVideo.muted = false;
+  tsunamiVideo.volume = 0.8;
+  specialEventVideo.muted = false;
+  specialEventVideo.volume = 0.8;
   document.removeEventListener('pointerdown', unlockVideoSoundOnce);
 });
 
