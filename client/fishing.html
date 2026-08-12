@@ -155,36 +155,51 @@ moneyGunIcon.src = 'img/fishing_moneygun_icon.webp';
 // слева, теперь топ дня поднялся туда, где раньше стояли правила). Каждая
 // строка правил получила своё "= 🐟" (кроме Money Gun — там как и было
 // "= 🌊", сами правила не меняем, только добавляем знак равно и рыбку).
-function drawTopPanel(){
-  const RULES_RIGHT_X = CW - 12; // общий правый край блока правил
-  const rules = [
-    { text:'❤️ LIKE (100) = 🐟', color:'#8fffb0' },
-    { text:'🌹 1 COINS = 🐟',    color:'#FFD700' },
-  ];
-  ctx.font = 'bold 30px Arial Black'; ctx.textAlign = 'right';
-  rules.forEach((r,i)=>{
-    const ry = 40 + i*44;
-    ctx.strokeStyle = 'rgba(0,0,0,0.85)'; ctx.lineWidth = 6;
-    ctx.strokeText(r.text, RULES_RIGHT_X, ry);
-    ctx.fillStyle = r.color; ctx.fillText(r.text, RULES_RIGHT_X, ry);
-  });
-
-  // строка Money Gun строится справа налево: сперва волна у правого края,
-  // затем "=" слева от неё, затем иконка подарка слева от знака — те же
-  // элементы и тот же порядок, что и раньше, просто зеркально от левого
-  // края к правому
-  const iconRy = 40 + rules.length*44, iconSize = 44;
-  ctx.font = iconSize+'px Arial';
-  ctx.fillText('🌊', RULES_RIGHT_X, iconRy+6);
-  const waveWidth = ctx.measureText('🌊').width;
-  ctx.font = 'bold 30px Arial Black';
-  const eqX = RULES_RIGHT_X - waveWidth - 12;
+// правила выровнены по ТРЁМ общим колонкам, одинаковым для всех трёх строк
+// (LIKE/COINS/Money Gun): текст правила растёт влево от LABEL_RIGHT_X, "="
+// всегда стоит на EQ_X, эмодзи/иконка результата — всегда по центру ICON_CX.
+// Раньше эмодзи было замешано в жирный обводимый текст (обводка его мазала)
+// и ширина Money Gun считалась отдельно через measureText — из-за этого
+// колонки "=" и иконок между строками не совпадали (просили исправить
+// неровность, 2026-08-12).
+const RULES_RIGHT_X = CW - 12;
+const ICON_SLOT = 40, RULE_GAP = 10;
+const ICON_CX = RULES_RIGHT_X - ICON_SLOT/2;
+function drawEquals(ry){
+  ctx.textAlign = 'right'; ctx.font = 'bold 30px Arial Black';
   ctx.strokeStyle = 'rgba(0,0,0,0.85)'; ctx.lineWidth = 6;
-  ctx.strokeText('=', eqX, iconRy);
-  ctx.fillStyle = '#7fd3ff'; ctx.fillText('=', eqX, iconRy);
-  const eqWidth = ctx.measureText('=').width;
-  const iconX = eqX - eqWidth - 12 - iconSize;
-  if (moneyGunIcon.complete) ctx.drawImage(moneyGunIcon, iconX, iconRy-34, iconSize, iconSize);
+  ctx.strokeText('=', EQ_X, ry);
+  ctx.fillStyle = '#7fd3ff'; ctx.fillText('=', EQ_X, ry);
+}
+function drawRuleLabel(ry, label, color){
+  ctx.textAlign = 'right'; ctx.font = 'bold 30px Arial Black';
+  ctx.strokeStyle = 'rgba(0,0,0,0.85)'; ctx.lineWidth = 6;
+  ctx.strokeText(label, LABEL_RIGHT_X, ry);
+  ctx.fillStyle = color; ctx.fillText(label, LABEL_RIGHT_X, ry);
+}
+function drawRuleIconEmoji(ry, emoji){
+  ctx.textAlign = 'center'; ctx.font = '30px Arial';
+  ctx.fillText(emoji, ICON_CX, ry+4);
+}
+ctx.font = 'bold 30px Arial Black';
+const EQ_X = RULES_RIGHT_X - ICON_SLOT - RULE_GAP; // правый край "=" — общий для всех строк
+const LABEL_RIGHT_X = EQ_X - ctx.measureText('=').width - RULE_GAP; // правый край текста правила — тоже общий
+
+function drawTopPanel(){
+  drawRuleLabel(40, '❤️ LIKE (100)', '#8fffb0');
+  drawEquals(40);
+  drawRuleIconEmoji(40, '🐟');
+
+  drawRuleLabel(84, '🌹 1 COINS', '#FFD700');
+  drawEquals(84);
+  drawRuleIconEmoji(84, '🐟');
+
+  // Money Gun: вместо текста слева — иконка подарка (реальная картинка из
+  // TikTok), справа от "=" — та же колонка ICON_CX, что и у рыбок выше
+  const gunIconSize = ICON_SLOT;
+  if (moneyGunIcon.complete) ctx.drawImage(moneyGunIcon, LABEL_RIGHT_X-gunIconSize, 128-gunIconSize+8, gunIconSize, gunIconSize);
+  drawEquals(128);
+  drawRuleIconEmoji(128, '🌊');
 
   // топ дня — теперь слева вверху, там, где раньше начинались правила
   const topHeaderY = 40;
