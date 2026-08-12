@@ -181,10 +181,12 @@ function drawTopPanel(){
   ctx.strokeText('🏆 TOP OF THE DAY', 12, topHeaderY);
   ctx.fillStyle = '#ffd24f'; ctx.fillText('🏆 TOP OF THE DAY', 12, topHeaderY);
 
-  // до 10 строк — приходит с сервера (дневной топ), если участников меньше
-  // список просто короче, без заглушек
+  // топ-5 на экране (сервер может прислать больше — обрезаем при рендере,
+  // 2026-08-12 по просьбе пользователя: было топ-10, стало топ-5). Если
+  // участников меньше — список просто короче, без заглушек.
   const rankColors = ['#FFD700','#C0C0C0','#CD7F32'];
-  topList.forEach((p,i)=>{
+  const shownTop = topList.slice(0,5);
+  shownTop.forEach((p,i)=>{
     const ry = topHeaderY + 33 + i*27;
     const line = (i+1)+'. '+p.name+'  🐟'+p.count;
     ctx.font = 'bold 18px Arial Black';
@@ -199,7 +201,7 @@ function drawTopPanel(){
   // за внимание с сегодняшним топом. Если вчера никто не рыбачил — блок
   // просто не рисуется (без заглушек, как и у топа дня).
   if (yesterdayTopList.length){
-    const yHeaderY = topHeaderY + 33 + topList.length*27 + 24;
+    const yHeaderY = topHeaderY + 33 + shownTop.length*27 + 24;
     ctx.font = 'bold 16px Arial Black'; ctx.textAlign = 'left';
     ctx.strokeStyle = 'rgba(0,0,0,0.9)'; ctx.lineWidth = 4;
     ctx.strokeText('🕐 ТОП ВЧЕРА', 12, yHeaderY);
@@ -1059,7 +1061,7 @@ setInterval(()=>{
 }, 3000);
 
 function fetchFishingTop(){
-  fetch('/top-fishing?limit=10').then(r=>r.json()).then(d=>{
+  fetch('/top-fishing?limit=5').then(r=>r.json()).then(d=>{
     if (d.ok && d.top) topList = d.top.map(p=>({ name:'@'+p.username, count:p.daily_fish }));
   }).catch(()=>{});
 }
