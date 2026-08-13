@@ -225,8 +225,8 @@ app.get('/top-boxing', async (req, res) => {
   }
 });
 
-// чемпион прошлой недели (пояс) — постоянный бейдж на арене, живёт до
-// следующего сброса в понедельник. EN-версия бокса не участвует.
+// чемпион прошлого дня (пояс) — постоянный бейдж на арене, живёт до
+// следующего сброса в полночь (Киев). EN-версия бокса не участвует.
 app.get('/boxing-weekly-champion', async (req, res) => {
   try {
     const champion = await db.getLastBoxingWeeklyChampion();
@@ -236,8 +236,8 @@ app.get('/boxing-weekly-champion', async (req, res) => {
   }
 });
 
-// ручной запуск проверки еженедельного сброса (для теста, без ожидания
-// понедельника/интервала) — тот же паттерн, что у /admin/streetfighter-weekly-check
+// ручной запуск проверки ежедневного сброса (для теста, без ожидания
+// полуночи/интервала) — тот же паттерн, что у /admin/streetfighter-weekly-check
 app.get('/admin/boxing-weekly-check', async (req, res) => {
   try {
     const result = await checkBoxingWeeklyReset();
@@ -353,7 +353,7 @@ app.get('/top-streetfighter', async (req, res) => {
   }
 });
 
-// чемпион прошлой недели — постоянный бейдж на арене, живёт до следующего сброса
+// чемпион прошлого дня — постоянный бейдж на арене, живёт до следующего сброса
 app.get('/streetfighter-weekly-champion', async (req, res) => {
   try {
     const champion = await db.getLastStreetFighterWeeklyChampion();
@@ -363,8 +363,8 @@ app.get('/streetfighter-weekly-champion', async (req, res) => {
   }
 });
 
-// ручной запуск проверки еженедельного сброса (для теста, без ожидания
-// понедельника/интервала) — тот же паттерн, что у остальных /admin/*
+// ручной запуск проверки ежедневного сброса (для теста, без ожидания
+// полуночи/интервала) — тот же паттерн, что у остальных /admin/*
 app.get('/admin/streetfighter-weekly-check', async (req, res) => {
   try {
     const result = await checkStreetFighterWeeklyReset();
@@ -667,8 +667,8 @@ class Room {
               this.broadcast({ type: 'arena_boss_rating', username: data.username, rank: null, damage: 0 });
             });
           // Boxing Arena: тот же топ, но по своей таблице. stolen/rank —
-          // НЕДЕЛЬНЫЕ (обнуляются по понедельникам), lifetimeStolen — вечный
-          // (двигает уровень), weeklyKingWins — сколько раз выигрывал неделю
+          // ДНЕВНЫЕ (обнуляются каждую полночь по Киеву), lifetimeStolen — вечный
+          // (двигает уровень), weeklyKingWins — сколько раз выигрывал день (имя поля историческое)
           db.getUserBoxingRank(data.username)
             .then(rank => {
               this.broadcast({
@@ -702,8 +702,8 @@ class Room {
               this.broadcast({ type: 'arena_boxing_rating_en', username: data.username, rank: null, stolen: 0, kos: 0, beltSeconds: 0 });
             });
           // Street Fighter: тот же топ, но по своей таблице. stolen/rank —
-          // НЕДЕЛЬНЫЕ (обнуляются по понедельникам), lifetimeStolen — вечный
-          // (двигает уровень), weeklyKingWins — сколько раз выигрывал неделю
+          // ДНЕВНЫЕ (обнуляются каждую полночь по Киеву), lifetimeStolen — вечный
+          // (двигает уровень), weeklyKingWins — сколько раз выигрывал день (имя поля историческое)
           db.getUserStreetFighterRank(data.username)
             .then(rank => {
               this.broadcast({
@@ -1046,7 +1046,11 @@ wss.on('connection', (ws, req) => {
   ws.on('error', err => console.error('[WS]', err.message));
 });
 
-// ─── Street Fighter: еженедельный сброс рейтинга (по понедельникам, Киев) ─────
+// ─── Street Fighter: ЕЖЕДНЕВНЫЙ сброс рейтинга (полночь по Киеву) ─────
+// 2026-08-13: переведено с еженедельного на ежедневное по просьбе
+// пользователя — функции/поля/WS-типы ниже сохранили старые "weekly" имена
+// (не переименовывались, чтобы не трогать схему БД/протокол), но по смыслу
+// сброс теперь каждый день, не каждый понедельник.
 // checkStreetFighterWeeklyReset — function-объявление, доступна выше по
 // файлу (в /admin/streetfighter-weekly-check) благодаря hoisting, ссылка на
 // `rooms` разрешается лениво в момент вызова (к этому моменту модуль уже
@@ -1054,7 +1058,7 @@ wss.on('connection', (ws, req) => {
 async function checkStreetFighterWeeklyReset() {
   const result = await db.performStreetFighterWeeklyResetIfNeeded();
   if (result) {
-    console.log('[STREETFIGHTER] Рассылаю обновлённый топ и нового чемпиона недели во все активные комнаты после сброса');
+    console.log('[STREETFIGHTER] Рассылаю обновлённый топ и нового чемпиона дня во все активные комнаты после сброса');
     for (const room of rooms.values()) {
       db.getTopStreetFighterStolen(5)
         .then(top => room.broadcast({ type: 'top_streetfighter', data: top }))
@@ -1066,20 +1070,20 @@ async function checkStreetFighterWeeklyReset() {
   }
   return result;
 }
-// проверяем раз в 10 минут — этого достаточно для недельной границы (небольшая
+// проверяем раз в 10 минут — этого достаточно для дневной границы (небольшая
 // задержка в пределах интервала не критична), плюс один раз при старте с
 // небольшой задержкой (даём пулу БД время подключиться) — это же покрывает
-// случай, когда сервер был выключен ровно в момент понедельника: при
-// следующем запуске сброс досчитается сразу же
+// случай, когда сервер был выключен ровно в полночь: при следующем запуске
+// сброс досчитается сразу же
 setInterval(() => { checkStreetFighterWeeklyReset().catch(e => console.error('[STREETFIGHTER] weekly-check error:', e.message)); }, 10*60*1000);
 setTimeout(() => { checkStreetFighterWeeklyReset().catch(e => console.error('[STREETFIGHTER] weekly-check (startup) error:', e.message)); }, 15*1000);
 
-// ─── Boxing Arena RU: еженедельный сброс "Пояса чемпиона" (по понедельникам, Киев) ─────
-// 1-в-1 паттерн Street Fighter выше. EN-версия бокса не участвует.
+// ─── Boxing Arena RU: ЕЖЕДНЕВНЫЙ сброс "Пояса чемпиона" (полночь по Киеву) ─────
+// 1-в-1 паттерн Street Fighter выше (см. комментарий там). EN-версия бокса не участвует.
 async function checkBoxingWeeklyReset() {
   const result = await db.performBoxingWeeklyResetIfNeeded();
   if (result) {
-    console.log('[BOXING] Рассылаю обновлённый топ и нового чемпиона недели во все активные комнаты после сброса');
+    console.log('[BOXING] Рассылаю обновлённый топ и нового чемпиона дня во все активные комнаты после сброса');
     for (const room of rooms.values()) {
       db.getTopBoxingStolen(5)
         .then(top => room.broadcast({ type: 'top_boxing', data: top }))

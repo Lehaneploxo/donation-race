@@ -141,14 +141,14 @@ function drawLevelText(rightEdgeX, y, s, level){
   ctx.restore();
 }
 
-// ── Чемпион ринга: победитель ПРОШЛОЙ недели (см. _weeklyChampion ниже) ──
-// получает золотую перекраску (перчатки/шорты) + золотой ник, пока не
-// пройдёт следующий понедельничный сброс. 2026-08-08: раньше это был
+// ── Чемпион ринга: победитель ПРОШЛОГО ДНЯ (см. _weeklyChampion ниже, имя
+// переменной историческое, сброс переведён с недельного на ежедневный
+// 2026-08-13) — получает золотую перекраску (перчатки/шорты) + золотой ник,
+// пока не пройдёт следующий полуночный сброс. 2026-08-08: раньше это был
 // "живой" текущий #1 в рейтинге (менялся от каждого доната) — переключили
-// на уже РЕШЁННОГО чемпиона прошлой недели, того же, что в постоянном
-// бейдже под правилами (см. drawHUD). Заодно убрали репорт "секунд с
-// поясом" (flushBeltTime/reportBelt) — был нужен только старому "живому"
-// чемпиону, для недельного (одна и та же неделя целиком) смысла не имеет.
+// на уже РЕШЁННОГО чемпиона прошлого дня, того же, что в постоянном бейдже
+// под правилами (см. drawHUD). Заодно убрали репорт "секунд с поясом"
+// (flushBeltTime/reportBelt) — был нужен только старому "живому" чемпиону.
 const CHAMPION_SKIN = { dir:'boxer_v5_gold', color:'#fff2b0' };
 let _championName = null;
 
@@ -620,13 +620,14 @@ function vSpeakNext(){
 
 // главное правило — гарантированно каждые 30 сек, целиком (protected)
 setInterval(()=>{ pushEvent(RULE_PRIMARY, true, true); }, 30000);
-// объясняют механику уровней/недельного пояса (2026-08-08, перенесено из
-// Street Fighter) — каждая на СВОЁМ отдельном таймере раз в минуту,
-// protected (как RULE_PRIMARY). Раньше тут звучала общая промо-фраза про
-// "новый сезон" каждые 30 сек — убрали как устаревшую и неточную, теперь
-// объявляем реальную механику.
+// объясняют механику уровней/дневного пояса (2026-08-08, перенесено из
+// Street Fighter; переведено с недельного на ежедневный сброс 2026-08-13) —
+// каждая на СВОЁМ отдельном таймере раз в минуту, protected (как
+// RULE_PRIMARY). Раньше тут звучала общая промо-фраза про "новый сезон"
+// каждые 30 сек — убрали как устаревшую и неточную, теперь объявляем
+// реальную механику.
 const RULE_LEVELS = 'Твой уровень растёт от каждого удара и никогда не обнуляется — дерись, качай ранг от новичка до легенды ринга!';
-const RULE_WEEKLY_BELT = 'Каждый понедельник пояс чемпиона обнуляется — кто заработает больше всех очков за неделю, станет чемпионом недели!';
+const RULE_WEEKLY_BELT = 'Каждую полночь пояс чемпиона обнуляется — кто заработает больше всех очков за день, станет чемпионом дня!';
 setInterval(()=>{ pushEvent(RULE_LEVELS, true, true); }, 60000);
 setInterval(()=>{ pushEvent(RULE_WEEKLY_BELT, true, true); }, 60000);
 // остальные правила — по кругу раз в минуту, тоже protected
@@ -896,22 +897,23 @@ function wsConnect(username){
             html += `<div style="margin-top:1px;color:#ffd75e;font-size:11px;">Максимальный уровень!</div>`;
           }
 
-          // нокауты, затем недельные очки/место (d.stolen/d.rank — сами
-          // обнуляются по понедельникам, двигают пояс текущей недели)
+          // нокауты, затем дневные очки/место (d.stolen/d.rank — сами
+          // обнуляются каждую полночь, двигают пояс текущего дня)
           const stolenTotal = Number(d.stolen||0);
           const pts = stolenTotal.toLocaleString('ru-RU');
           html += `<div style="margin-top:3px;padding-top:3px;border-top:1px dashed rgba(255,255,255,0.18);">`
             + `<span style="color:#ffb4c4;font-size:13.5px;">🥊 Нокаутов: ${d.kos||0}</span><br>`
-            + `<span style="color:#FFD700;font-size:14.5px;">#${d.rank} место за неделю</span><br>`
-            + `<span style="color:#FFD700;font-size:14.5px;">⚡${pts} очков за неделю</span>`
+            + `<span style="color:#FFD700;font-size:14.5px;">#${d.rank} место за день</span><br>`
+            + `<span style="color:#FFD700;font-size:14.5px;">⚡${pts} очков за день</span>`
             + `</div>`;
 
-          // Чемпион недели (пояс): сколько раз выигрывал — вечный счётчик.
-          // Строку "время с поясом" не показываем — с новыми правилами
-          // (побеждает по очкам) она уже ничего не решает.
+          // Чемпион дня (пояс): сколько раз выигрывал — вечный счётчик
+          // (имя поля weeklyKingWins историческое). Строку "время с поясом"
+          // не показываем — с новыми правилами (побеждает по очкам) она уже
+          // ничего не решает.
           if (d.weeklyKingWins > 0){
             html += `<div style="margin-top:3px;padding-top:3px;border-top:1px dashed rgba(255,215,0,0.25);color:#fff2b0;">`
-              + `<div style="display:flex;align-items:center;justify-content:center;gap:6px;font-size:14px;font-weight:700;">${BELT_ICON_SVG}<span>Чемпион недели ×${d.weeklyKingWins}</span></div>`
+              + `<div style="display:flex;align-items:center;justify-content:center;gap:6px;font-size:14px;font-weight:700;">${BELT_ICON_SVG}<span>Чемпион дня ×${d.weeklyKingWins}</span></div>`
               + `</div>`;
           }
           _showRating(html);
@@ -998,7 +1000,7 @@ setInterval(saveStateSnapshot, 15000);
 document.addEventListener('visibilitychange', ()=>{ if (document.hidden) saveStateSnapshot(); });
 window.addEventListener('pagehide', saveStateSnapshot);
 
-// ── ТОП-лист: недельный, из БД (обнуляется по понедельникам) ──
+// ── ТОП-лист: дневной, из БД (обнуляется каждую полночь по Киеву) ──
 let _dbTop = []; // [{username, stolen}]
 function fetchBoxingTop(){
   fetch('/top-boxing?limit=5').then(r=>r.json()).then(d=>{
@@ -1431,8 +1433,9 @@ function drawHUD() {
   ctx.strokeText('🏆 TOP БОЙЦЫ 🏆', CW*0.75, T+80, CW/2-16);
   ctx.fillStyle = '#ffd24f'; ctx.fillText('🏆 TOP БОЙЦЫ 🏆', CW*0.75, T+80, CW/2-16);
 
-  // очки топа = отнятая энергия у противников (all-time, из отдельной БД —
-  // _dbTop, не сбрасывается между боями/стримами), НЕ текущая сила/энергия боя
+  // очки топа = отнятая энергия у противников ЗА ТЕКУЩИЙ ДЕНЬ (из отдельной
+  // БД — _dbTop, обнуляется каждую полночь вместе с поясом, см.
+  // performBoxingWeeklyResetIfNeeded), НЕ текущая сила/энергия боя
   const top = _dbTop.slice(0,5).map(p=>({ name:p.username, stolenEnergy:p.stolen }));
   const rankColors = ['#FFD700','#C0C0C0','#CD7F32','#AAAAAA','#666666'];
   const ranks = ['1.','2.','3.','4.','5.'];
@@ -1454,7 +1457,7 @@ function drawHUD() {
     ctx.fillStyle='#7fd3ff'; ctx.fillText('⚡'+p.stolenEnergy, CW-8, y);
   }
   ctx.font = '9px Arial'; ctx.fillStyle = 'rgba(255,255,255,0.18)';
-  ctx.textAlign = 'center'; ctx.fillText('all-time отнятая энергия', CW*0.75, T+TH-6);
+  ctx.textAlign = 'center'; ctx.fillText('отнятая энергия за день', CW*0.75, T+TH-6);
 
   drawWeeklyChampionBadge();
 }

@@ -245,9 +245,10 @@ function drawLevelText(rightEdgeX, y, s, level){
   ctx.restore();
 }
 
-// ── Чемпион улицы: победитель ПРОШЛОЙ недели (см. _weeklyChampion ниже) ──
-// получает золотой ник + золотой костюм на ринге, пока не пройдёт
-// следующий понедельничный сброс. 2026-08-08: раньше это был "живой"
+// ── Чемпион улицы: победитель ПРОШЛОГО ДНЯ (см. _weeklyChampion ниже, имя
+// переменной историческое, сброс переведён с недельного на ежедневный
+// 2026-08-13) — получает золотой ник + золотой костюм на ринге, пока не
+// пройдёт следующий полуночный сброс. 2026-08-08: раньше это был "живой"
 // текущий #1 в рейтинге (менялся от каждого доната) — по просьбе
 // пользователя переключили на уже РЕШЁННОГО чемпиона прошлой недели,
 // того же, что показан в постоянном бейдже под правилами (drawHUD).
@@ -787,11 +788,12 @@ let vQuietTimer = null;
 // главное правило — звучит ГАРАНТИРОВАННО каждые 30 сек, целиком, вне
 // очереди (см. setInterval ниже и RULES_OTHER для остальных правил)
 const RULE_PRIMARY = 'Подпишись, ставь лайки, донать — и твой боец получит энергию и силу!';
-// объясняют новую механику уровней/недельной короны (2026-08-04) — каждая
-// на СВОЁМ отдельном таймере раз в минуту, protected (как RULE_PRIMARY),
-// не смешиваются с круговым пулом RULES_OTHER ниже
+// объясняют новую механику уровней/дневной короны (2026-08-04, переведено с
+// недельного на ежедневный сброс 2026-08-13) — каждая на СВОЁМ отдельном
+// таймере раз в минуту, protected (как RULE_PRIMARY), не смешиваются с
+// круговым пулом RULES_OTHER ниже
 const RULE_LEVELS = 'Твой уровень растёт от каждого удара и никогда не обнуляется — дерись, качай ранг от новичка до легенды улиц!';
-const RULE_WEEKLY_KING = 'Каждый понедельник корона улиц обнуляется — кто заработает больше всех очков за неделю, станет Королём недели!';
+const RULE_WEEKLY_KING = 'Каждую полночь корона улиц обнуляется — кто заработает больше всех очков за день, станет Королём дня!';
 // остальные правила — звучат по кругу раз в минуту, тоже приоритетнее шуток
 const RULES_OTHER = [
   'Напиши в чате слово рейтинг — узнаешь своё место в топе!',
@@ -1210,24 +1212,25 @@ function wsConnect(username){
             html += `<div style="margin-top:1px;color:#ffd75e;font-size:11px;">Максимальный уровень!</div>`;
           }
 
-          // нокауты, затем недельные очки/место (d.stolen/d.rank — сами
-          // обнуляются по понедельникам, двигают корону текущей недели)
+          // нокауты, затем дневные очки/место (d.stolen/d.rank — сами
+          // обнуляются каждую полночь, двигают корону текущего дня)
           const stolenTotal = Number(d.stolen||0);
           const pts = stolenTotal.toLocaleString('ru-RU');
           // каждое значение — на своей строке, ничего не склеиваем через "·"
           html += `<div style="margin-top:3px;padding-top:3px;border-top:1px dashed rgba(255,255,255,0.18);">`
             + `<span style="color:#ffb4c4;font-size:13.5px;">🥊 Нокаутов: ${d.kos||0}</span><br>`
-            + `<span style="color:#FFD700;font-size:14.5px;">#${d.rank} место за неделю</span><br>`
-            + `<span style="color:#FFD700;font-size:14.5px;">⚡${pts} очков за неделю</span>`
+            + `<span style="color:#FFD700;font-size:14.5px;">#${d.rank} место за день</span><br>`
+            + `<span style="color:#FFD700;font-size:14.5px;">⚡${pts} очков за день</span>`
             + `</div>`;
 
-          // Король недели: сколько раз выигрывал (вечный счётчик). Строку
+          // Король дня: сколько раз выигрывал (вечный счётчик, имя поля
+          // weeklyKingWins историческое — осталось с недельной версии). Строку
           // "⏱ На короне уже: Xч Yм" убрали 2026-08-08 — с новыми правилами
           // (побеждает по очкам, не по времени с короной) она уже ничего не
           // решает и только сбивала бы зрителя с толку.
           if (d.weeklyKingWins > 0){
             html += `<div style="margin-top:3px;padding-top:3px;border-top:1px dashed rgba(255,215,0,0.25);color:#fff2b0;">`
-              + `<div style="display:flex;align-items:center;justify-content:center;gap:6px;font-size:14px;font-weight:700;">👑<span>Король недели ×${d.weeklyKingWins}</span></div>`
+              + `<div style="display:flex;align-items:center;justify-content:center;gap:6px;font-size:14px;font-weight:700;">👑<span>Король дня ×${d.weeklyKingWins}</span></div>`
               + `</div>`;
           }
           _showRating(html);
@@ -1294,7 +1297,7 @@ setInterval(saveStateSnapshot, 15000);
 document.addEventListener('visibilitychange', ()=>{ if (document.hidden) saveStateSnapshot(); });
 window.addEventListener('pagehide', saveStateSnapshot);
 
-// ── ТОП-лист: all-time из БД (не сбрасывается между стримами) ──
+// ── ТОП-лист: дневной, из БД (обнуляется каждую полночь по Киеву) ──
 let _dbTop = []; // [{username, stolen}]
 function fetchStreetFighterTop(){
   fetch('/top-streetfighter?limit=5').then(r=>r.json()).then(d=>{
@@ -1968,8 +1971,9 @@ function drawHUD() {
   ctx.strokeText('🏆 TOP БОЙЦЫ 🏆', CW*0.75, T+80, CW/2-16);
   ctx.fillStyle = '#ffd24f'; ctx.fillText('🏆 TOP БОЙЦЫ 🏆', CW*0.75, T+80, CW/2-16);
 
-  // очки топа = отнятая энергия у противников (all-time, из отдельной БД —
-  // _dbTop, не сбрасывается между боями/стримами), НЕ текущая сила/энергия боя
+  // очки топа = отнятая энергия у противников ЗА ТЕКУЩИЙ ДЕНЬ (из отдельной
+  // БД — _dbTop, обнуляется каждую полночь вместе с короной, см.
+  // performStreetFighterWeeklyResetIfNeeded), НЕ текущая сила/энергия боя
   const top = _dbTop.slice(0,5).map(p=>({ name:p.username, stolenEnergy:p.stolen }));
   const rankColors = ['#FFD700','#C0C0C0','#CD7F32','#AAAAAA','#666666'];
   const ranks = ['1.','2.','3.','4.','5.'];
@@ -1991,7 +1995,7 @@ function drawHUD() {
     ctx.fillStyle='#7fd3ff'; ctx.fillText('⚡'+p.stolenEnergy, CW-8, y);
   }
   ctx.font = '9px Arial'; ctx.fillStyle = 'rgba(255,255,255,0.18)';
-  ctx.textAlign = 'center'; ctx.fillText('all-time отнятая энергия', CW*0.75, T+TH-6);
+  ctx.textAlign = 'center'; ctx.fillText('отнятая энергия за день', CW*0.75, T+TH-6);
 
   drawWeeklyChampionBadge();
 }

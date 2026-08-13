@@ -508,31 +508,24 @@ function tzOffsetMinutes(utcMs, timeZone) {
   return Math.round((asUTC - utcMs) / 60000);
 }
 
-// ближайшая (текущая или прошлая) полночь понедельника по киевскому времени,
-// возвращена как момент в UTC-миллисекундах. Смещение считается на момент
-// `nowMs` и используется как есть для всей недели назад — раз в год (при
-// самом переходе на летнее/зимнее время) граница может съехать на час,
-// это не критично для недельного сброса
-function mostRecentMondayKyivMs(nowMs) {
-  const offsetMin = tzOffsetMinutes(nowMs, 'Europe/Kyiv');
-  const kyivNow = new Date(nowMs + offsetMin*60000);
-  const day = kyivNow.getUTCDay(); // 0=вс..6=сб (в уже сдвинутых на Киев координатах)
-  const daysSinceMonday = (day + 6) % 7; // пн->0, вт->1, ..., вс->6
-  const kyivMidnightAsUtcFields = Date.UTC(
-    kyivNow.getUTCFullYear(), kyivNow.getUTCMonth(), kyivNow.getUTCDate() - daysSinceMonday, 0, 0, 0, 0
-  );
-  return kyivMidnightAsUtcFields - offsetMin*60000; // обратно в реальный момент UTC
-}
+// 2026-08-13: сброс переведён с еженедельного на ЕЖЕДНЕВНЫЙ (по прямой
+// просьбе пользователя) — таблицы/поля/функции ниже сохранили старые имена
+// ("weekly"/"неделя" в коде и в БД), чтобы не делать рискованную миграцию
+// схемы, но по смыслу теперь это "период" = один день, не неделя. Только
+// пользовательский текст (диктор/UI) переименован в "день".
+// Граница считается через общую mostRecentMidnightKyivMs (см. ниже, в разделе
+// Fishing) — раньше здесь была своя mostRecentMondayKyivMs со сдвигом на
+// день недели, теперь сдвиг не нужен.
 
 // вызывается периодически (и один раз при старте сервера) — если с прошлого
-// сброса прошёл понедельник 00:00 по Киеву, архивирует короля недели
-// (у кого было больше total_stolen, т.е. очков за неделю) и обнуляет
-// total_stolen + weekly_belt_seconds у всех. Безопасно при простое сервера в момент
-// границы — при следующем запуске просто досчитает пропущенный сброс один
-// раз (не пытается "проиграть" несколько пропущенных недель по отдельности).
+// сброса прошла полночь по Киеву, архивирует короля дня (у кого было больше
+// total_stolen, т.е. очков за день) и обнуляет total_stolen + weekly_belt_seconds
+// у всех. Безопасно при простое сервера в момент границы — при следующем
+// запуске просто досчитает пропущенный сброс один раз (не пытается
+// "проиграть" несколько пропущенных дней по отдельности).
 async function performStreetFighterWeeklyResetIfNeeded() {
   if (!pool) return null;
-  const boundaryMs = mostRecentMondayKyivMs(Date.now());
+  const boundaryMs = mostRecentMidnightKyivMs(Date.now());
   const boundary = new Date(boundaryMs);
 
   const metaRes = await pool.query(`SELECT last_reset_at FROM streetfighter_weekly_meta WHERE id=1`);
@@ -567,7 +560,7 @@ async function performStreetFighterWeeklyResetIfNeeded() {
   await pool.query(`UPDATE streetfighter_stolen SET total_stolen = 0, weekly_belt_seconds = 0`);
   await pool.query(`UPDATE streetfighter_weekly_meta SET last_reset_at = $1 WHERE id=1`, [boundary]);
 
-  console.log(`[STREETFIGHTER] Недельный сброс выполнен, граница=${boundary.toISOString()}, король недели: ${winner ? winner.username + ' (' + winner.total_stolen + ' очков)' : 'нет (очков никто не набрал)'}`);
+  console.log(`[STREETFIGHTER] Дневной сброс выполнен, граница=${boundary.toISOString()}, король дня: ${winner ? winner.username + ' (' + winner.total_stolen + ' очков)' : 'нет (очков никто не набрал)'}`);
 
   return { winner: winner ? winner.username : null, weekStart: lastReset.toISOString() };
 }
@@ -676,7 +669,7 @@ async function getAllBoxingStolen() {
 
 async function performBoxingWeeklyResetIfNeeded() {
   if (!pool) return null;
-  const boundaryMs = mostRecentMondayKyivMs(Date.now());
+  const boundaryMs = mostRecentMidnightKyivMs(Date.now());
   const boundary = new Date(boundaryMs);
 
   const metaRes = await pool.query(`SELECT last_reset_at FROM boxing_weekly_meta WHERE id=1`);
@@ -709,7 +702,7 @@ async function performBoxingWeeklyResetIfNeeded() {
   await pool.query(`UPDATE boxing_stolen SET total_stolen = 0, weekly_belt_seconds = 0`);
   await pool.query(`UPDATE boxing_weekly_meta SET last_reset_at = $1 WHERE id=1`, [boundary]);
 
-  console.log(`[BOXING] Недельный сброс выполнен, граница=${boundary.toISOString()}, чемпион недели: ${winner ? winner.username + ' (' + winner.total_stolen + ' очков)' : 'нет (очков никто не набрал)'}`);
+  console.log(`[BOXING] Дневной сброс выполнен, граница=${boundary.toISOString()}, чемпион дня: ${winner ? winner.username + ' (' + winner.total_stolen + ' очков)' : 'нет (очков никто не набрал)'}`);
 
   return { winner: winner ? winner.username : null, weekStart: lastReset.toISOString() };
 }
@@ -810,8 +803,9 @@ async function deleteFishingUser(username) {
   await pool.query(`DELETE FROM fishing_catches WHERE username = $1`, [username]);
 }
 
-// ближайшая (текущая или прошлая) полночь по киевскому времени — та же
-// идея, что mostRecentMondayKyivMs выше, только без сдвига на день недели
+// ближайшая (текущая или прошлая) полночь по киевскому времени — общая для
+// Fishing, а с 2026-08-13 и для Street Fighter/Boxing (все три сброса теперь
+// ежедневные)
 function mostRecentMidnightKyivMs(nowMs) {
   const offsetMin = tzOffsetMinutes(nowMs, 'Europe/Kyiv');
   const kyivNow = new Date(nowMs + offsetMin*60000);
