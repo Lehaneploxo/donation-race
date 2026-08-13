@@ -93,7 +93,7 @@ tbody tr:hover { background:rgba(255,255,255,0.04); }
 </div>
 <div class="tabs">
   <button type="button" class="tab-btn" id="tabLifetime" onclick="setTab('lifetime')">🏆 За всё время</button>
-  <button type="button" class="tab-btn" id="tabWeekly" onclick="setTab('weekly')">📅 За неделю</button>
+  <button type="button" class="tab-btn" id="tabWeekly" onclick="setTab('weekly')">📅 За день</button>
 </div>
 
 <div id="content"><div class="loading">Загрузка данных…</div></div>
@@ -172,15 +172,15 @@ function render(){
     return;
   }
   // ранг на каждой вкладке — свой, пересчитывается по нужной метрике
-  // (серверный rank всегда по недельным total_stolen — тут не используем)
+  // (серверный rank всегда по дневным total_stolen — тут не используем)
   const sorted = [..._rows].sort((a,b) => _tab==='lifetime'
     ? b.lifetime_stolen - a.lifetime_stolen
     : b.total_stolen - a.total_stolen
   );
-  const statLabel = _tab==='lifetime' ? '⚡ Всего энергии' : '⚡ За неделю';
+  const statLabel = _tab==='lifetime' ? '⚡ Всего энергии' : '⚡ За день';
   const lastCol = _tab==='lifetime'
-    ? { label:'🥊 Побед недели', get:r=>r.weekly_king_wins.toLocaleString() }
-    : { label:'🥊 С поясом (нед.)', get:r=>fmtTime(r.weekly_belt_seconds) };
+    ? { label:'🥊 Побед дня', get:r=>r.weekly_king_wins.toLocaleString() }
+    : { label:'🥊 С поясом (день)', get:r=>fmtTime(r.weekly_belt_seconds) };
 
   const tableRows = sorted.map((r, i) => `
     <tr>

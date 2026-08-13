@@ -193,6 +193,22 @@ app.get('/admin/set-boxing-stolen', async (req, res) => {
   }
 });
 
+// ручная правка счётчика "Чемпион дня ×N" (weekly_king_wins) — используется
+// для разового зачёта прошлых недельных чемпионов при переходе на ежедневный
+// сброс 2026-08-13 (см. [[project_street_fighter_weekly_rating]] в памяти)
+app.get('/admin/set-boxing-wins', async (req, res) => {
+  try {
+    const username = req.query.username || '';
+    const value = parseInt(req.query.value);
+    if (!username || Number.isNaN(value)) return res.json({ ok: false, error: 'username and value required' });
+    await db.setBoxingWeeklyKingWins(username, value);
+    console.log(`[ADMIN-SET-BOXING-WINS] username="${username}" value=${value}`);
+    res.json({ ok: true, username, value });
+  } catch(e) {
+    res.json({ ok: false, error: e.message });
+  }
+});
+
 app.get('/admin/delete-boxing-user', async (req, res) => {
   try {
     const username = req.query.username || '';
@@ -231,6 +247,17 @@ app.get('/boxing-weekly-champion', async (req, res) => {
   try {
     const champion = await db.getLastBoxingWeeklyChampion();
     res.json({ ok: true, champion });
+  } catch(e) {
+    res.json({ ok: false, error: e.message });
+  }
+});
+
+// временный эндпоинт — весь архив чемпионов недели/дня по порядку (для
+// разовой сверки при переходе на ежедневный сброс, 2026-08-13)
+app.get('/admin/boxing-weekly-history', async (req, res) => {
+  try {
+    const history = await db.getBoxingWeeklyHistory();
+    res.json({ ok: true, count: history.length, history });
   } catch(e) {
     res.json({ ok: false, error: e.message });
   }
@@ -331,6 +358,20 @@ app.get('/admin/set-streetfighter-stolen', async (req, res) => {
   }
 });
 
+// см. комментарий у /admin/set-boxing-wins выше — тот же смысл, для Street Fighter
+app.get('/admin/set-streetfighter-wins', async (req, res) => {
+  try {
+    const username = req.query.username || '';
+    const value = parseInt(req.query.value);
+    if (!username || Number.isNaN(value)) return res.json({ ok: false, error: 'username and value required' });
+    await db.setStreetFighterWeeklyKingWins(username, value);
+    console.log(`[ADMIN-SET-STREETFIGHTER-WINS] username="${username}" value=${value}`);
+    res.json({ ok: true, username, value });
+  } catch(e) {
+    res.json({ ok: false, error: e.message });
+  }
+});
+
 app.get('/admin/delete-streetfighter-user', async (req, res) => {
   try {
     const username = req.query.username || '';
@@ -358,6 +399,16 @@ app.get('/streetfighter-weekly-champion', async (req, res) => {
   try {
     const champion = await db.getLastStreetFighterWeeklyChampion();
     res.json({ ok: true, champion });
+  } catch(e) {
+    res.json({ ok: false, error: e.message });
+  }
+});
+
+// см. комментарий у /admin/boxing-weekly-history выше — тот же смысл, для Street Fighter
+app.get('/admin/streetfighter-weekly-history', async (req, res) => {
+  try {
+    const history = await db.getStreetFighterWeeklyHistory();
+    res.json({ ok: true, count: history.length, history });
   } catch(e) {
     res.json({ ok: false, error: e.message });
   }

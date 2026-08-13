@@ -383,6 +383,19 @@ function makeBoxingApi(table) {
       `, [username, Math.floor(value)]);
     },
 
+    // ручная точечная правка "побед дня" (было "побед недели") — используется
+    // для разового зачёта прошлых недельных чемпионов при переходе на
+    // ежедневный сброс 2026-08-13 (см. [[project_street_fighter_weekly_rating]])
+    async setWeeklyKingWins(username, value) {
+      if (!pool || !username) return;
+      await pool.query(`
+        INSERT INTO ${table} (username, weekly_king_wins)
+        VALUES ($1, $2)
+        ON CONFLICT (username)
+        DO UPDATE SET weekly_king_wins = $2
+      `, [username, Math.floor(value)]);
+    },
+
     async deleteUser(username) {
       if (!pool || !username) return;
       await pool.query(`DELETE FROM ${table} WHERE username = $1`, [username]);
@@ -403,6 +416,7 @@ const addBoxingKO = boxingRu.addKO;
 const resetBoxingRating = boxingRu.reset;
 const setBoxingStolen = boxingRu.setStolen;
 const deleteBoxingUser = boxingRu.deleteUser;
+const setBoxingWeeklyKingWins = boxingRu.setWeeklyKingWins;
 
 const addBoxingStolenEn = boxingEn.addStolen;
 const getTopBoxingStolenEn = boxingEn.getTop;
@@ -423,6 +437,7 @@ const addStreetFighterKO = streetFighter.addKO;
 const resetStreetFighterRating = streetFighter.reset;
 const setStreetFighterStolen = streetFighter.setStolen;
 const deleteStreetFighterUser = streetFighter.deleteUser;
+const setStreetFighterWeeklyKingWins = streetFighter.setWeeklyKingWins;
 
 // очки удара — сразу и в недельный total_stolen (двигает топ/корону текущей
 // недели), и в вечный lifetime_stolen (двигает уровень, никогда не обнуляется)
@@ -601,6 +616,23 @@ async function getLastStreetFighterWeeklyChampion() {
   } : null;
 }
 
+// весь архив прошлых чемпионов недели/дня, от первого к последнему —
+// временно нужно, чтобы сверить, кто был чемпионом в САМУЮ первую неделю
+// (2026-08-13, разовая проверка, UI для истории по-прежнему не сделан)
+async function getStreetFighterWeeklyHistory() {
+  if (!pool) return [];
+  const res = await pool.query(`
+    SELECT username, weekly_points, weekly_belt_seconds, week_start, created_at
+    FROM streetfighter_weekly_kings ORDER BY week_start ASC
+  `);
+  return res.rows.map(r => ({
+    username: r.username,
+    weeklyPoints: Number(r.weekly_points),
+    weekStart: r.week_start,
+    createdAt: r.created_at,
+  }));
+}
+
 // ── Boxing Arena RU: тот же еженедельный "Пояс чемпиона" (2026-08-08) ──
 // 1-в-1 логика Street Fighter выше, только своя таблица/архив/метка сброса.
 // EN-версия бокса НЕ трогается — остаётся на старой all-time схеме (фабрика
@@ -720,6 +752,21 @@ async function getLastBoxingWeeklyChampion() {
     weeklyPoints: Number(res.rows[0].weekly_points),
     weekStart: res.rows[0].week_start,
   } : null;
+}
+
+// см. getStreetFighterWeeklyHistory выше — тот же смысл, для бокса
+async function getBoxingWeeklyHistory() {
+  if (!pool) return [];
+  const res = await pool.query(`
+    SELECT username, weekly_points, weekly_belt_seconds, week_start, created_at
+    FROM boxing_weekly_kings ORDER BY week_start ASC
+  `);
+  return res.rows.map(r => ({
+    username: r.username,
+    weeklyPoints: Number(r.weekly_points),
+    weekStart: r.week_start,
+    createdAt: r.created_at,
+  }));
 }
 
 // ── Рыбалка ── 1 монета/лайк-порог = 1 рыбка, пишем сразу в оба счётчика:
@@ -865,6 +912,7 @@ module.exports = {
   addBoxingStolen, getTopBoxingStolen, getUserBoxingRank, addBoxingKO,
   addBoxingBeltSeconds, resetBoxingRating, setBoxingStolen, deleteBoxingUser,
   getAllBoxingStolen, performBoxingWeeklyResetIfNeeded, getLastBoxingWeeklyChampion,
+  setBoxingWeeklyKingWins, getBoxingWeeklyHistory,
   addBoxingStolenEn, getTopBoxingStolenEn, getUserBoxingRankEn, addBoxingKOEn,
   addBoxingBeltSecondsEn, resetBoxingRatingEn, setBoxingStolenEn, deleteBoxingUserEn,
   getAllBoxingStolenEn,
@@ -873,6 +921,7 @@ module.exports = {
   setStreetFighterStolen, deleteStreetFighterUser, getAllStreetFighterStolen,
   setStreetFighterSkin, getStreetFighterSkin,
   performStreetFighterWeeklyResetIfNeeded, getLastStreetFighterWeeklyChampion,
+  setStreetFighterWeeklyKingWins, getStreetFighterWeeklyHistory,
   addFishingCatch, getTopFishingDaily, getAllFishing, getUserFishingRank,
   resetFishingRating, setFishingTotal, deleteFishingUser,
   performFishingDailyResetIfNeeded, getYesterdayTopFishing,
