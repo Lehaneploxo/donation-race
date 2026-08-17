@@ -231,6 +231,12 @@ const caveP1 = new Image(); caveP1.src = 'sprites/fantasy_arena/stage3_cave_test
 const caveP2 = new Image(); caveP2.src = 'sprites/fantasy_arena/stage3_cave_test/cave_p2.png'; // дальние сталактиты
 const caveP3 = new Image(); caveP3.src = 'sprites/fantasy_arena/stage3_cave_test/cave_p3.png'; // средние сталактиты
 const caveP4 = new Image(); caveP4.src = 'sprites/fantasy_arena/stage3_cave_test/cave_p4.png'; // ближние сталактиты
+// готический коридор (ansimuz "Gothicvania Cold Corridors", free) — 5 слоёв
+// арок на разной глубине + отдельный тайл пола
+const CORRIDOR_DIR = "sprites/fantasy_arena/stage5_corridor/Cold Corridors Files/Assets/Layers";
+const corridorLayerNames = ['back','far','middle','near','foreground'];
+const corridorLayers = corridorLayerNames.map(n => { const im = new Image(); im.src = `${CORRIDOR_DIR}/${n}.png`; return im; });
+const corridorTileset = new Image(); corridorTileset.src = `${CORRIDOR_DIR}/tileset.png`;
 const TILE = 16;
 const TS = 3; // масштаб тайла (целое число — без мыла на пиксель-арте)
 const WALL_TILE = { sx: 6*TILE, sy: 15*TILE }; // однотонный тёмный камень стены
@@ -254,8 +260,9 @@ const MAPS = [
   { key:'crypt', label:'🏰 Каменный склеп' },
   { key:'ship', label:'🚢 Корабль в море' },
   { key:'cave', label:'🕯️ Пещера' },
+  { key:'corridor', label:'⛪ Готический зал' },
 ];
-let currentMap = 'cave';
+let currentMap = 'corridor';
 function renderMapPicks(){
   const el = document.getElementById('mapPicks');
   el.innerHTML = '';
@@ -334,6 +341,45 @@ function drawBGCave(){
   drawCaveLayer(caveP4, seamY, 0.6);
 
   ctx.fillStyle = CAVE_FLOOR_COLOR; ctx.fillRect(0, seamY, CW, floorH);
+  drawSeamAndVignette(seamY, areaH);
+}
+
+// ---------- background: готический зал (ansimuz "Gothicvania Cold Corridors",
+// free) — 5 слоёв арок на разной глубине (back/far/middle/near/foreground) +
+// отдельный тайл пола. Целочисленный масштаб CORRIDOR_SCALE=2 (не 3, как у
+// пещеры/склепа — при 3x слои 224px высотой не влезали бы разумно), слои
+// прижаты к низу (к стыку с полом), зазор сверху закрашен ровным цветом.
+const CORRIDOR_SCALE = 2;
+const CORRIDOR_SKY_COLOR = '#1a0f52';
+const CORRIDOR_FLOOR_COLOR = '#6b4a8f';
+const CORRIDOR_SPEEDS = [0.03, 0.08, 0.18, 0.4, 0.7]; // back..foreground — дальше слой, медленнее едет
+function drawCorridorLayer(img, bottomY, speedFactor){
+  if(!img.complete || img.naturalWidth===0) return;
+  const dw = img.naturalWidth*CORRIDOR_SCALE, dh = img.naturalHeight*CORRIDOR_SCALE;
+  const y = bottomY - dh;
+  const off = ((scrollX*speedFactor % dw) + dw) % dw;
+  for(let x=-off; x<CW; x+=dw){
+    ctx.drawImage(img, x, y, dw, dh);
+  }
+}
+function drawBGCorridor(){
+  const areaH = CH-WALL_TOP;
+  const floorH = FLOOR_ROWS*TILE*TS;
+  const wallH = areaH - floorH;
+  const seamY = WALL_TOP+wallH;
+
+  ctx.fillStyle = CORRIDOR_SKY_COLOR; ctx.fillRect(0, WALL_TOP, CW, wallH);
+  ctx.imageSmoothingEnabled = false;
+  corridorLayers.forEach((img,i) => drawCorridorLayer(img, seamY, CORRIDOR_SPEEDS[i]));
+
+  ctx.fillStyle = CORRIDOR_FLOOR_COLOR; ctx.fillRect(0, seamY, CW, floorH);
+  if(corridorTileset.complete && corridorTileset.naturalWidth>0){
+    const tw = corridorTileset.naturalWidth*CORRIDOR_SCALE, th = corridorTileset.naturalHeight*CORRIDOR_SCALE;
+    const off = ((scrollX*0.4 % tw) + tw) % tw;
+    for(let x=-off; x<CW; x+=tw){
+      ctx.drawImage(corridorTileset, 0,0, corridorTileset.naturalWidth, corridorTileset.naturalHeight, x, seamY, tw, th);
+    }
+  }
   drawSeamAndVignette(seamY, areaH);
 }
 
@@ -692,6 +738,7 @@ function drawBGShip(t){
 function drawBG(t){
   if(currentMap==='ship') drawBGShip(t);
   else if(currentMap==='cave') drawBGCave();
+  else if(currentMap==='corridor') drawBGCorridor();
   else drawBGCrypt();
 }
 
