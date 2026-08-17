@@ -244,19 +244,36 @@ const PROPS = [
 ];
 const PROP_SPACING = 300; // расстояние между декорациями в "мировых" пикселях
 
-const MAPS = [ { key:'crypt', label:'🏰 Каменный склеп' } ];
+const MAPS = [
+  { key:'crypt', label:'🏰 Каменный склеп' },
+  { key:'ship', label:'🚢 Корабль в море' },
+];
+let currentMap = 'ship';
 function renderMapPicks(){
   const el = document.getElementById('mapPicks');
   el.innerHTML = '';
-  const b = document.createElement('button');
-  b.textContent = MAPS[0].label + ' (пока единственная карта)';
-  b.classList.add('active');
-  el.appendChild(b);
+  MAPS.forEach(m=>{
+    const b = document.createElement('button');
+    b.textContent = m.label;
+    if(m.key===currentMap) b.classList.add('active');
+    b.onclick = ()=>{ currentMap = m.key; renderMapPicks(); };
+    el.appendChild(b);
+  });
 }
 renderMapPicks();
 
-// ---------- background ----------
-function drawBG(){
+// ---------- background: общая для обеих карт часть (тень стыка + виньетка) ----------
+function drawSeamAndVignette(seamY, areaH){
+  const seam = ctx.createLinearGradient(0,seamY-24,0,seamY+10);
+  seam.addColorStop(0,'rgba(0,0,0,0)'); seam.addColorStop(1,'rgba(0,0,0,0.55)');
+  ctx.fillStyle=seam; ctx.fillRect(0,seamY-24,CW,34);
+  const vgrad = ctx.createLinearGradient(0,0,CW,0);
+  vgrad.addColorStop(0,'rgba(0,0,0,0.5)'); vgrad.addColorStop(0.12,'rgba(0,0,0,0)');
+  vgrad.addColorStop(0.88,'rgba(0,0,0,0)'); vgrad.addColorStop(1,'rgba(0,0,0,0.5)');
+  ctx.fillStyle=vgrad; ctx.fillRect(0,WALL_TOP,CW,areaH);
+}
+
+function drawBGCrypt(){
   ctx.fillStyle='#0a0e18'; ctx.fillRect(0,WALL_TOP,CW,CH-WALL_TOP);
   if(!tilesetImg.complete || tilesetImg.naturalWidth===0) return;
   ctx.imageSmoothingEnabled = false;
@@ -289,15 +306,100 @@ function drawBG(){
       ctx.drawImage(propsImg, p.sx, p.sy, p.sw, p.sh, cx-dw/2, dy, dw, dh);
     }
   }
-  // лёгкая тень на стыке стена/пол — читаемая линия горизонта
-  const seam = ctx.createLinearGradient(0,seamY-24,0,seamY+10);
-  seam.addColorStop(0,'rgba(0,0,0,0)'); seam.addColorStop(1,'rgba(0,0,0,0.55)');
-  ctx.fillStyle=seam; ctx.fillRect(0,seamY-24,CW,34);
-  // виньетка по краям для глубины
-  const vgrad = ctx.createLinearGradient(0,0,CW,0);
-  vgrad.addColorStop(0,'rgba(0,0,0,0.5)'); vgrad.addColorStop(0.12,'rgba(0,0,0,0)');
-  vgrad.addColorStop(0.88,'rgba(0,0,0,0)'); vgrad.addColorStop(1,'rgba(0,0,0,0.5)');
-  ctx.fillStyle=vgrad; ctx.fillRect(0,WALL_TOP,CW,areaH);
+  drawSeamAndVignette(seamY, areaH);
+}
+
+// ---------- background: корабль в море (полностью процедурная отрисовка, без
+// внешних спрайтов — палуба из дерева + волнующееся море позади борта + мачта/
+// бочки/канаты, проезжающие мимо, дают то же "ощущение движения", что и в
+// склепе, но здесь ещё добавлено лёгкое покачивание всей сцены (см. render()) —
+// это и есть "корабль плывёт" по прямому запросу пользователя.
+const SHIP_PROP_TYPES = ['mast','barrel','rope'];
+function drawShipProp(type, cx, seamY){
+  if(type==='mast'){
+    const poleW=10, poleH=(seamY-WALL_TOP)*0.92;
+    ctx.fillStyle='#4a2f18'; ctx.fillRect(cx-poleW/2, seamY-poleH, poleW, poleH);
+    ctx.fillStyle='rgba(245,240,225,0.92)';
+    ctx.beginPath();
+    ctx.moveTo(cx, seamY-poleH+6);
+    ctx.lineTo(cx+66, seamY-poleH+38);
+    ctx.lineTo(cx, seamY-poleH+92);
+    ctx.closePath(); ctx.fill();
+    ctx.strokeStyle='rgba(0,0,0,0.25)'; ctx.lineWidth=1.5; ctx.stroke();
+  } else if(type==='barrel'){
+    const w=46,h=54;
+    ctx.fillStyle='#8a5a2b'; ctx.fillRect(cx-w/2, seamY-h, w, h);
+    ctx.strokeStyle='#3d2510'; ctx.lineWidth=4;
+    ctx.strokeRect(cx-w/2, seamY-h+8, w, 6);
+    ctx.strokeRect(cx-w/2, seamY-6-6, w, 6);
+  } else if(type==='rope'){
+    ctx.strokeStyle='#c9a86a'; ctx.lineWidth=5;
+    ctx.beginPath(); ctx.arc(cx, seamY-22, 17, 0, Math.PI*2); ctx.stroke();
+    ctx.beginPath(); ctx.arc(cx, seamY-22, 9, 0, Math.PI*2); ctx.stroke();
+  }
+}
+function drawWaveLine(y, amp, freq, phase, color, lineW){
+  ctx.strokeStyle=color; ctx.lineWidth=lineW; ctx.beginPath();
+  for(let x=-40; x<=CW+40; x+=8){
+    const yy = y + Math.sin(x*freq+phase)*amp;
+    if(x===-40) ctx.moveTo(x,yy); else ctx.lineTo(x,yy);
+  }
+  ctx.stroke();
+}
+function drawBGShip(){
+  const areaH = CH-WALL_TOP;
+  const floorH = FLOOR_ROWS*TILE*TS; // та же высота палубы, что и пол в склепе — бойцы стоят на том же уровне
+  const wallH = areaH - floorH;
+  const seamY = WALL_TOP+wallH;
+
+  // небо + море (горизонт ниже верхней трети)
+  const horizonY = WALL_TOP + wallH*0.42;
+  const sky = ctx.createLinearGradient(0,WALL_TOP,0,horizonY);
+  sky.addColorStop(0,'#bfe8ff'); sky.addColorStop(1,'#eaf7ff');
+  ctx.fillStyle=sky; ctx.fillRect(0,WALL_TOP,CW,horizonY-WALL_TOP);
+  const sea = ctx.createLinearGradient(0,horizonY,0,seamY);
+  sea.addColorStop(0,'#1f7fa8'); sea.addColorStop(1,'#0d4a68');
+  ctx.fillStyle=sea; ctx.fillRect(0,horizonY,CW,seamY-horizonY);
+
+  // волны — несколько рядов, разная скорость (параллакс) и амплитуда для глубины
+  drawWaveLine(horizonY+ (seamY-horizonY)*0.28, 3, 0.02, -scrollX*0.10, 'rgba(255,255,255,0.35)', 2);
+  drawWaveLine(horizonY+ (seamY-horizonY)*0.52, 5, 0.017,-scrollX*0.18, 'rgba(255,255,255,0.45)', 2.5);
+  drawWaveLine(horizonY+ (seamY-horizonY)*0.78, 7, 0.014,-scrollX*0.30, 'rgba(255,255,255,0.6)', 3);
+
+  // борт корабля — тонкая деревянная планка на стыке моря и палубы
+  ctx.fillStyle='#5e371b'; ctx.fillRect(0, seamY-14, CW, 14);
+  ctx.strokeStyle='rgba(0,0,0,0.3)'; ctx.lineWidth=2; ctx.strokeRect(0, seamY-14, CW, 14);
+
+  // палуба — доски со швами, скроллятся вместе со сценой
+  ctx.imageSmoothingEnabled = false;
+  ctx.fillStyle='#7a4a26'; ctx.fillRect(0, seamY, CW, floorH);
+  const plankH = 34;
+  const scrollOff = ((scrollX % plankH)+plankH)%plankH;
+  ctx.strokeStyle='rgba(0,0,0,0.3)'; ctx.lineWidth=2;
+  for(let y=seamY+plankH-scrollOff; y<CH; y+=plankH){
+    ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(CW,y); ctx.stroke();
+  }
+  ctx.strokeStyle='rgba(0,0,0,0.18)'; ctx.lineWidth=1.5;
+  const plankW = 58;
+  const scrollOffX = ((scrollX % plankW)+plankW)%plankW;
+  for(let x=-scrollOffX; x<CW; x+=plankW){
+    ctx.beginPath(); ctx.moveTo(x, seamY); ctx.lineTo(x, CH); ctx.stroke();
+  }
+
+  // мачта/бочки/канаты, проезжающие по палубе мимо — та же логика, что декорации склепа
+  const firstIdx = Math.floor((scrollX-150)/PROP_SPACING);
+  for(let i=firstIdx; i*PROP_SPACING - scrollX < CW+150; i++){
+    const type = SHIP_PROP_TYPES[((i%SHIP_PROP_TYPES.length)+SHIP_PROP_TYPES.length)%SHIP_PROP_TYPES.length];
+    const cx = i*PROP_SPACING - scrollX;
+    drawShipProp(type, cx, seamY);
+  }
+
+  drawSeamAndVignette(seamY, areaH);
+}
+
+function drawBG(){
+  if(currentMap==='ship') drawBGShip();
+  else drawBGCrypt();
 }
 
 // ---------- HUD panel (same layout as Street Fighter: rules left, top right) ----------
@@ -414,8 +516,17 @@ function render(t){
   scrollX += SCROLL_SPEED*dt;
   updateBattle(t, dt);
   ctx.clearRect(0,0,CW,CH);
+  const rocking = currentMap==='ship';
+  if(rocking){
+    const cx = CW/2, cy = WALL_TOP + (CH-WALL_TOP)/2;
+    ctx.save();
+    ctx.translate(cx, cy + Math.sin(t/1200)*6);
+    ctx.rotate(Math.sin(t/1500)*0.012);
+    ctx.translate(-cx, -cy);
+  }
   drawBG();
   fighters.forEach(f => drawFighter(f, t));
+  if(rocking) ctx.restore();
   drawHUD();
   requestAnimationFrame(render);
 }
