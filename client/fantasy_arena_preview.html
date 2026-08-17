@@ -450,13 +450,30 @@ function drawBGShip(t){
   // волны — несколько рядов, анимируются по времени (не по позиции корабля —
   // корабль стоит на месте, волны "текут" сами по себе). Под каждой линией —
   // залитая полупрозрачная "пенная" полоса для объёма, а не просто штрих.
+  // Лёгкое размытие смягчает пиксельную "механичность" линий синуса.
   const seaH = seamY-horizonY;
+  ctx.save();
+  ctx.filter = 'blur(0.7px)';
   drawWaveBand(horizonY+seaH*0.60, horizonY+seaH*0.66, 0.013, t*0.0006+4, 'rgba(255,255,255,0.16)', 'rgba(255,255,255,0)');
   drawWaveBand(horizonY+seaH*0.80, horizonY+seaH*0.87, 0.011, -t*0.0005+6, 'rgba(255,255,255,0.22)', 'rgba(255,255,255,0)');
   drawWaveLine(horizonY+seaH*0.22, 3, 0.020, t*0.0009, 'rgba(255,255,255,0.30)', 2);
   drawWaveLine(horizonY+seaH*0.42, 4.5, 0.016, -t*0.0007+2, 'rgba(255,255,255,0.40)', 2.5);
   drawWaveLine(horizonY+seaH*0.63, 6, 0.013, t*0.0006+4, 'rgba(255,255,255,0.5)', 3);
   drawWaveLine(horizonY+seaH*0.85, 8, 0.011, -t*0.0005+6, 'rgba(255,255,255,0.65)', 3.5);
+  ctx.restore();
+
+  // блуждающие блики-каустики — мягкие пятна света, плывущие по воде (аддитивно)
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  [[0.2,0.35],[0.5,0.6],[0.78,0.45]].forEach(([xr,yr],i)=>{
+    const px = ((xr*CW + t*0.012*(i%2?1:-1)) % (CW+120)) - 60;
+    const py = horizonY + yr*seaH;
+    const r = 26 + 6*Math.sin(t*0.0015+i*3);
+    const g = ctx.createRadialGradient(px,py,0, px,py,r);
+    g.addColorStop(0,'rgba(255,255,255,0.16)'); g.addColorStop(1,'rgba(255,255,255,0)');
+    ctx.fillStyle=g; ctx.beginPath(); ctx.arc(px,py,r,0,Math.PI*2); ctx.fill();
+  });
+  ctx.restore();
 
   // блики — мерцающие точки на воде
   for(let i=0;i<26;i++){
@@ -468,9 +485,25 @@ function drawBGShip(t){
     ctx.fillRect(px, py, 3, 1.5);
   }
 
-  // борт корабля — деревянная планка на стыке моря и палубы
-  ctx.fillStyle='#5e371b'; ctx.fillRect(0, seamY-14, CW, 14);
-  ctx.strokeStyle='rgba(0,0,0,0.3)'; ctx.lineWidth=2; ctx.strokeRect(0, seamY-14, CW, 14);
+  // борт корабля — изогнутый деревянный борт (не прямая линия — читается как
+  // обшивка корпуса, а не забор) + пена вдоль ватерлинии + стойки поручня
+  const railBase = seamY-14;
+  const railY = x => railBase - 6*Math.sin((x/CW)*Math.PI);
+  ctx.fillStyle='#5e371b';
+  ctx.beginPath(); ctx.moveTo(0, railY(0));
+  for(let x=0;x<=CW;x+=10) ctx.lineTo(x, railY(x));
+  ctx.lineTo(CW, seamY); ctx.lineTo(0, seamY); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle='rgba(0,0,0,0.3)'; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.moveTo(0, railY(0));
+  for(let x=0;x<=CW;x+=10) ctx.lineTo(x, railY(x));
+  ctx.stroke();
+  ctx.strokeStyle='rgba(255,255,255,0.65)'; ctx.lineWidth=2;
+  for(let x=0;x<CW;x+=14){
+    const yy = railY(x) - 2 + Math.sin(x*0.05+t*0.004)*1.5;
+    ctx.beginPath(); ctx.moveTo(x,yy); ctx.lineTo(x+7,yy); ctx.stroke();
+  }
+  ctx.fillStyle='#3d2510';
+  for(let x=24;x<CW;x+=76) ctx.fillRect(x-2, railY(x), 4, seamY-railY(x));
 
   // палуба — доски со швами и лёгкой текстурой волокон, ФИКСИРОВАНЫ (корабль не едет)
   ctx.imageSmoothingEnabled = false;
