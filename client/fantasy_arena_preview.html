@@ -310,10 +310,9 @@ function drawBGCrypt(){
 
 // ---------- background: корабль в море (полностью процедурная отрисовка, без
 // внешних спрайтов). По прямому уточнению пользователя: сам корабль (палуба,
-// мачта, борт) НЕ едет никуда — это статичная сцена, "камера" сидит на борту.
-// Двигается только море (волны + блики анимируются по времени t), плюс
-// остаётся лёгкое покачивание всей сцены (см. render()) — это и даёт "плывёт",
-// без ощущения, что мимо корабля едет ландшафт (как раньше — отклонено).
+// мачта, борт) полностью неподвижен — ни скролла, ни покачивания сцены
+// (было раньше, но отклонено — корабль не должен "ходить как на волнах").
+// Двигается только море: волны и блики анимируются по времени t.
 function drawShipProp(type, cx, seamY, t){
   if(type==='mast'){
     const poleW=10, poleH=(seamY-WALL_TOP)*0.92, topY=seamY-poleH;
@@ -685,17 +684,8 @@ function render(t){
   scrollX += SCROLL_SPEED*dt;
   updateBattle(t, dt);
   ctx.clearRect(0,0,CW,CH);
-  const rocking = currentMap==='ship';
-  if(rocking){
-    const cx = CW/2, cy = WALL_TOP + (CH-WALL_TOP)/2;
-    ctx.save();
-    ctx.translate(cx, cy + Math.sin(t/1200)*6);
-    ctx.rotate(Math.sin(t/1500)*0.012);
-    ctx.translate(-cx, -cy);
-  }
   drawBG(t);
   fighters.forEach(f => drawFighter(f, t));
-  if(rocking) ctx.restore();
   drawHUD();
   requestAnimationFrame(render);
 }
