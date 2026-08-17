@@ -77,7 +77,7 @@ function spawnFighter(x){
   const keys = Object.keys(ROSTER);
   const charKey = keys[Math.floor(Math.random()*keys.length)];
   return {
-    charKey, x, tx:x, y:945, facing: Math.random()<0.5?1:-1,
+    charKey, x, tx:x, y:985, facing: Math.random()<0.5?1:-1,
     anim:'idle', frame:0, t:0, animLockUntil:0,
     hp:100, maxHp:100,
     wanderPause: 200+Math.random()*800,
