@@ -327,11 +327,38 @@ function drawBGChurch(){
   drawSeamAndVignette(seamY, areaH);
 }
 
+// ---- "Улица" (GothicVania Town) — горы/облака на закате, силуэт города,
+// мощёная дорога тайлом внизу (ground.png, 16px — целочисленный TS-масштаб).
+const TOWN_DIR = "sprites/fantasy_arena/stage9_town";
+const townBg = new Image(); townBg.src = `${TOWN_DIR}/background.png`;
+const townMid = new Image(); townMid.src = `${TOWN_DIR}/middleground.png`;
+const townGround = new Image(); townGround.src = `${TOWN_DIR}/ground.png`;
+const TOWN_SCALE = 2;
+const TOWN_SKY_COLOR = '#4a2f42';
+const TOWN_FLOOR_COLOR = '#241220';
+function drawBGTown(){
+  const areaH = CH-WALL_TOP, floorH = FLOOR_ROWS*TILE*TS, wallH = areaH-floorH, seamY = WALL_TOP+wallH;
+  ctx.fillStyle = TOWN_SKY_COLOR; ctx.fillRect(0, WALL_TOP, CW, wallH);
+  ctx.imageSmoothingEnabled = false;
+  drawParallaxLayer(townBg, TOWN_SCALE, seamY, 0.08);
+  drawParallaxLayer(townMid, TOWN_SCALE, seamY, 0.25);
+  ctx.fillStyle = TOWN_FLOOR_COLOR; ctx.fillRect(0, seamY, CW, floorH);
+  if(townGround.complete && townGround.naturalWidth>0){
+    const tw = townGround.naturalWidth*TS, th = townGround.naturalHeight*TS;
+    const off = ((scrollX % tw) + tw) % tw;
+    for(let x=-off; x<CW; x+=tw){
+      ctx.drawImage(townGround, 0,0, townGround.naturalWidth, townGround.naturalHeight, x, seamY, tw, th);
+    }
+  }
+  drawSeamAndVignette(seamY, areaH);
+}
+
 const MAPS = [
   { key:'corridor', label:'⛪ Готический зал', draw: drawBGCorridor },
   { key:'cemetery', label:'⚰️ Кладбище', draw: drawBGCemetery },
   { key:'swamp', label:'🐸 Болото', draw: drawBGSwamp },
   { key:'church', label:'🕯️ Собор', draw: drawBGChurch },
+  { key:'town', label:'🏘️ Улица', draw: drawBGTown },
 ];
 let currentMap = 'corridor';
 function renderMapPicks(){
