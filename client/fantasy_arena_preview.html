@@ -406,22 +406,77 @@ function drawWaveLine(y, amp, freq, phase, color, lineW){
 // простой детерминированный псевдослучайный шум (без Math.random, чтобы блики
 // не "прыгали" каждый кадр — только плавно мерцают по sin(t))
 function hashSeed(i){ const s = Math.sin(i*12.9898)*43758.5453; return s - Math.floor(s); }
-function drawBGShip(t){
+// Геометрия сцены и градиенты неба/моря зависят только от констант (CW/CH/
+// WALL_TOP/FLOOR_ROWS) — считаем и кэшируем один раз вместо пересоздания
+// градиентов каждый кадр (createLinearGradient/createRadialGradient — не
+// бесплатные вызовы, а на телефоне лишняя работа 60 раз в секунду заметна).
+let deckTextureCache = null;
+function getDeckTexture(floorH){
+  if(deckTextureCache) return deckTextureCache;
+  const off = document.createElement('canvas');
+  off.width = CW; off.height = floorH;
+  const octx = off.getContext('2d');
+  octx.fillStyle='#7a4a26'; octx.fillRect(0,0,CW,floorH);
+  const plankH = 34, plankW = 58;
+  for(let row=0, y=0; y<floorH; y+=plankH, row++){
+    const rowOffset = (row%2)*(plankW/2);
+    for(let x=-rowOffset; x<CW; x+=plankW){
+      octx.strokeStyle='rgba(0,0,0,0.12)'; octx.lineWidth=1;
+      for(let k=0;k<3;k++){
+        const fy = y+6+k*9;
+        octx.beginPath(); octx.moveTo(x+6, fy); octx.lineTo(x+plankW-10-k*6, fy); octx.stroke();
+      }
+      octx.fillStyle='rgba(0,0,0,0.35)';
+      octx.fillRect(x+5, y+5, 2, 2); octx.fillRect(x+plankW-8, y+5, 2, 2);
+    }
+  }
+  octx.strokeStyle='rgba(0,0,0,0.32)'; octx.lineWidth=2;
+  for(let y=plankH; y<floorH; y+=plankH){
+    octx.beginPath(); octx.moveTo(0,y); octx.lineTo(CW,y); octx.stroke();
+  }
+  octx.strokeStyle='rgba(0,0,0,0.2)'; octx.lineWidth=1.5;
+  for(let row=0, y=0; y<floorH; y+=plankH, row++){
+    const rowOffset = (row%2)*(plankW/2);
+    for(let x=-rowOffset; x<CW; x+=plankW){
+      octx.beginPath(); octx.moveTo(x, y); octx.lineTo(x, Math.min(y+plankH,floorH)); octx.stroke();
+    }
+  }
+  deckTextureCache = off;
+  return off;
+}
+let shipBgCache = null;
+function getShipBgCache(){
+  if(shipBgCache) return shipBgCache;
   const areaH = CH-WALL_TOP;
-  const floorH = FLOOR_ROWS*TILE*TS; // та же высота палубы, что и пол в склепе — бойцы стоят на том же уровне
+  const floorH = FLOOR_ROWS*TILE*TS;
   const wallH = areaH - floorH;
   const seamY = WALL_TOP+wallH;
   const horizonY = WALL_TOP + wallH*0.42;
+  const sunX = CW*0.74, sunY = horizonY-4;
 
-  // небо с мягким свечением у горизонта
   const sky = ctx.createLinearGradient(0,WALL_TOP,0,horizonY);
   sky.addColorStop(0,'#5fb3e8'); sky.addColorStop(0.65,'#a9deff'); sky.addColorStop(1,'#f3fbff');
+
+  const sunGlow = ctx.createRadialGradient(sunX,sunY,4, sunX,sunY,70);
+  sunGlow.addColorStop(0,'rgba(255,250,220,0.9)'); sunGlow.addColorStop(0.4,'rgba(255,240,190,0.35)'); sunGlow.addColorStop(1,'rgba(255,240,190,0)');
+
+  const sea = ctx.createLinearGradient(0,horizonY,0,seamY);
+  sea.addColorStop(0,'#4fb8d6'); sea.addColorStop(0.15,'#1f8fb8');
+  sea.addColorStop(0.55,'#136f96'); sea.addColorStop(1,'#0a3f5c');
+
+  const glare = ctx.createLinearGradient(0,horizonY,0,horizonY+40);
+  glare.addColorStop(0,'rgba(255,255,255,0.55)'); glare.addColorStop(1,'rgba(255,255,255,0)');
+
+  shipBgCache = { areaH, floorH, wallH, seamY, horizonY, sunX, sunY, sky, sunGlow, sea, glare };
+  return shipBgCache;
+}
+function drawBGShip(t){
+  const { areaH, floorH, seamY, horizonY, sunX, sunY, sky, sunGlow, sea, glare } = getShipBgCache();
+
+  // небо с мягким свечением у горизонта
   ctx.fillStyle=sky; ctx.fillRect(0,WALL_TOP,CW,horizonY-WALL_TOP);
 
   // солнце — мягкое свечение у горизонта
-  const sunX = CW*0.74, sunY = horizonY-4;
-  const sunGlow = ctx.createRadialGradient(sunX,sunY,4, sunX,sunY,70);
-  sunGlow.addColorStop(0,'rgba(255,250,220,0.9)'); sunGlow.addColorStop(0.4,'rgba(255,240,190,0.35)'); sunGlow.addColorStop(1,'rgba(255,240,190,0)');
   ctx.fillStyle=sunGlow; ctx.beginPath(); ctx.arc(sunX,sunY,70,0,Math.PI*2); ctx.fill();
   ctx.fillStyle='rgba(255,252,235,0.95)'; ctx.beginPath(); ctx.arc(sunX,sunY,16,0,Math.PI*2); ctx.fill();
 
@@ -439,28 +494,21 @@ function drawBGShip(t){
   });
 
   // море — более глубокий, живой градиент + световая полоса у горизонта
-  const sea = ctx.createLinearGradient(0,horizonY,0,seamY);
-  sea.addColorStop(0,'#4fb8d6'); sea.addColorStop(0.15,'#1f8fb8');
-  sea.addColorStop(0.55,'#136f96'); sea.addColorStop(1,'#0a3f5c');
   ctx.fillStyle=sea; ctx.fillRect(0,horizonY,CW,seamY-horizonY);
-  const glare = ctx.createLinearGradient(0,horizonY,0,horizonY+40);
-  glare.addColorStop(0,'rgba(255,255,255,0.55)'); glare.addColorStop(1,'rgba(255,255,255,0)');
   ctx.fillStyle=glare; ctx.fillRect(0,horizonY,CW,40);
 
   // волны — несколько рядов, анимируются по времени (не по позиции корабля —
   // корабль стоит на месте, волны "текут" сами по себе). Под каждой линией —
   // залитая полупрозрачная "пенная" полоса для объёма, а не просто штрих.
-  // Лёгкое размытие смягчает пиксельную "механичность" линий синуса.
+  // (Раньше тут был ctx.filter='blur()' для сглаживания — убрал: программный
+  // blur на canvas каждый кадр сильно сажал FPS на телефоне.)
   const seaH = seamY-horizonY;
-  ctx.save();
-  ctx.filter = 'blur(0.7px)';
   drawWaveBand(horizonY+seaH*0.60, horizonY+seaH*0.66, 0.013, t*0.0006+4, 'rgba(255,255,255,0.16)', 'rgba(255,255,255,0)');
   drawWaveBand(horizonY+seaH*0.80, horizonY+seaH*0.87, 0.011, -t*0.0005+6, 'rgba(255,255,255,0.22)', 'rgba(255,255,255,0)');
   drawWaveLine(horizonY+seaH*0.22, 3, 0.020, t*0.0009, 'rgba(255,255,255,0.30)', 2);
   drawWaveLine(horizonY+seaH*0.42, 4.5, 0.016, -t*0.0007+2, 'rgba(255,255,255,0.40)', 2.5);
   drawWaveLine(horizonY+seaH*0.63, 6, 0.013, t*0.0006+4, 'rgba(255,255,255,0.5)', 3);
   drawWaveLine(horizonY+seaH*0.85, 8, 0.011, -t*0.0005+6, 'rgba(255,255,255,0.65)', 3.5);
-  ctx.restore();
 
   // блуждающие блики-каустики — мягкие пятна света, плывущие по воде (аддитивно)
   ctx.save();
@@ -505,35 +553,12 @@ function drawBGShip(t){
   ctx.fillStyle='#3d2510';
   for(let x=24;x<CW;x+=76) ctx.fillRect(x-2, railY(x), 4, seamY-railY(x));
 
-  // палуба — доски со швами и лёгкой текстурой волокон, ФИКСИРОВАНЫ (корабль не едет)
+  // палуба — доски со швами и текстурой волокон. Полностью статична (корабль
+  // не едет), поэтому рисуется один раз в offscreen-канвас и дальше просто
+  // копируется — раньше это было ~300 мелких draw-вызовов КАЖДЫЙ кадр, что
+  // заметно сажало FPS на телефоне.
   ctx.imageSmoothingEnabled = false;
-  ctx.fillStyle='#7a4a26'; ctx.fillRect(0, seamY, CW, floorH);
-  const plankH = 34, plankW = 58;
-  for(let row=0, y=seamY; y<CH; y+=plankH, row++){
-    const rowOffset = (row%2)*(plankW/2);
-    for(let x=-rowOffset; x<CW; x+=plankW){
-      // волокна доски — тонкие горизонтальные штрихи разной длины
-      ctx.strokeStyle='rgba(0,0,0,0.12)'; ctx.lineWidth=1;
-      for(let k=0;k<3;k++){
-        const fy = y+6+k*9;
-        ctx.beginPath(); ctx.moveTo(x+6, fy); ctx.lineTo(x+plankW-10-k*6, fy); ctx.stroke();
-      }
-      // заклёпки по углам доски
-      ctx.fillStyle='rgba(0,0,0,0.35)';
-      ctx.fillRect(x+5, y+5, 2, 2); ctx.fillRect(x+plankW-8, y+5, 2, 2);
-    }
-  }
-  ctx.strokeStyle='rgba(0,0,0,0.32)'; ctx.lineWidth=2;
-  for(let y=seamY+plankH; y<CH; y+=plankH){
-    ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(CW,y); ctx.stroke();
-  }
-  ctx.strokeStyle='rgba(0,0,0,0.2)'; ctx.lineWidth=1.5;
-  for(let row=0, y=seamY; y<CH; y+=plankH, row++){
-    const rowOffset = (row%2)*(plankW/2);
-    for(let x=-rowOffset; x<CW; x+=plankW){
-      ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, Math.min(y+plankH,CH)); ctx.stroke();
-    }
-  }
+  ctx.drawImage(getDeckTexture(floorH), 0, seamY);
 
   // мачта/бочка/штурвал/канат — стоят на фиксированных местах на палубе
   SHIP_PROPS_FIXED.forEach(p => drawShipProp(p.type, p.xr*CW, seamY, t));
