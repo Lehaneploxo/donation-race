@@ -314,35 +314,81 @@ function drawBGCrypt(){
 // Двигается только море (волны + блики анимируются по времени t), плюс
 // остаётся лёгкое покачивание всей сцены (см. render()) — это и даёт "плывёт",
 // без ощущения, что мимо корабля едет ландшафт (как раньше — отклонено).
-function drawShipProp(type, cx, seamY){
+function drawShipProp(type, cx, seamY, t){
   if(type==='mast'){
-    const poleW=10, poleH=(seamY-WALL_TOP)*0.92;
-    ctx.fillStyle='#4a2f18'; ctx.fillRect(cx-poleW/2, seamY-poleH, poleW, poleH);
-    ctx.fillStyle='rgba(245,240,225,0.92)';
+    const poleW=10, poleH=(seamY-WALL_TOP)*0.92, topY=seamY-poleH;
+    // такелаж — растяжки от вершины мачты к палубе, за мачтой
+    ctx.strokeStyle='rgba(60,40,20,0.55)'; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.moveTo(cx, topY+4); ctx.lineTo(cx-70, seamY-4); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(cx, topY+4); ctx.lineTo(cx+38, seamY-4); ctx.stroke();
+    // сама мачта + лёгкая текстура дерева
+    ctx.fillStyle='#4a2f18'; ctx.fillRect(cx-poleW/2, topY, poleW, poleH);
+    ctx.strokeStyle='rgba(0,0,0,0.25)'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(cx-2,topY); ctx.lineTo(cx-2,seamY); ctx.stroke();
+    // парус
+    ctx.fillStyle='rgba(238,231,210,0.94)';
     ctx.beginPath();
-    ctx.moveTo(cx, seamY-poleH+6);
-    ctx.lineTo(cx+66, seamY-poleH+38);
-    ctx.lineTo(cx, seamY-poleH+92);
+    ctx.moveTo(cx, topY+6);
+    ctx.lineTo(cx+66, topY+38);
+    ctx.lineTo(cx, topY+92);
     ctx.closePath(); ctx.fill();
     ctx.strokeStyle='rgba(0,0,0,0.25)'; ctx.lineWidth=1.5; ctx.stroke();
+    // вымпел на верхушке, слегка колышется
+    const flutter = Math.sin(t*0.004)*6;
+    ctx.fillStyle='#a02020';
+    ctx.beginPath();
+    ctx.moveTo(cx, topY-2); ctx.lineTo(cx+26+flutter, topY+4); ctx.lineTo(cx, topY+10);
+    ctx.closePath(); ctx.fill();
   } else if(type==='barrel'){
     const w=46,h=54;
-    ctx.fillStyle='#8a5a2b'; ctx.fillRect(cx-w/2, seamY-h, w, h);
-    ctx.strokeStyle='#3d2510'; ctx.lineWidth=4;
+    const grad = ctx.createLinearGradient(cx-w/2,0,cx+w/2,0);
+    grad.addColorStop(0,'#6e431f'); grad.addColorStop(0.5,'#9a662f'); grad.addColorStop(1,'#6e431f');
+    ctx.fillStyle=grad; ctx.fillRect(cx-w/2, seamY-h, w, h);
+    ctx.strokeStyle='#3d2510'; ctx.lineWidth=2;
+    for(let i=1;i<4;i++){ ctx.beginPath(); ctx.moveTo(cx-w/2+i*(w/4), seamY-h); ctx.lineTo(cx-w/2+i*(w/4), seamY); ctx.stroke(); }
+    ctx.lineWidth=4;
     ctx.strokeRect(cx-w/2, seamY-h+8, w, 6);
     ctx.strokeRect(cx-w/2, seamY-6-6, w, 6);
   } else if(type==='rope'){
     ctx.strokeStyle='#c9a86a'; ctx.lineWidth=5;
     ctx.beginPath(); ctx.arc(cx, seamY-22, 17, 0, Math.PI*2); ctx.stroke();
     ctx.beginPath(); ctx.arc(cx, seamY-22, 9, 0, Math.PI*2); ctx.stroke();
+    ctx.strokeStyle='rgba(0,0,0,0.2)'; ctx.lineWidth=1.5;
+    ctx.beginPath(); ctx.arc(cx, seamY-22, 13, 0.3, Math.PI*1.3); ctx.stroke();
+  } else if(type==='wheel'){
+    const r=26;
+    ctx.strokeStyle='#3d2510'; ctx.lineWidth=5;
+    ctx.beginPath(); ctx.arc(cx, seamY-r-4, r, 0, Math.PI*2); ctx.stroke();
+    ctx.fillStyle='#3d2510';
+    for(let a=0;a<8;a++){
+      const ang = a*Math.PI/4;
+      ctx.save(); ctx.translate(cx, seamY-r-4); ctx.rotate(ang);
+      ctx.fillRect(-3, -r-6, 6, 12);
+      ctx.restore();
+    }
+    ctx.fillStyle='#6e431f'; ctx.beginPath(); ctx.arc(cx, seamY-r-4, 7, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle='#4a2f18'; ctx.fillRect(cx-5, seamY-10, 10, 10);
   }
 }
 // фиксированные позиции палубного реквизита — корабль статичен, ничего не проезжает мимо
 const SHIP_PROPS_FIXED = [
-  { type:'barrel', xr:0.15 },
-  { type:'mast',   xr:0.50 },
-  { type:'rope',   xr:0.82 },
+  { type:'barrel', xr:0.12 },
+  { type:'wheel',  xr:0.30 },
+  { type:'mast',   xr:0.58 },
+  { type:'rope',   xr:0.88 },
 ];
+function drawWaveBand(yTop, yBot, freq, phase, fillTop, fillBot){
+  ctx.beginPath();
+  ctx.moveTo(-40, yTop + Math.sin(-40*freq+phase)*(yBot-yTop)*0.5);
+  for(let x=-40; x<=CW+40; x+=8){
+    const yy = yTop + Math.sin(x*freq+phase)*(yBot-yTop)*0.5 + Math.sin(x*freq*2.3+phase*1.7)*(yBot-yTop)*0.15;
+    ctx.lineTo(x,yy);
+  }
+  ctx.lineTo(CW+40, yBot+30); ctx.lineTo(-40, yBot+30); ctx.closePath();
+  const g = ctx.createLinearGradient(0,yTop,0,yBot+30);
+  g.addColorStop(0,fillTop); g.addColorStop(1,fillBot);
+  ctx.fillStyle = g; ctx.fill();
+}
 function drawWaveLine(y, amp, freq, phase, color, lineW){
   ctx.strokeStyle=color; ctx.lineWidth=lineW; ctx.beginPath();
   for(let x=-40; x<=CW+40; x+=8){
@@ -350,6 +396,12 @@ function drawWaveLine(y, amp, freq, phase, color, lineW){
     if(x===-40) ctx.moveTo(x,yy); else ctx.lineTo(x,yy);
   }
   ctx.stroke();
+  // мелкие штрихи пены на гребне волны — прерывистая текстура вместо ровной линии
+  ctx.strokeStyle=color; ctx.lineWidth=lineW*0.6;
+  for(let x=-40; x<=CW+40; x+=22){
+    const yy = y + Math.sin(x*freq+phase)*amp + Math.sin(x*freq*2.3+phase*1.7)*amp*0.3;
+    ctx.beginPath(); ctx.moveTo(x, yy-1); ctx.lineTo(x+8, yy-1); ctx.stroke();
+  }
 }
 // простой детерминированный псевдослучайный шум (без Math.random, чтобы блики
 // не "прыгали" каждый кадр — только плавно мерцают по sin(t))
@@ -365,6 +417,13 @@ function drawBGShip(t){
   const sky = ctx.createLinearGradient(0,WALL_TOP,0,horizonY);
   sky.addColorStop(0,'#5fb3e8'); sky.addColorStop(0.65,'#a9deff'); sky.addColorStop(1,'#f3fbff');
   ctx.fillStyle=sky; ctx.fillRect(0,WALL_TOP,CW,horizonY-WALL_TOP);
+
+  // солнце — мягкое свечение у горизонта
+  const sunX = CW*0.74, sunY = horizonY-4;
+  const sunGlow = ctx.createRadialGradient(sunX,sunY,4, sunX,sunY,70);
+  sunGlow.addColorStop(0,'rgba(255,250,220,0.9)'); sunGlow.addColorStop(0.4,'rgba(255,240,190,0.35)'); sunGlow.addColorStop(1,'rgba(255,240,190,0)');
+  ctx.fillStyle=sunGlow; ctx.beginPath(); ctx.arc(sunX,sunY,70,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='rgba(255,252,235,0.95)'; ctx.beginPath(); ctx.arc(sunX,sunY,16,0,Math.PI*2); ctx.fill();
 
   // облака — медленно плывут по небу (петлёй по ширине экрана)
   ctx.fillStyle='rgba(255,255,255,0.75)';
@@ -389,8 +448,11 @@ function drawBGShip(t){
   ctx.fillStyle=glare; ctx.fillRect(0,horizonY,CW,40);
 
   // волны — несколько рядов, анимируются по времени (не по позиции корабля —
-  // корабль стоит на месте, волны "текут" сами по себе)
+  // корабль стоит на месте, волны "текут" сами по себе). Под каждой линией —
+  // залитая полупрозрачная "пенная" полоса для объёма, а не просто штрих.
   const seaH = seamY-horizonY;
+  drawWaveBand(horizonY+seaH*0.60, horizonY+seaH*0.66, 0.013, t*0.0006+4, 'rgba(255,255,255,0.16)', 'rgba(255,255,255,0)');
+  drawWaveBand(horizonY+seaH*0.80, horizonY+seaH*0.87, 0.011, -t*0.0005+6, 'rgba(255,255,255,0.22)', 'rgba(255,255,255,0)');
   drawWaveLine(horizonY+seaH*0.22, 3, 0.020, t*0.0009, 'rgba(255,255,255,0.30)', 2);
   drawWaveLine(horizonY+seaH*0.42, 4.5, 0.016, -t*0.0007+2, 'rgba(255,255,255,0.40)', 2.5);
   drawWaveLine(horizonY+seaH*0.63, 6, 0.013, t*0.0006+4, 'rgba(255,255,255,0.5)', 3);
@@ -410,22 +472,38 @@ function drawBGShip(t){
   ctx.fillStyle='#5e371b'; ctx.fillRect(0, seamY-14, CW, 14);
   ctx.strokeStyle='rgba(0,0,0,0.3)'; ctx.lineWidth=2; ctx.strokeRect(0, seamY-14, CW, 14);
 
-  // палуба — доски со швами, ФИКСИРОВАНЫ (корабль не едет)
+  // палуба — доски со швами и лёгкой текстурой волокон, ФИКСИРОВАНЫ (корабль не едет)
   ctx.imageSmoothingEnabled = false;
   ctx.fillStyle='#7a4a26'; ctx.fillRect(0, seamY, CW, floorH);
-  const plankH = 34;
-  ctx.strokeStyle='rgba(0,0,0,0.3)'; ctx.lineWidth=2;
+  const plankH = 34, plankW = 58;
+  for(let row=0, y=seamY; y<CH; y+=plankH, row++){
+    const rowOffset = (row%2)*(plankW/2);
+    for(let x=-rowOffset; x<CW; x+=plankW){
+      // волокна доски — тонкие горизонтальные штрихи разной длины
+      ctx.strokeStyle='rgba(0,0,0,0.12)'; ctx.lineWidth=1;
+      for(let k=0;k<3;k++){
+        const fy = y+6+k*9;
+        ctx.beginPath(); ctx.moveTo(x+6, fy); ctx.lineTo(x+plankW-10-k*6, fy); ctx.stroke();
+      }
+      // заклёпки по углам доски
+      ctx.fillStyle='rgba(0,0,0,0.35)';
+      ctx.fillRect(x+5, y+5, 2, 2); ctx.fillRect(x+plankW-8, y+5, 2, 2);
+    }
+  }
+  ctx.strokeStyle='rgba(0,0,0,0.32)'; ctx.lineWidth=2;
   for(let y=seamY+plankH; y<CH; y+=plankH){
     ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(CW,y); ctx.stroke();
   }
-  ctx.strokeStyle='rgba(0,0,0,0.18)'; ctx.lineWidth=1.5;
-  const plankW = 58;
-  for(let x=0; x<CW; x+=plankW){
-    ctx.beginPath(); ctx.moveTo(x, seamY); ctx.lineTo(x, CH); ctx.stroke();
+  ctx.strokeStyle='rgba(0,0,0,0.2)'; ctx.lineWidth=1.5;
+  for(let row=0, y=seamY; y<CH; y+=plankH, row++){
+    const rowOffset = (row%2)*(plankW/2);
+    for(let x=-rowOffset; x<CW; x+=plankW){
+      ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, Math.min(y+plankH,CH)); ctx.stroke();
+    }
   }
 
-  // мачта/бочка/канат — стоят на фиксированных местах на палубе
-  SHIP_PROPS_FIXED.forEach(p => drawShipProp(p.type, p.xr*CW, seamY));
+  // мачта/бочка/штурвал/канат — стоят на фиксированных местах на палубе
+  SHIP_PROPS_FIXED.forEach(p => drawShipProp(p.type, p.xr*CW, seamY, t));
 
   drawSeamAndVignette(seamY, areaH);
 }
