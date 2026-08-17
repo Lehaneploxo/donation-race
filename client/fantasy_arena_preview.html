@@ -225,6 +225,12 @@ startBattle();
 // по себе почти не читается как движение, а landmarks делают эффект однозначным.
 const tilesetImg = new Image(); tilesetImg.src = 'sprites/fantasy_arena/stage/Tilesetv3.png';
 const propsImg = new Image(); propsImg.src = "sprites/fantasy_arena/stage2/Fort of Illusion Files/Assets/Layers/all-props.png";
+// 4-слойный параллакс пещеры (ansimuz "Caverns Environment", CC — уже лежал
+// скачанный в проекте, просто не был подключён нигде)
+const caveP1 = new Image(); caveP1.src = 'sprites/fantasy_arena/stage3_cave_test/cave_p1.png'; // дальний фон (сплошной, без силуэта)
+const caveP2 = new Image(); caveP2.src = 'sprites/fantasy_arena/stage3_cave_test/cave_p2.png'; // дальние сталактиты
+const caveP3 = new Image(); caveP3.src = 'sprites/fantasy_arena/stage3_cave_test/cave_p3.png'; // средние сталактиты
+const caveP4 = new Image(); caveP4.src = 'sprites/fantasy_arena/stage3_cave_test/cave_p4.png'; // ближние сталактиты
 const TILE = 16;
 const TS = 3; // масштаб тайла (целое число — без мыла на пиксель-арте)
 const WALL_TILE = { sx: 6*TILE, sy: 15*TILE }; // однотонный тёмный камень стены
@@ -247,8 +253,9 @@ const PROP_SPACING = 300; // расстояние между декорация�
 const MAPS = [
   { key:'crypt', label:'🏰 Каменный склеп' },
   { key:'ship', label:'🚢 Корабль в море' },
+  { key:'cave', label:'🕯️ Пещера' },
 ];
-let currentMap = 'ship';
+let currentMap = 'cave';
 function renderMapPicks(){
   const el = document.getElementById('mapPicks');
   el.innerHTML = '';
@@ -292,6 +299,42 @@ function drawSeamAndVignette(seamY, areaH){
   vgrad.addColorStop(0,'rgba(0,0,0,0.5)'); vgrad.addColorStop(0.12,'rgba(0,0,0,0)');
   vgrad.addColorStop(0.88,'rgba(0,0,0,0)'); vgrad.addColorStop(1,'rgba(0,0,0,0.5)');
   ctx.fillStyle=vgrad; ctx.fillRect(0,WALL_TOP,CW,areaH);
+}
+
+// ---------- background: пещера (готовый 4-слойный параллакс ansimuz "Caverns
+// Environment", CC — уже лежал скачанный в проекте, просто не был подключён)
+// Целочисленный масштаб CAVE_SCALE=TS — картинки НЕ тянутся под всю высоту
+// стены (как было с отклонённым Fort of Illusion, где 2.7x растяжение
+// мылило картинку): слои рисуются в своём разрешении, прижаты к низу (к
+// стыку с полом), а зазор сверху (если стена выше слоя) закрашен ровным
+// цветом неба — шва не видно.
+const CAVE_SCALE = TS;
+const CAVE_SKY_COLOR = '#5c85ab';
+const CAVE_FLOOR_COLOR = '#3a3244';
+function drawCaveLayer(img, bottomY, speedFactor){
+  if(!img.complete || img.naturalWidth===0) return;
+  const dw = img.naturalWidth*CAVE_SCALE, dh = img.naturalHeight*CAVE_SCALE;
+  const y = bottomY - dh;
+  const off = ((scrollX*speedFactor % dw) + dw) % dw;
+  for(let x=-off; x<CW; x+=dw){
+    ctx.drawImage(img, x, y, dw, dh);
+  }
+}
+function drawBGCave(){
+  const areaH = CH-WALL_TOP;
+  const floorH = FLOOR_ROWS*TILE*TS;
+  const wallH = areaH - floorH;
+  const seamY = WALL_TOP+wallH;
+
+  ctx.fillStyle = CAVE_SKY_COLOR; ctx.fillRect(0, WALL_TOP, CW, wallH);
+  ctx.imageSmoothingEnabled = false;
+  drawCaveLayer(caveP1, seamY, 0.05);
+  drawCaveLayer(caveP2, seamY, 0.15);
+  drawCaveLayer(caveP3, seamY, 0.35);
+  drawCaveLayer(caveP4, seamY, 0.6);
+
+  ctx.fillStyle = CAVE_FLOOR_COLOR; ctx.fillRect(0, seamY, CW, floorH);
+  drawSeamAndVignette(seamY, areaH);
 }
 
 function drawBGCrypt(){
@@ -648,6 +691,7 @@ function drawBGShip(t){
 
 function drawBG(t){
   if(currentMap==='ship') drawBGShip(t);
+  else if(currentMap==='cave') drawBGCave();
   else drawBGCrypt();
 }
 
