@@ -18,8 +18,6 @@
 <div id="wrap">
   <canvas id="c" width="600" height="1000"></canvas>
   <div id="panel">
-    <div class="row" id="mapPicks"></div>
-    <div class="row" id="seaStylePicks"></div>
     <div class="row">
       <button onclick="startBattle()">↺ Новый бой</button>
     </div>
@@ -79,7 +77,7 @@ function spawnFighter(x){
   const keys = Object.keys(ROSTER);
   const charKey = keys[Math.floor(Math.random()*keys.length)];
   return {
-    charKey, x, tx:x, y:1010, facing: Math.random()<0.5?1:-1,
+    charKey, x, tx:x, y:945, facing: Math.random()<0.5?1:-1,
     anim:'idle', frame:0, t:0, animLockUntil:0,
     hp:100, maxHp:100,
     wanderPause: 200+Math.random()*800,
@@ -212,92 +210,24 @@ function updateBattle(now, dt){
 }
 startBattle();
 
-// ---------- map: тайловая подземная арена, собрана из Tilesetv3.png ----------
-// Fort of Illusion (готовая картинка 895x272) не подходила: под зону 600x726
-// её растягивало почти в 2.7 раза и обрезало по бокам — мылилась и превращалась
-// в случайный кусок стены. Тут вместо одной картинки — тайлы 16x16, отрисованные
-// на целом пиксельном масштабе (без дробного зума), поэтому чётко и без мыла,
-// и в том же стиле пиксель-арта, что и бойцы.
-//
-// "Ощущение движения" (по запросу) — стена+пол непрерывно скроллятся (scrollX),
-// плюс по стене периодически проезжают декорации (дверь/окно/знамя/факел/ворота
-// из Fort of Illusion Files/Assets/Layers/all-props.png) — однородный кирпич сам
-// по себе почти не читается как движение, а landmarks делают эффект однозначным.
-const tilesetImg = new Image(); tilesetImg.src = 'sprites/fantasy_arena/stage/Tilesetv3.png';
-const propsImg = new Image(); propsImg.src = "sprites/fantasy_arena/stage2/Fort of Illusion Files/Assets/Layers/all-props.png";
-// 4-слойный параллакс пещеры (ansimuz "Caverns Environment", CC — уже лежал
-// скачанный в проекте, просто не был подключён нигде)
-const caveP1 = new Image(); caveP1.src = 'sprites/fantasy_arena/stage3_cave_test/cave_p1.png'; // дальний фон (сплошной, без силуэта)
-const caveP2 = new Image(); caveP2.src = 'sprites/fantasy_arena/stage3_cave_test/cave_p2.png'; // дальние сталактиты
-const caveP3 = new Image(); caveP3.src = 'sprites/fantasy_arena/stage3_cave_test/cave_p3.png'; // средние сталактиты
-const caveP4 = new Image(); caveP4.src = 'sprites/fantasy_arena/stage3_cave_test/cave_p4.png'; // ближние сталактиты
-// готический коридор (ansimuz "Gothicvania Cold Corridors", free) — 5 слоёв
-// арок на разной глубине + отдельный тайл пола
+// ---------- background: готический зал (ansimuz "Gothicvania Cold Corridors",
+// free — use in commercial projects, credit not required) — 5 слоёв арок на
+// разной глубине (back/far/middle/near/foreground) + отдельный тайл пола.
+// Единственная карта в игре (остальные варианты — склеп/корабль/пещера —
+// отклонены и удалены по прямому запросу).
+const TILE = 16;
+const TS = 3; // масштаб пикселя (не используется тайлсетом коридора, оставлен для FLOOR_ROWS)
+const FLOOR_ROWS = 4; // высота пола в "тайлах" — задаёт floorH для всех расчётов позиций
+
 const CORRIDOR_DIR = "sprites/fantasy_arena/stage5_corridor/Cold Corridors Files/Assets/Layers";
 const corridorLayerNames = ['back','far','middle','near','foreground'];
 const corridorLayers = corridorLayerNames.map(n => { const im = new Image(); im.src = `${CORRIDOR_DIR}/${n}.png`; return im; });
 const corridorTileset = new Image(); corridorTileset.src = `${CORRIDOR_DIR}/tileset.png`;
-const TILE = 16;
-const TS = 3; // масштаб тайла (целое число — без мыла на пиксель-арте)
-const WALL_TILE = { sx: 6*TILE, sy: 15*TILE }; // однотонный тёмный камень стены
-const FLOOR_TILE = { sx: 6*TILE, sy: 20*TILE }; // светлее каменный пол
-const FLOOR_ROWS = 4; // сколько тайлов пола (в высоту) отвести под пол
 
-const SCROLL_SPEED = 42; // px/сек — скорость "движения" карты
+const SCROLL_SPEED = 42; // px/сек — скорость "движения" сквозь коридор
 let scrollX = 0;
 
-// вырезки из all-props.png (координаты сняты через сеточный инспектор по факту)
-const PROPS = [
-  { sx:0,   sy:160, sw:96, sh:64,  scale:2.1, anchor:'bottom' }, // дверь закрытая
-  { sx:160, sy:150, sw:32, sh:170, scale:2.1, anchor:'bottom' }, // факел на шесте + знамя
-  { sx:112, sy:160, sw:32, sh:48,  scale:2.1, anchor:'bottom' }, // окно витражное
-  { sx:144, sy:80,  sw:48, sh:48,  scale:2.1, anchor:'top' },    // знамя на стене
-  { sx:240, sy:160, sw:64, sh:64,  scale:2.1, anchor:'bottom' }, // открытые ворота
-];
-const PROP_SPACING = 300; // расстояние между декорациями в "мировых" пикселях
-
-const MAPS = [
-  { key:'crypt', label:'🏰 Каменный склеп' },
-  { key:'ship', label:'🚢 Корабль в море' },
-  { key:'cave', label:'🕯️ Пещера' },
-  { key:'corridor', label:'⛪ Готический зал' },
-];
-let currentMap = 'corridor';
-function renderMapPicks(){
-  const el = document.getElementById('mapPicks');
-  el.innerHTML = '';
-  MAPS.forEach(m=>{
-    const b = document.createElement('button');
-    b.textContent = m.label;
-    if(m.key===currentMap) b.classList.add('active');
-    b.onclick = ()=>{ currentMap = m.key; renderMapPicks(); renderSeaStylePicks(); };
-    el.appendChild(b);
-  });
-}
-renderMapPicks();
-
-// два варианта отрисовки моря на пробу — пользователь просил показать
-// несколько подходов и сравнить вживую, а не гадать какой понравится
-const SEA_STYLES = [
-  { key:'pixel', label:'🧊 Пиксельная вода' },
-  { key:'smooth', label:'🎨 Гладкая (текущая)' },
-];
-let seaStyle = 'pixel';
-function renderSeaStylePicks(){
-  const el = document.getElementById('seaStylePicks');
-  el.innerHTML = '';
-  if(currentMap!=='ship') return;
-  SEA_STYLES.forEach(s=>{
-    const b = document.createElement('button');
-    b.textContent = s.label;
-    if(s.key===seaStyle) b.classList.add('active');
-    b.onclick = ()=>{ seaStyle = s.key; renderSeaStylePicks(); };
-    el.appendChild(b);
-  });
-}
-renderSeaStylePicks();
-
-// ---------- background: общая для обеих карт часть (тень стыка + виньетка) ----------
+// ---------- background: тень стыка + виньетка (общая отрисовка глубины) ----------
 function drawSeamAndVignette(seamY, areaH){
   const seam = ctx.createLinearGradient(0,seamY-24,0,seamY+10);
   seam.addColorStop(0,'rgba(0,0,0,0)'); seam.addColorStop(1,'rgba(0,0,0,0.55)');
@@ -308,47 +238,9 @@ function drawSeamAndVignette(seamY, areaH){
   ctx.fillStyle=vgrad; ctx.fillRect(0,WALL_TOP,CW,areaH);
 }
 
-// ---------- background: пещера (готовый 4-слойный параллакс ansimuz "Caverns
-// Environment", CC — уже лежал скачанный в проекте, просто не был подключён)
-// Целочисленный масштаб CAVE_SCALE=TS — картинки НЕ тянутся под всю высоту
-// стены (как было с отклонённым Fort of Illusion, где 2.7x растяжение
-// мылило картинку): слои рисуются в своём разрешении, прижаты к низу (к
-// стыку с полом), а зазор сверху (если стена выше слоя) закрашен ровным
-// цветом неба — шва не видно.
-const CAVE_SCALE = TS;
-const CAVE_SKY_COLOR = '#5c85ab';
-const CAVE_FLOOR_COLOR = '#3a3244';
-function drawCaveLayer(img, bottomY, speedFactor){
-  if(!img.complete || img.naturalWidth===0) return;
-  const dw = img.naturalWidth*CAVE_SCALE, dh = img.naturalHeight*CAVE_SCALE;
-  const y = bottomY - dh;
-  const off = ((scrollX*speedFactor % dw) + dw) % dw;
-  for(let x=-off; x<CW; x+=dw){
-    ctx.drawImage(img, x, y, dw, dh);
-  }
-}
-function drawBGCave(){
-  const areaH = CH-WALL_TOP;
-  const floorH = FLOOR_ROWS*TILE*TS;
-  const wallH = areaH - floorH;
-  const seamY = WALL_TOP+wallH;
-
-  ctx.fillStyle = CAVE_SKY_COLOR; ctx.fillRect(0, WALL_TOP, CW, wallH);
-  ctx.imageSmoothingEnabled = false;
-  drawCaveLayer(caveP1, seamY, 0.05);
-  drawCaveLayer(caveP2, seamY, 0.15);
-  drawCaveLayer(caveP3, seamY, 0.35);
-  drawCaveLayer(caveP4, seamY, 0.6);
-
-  ctx.fillStyle = CAVE_FLOOR_COLOR; ctx.fillRect(0, seamY, CW, floorH);
-  drawSeamAndVignette(seamY, areaH);
-}
-
-// ---------- background: готический зал (ansimuz "Gothicvania Cold Corridors",
-// free) — 5 слоёв арок на разной глубине (back/far/middle/near/foreground) +
-// отдельный тайл пола. Целочисленный масштаб CORRIDOR_SCALE=2 (не 3, как у
-// пещеры/склепа — при 3x слои 224px высотой не влезали бы разумно), слои
-// прижаты к низу (к стыку с полом), зазор сверху закрашен ровным цветом.
+// Целочисленный масштаб CORRIDOR_SCALE=2 (слои 224px высотой), слои прижаты
+// к низу (к стыку с полом), зазор сверху закрашен ровным цветом — без
+// растягивания картинки под произвольную высоту (мылит пиксель-арт).
 const CORRIDOR_SCALE = 2;
 const CORRIDOR_SKY_COLOR = '#1a0f52';
 const CORRIDOR_FLOOR_COLOR = '#6b4a8f';
@@ -362,7 +254,7 @@ function drawCorridorLayer(img, bottomY, speedFactor){
     ctx.drawImage(img, x, y, dw, dh);
   }
 }
-function drawBGCorridor(){
+function drawBG(){
   const areaH = CH-WALL_TOP;
   const floorH = FLOOR_ROWS*TILE*TS;
   const wallH = areaH - floorH;
@@ -381,365 +273,6 @@ function drawBGCorridor(){
     }
   }
   drawSeamAndVignette(seamY, areaH);
-}
-
-function drawBGCrypt(){
-  ctx.fillStyle='#0a0e18'; ctx.fillRect(0,WALL_TOP,CW,CH-WALL_TOP);
-  if(!tilesetImg.complete || tilesetImg.naturalWidth===0) return;
-  ctx.imageSmoothingEnabled = false;
-  const step = TILE*TS;
-  const areaH = CH-WALL_TOP;
-  const floorH = FLOOR_ROWS*step;
-  const wallH = areaH - floorH;
-  const seamY = WALL_TOP+wallH;
-  const scrollOff = ((scrollX % step) + step) % step;
-  // стена
-  for(let y=WALL_TOP; y<WALL_TOP+wallH; y+=step){
-    for(let x=-scrollOff; x<CW; x+=step){
-      ctx.drawImage(tilesetImg, WALL_TILE.sx, WALL_TILE.sy, TILE, TILE, x, y, step, step);
-    }
-  }
-  // пол
-  for(let y=WALL_TOP+wallH; y<CH; y+=step){
-    for(let x=-scrollOff; x<CW; x+=step){
-      ctx.drawImage(tilesetImg, FLOOR_TILE.sx, FLOOR_TILE.sy, TILE, TILE, x, y, step, step);
-    }
-  }
-  // декорации, проезжающие по стене (создают однозначное ощущение движения)
-  if(propsImg.complete && propsImg.naturalWidth>0){
-    const firstIdx = Math.floor((scrollX-150)/PROP_SPACING);
-    for(let i=firstIdx; i*PROP_SPACING - scrollX < CW+150; i++){
-      const p = PROPS[((i%PROPS.length)+PROPS.length)%PROPS.length];
-      const cx = i*PROP_SPACING - scrollX;
-      const dw = p.sw*p.scale, dh = p.sh*p.scale;
-      const dy = p.anchor==='bottom' ? seamY-dh : WALL_TOP+6;
-      ctx.drawImage(propsImg, p.sx, p.sy, p.sw, p.sh, cx-dw/2, dy, dw, dh);
-    }
-  }
-  drawSeamAndVignette(seamY, areaH);
-}
-
-// ---------- background: корабль в море (полностью процедурная отрисовка, без
-// внешних спрайтов). По прямому уточнению пользователя: сам корабль (палуба,
-// мачта, борт) полностью неподвижен — ни скролла, ни покачивания сцены
-// (было раньше, но отклонено — корабль не должен "ходить как на волнах").
-// Двигается только море: волны и блики анимируются по времени t.
-function drawShipProp(type, cx, seamY, t){
-  if(type==='mast'){
-    const poleW=10, poleH=(seamY-WALL_TOP)*0.92, topY=seamY-poleH;
-    // такелаж — растяжки от вершины мачты к палубе, за мачтой
-    ctx.strokeStyle='rgba(60,40,20,0.55)'; ctx.lineWidth=2;
-    ctx.beginPath(); ctx.moveTo(cx, topY+4); ctx.lineTo(cx-70, seamY-4); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(cx, topY+4); ctx.lineTo(cx+38, seamY-4); ctx.stroke();
-    // сама мачта + лёгкая текстура дерева
-    ctx.fillStyle='#4a2f18'; ctx.fillRect(cx-poleW/2, topY, poleW, poleH);
-    ctx.strokeStyle='rgba(0,0,0,0.25)'; ctx.lineWidth=1;
-    ctx.beginPath(); ctx.moveTo(cx-2,topY); ctx.lineTo(cx-2,seamY); ctx.stroke();
-    // парус
-    ctx.fillStyle='rgba(238,231,210,0.94)';
-    ctx.beginPath();
-    ctx.moveTo(cx, topY+6);
-    ctx.lineTo(cx+66, topY+38);
-    ctx.lineTo(cx, topY+92);
-    ctx.closePath(); ctx.fill();
-    ctx.strokeStyle='rgba(0,0,0,0.25)'; ctx.lineWidth=1.5; ctx.stroke();
-    // вымпел на верхушке, слегка колышется
-    const flutter = Math.sin(t*0.004)*6;
-    ctx.fillStyle='#a02020';
-    ctx.beginPath();
-    ctx.moveTo(cx, topY-2); ctx.lineTo(cx+26+flutter, topY+4); ctx.lineTo(cx, topY+10);
-    ctx.closePath(); ctx.fill();
-  } else if(type==='barrel'){
-    const w=46,h=54;
-    const grad = ctx.createLinearGradient(cx-w/2,0,cx+w/2,0);
-    grad.addColorStop(0,'#6e431f'); grad.addColorStop(0.5,'#9a662f'); grad.addColorStop(1,'#6e431f');
-    ctx.fillStyle=grad; ctx.fillRect(cx-w/2, seamY-h, w, h);
-    ctx.strokeStyle='#3d2510'; ctx.lineWidth=2;
-    for(let i=1;i<4;i++){ ctx.beginPath(); ctx.moveTo(cx-w/2+i*(w/4), seamY-h); ctx.lineTo(cx-w/2+i*(w/4), seamY); ctx.stroke(); }
-    ctx.lineWidth=4;
-    ctx.strokeRect(cx-w/2, seamY-h+8, w, 6);
-    ctx.strokeRect(cx-w/2, seamY-6-6, w, 6);
-  } else if(type==='rope'){
-    ctx.strokeStyle='#c9a86a'; ctx.lineWidth=5;
-    ctx.beginPath(); ctx.arc(cx, seamY-22, 17, 0, Math.PI*2); ctx.stroke();
-    ctx.beginPath(); ctx.arc(cx, seamY-22, 9, 0, Math.PI*2); ctx.stroke();
-    ctx.strokeStyle='rgba(0,0,0,0.2)'; ctx.lineWidth=1.5;
-    ctx.beginPath(); ctx.arc(cx, seamY-22, 13, 0.3, Math.PI*1.3); ctx.stroke();
-  } else if(type==='wheel'){
-    const r=26;
-    ctx.strokeStyle='#3d2510'; ctx.lineWidth=5;
-    ctx.beginPath(); ctx.arc(cx, seamY-r-4, r, 0, Math.PI*2); ctx.stroke();
-    ctx.fillStyle='#3d2510';
-    for(let a=0;a<8;a++){
-      const ang = a*Math.PI/4;
-      ctx.save(); ctx.translate(cx, seamY-r-4); ctx.rotate(ang);
-      ctx.fillRect(-3, -r-6, 6, 12);
-      ctx.restore();
-    }
-    ctx.fillStyle='#6e431f'; ctx.beginPath(); ctx.arc(cx, seamY-r-4, 7, 0, Math.PI*2); ctx.fill();
-    ctx.fillStyle='#4a2f18'; ctx.fillRect(cx-5, seamY-10, 10, 10);
-  }
-}
-// фиксированные позиции палубного реквизита — корабль статичен, ничего не проезжает мимо
-const SHIP_PROPS_FIXED = [
-  { type:'barrel', xr:0.12 },
-  { type:'wheel',  xr:0.30 },
-  { type:'mast',   xr:0.58 },
-  { type:'rope',   xr:0.88 },
-];
-function drawWaveBand(yTop, yBot, freq, phase, fillTop, fillBot){
-  ctx.beginPath();
-  ctx.moveTo(-40, yTop + Math.sin(-40*freq+phase)*(yBot-yTop)*0.5);
-  for(let x=-40; x<=CW+40; x+=8){
-    const yy = yTop + Math.sin(x*freq+phase)*(yBot-yTop)*0.5 + Math.sin(x*freq*2.3+phase*1.7)*(yBot-yTop)*0.15;
-    ctx.lineTo(x,yy);
-  }
-  ctx.lineTo(CW+40, yBot+30); ctx.lineTo(-40, yBot+30); ctx.closePath();
-  const g = ctx.createLinearGradient(0,yTop,0,yBot+30);
-  g.addColorStop(0,fillTop); g.addColorStop(1,fillBot);
-  ctx.fillStyle = g; ctx.fill();
-}
-function drawWaveLine(y, amp, freq, phase, color, lineW){
-  ctx.strokeStyle=color; ctx.lineWidth=lineW; ctx.beginPath();
-  for(let x=-40; x<=CW+40; x+=8){
-    const yy = y + Math.sin(x*freq+phase)*amp + Math.sin(x*freq*2.3+phase*1.7)*amp*0.3;
-    if(x===-40) ctx.moveTo(x,yy); else ctx.lineTo(x,yy);
-  }
-  ctx.stroke();
-  // мелкие штрихи пены на гребне волны — прерывистая текстура вместо ровной линии
-  ctx.strokeStyle=color; ctx.lineWidth=lineW*0.6;
-  for(let x=-40; x<=CW+40; x+=22){
-    const yy = y + Math.sin(x*freq+phase)*amp + Math.sin(x*freq*2.3+phase*1.7)*amp*0.3;
-    ctx.beginPath(); ctx.moveTo(x, yy-1); ctx.lineTo(x+8, yy-1); ctx.stroke();
-  }
-}
-// простой детерминированный псевдослучайный шум (без Math.random, чтобы блики
-// не "прыгали" каждый кадр — только плавно мерцают по sin(t))
-function hashSeed(i){ const s = Math.sin(i*12.9898)*43758.5453; return s - Math.floor(s); }
-// Геометрия сцены и градиенты неба/моря зависят только от констант (CW/CH/
-// WALL_TOP/FLOOR_ROWS) — считаем и кэшируем один раз вместо пересоздания
-// градиентов каждый кадр (createLinearGradient/createRadialGradient — не
-// бесплатные вызовы, а на телефоне лишняя работа 60 раз в секунду заметна).
-let deckTextureCache = null;
-function getDeckTexture(floorH){
-  if(deckTextureCache) return deckTextureCache;
-  const off = document.createElement('canvas');
-  off.width = CW; off.height = floorH;
-  const octx = off.getContext('2d');
-  octx.fillStyle='#7a4a26'; octx.fillRect(0,0,CW,floorH);
-  const plankH = 34, plankW = 58;
-  for(let row=0, y=0; y<floorH; y+=plankH, row++){
-    const rowOffset = (row%2)*(plankW/2);
-    for(let x=-rowOffset; x<CW; x+=plankW){
-      octx.strokeStyle='rgba(0,0,0,0.12)'; octx.lineWidth=1;
-      for(let k=0;k<3;k++){
-        const fy = y+6+k*9;
-        octx.beginPath(); octx.moveTo(x+6, fy); octx.lineTo(x+plankW-10-k*6, fy); octx.stroke();
-      }
-      octx.fillStyle='rgba(0,0,0,0.35)';
-      octx.fillRect(x+5, y+5, 2, 2); octx.fillRect(x+plankW-8, y+5, 2, 2);
-    }
-  }
-  octx.strokeStyle='rgba(0,0,0,0.32)'; octx.lineWidth=2;
-  for(let y=plankH; y<floorH; y+=plankH){
-    octx.beginPath(); octx.moveTo(0,y); octx.lineTo(CW,y); octx.stroke();
-  }
-  octx.strokeStyle='rgba(0,0,0,0.2)'; octx.lineWidth=1.5;
-  for(let row=0, y=0; y<floorH; y+=plankH, row++){
-    const rowOffset = (row%2)*(plankW/2);
-    for(let x=-rowOffset; x<CW; x+=plankW){
-      octx.beginPath(); octx.moveTo(x, y); octx.lineTo(x, Math.min(y+plankH,floorH)); octx.stroke();
-    }
-  }
-  deckTextureCache = off;
-  return off;
-}
-// пиксельная вода: бесшовный дизерный тайл (частоты волн — целые числа периодов
-// на тайл, поэтому при повторении швов не видно), тот же пиксельный масштаб TS,
-// что и у остальной графики — в отличие от гладких canvas-градиентов/кривых,
-// это реально пиксель-арт текстура, а не вектор поверх пиксельных спрайтов.
-let seaTileCache = null;
-function getSeaTile(){
-  if(seaTileCache) return seaTileCache;
-  const N = 16;
-  const off = document.createElement('canvas'); off.width=N; off.height=N;
-  const octx = off.getContext('2d');
-  const img = octx.createImageData(N,N);
-  const palette = [[8,54,79],[13,79,107],[24,116,148],[54,157,189],[140,210,227]];
-  for(let y=0;y<N;y++){
-    for(let x=0;x<N;x++){
-      const wave = Math.sin((x/N)*Math.PI*2*2 + (y/N)*Math.PI*2) + Math.sin((y/N)*Math.PI*2*3 - (x/N)*Math.PI*2*0.5)*0.6;
-      let idx = Math.round(((wave+1.6)/3.2)*(palette.length-1));
-      idx = Math.max(0, Math.min(palette.length-1, idx));
-      const [r,g,b] = palette[idx];
-      const p = (y*N+x)*4;
-      img.data[p]=r; img.data[p+1]=g; img.data[p+2]=b; img.data[p+3]=255;
-    }
-  }
-  octx.putImageData(img,0,0);
-  seaTileCache = { canvas: off, size: N };
-  return seaTileCache;
-}
-function drawSeaPixel(horizonY, seamY, t){
-  const { canvas: tile, size:N } = getSeaTile();
-  const step = N*TS;
-  ctx.imageSmoothingEnabled = false;
-  const scroll1 = ((t*0.018) % step + step) % step;
-  for(let y=horizonY; y<seamY; y+=step){
-    for(let x=-scroll1; x<CW+step; x+=step){
-      ctx.drawImage(tile, 0,0,N,N, x, y, step, step);
-    }
-  }
-  // второй, более медленный слой поверх (полупрозрачный) — рябь в две "фазы"
-  // читается живее, чем один статичный узор
-  ctx.globalAlpha = 0.35;
-  const scroll2 = ((-t*0.011 + step/2) % step + step) % step;
-  for(let y=horizonY-step/2; y<seamY; y+=step){
-    for(let x=-scroll2; x<CW+step; x+=step){
-      ctx.drawImage(tile, 0,0,N,N, x, y, step, step);
-    }
-  }
-  ctx.globalAlpha = 1;
-  // светлее у горизонта, темнее у борта — ощущение глубины
-  const seaH = seamY-horizonY;
-  const depthGrad = ctx.createLinearGradient(0,horizonY,0,seamY);
-  depthGrad.addColorStop(0,'rgba(210,245,255,0.28)');
-  depthGrad.addColorStop(0.25,'rgba(210,245,255,0)');
-  depthGrad.addColorStop(1,'rgba(2,15,25,0.4)');
-  ctx.fillStyle=depthGrad; ctx.fillRect(0,horizonY,CW,seaH);
-}
-let shipBgCache = null;
-function getShipBgCache(){
-  if(shipBgCache) return shipBgCache;
-  const areaH = CH-WALL_TOP;
-  const floorH = FLOOR_ROWS*TILE*TS;
-  const wallH = areaH - floorH;
-  const seamY = WALL_TOP+wallH;
-  const horizonY = WALL_TOP + wallH*0.42;
-  const sunX = CW*0.74, sunY = horizonY-4;
-
-  const sky = ctx.createLinearGradient(0,WALL_TOP,0,horizonY);
-  sky.addColorStop(0,'#5fb3e8'); sky.addColorStop(0.65,'#a9deff'); sky.addColorStop(1,'#f3fbff');
-
-  const sunGlow = ctx.createRadialGradient(sunX,sunY,4, sunX,sunY,70);
-  sunGlow.addColorStop(0,'rgba(255,250,220,0.9)'); sunGlow.addColorStop(0.4,'rgba(255,240,190,0.35)'); sunGlow.addColorStop(1,'rgba(255,240,190,0)');
-
-  const sea = ctx.createLinearGradient(0,horizonY,0,seamY);
-  sea.addColorStop(0,'#4fb8d6'); sea.addColorStop(0.15,'#1f8fb8');
-  sea.addColorStop(0.55,'#136f96'); sea.addColorStop(1,'#0a3f5c');
-
-  const glare = ctx.createLinearGradient(0,horizonY,0,horizonY+40);
-  glare.addColorStop(0,'rgba(255,255,255,0.55)'); glare.addColorStop(1,'rgba(255,255,255,0)');
-
-  shipBgCache = { areaH, floorH, wallH, seamY, horizonY, sunX, sunY, sky, sunGlow, sea, glare };
-  return shipBgCache;
-}
-function drawBGShip(t){
-  const { areaH, floorH, seamY, horizonY, sunX, sunY, sky, sunGlow, sea, glare } = getShipBgCache();
-
-  // небо с мягким свечением у горизонта
-  ctx.fillStyle=sky; ctx.fillRect(0,WALL_TOP,CW,horizonY-WALL_TOP);
-
-  // солнце — мягкое свечение у горизонта
-  ctx.fillStyle=sunGlow; ctx.beginPath(); ctx.arc(sunX,sunY,70,0,Math.PI*2); ctx.fill();
-  ctx.fillStyle='rgba(255,252,235,0.95)'; ctx.beginPath(); ctx.arc(sunX,sunY,16,0,Math.PI*2); ctx.fill();
-
-  // облака — медленно плывут по небу (петлёй по ширине экрана)
-  ctx.fillStyle='rgba(255,255,255,0.75)';
-  const cloudDrift = (t*0.006);
-  [[0.12,0.35,34],[0.55,0.22,44],[0.85,0.5,28]].forEach(([xr,yr,r],i)=>{
-    const cx = ((xr*CW + cloudDrift*(0.4+i*0.2)) % (CW+160)) - 80;
-    const cy = WALL_TOP + (horizonY-WALL_TOP)*yr;
-    ctx.beginPath();
-    ctx.ellipse(cx, cy, r, r*0.55, 0, 0, Math.PI*2);
-    ctx.ellipse(cx+r*0.7, cy+r*0.12, r*0.65, r*0.4, 0, 0, Math.PI*2);
-    ctx.ellipse(cx-r*0.7, cy+r*0.15, r*0.55, r*0.35, 0, 0, Math.PI*2);
-    ctx.fill();
-  });
-
-  // море — два варианта на выбор (кнопки над картой): пиксельная дизерная
-  // текстура (в стиле остальной графики) или прежний гладкий вариант.
-  const seaH = seamY-horizonY;
-  if(seaStyle==='pixel'){
-    drawSeaPixel(horizonY, seamY, t);
-  } else {
-    ctx.fillStyle=sea; ctx.fillRect(0,horizonY,CW,seaH);
-    ctx.fillStyle=glare; ctx.fillRect(0,horizonY,CW,40);
-    // волны — несколько рядов, анимируются по времени (не по позиции корабля —
-    // корабль стоит на месте, волны "текут" сами по себе). Под каждой линией —
-    // залитая полупрозрачная "пенная" полоса для объёма, а не просто штрих.
-    drawWaveBand(horizonY+seaH*0.60, horizonY+seaH*0.66, 0.013, t*0.0006+4, 'rgba(255,255,255,0.16)', 'rgba(255,255,255,0)');
-    drawWaveBand(horizonY+seaH*0.80, horizonY+seaH*0.87, 0.011, -t*0.0005+6, 'rgba(255,255,255,0.22)', 'rgba(255,255,255,0)');
-    drawWaveLine(horizonY+seaH*0.22, 3, 0.020, t*0.0009, 'rgba(255,255,255,0.30)', 2);
-    drawWaveLine(horizonY+seaH*0.42, 4.5, 0.016, -t*0.0007+2, 'rgba(255,255,255,0.40)', 2.5);
-    drawWaveLine(horizonY+seaH*0.63, 6, 0.013, t*0.0006+4, 'rgba(255,255,255,0.5)', 3);
-    drawWaveLine(horizonY+seaH*0.85, 8, 0.011, -t*0.0005+6, 'rgba(255,255,255,0.65)', 3.5);
-  }
-
-  // блуждающие блики-каустики (мягкие размытые пятна) — только для гладкого
-  // стиля; на пиксельной воде такие вектор-блики смотрелись бы чужеродно
-  if(seaStyle!=='pixel'){
-    ctx.save();
-    ctx.globalCompositeOperation = 'lighter';
-    [[0.2,0.35],[0.5,0.6],[0.78,0.45]].forEach(([xr,yr],i)=>{
-      const px = ((xr*CW + t*0.012*(i%2?1:-1)) % (CW+120)) - 60;
-      const py = horizonY + yr*seaH;
-      const r = 26 + 6*Math.sin(t*0.0015+i*3);
-      const g = ctx.createRadialGradient(px,py,0, px,py,r);
-      g.addColorStop(0,'rgba(255,255,255,0.16)'); g.addColorStop(1,'rgba(255,255,255,0)');
-      ctx.fillStyle=g; ctx.beginPath(); ctx.arc(px,py,r,0,Math.PI*2); ctx.fill();
-    });
-    ctx.restore();
-  }
-
-  // блики — мерцающие точки на воде
-  for(let i=0;i<26;i++){
-    const rx = hashSeed(i), ry = hashSeed(i+100);
-    const px = rx*CW, py = horizonY + ry*seaH;
-    const tw = 0.5 + 0.5*Math.sin(t*0.003 + i*7.3);
-    if(tw < 0.55) continue;
-    ctx.fillStyle = `rgba(255,255,255,${(tw-0.55)*1.2})`;
-    ctx.fillRect(px, py, 3, 1.5);
-  }
-
-  // борт корабля — изогнутый деревянный борт (не прямая линия — читается как
-  // обшивка корпуса, а не забор) + пена вдоль ватерлинии + стойки поручня
-  const railBase = seamY-14;
-  const railY = x => railBase - 6*Math.sin((x/CW)*Math.PI);
-  ctx.fillStyle='#5e371b';
-  ctx.beginPath(); ctx.moveTo(0, railY(0));
-  for(let x=0;x<=CW;x+=10) ctx.lineTo(x, railY(x));
-  ctx.lineTo(CW, seamY); ctx.lineTo(0, seamY); ctx.closePath(); ctx.fill();
-  ctx.strokeStyle='rgba(0,0,0,0.3)'; ctx.lineWidth=2;
-  ctx.beginPath(); ctx.moveTo(0, railY(0));
-  for(let x=0;x<=CW;x+=10) ctx.lineTo(x, railY(x));
-  ctx.stroke();
-  ctx.strokeStyle='rgba(255,255,255,0.65)'; ctx.lineWidth=2;
-  for(let x=0;x<CW;x+=14){
-    const yy = railY(x) - 2 + Math.sin(x*0.05+t*0.004)*1.5;
-    ctx.beginPath(); ctx.moveTo(x,yy); ctx.lineTo(x+7,yy); ctx.stroke();
-  }
-  ctx.fillStyle='#3d2510';
-  for(let x=24;x<CW;x+=76) ctx.fillRect(x-2, railY(x), 4, seamY-railY(x));
-
-  // палуба — доски со швами и текстурой волокон. Полностью статична (корабль
-  // не едет), поэтому рисуется один раз в offscreen-канвас и дальше просто
-  // копируется — раньше это было ~300 мелких draw-вызовов КАЖДЫЙ кадр, что
-  // заметно сажало FPS на телефоне.
-  ctx.imageSmoothingEnabled = false;
-  ctx.drawImage(getDeckTexture(floorH), 0, seamY);
-
-  // мачта/бочка/штурвал/канат — стоят на фиксированных местах на палубе
-  SHIP_PROPS_FIXED.forEach(p => drawShipProp(p.type, p.xr*CW, seamY, t));
-
-  drawSeamAndVignette(seamY, areaH);
-}
-
-function drawBG(t){
-  if(currentMap==='ship') drawBGShip(t);
-  else if(currentMap==='cave') drawBGCave();
-  else if(currentMap==='corridor') drawBGCorridor();
-  else drawBGCrypt();
 }
 
 // ---------- HUD panel (same layout as Street Fighter: rules left, top right) ----------
@@ -856,7 +389,7 @@ function render(t){
   scrollX += SCROLL_SPEED*dt;
   updateBattle(t, dt);
   ctx.clearRect(0,0,CW,CH);
-  drawBG(t);
+  drawBG();
   fighters.forEach(f => drawFighter(f, t));
   drawHUD();
   requestAnimationFrame(render);
