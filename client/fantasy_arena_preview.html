@@ -19,8 +19,6 @@
   <canvas id="c" width="600" height="1000"></canvas>
   <div id="panel">
     <div class="row" id="mapPicks"></div>
-    <div class="row" id="leftPicks"></div>
-    <div class="row" id="rightPicks"></div>
     <div class="row">
       <button onclick="startBattle()">↺ Новый бой</button>
     </div>
@@ -60,143 +58,158 @@ function getImg(dir,file){
 // preload all
 Object.values(ROSTER).forEach(r=>Object.values(r.anims).forEach(a=>getImg(r.dir,a[0])));
 
-function makeFighter(charKey, x, facing){
-  return { charKey, x, tx:x, y: 800, facing, anim:'idle', frame:0, t:0, animLockUntil:0, hp:100, maxHp:100, wanderPause:0 };
-}
-const APPROACH_X = { L:190, R:410 }; // где бойцы сходятся вплотную для боя
-const START_X   = { L:40,  R:560 }; // откуда забегают на арену
-let fighters = {
-  L: makeFighter('hero_knight', START_X.L, 1),
-  R: makeFighter('martial_hero', START_X.R, -1),
-};
-
-function setChar(side, key){
-  const prevTx = fighters[side].tx;
-  fighters[side] = makeFighter(key, fighters[side].x, fighters[side].facing);
-  fighters[side].tx = prevTx;
-  renderPicks();
-}
-
-// ---------- автобой: логика взята из streetfighter_arena.html (система "обменов")
-// сближение → как только дистанция < FIGHT_DIST начинается exchange: бойцы стоят
-// на месте и бьют друг друга по очереди (1-3 удара, порядок внутри пары случайный,
-// не всегда один и тот же боец бьёт первым), удары розыгрываются по одному с паузой
-// PUNCH_TICK_MS — так на экране видно ровно столько попаданий, сколько было по факту.
-// После размена — отступ друг от друга и пауза, потом снова сближение. Цикл повторяется
-// до смерти одного, дальше рестарт.
-const otherSide = s => s==='L' ? 'R' : 'L';
-const FIGHT_DIST = 230;      // дистанция сближения, с которой начинается обмен ударами (>= разрыва между APPROACH_X)
+// ---------- автобой: толпа бойцов бродит по арене и дерётся, как в streetfighter_arena.html
+// (updateBotSpawns/update/startExchange/updateExchanges/finishExchange там) — не строгий
+// 1 на 1, а N бойцов: каждый бродит к случайной точке, и как только двое оказываются
+// ближе FIGHT_DIST — начинается exchange (серия 1-3 ударов, порядок внутри пары случайный),
+// после размена — отступ друг от друга и пауза, дальше снова бродят. Погибший спустя
+// паузу возрождается заново (случайный персонаж) — бой идёт бесконечно, как крауд-арена.
+const FIGHTER_COUNT = 5;
+const RING_X = { min:70, max: CW-70 };
+const FIGHT_DIST = 100;      // дистанция, с которой начинается обмен ударами
+const MIN_SEP = 85;          // минимальная дистанция между живыми бойцами (мягкое разведение)
 const PUNCH_TICK_MS = 260;   // пауза между отдельными ударами внутри серии
-const RETREAT_PUSH = 65;     // на сколько бойцы отступают друг от друга после обмена
+const RETREAT_PUSH = 55;     // отступ друг от друга после обмена
+const RESPAWN_DELAY_MS = 2200; // сколько лежит труп, прежде чем возродиться заново
 
-let battle = { phase:'approach' };
-let exchange = null; // { queue:[{attacker,defender}], idx, timer, deathSide }
+function clampX(x){ return Math.max(RING_X.min, Math.min(RING_X.max, x)); }
+
+function spawnFighter(x){
+  const keys = Object.keys(ROSTER);
+  const charKey = keys[Math.floor(Math.random()*keys.length)];
+  return {
+    charKey, x, tx:x, y:800, facing: Math.random()<0.5?1:-1,
+    anim:'idle', frame:0, t:0, animLockUntil:0,
+    hp:100, maxHp:100,
+    wanderPause: 200+Math.random()*800,
+    punchCooldown:0, inExchange:false,
+    alive:true, respawnAt:0,
+  };
+}
+
+let fighters = [];
+let activeExchanges = [];
 
 function startBattle(){
-  fighters.L = makeFighter(fighters.L.charKey, START_X.L, 1);
-  fighters.R = makeFighter(fighters.R.charKey, START_X.R, -1);
-  fighters.L.tx = APPROACH_X.L; fighters.R.tx = APPROACH_X.R;
-  fighters.L.wanderPause = 0; fighters.R.wanderPause = 0;
-  battle = { phase:'approach' };
-  exchange = null;
+  fighters = [];
+  for(let i=0;i<FIGHTER_COUNT;i++){
+    const x = RING_X.min + (RING_X.max-RING_X.min) * ((i+0.5)/FIGHTER_COUNT);
+    fighters.push(spawnFighter(x));
+  }
+  activeExchanges = [];
 }
 
-function startExchange(){
-  const a = fighters.L, b = fighters.R;
+function startExchange(a,b){
+  a.inExchange = b.inExchange = true;
   const hits = 1 + Math.floor(Math.random()*3);
   const queue = [];
   for(let i=0;i<hits;i++){
     // порядок внутри пары случайный — иначе тот, кто всегда бьёт первым,
     // мог бы убить соперника раньше, чем дойдёт очередь до его ответа
-    if(Math.random()<0.5){ queue.push({a:'L',d:'R'}); queue.push({a:'R',d:'L'}); }
-    else { queue.push({a:'R',d:'L'}); queue.push({a:'L',d:'R'}); }
+    if(Math.random()<0.5){ queue.push({attacker:a,defender:b}); queue.push({attacker:b,defender:a}); }
+    else { queue.push({attacker:b,defender:a}); queue.push({attacker:a,defender:b}); }
   }
-  exchange = { queue, idx:0, timer:0 };
-  battle.phase = 'exchange';
+  activeExchanges.push({ a, b, queue, idx:0, timer:0 });
 }
 
-function throwPunch(side, oside){
-  const f = fighters[side], o = fighters[oside];
-  const def = ROSTER[f.charKey], odef = ROSTER[o.charKey];
-  if(def.anims.attack){ f.anim='attack'; f.frame=0; f.t=0; f.animLockUntil=performance.now()+PUNCH_TICK_MS+120; }
+function throwPunch(attacker, defender){
+  const def = ROSTER[attacker.charKey], odef = ROSTER[defender.charKey];
+  if(def.anims.attack){ attacker.anim='attack'; attacker.frame=0; attacker.t=0; attacker.animLockUntil=performance.now()+PUNCH_TICK_MS+120; }
+  attacker.facing = defender.x>=attacker.x ? 1 : -1;
+  defender.facing = attacker.x>=defender.x ? 1 : -1;
   const dmg = 8 + Math.floor(Math.random()*10);
-  o.hp = Math.max(0, o.hp - dmg);
-  if(o.hp<=0){
-    if(odef.anims.death){ o.anim='death'; o.frame=0; o.t=0; o.animLockUntil=performance.now()+100000; }
-    exchange.deathSide = oside;
+  defender.hp = Math.max(0, defender.hp - dmg);
+  if(defender.hp<=0){
+    if(odef.anims.death){ defender.anim='death'; defender.frame=0; defender.t=0; defender.animLockUntil=performance.now()+100000; }
+    defender.alive = false; defender.respawnAt = performance.now()+RESPAWN_DELAY_MS;
   } else if(odef.anims.hit){
-    o.anim='hit'; o.frame=0; o.t=0; o.animLockUntil=performance.now()+PUNCH_TICK_MS+60;
+    defender.anim='hit'; defender.frame=0; defender.t=0; defender.animLockUntil=performance.now()+PUNCH_TICK_MS+60;
   }
 }
 
-function finishExchange(){
-  const a = fighters.L, b = fighters.R;
-  if(exchange && exchange.deathSide){
-    battle.phase = 'death'; battle.deathAt = performance.now();
-    exchange = null;
-    return;
+function finishExchange(ex){
+  const { a, b } = ex;
+  const cd = 1000 + Math.random()*500;
+  a.punchCooldown = cd; b.punchCooldown = cd;
+  a.inExchange = false; b.inExchange = false;
+  if(a.alive) a.anim='idle';
+  if(b.alive) b.anim='idle';
+  if(a.alive && b.alive){
+    const dir = a.x<=b.x ? -1 : 1;
+    a.tx = clampX(a.x + dir*RETREAT_PUSH);
+    b.tx = clampX(b.x - dir*RETREAT_PUSH);
+    a.wanderPause = b.wanderPause = 500;
   }
-  // отступ друг от друга + пауза перед новым сближением (как finishExchange в SF)
-  const dir = a.x <= b.x ? -1 : 1;
-  a.tx = clampX(a.x + dir*RETREAT_PUSH);
-  b.tx = clampX(b.x - dir*RETREAT_PUSH);
-  a.wanderPause = b.wanderPause = 500;
-  a.anim='idle'; b.anim='idle';
-  battle.phase = 'approach';
-  exchange = null;
 }
-function clampX(x){ return Math.max(50, Math.min(CW-50, x)); }
 
-function updateExchange(dt){
-  exchange.timer -= dt*1000;
-  if(exchange.timer > 0) return;
-  if(exchange.deathSide || exchange.idx >= exchange.queue.length){ finishExchange(); return; }
-  const {a,d} = exchange.queue[exchange.idx];
-  exchange.idx++;
-  exchange.timer = PUNCH_TICK_MS;
-  throwPunch(a,d);
+function updateExchanges(dt){
+  for(let i=activeExchanges.length-1; i>=0; i--){
+    const ex = activeExchanges[i];
+    ex.timer -= dt*1000;
+    if(ex.timer > 0) continue;
+    if(!ex.a.alive || !ex.b.alive || ex.idx >= ex.queue.length){
+      finishExchange(ex);
+      activeExchanges.splice(i,1);
+      continue;
+    }
+    const {attacker,defender} = ex.queue[ex.idx];
+    ex.idx++;
+    ex.timer = PUNCH_TICK_MS;
+    if(attacker.alive && defender.alive) throwPunch(attacker, defender);
+  }
 }
 
 function updateBattle(now, dt){
-  if(battle.phase==='approach'){
-    ['L','R'].forEach(side=>{
-      const f = fighters[side]; const def = ROSTER[f.charKey];
-      if(f.wanderPause>0){ f.wanderPause -= dt*1000; return; }
-      // после отступа (см. finishExchange) пауза кончилась — снова идём сближаться
-      if(f.tx !== APPROACH_X[side]) f.tx = APPROACH_X[side];
-      const dx = f.tx - f.x;
-      if(Math.abs(dx) > 2){
-        f.anim = 'move';
-        f.x += Math.sign(dx) * (def.speed||100) * dt;
-      } else { f.x = f.tx; f.anim='idle'; }
-    });
-    if(Math.abs(fighters.R.x-fighters.L.x) < FIGHT_DIST && fighters.L.wanderPause<=0 && fighters.R.wanderPause<=0){
-      startExchange();
+  for(const f of fighters){
+    if(!f.alive){
+      if(now >= f.respawnAt) Object.assign(f, spawnFighter(f.x));
+      continue;
     }
-  } else if(battle.phase==='exchange'){
-    updateExchange(dt);
-  } else if(battle.phase==='death'){
-    if(now - battle.deathAt > 2400){
-      battle.phase = 'restarting';
-      setTimeout(startBattle, 300);
+    if(f.punchCooldown>0) f.punchCooldown -= dt*1000;
+    if(f.inExchange) continue;
+
+    f.wanderPause -= dt*1000;
+    const dx = f.tx - f.x;
+    if(Math.abs(dx)<6 && f.wanderPause<=0){
+      f.tx = RING_X.min + Math.random()*(RING_X.max-RING_X.min);
+      f.wanderPause = 500 + Math.random()*1400;
+    }
+    if(Math.abs(dx)>6){
+      const def = ROSTER[f.charKey];
+      f.x += Math.sign(dx) * (def.speed||100) * dt;
+      f.facing = dx>0 ? 1 : -1;
+      f.anim = 'move';
+    } else {
+      f.anim = 'idle';
     }
   }
-}
 
-function renderPicks(){
-  ['L','R'].forEach(side=>{
-    const el = document.getElementById(side==='L'?'leftPicks':'rightPicks');
-    el.innerHTML = '';
-    Object.keys(ROSTER).forEach(key=>{
-      const b = document.createElement('button');
-      b.textContent = (side==='L'?'◀ ':'▶ ') + ROSTER[key].label;
-      if(fighters[side].charKey===key) b.classList.add('active');
-      b.onclick = ()=>setChar(side,key);
-      el.appendChild(b);
-    });
-  });
+  // мягкое разведение — живые бойцы не должны залипать друг в друге
+  for(let i=0;i<fighters.length;i++){
+    const a = fighters[i]; if(!a.alive) continue;
+    for(let j=i+1;j<fighters.length;j++){
+      const b = fighters[j]; if(!b.alive) continue;
+      const d = b.x-a.x, ad = Math.abs(d)||0.001;
+      if(ad < MIN_SEP){
+        const push=(MIN_SEP-ad)/2, dir = d<0?-1:1;
+        a.x = clampX(a.x - dir*push);
+        b.x = clampX(b.x + dir*push);
+      }
+    }
+  }
+
+  // запуск обменов между сблизившимися бойцами
+  for(let i=0;i<fighters.length;i++){
+    const a = fighters[i]; if(!a.alive || a.punchCooldown>0 || a.inExchange) continue;
+    for(let j=i+1;j<fighters.length;j++){
+      const b = fighters[j]; if(!b.alive || b.punchCooldown>0 || b.inExchange) continue;
+      if(Math.abs(a.x-b.x) < FIGHT_DIST) startExchange(a,b);
+    }
+  }
+
+  updateExchanges(dt);
 }
-renderPicks();
+startBattle();
 
 // ---------- map: тайловая подземная арена, собрана из Tilesetv3.png ----------
 // Fort of Illusion (готовая картинка 895x272) не подходила: под зону 600x726
@@ -378,8 +391,7 @@ function render(t){
   updateBattle(t, dt);
   ctx.clearRect(0,0,CW,CH);
   drawBG();
-  drawFighter(fighters.L, t);
-  drawFighter(fighters.R, t);
+  fighters.forEach(f => drawFighter(f, t));
   drawHUD();
   requestAnimationFrame(render);
 }
