@@ -217,14 +217,32 @@ startBattle();
 // в случайный кусок стены. Тут вместо одной картинки — тайлы 16x16, отрисованные
 // на целом пиксельном масштабе (без дробного зума), поэтому чётко и без мыла,
 // и в том же стиле пиксель-арта, что и бойцы.
+//
+// "Ощущение движения" (по запросу) — стена+пол непрерывно скроллятся (scrollX),
+// плюс по стене периодически проезжают декорации (дверь/окно/знамя/факел/ворота
+// из Fort of Illusion Files/Assets/Layers/all-props.png) — однородный кирпич сам
+// по себе почти не читается как движение, а landmarks делают эффект однозначным.
 const tilesetImg = new Image(); tilesetImg.src = 'sprites/fantasy_arena/stage/Tilesetv3.png';
-const torchImg = new Image(); torchImg.src = 'sprites/fantasy_arena/stage/spr_torch.png';
+const propsImg = new Image(); propsImg.src = "sprites/fantasy_arena/stage2/Fort of Illusion Files/Assets/Layers/all-props.png";
 const TILE = 16;
 const TS = 3; // масштаб тайла (целое число — без мыла на пиксель-арте)
 const WALL_TILE = { sx: 6*TILE, sy: 15*TILE }; // однотонный тёмный камень стены
 const FLOOR_TILE = { sx: 6*TILE, sy: 20*TILE }; // светлее каменный пол
 const FLOOR_ROWS = 4; // сколько тайлов пола (в высоту) отвести под пол
 const FLOOR_Y = 800; // где стоят ноги бойцов (чуть выше низа пола)
+
+const SCROLL_SPEED = 42; // px/сек — скорость "движения" карты
+let scrollX = 0;
+
+// вырезки из all-props.png (координаты сняты через сеточный инспектор по факту)
+const PROPS = [
+  { sx:0,   sy:160, sw:96, sh:64,  scale:2.1, anchor:'bottom' }, // дверь закрытая
+  { sx:160, sy:150, sw:32, sh:170, scale:2.1, anchor:'bottom' }, // факел на шесте + знамя
+  { sx:112, sy:160, sw:32, sh:48,  scale:2.1, anchor:'bottom' }, // окно витражное
+  { sx:144, sy:80,  sw:48, sh:48,  scale:2.1, anchor:'top' },    // знамя на стене
+  { sx:240, sy:160, sw:64, sh:64,  scale:2.1, anchor:'bottom' }, // открытые ворота
+];
+const PROP_SPACING = 300; // расстояние между декорациями в "мировых" пикселях
 
 const MAPS = [ { key:'crypt', label:'🏰 Каменный склеп' } ];
 function renderMapPicks(){
@@ -246,20 +264,32 @@ function drawBG(){
   const areaH = CH-WALL_TOP;
   const floorH = FLOOR_ROWS*step;
   const wallH = areaH - floorH;
+  const seamY = WALL_TOP+wallH;
+  const scrollOff = ((scrollX % step) + step) % step;
   // стена
   for(let y=WALL_TOP; y<WALL_TOP+wallH; y+=step){
-    for(let x=0; x<CW; x+=step){
+    for(let x=-scrollOff; x<CW; x+=step){
       ctx.drawImage(tilesetImg, WALL_TILE.sx, WALL_TILE.sy, TILE, TILE, x, y, step, step);
     }
   }
   // пол
   for(let y=WALL_TOP+wallH; y<CH; y+=step){
-    for(let x=0; x<CW; x+=step){
+    for(let x=-scrollOff; x<CW; x+=step){
       ctx.drawImage(tilesetImg, FLOOR_TILE.sx, FLOOR_TILE.sy, TILE, TILE, x, y, step, step);
     }
   }
+  // декорации, проезжающие по стене (создают однозначное ощущение движения)
+  if(propsImg.complete && propsImg.naturalWidth>0){
+    const firstIdx = Math.floor((scrollX-150)/PROP_SPACING);
+    for(let i=firstIdx; i*PROP_SPACING - scrollX < CW+150; i++){
+      const p = PROPS[((i%PROPS.length)+PROPS.length)%PROPS.length];
+      const cx = i*PROP_SPACING - scrollX;
+      const dw = p.sw*p.scale, dh = p.sh*p.scale;
+      const dy = p.anchor==='bottom' ? seamY-dh : WALL_TOP+6;
+      ctx.drawImage(propsImg, p.sx, p.sy, p.sw, p.sh, cx-dw/2, dy, dw, dh);
+    }
+  }
   // лёгкая тень на стыке стена/пол — читаемая линия горизонта
-  const seamY = WALL_TOP+wallH;
   const seam = ctx.createLinearGradient(0,seamY-24,0,seamY+10);
   seam.addColorStop(0,'rgba(0,0,0,0)'); seam.addColorStop(1,'rgba(0,0,0,0.55)');
   ctx.fillStyle=seam; ctx.fillRect(0,seamY-24,CW,34);
@@ -268,13 +298,6 @@ function drawBG(){
   vgrad.addColorStop(0,'rgba(0,0,0,0.5)'); vgrad.addColorStop(0.12,'rgba(0,0,0,0)');
   vgrad.addColorStop(0.88,'rgba(0,0,0,0)'); vgrad.addColorStop(1,'rgba(0,0,0,0.5)');
   ctx.fillStyle=vgrad; ctx.fillRect(0,WALL_TOP,CW,areaH);
-  // факелы по бокам
-  if(torchImg.complete && torchImg.naturalWidth>0){
-    const tw=84*1.4, th=27*1.4, torchY=WALL_TOP+16;
-    ctx.drawImage(torchImg, 18, torchY, tw, th);
-    ctx.save(); ctx.translate(CW-18, torchY); ctx.scale(-1,1);
-    ctx.drawImage(torchImg, 0,0, tw, th); ctx.restore();
-  }
 }
 
 // ---------- HUD panel (same layout as Street Fighter: rules left, top right) ----------
@@ -388,6 +411,7 @@ let lastT = 0;
 function render(t){
   const dt = lastT ? Math.min((t-lastT)/1000, 0.05) : 0; // сек, клампим на случай лагов вкладки
   lastT = t;
+  scrollX += SCROLL_SPEED*dt;
   updateBattle(t, dt);
   ctx.clearRect(0,0,CW,CH);
   drawBG();
