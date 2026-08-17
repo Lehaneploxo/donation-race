@@ -19,6 +19,7 @@
   <canvas id="c" width="600" height="1000"></canvas>
   <div id="panel">
     <div class="row" id="mapPicks"></div>
+    <div class="row" id="seaStylePicks"></div>
     <div class="row">
       <button onclick="startBattle()">↺ Новый бой</button>
     </div>
@@ -255,11 +256,32 @@ function renderMapPicks(){
     const b = document.createElement('button');
     b.textContent = m.label;
     if(m.key===currentMap) b.classList.add('active');
-    b.onclick = ()=>{ currentMap = m.key; renderMapPicks(); };
+    b.onclick = ()=>{ currentMap = m.key; renderMapPicks(); renderSeaStylePicks(); };
     el.appendChild(b);
   });
 }
 renderMapPicks();
+
+// два варианта отрисовки моря на пробу — пользователь просил показать
+// несколько подходов и сравнить вживую, а не гадать какой понравится
+const SEA_STYLES = [
+  { key:'pixel', label:'🧊 Пиксельная вода' },
+  { key:'smooth', label:'🎨 Гладкая (текущая)' },
+];
+let seaStyle = 'pixel';
+function renderSeaStylePicks(){
+  const el = document.getElementById('seaStylePicks');
+  el.innerHTML = '';
+  if(currentMap!=='ship') return;
+  SEA_STYLES.forEach(s=>{
+    const b = document.createElement('button');
+    b.textContent = s.label;
+    if(s.key===seaStyle) b.classList.add('active');
+    b.onclick = ()=>{ seaStyle = s.key; renderSeaStylePicks(); };
+    el.appendChild(b);
+  });
+}
+renderSeaStylePicks();
 
 // ---------- background: общая для обеих карт часть (тень стыка + виньетка) ----------
 function drawSeamAndVignette(seamY, areaH){
@@ -443,6 +465,60 @@ function getDeckTexture(floorH){
   deckTextureCache = off;
   return off;
 }
+// пиксельная вода: бесшовный дизерный тайл (частоты волн — целые числа периодов
+// на тайл, поэтому при повторении швов не видно), тот же пиксельный масштаб TS,
+// что и у остальной графики — в отличие от гладких canvas-градиентов/кривых,
+// это реально пиксель-арт текстура, а не вектор поверх пиксельных спрайтов.
+let seaTileCache = null;
+function getSeaTile(){
+  if(seaTileCache) return seaTileCache;
+  const N = 16;
+  const off = document.createElement('canvas'); off.width=N; off.height=N;
+  const octx = off.getContext('2d');
+  const img = octx.createImageData(N,N);
+  const palette = [[8,54,79],[13,79,107],[24,116,148],[54,157,189],[140,210,227]];
+  for(let y=0;y<N;y++){
+    for(let x=0;x<N;x++){
+      const wave = Math.sin((x/N)*Math.PI*2*2 + (y/N)*Math.PI*2) + Math.sin((y/N)*Math.PI*2*3 - (x/N)*Math.PI*2*0.5)*0.6;
+      let idx = Math.round(((wave+1.6)/3.2)*(palette.length-1));
+      idx = Math.max(0, Math.min(palette.length-1, idx));
+      const [r,g,b] = palette[idx];
+      const p = (y*N+x)*4;
+      img.data[p]=r; img.data[p+1]=g; img.data[p+2]=b; img.data[p+3]=255;
+    }
+  }
+  octx.putImageData(img,0,0);
+  seaTileCache = { canvas: off, size: N };
+  return seaTileCache;
+}
+function drawSeaPixel(horizonY, seamY, t){
+  const { canvas: tile, size:N } = getSeaTile();
+  const step = N*TS;
+  ctx.imageSmoothingEnabled = false;
+  const scroll1 = ((t*0.018) % step + step) % step;
+  for(let y=horizonY; y<seamY; y+=step){
+    for(let x=-scroll1; x<CW+step; x+=step){
+      ctx.drawImage(tile, 0,0,N,N, x, y, step, step);
+    }
+  }
+  // второй, более медленный слой поверх (полупрозрачный) — рябь в две "фазы"
+  // читается живее, чем один статичный узор
+  ctx.globalAlpha = 0.35;
+  const scroll2 = ((-t*0.011 + step/2) % step + step) % step;
+  for(let y=horizonY-step/2; y<seamY; y+=step){
+    for(let x=-scroll2; x<CW+step; x+=step){
+      ctx.drawImage(tile, 0,0,N,N, x, y, step, step);
+    }
+  }
+  ctx.globalAlpha = 1;
+  // светлее у горизонта, темнее у борта — ощущение глубины
+  const seaH = seamY-horizonY;
+  const depthGrad = ctx.createLinearGradient(0,horizonY,0,seamY);
+  depthGrad.addColorStop(0,'rgba(210,245,255,0.28)');
+  depthGrad.addColorStop(0.25,'rgba(210,245,255,0)');
+  depthGrad.addColorStop(1,'rgba(2,15,25,0.4)');
+  ctx.fillStyle=depthGrad; ctx.fillRect(0,horizonY,CW,seaH);
+}
 let shipBgCache = null;
 function getShipBgCache(){
   if(shipBgCache) return shipBgCache;
@@ -492,35 +568,40 @@ function drawBGShip(t){
     ctx.fill();
   });
 
-  // море — более глубокий, живой градиент + световая полоса у горизонта
-  ctx.fillStyle=sea; ctx.fillRect(0,horizonY,CW,seamY-horizonY);
-  ctx.fillStyle=glare; ctx.fillRect(0,horizonY,CW,40);
-
-  // волны — несколько рядов, анимируются по времени (не по позиции корабля —
-  // корабль стоит на месте, волны "текут" сами по себе). Под каждой линией —
-  // залитая полупрозрачная "пенная" полоса для объёма, а не просто штрих.
-  // (Раньше тут был ctx.filter='blur()' для сглаживания — убрал: программный
-  // blur на canvas каждый кадр сильно сажал FPS на телефоне.)
+  // море — два варианта на выбор (кнопки над картой): пиксельная дизерная
+  // текстура (в стиле остальной графики) или прежний гладкий вариант.
   const seaH = seamY-horizonY;
-  drawWaveBand(horizonY+seaH*0.60, horizonY+seaH*0.66, 0.013, t*0.0006+4, 'rgba(255,255,255,0.16)', 'rgba(255,255,255,0)');
-  drawWaveBand(horizonY+seaH*0.80, horizonY+seaH*0.87, 0.011, -t*0.0005+6, 'rgba(255,255,255,0.22)', 'rgba(255,255,255,0)');
-  drawWaveLine(horizonY+seaH*0.22, 3, 0.020, t*0.0009, 'rgba(255,255,255,0.30)', 2);
-  drawWaveLine(horizonY+seaH*0.42, 4.5, 0.016, -t*0.0007+2, 'rgba(255,255,255,0.40)', 2.5);
-  drawWaveLine(horizonY+seaH*0.63, 6, 0.013, t*0.0006+4, 'rgba(255,255,255,0.5)', 3);
-  drawWaveLine(horizonY+seaH*0.85, 8, 0.011, -t*0.0005+6, 'rgba(255,255,255,0.65)', 3.5);
+  if(seaStyle==='pixel'){
+    drawSeaPixel(horizonY, seamY, t);
+  } else {
+    ctx.fillStyle=sea; ctx.fillRect(0,horizonY,CW,seaH);
+    ctx.fillStyle=glare; ctx.fillRect(0,horizonY,CW,40);
+    // волны — несколько рядов, анимируются по времени (не по позиции корабля —
+    // корабль стоит на месте, волны "текут" сами по себе). Под каждой линией —
+    // залитая полупрозрачная "пенная" полоса для объёма, а не просто штрих.
+    drawWaveBand(horizonY+seaH*0.60, horizonY+seaH*0.66, 0.013, t*0.0006+4, 'rgba(255,255,255,0.16)', 'rgba(255,255,255,0)');
+    drawWaveBand(horizonY+seaH*0.80, horizonY+seaH*0.87, 0.011, -t*0.0005+6, 'rgba(255,255,255,0.22)', 'rgba(255,255,255,0)');
+    drawWaveLine(horizonY+seaH*0.22, 3, 0.020, t*0.0009, 'rgba(255,255,255,0.30)', 2);
+    drawWaveLine(horizonY+seaH*0.42, 4.5, 0.016, -t*0.0007+2, 'rgba(255,255,255,0.40)', 2.5);
+    drawWaveLine(horizonY+seaH*0.63, 6, 0.013, t*0.0006+4, 'rgba(255,255,255,0.5)', 3);
+    drawWaveLine(horizonY+seaH*0.85, 8, 0.011, -t*0.0005+6, 'rgba(255,255,255,0.65)', 3.5);
+  }
 
-  // блуждающие блики-каустики — мягкие пятна света, плывущие по воде (аддитивно)
-  ctx.save();
-  ctx.globalCompositeOperation = 'lighter';
-  [[0.2,0.35],[0.5,0.6],[0.78,0.45]].forEach(([xr,yr],i)=>{
-    const px = ((xr*CW + t*0.012*(i%2?1:-1)) % (CW+120)) - 60;
-    const py = horizonY + yr*seaH;
-    const r = 26 + 6*Math.sin(t*0.0015+i*3);
-    const g = ctx.createRadialGradient(px,py,0, px,py,r);
-    g.addColorStop(0,'rgba(255,255,255,0.16)'); g.addColorStop(1,'rgba(255,255,255,0)');
-    ctx.fillStyle=g; ctx.beginPath(); ctx.arc(px,py,r,0,Math.PI*2); ctx.fill();
-  });
-  ctx.restore();
+  // блуждающие блики-каустики (мягкие размытые пятна) — только для гладкого
+  // стиля; на пиксельной воде такие вектор-блики смотрелись бы чужеродно
+  if(seaStyle!=='pixel'){
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    [[0.2,0.35],[0.5,0.6],[0.78,0.45]].forEach(([xr,yr],i)=>{
+      const px = ((xr*CW + t*0.012*(i%2?1:-1)) % (CW+120)) - 60;
+      const py = horizonY + yr*seaH;
+      const r = 26 + 6*Math.sin(t*0.0015+i*3);
+      const g = ctx.createRadialGradient(px,py,0, px,py,r);
+      g.addColorStop(0,'rgba(255,255,255,0.16)'); g.addColorStop(1,'rgba(255,255,255,0)');
+      ctx.fillStyle=g; ctx.beginPath(); ctx.arc(px,py,r,0,Math.PI*2); ctx.fill();
+    });
+    ctx.restore();
+  }
 
   // блики — мерцающие точки на воде
   for(let i=0;i<26;i++){
