@@ -18,6 +18,7 @@
 <div id="wrap">
   <canvas id="c" width="600" height="1000"></canvas>
   <div id="panel">
+    <div class="row" id="mapPicks"></div>
     <div class="row">
       <button onclick="startBattle()">↺ Новый бой</button>
     </div>
@@ -210,22 +211,28 @@ function updateBattle(now, dt){
 }
 startBattle();
 
-// ---------- background: готический зал (ansimuz "Gothicvania Cold Corridors",
-// free — use in commercial projects, credit not required) — 5 слоёв арок на
-// разной глубине (back/far/middle/near/foreground) + отдельный тайл пола.
-// Единственная карта в игре (остальные варианты — склеп/корабль/пещера —
-// отклонены и удалены по прямому запросу).
+// ---------- фоны-карты: несколько готовых пиксель-арт паков ansimuz на
+// сравнение (free — use in commercial projects, credit not required у всех).
+// Общая схема для всех: слои прижаты к низу (к стыку с полом) на целом
+// пиксельном масштабе, без растягивания под произвольную высоту (мылит
+// пиксель-арт — так был отклонён Fort of Illusion), зазор сверху закрашен
+// ровным цветом, пол — плоская заливка в цвет низа ближнего слоя.
 const TILE = 16;
-const TS = 3; // масштаб пикселя (не используется тайлсетом коридора, оставлен для FLOOR_ROWS)
+const TS = 3;
 const FLOOR_ROWS = 4; // высота пола в "тайлах" — задаёт floorH для всех расчётов позиций
 
-const CORRIDOR_DIR = "sprites/fantasy_arena/stage5_corridor/Cold Corridors Files/Assets/Layers";
-const corridorLayerNames = ['back','far','middle','near','foreground'];
-const corridorLayers = corridorLayerNames.map(n => { const im = new Image(); im.src = `${CORRIDOR_DIR}/${n}.png`; return im; });
-const corridorTileset = new Image(); corridorTileset.src = `${CORRIDOR_DIR}/tileset.png`;
-
-const SCROLL_SPEED = 42; // px/сек — скорость "движения" сквозь коридор
+const SCROLL_SPEED = 42; // px/сек — скорость "движения" сквозь карту
 let scrollX = 0;
+
+function drawParallaxLayer(img, scale, bottomY, speedFactor){
+  if(!img.complete || img.naturalWidth===0) return;
+  const dw = img.naturalWidth*scale, dh = img.naturalHeight*scale;
+  const y = bottomY - dh;
+  const off = ((scrollX*speedFactor % dw) + dw) % dw;
+  for(let x=-off; x<CW; x+=dw){
+    ctx.drawImage(img, x, y, dw, dh);
+  }
+}
 
 // ---------- background: тень стыка + виньетка (общая отрисовка глубины) ----------
 function drawSeamAndVignette(seamY, areaH){
@@ -238,32 +245,21 @@ function drawSeamAndVignette(seamY, areaH){
   ctx.fillStyle=vgrad; ctx.fillRect(0,WALL_TOP,CW,areaH);
 }
 
-// Целочисленный масштаб CORRIDOR_SCALE=2 (слои 224px высотой), слои прижаты
-// к низу (к стыку с полом), зазор сверху закрашен ровным цветом — без
-// растягивания картинки под произвольную высоту (мылит пиксель-арт).
+// ---- "Готический зал" (Gothicvania Cold Corridors) — 5 слоёв арок на разной
+// глубине (back/far/middle/near/foreground) + отдельный тайл пола.
+const CORRIDOR_DIR = "sprites/fantasy_arena/stage5_corridor/Cold Corridors Files/Assets/Layers";
+const corridorLayerNames = ['back','far','middle','near','foreground'];
+const corridorLayers = corridorLayerNames.map(n => { const im = new Image(); im.src = `${CORRIDOR_DIR}/${n}.png`; return im; });
+const corridorTileset = new Image(); corridorTileset.src = `${CORRIDOR_DIR}/tileset.png`;
 const CORRIDOR_SCALE = 2;
 const CORRIDOR_SKY_COLOR = '#1a0f52';
 const CORRIDOR_FLOOR_COLOR = '#6b4a8f';
 const CORRIDOR_SPEEDS = [0.03, 0.08, 0.18, 0.4, 0.7]; // back..foreground — дальше слой, медленнее едет
-function drawCorridorLayer(img, bottomY, speedFactor){
-  if(!img.complete || img.naturalWidth===0) return;
-  const dw = img.naturalWidth*CORRIDOR_SCALE, dh = img.naturalHeight*CORRIDOR_SCALE;
-  const y = bottomY - dh;
-  const off = ((scrollX*speedFactor % dw) + dw) % dw;
-  for(let x=-off; x<CW; x+=dw){
-    ctx.drawImage(img, x, y, dw, dh);
-  }
-}
-function drawBG(){
-  const areaH = CH-WALL_TOP;
-  const floorH = FLOOR_ROWS*TILE*TS;
-  const wallH = areaH - floorH;
-  const seamY = WALL_TOP+wallH;
-
+function drawBGCorridor(){
+  const areaH = CH-WALL_TOP, floorH = FLOOR_ROWS*TILE*TS, wallH = areaH-floorH, seamY = WALL_TOP+wallH;
   ctx.fillStyle = CORRIDOR_SKY_COLOR; ctx.fillRect(0, WALL_TOP, CW, wallH);
   ctx.imageSmoothingEnabled = false;
-  corridorLayers.forEach((img,i) => drawCorridorLayer(img, seamY, CORRIDOR_SPEEDS[i]));
-
+  corridorLayers.forEach((img,i) => drawParallaxLayer(img, CORRIDOR_SCALE, seamY, CORRIDOR_SPEEDS[i]));
   ctx.fillStyle = CORRIDOR_FLOOR_COLOR; ctx.fillRect(0, seamY, CW, floorH);
   if(corridorTileset.complete && corridorTileset.naturalWidth>0){
     const tw = corridorTileset.naturalWidth*CORRIDOR_SCALE, th = corridorTileset.naturalHeight*CORRIDOR_SCALE;
@@ -273,6 +269,85 @@ function drawBG(){
     }
   }
   drawSeamAndVignette(seamY, areaH);
+}
+
+// ---- "Кладбище" (Gothicvania Cemetery) — луна+облака, дальние горы,
+// ближний слой холмов/надгробий/мёртвых деревьев (включает низ-землю).
+const CEMETERY_DIR = "sprites/fantasy_arena/stage6_cemetery";
+const cemeteryBg = new Image(); cemeteryBg.src = `${CEMETERY_DIR}/background.png`;
+const cemeteryMountains = new Image(); cemeteryMountains.src = `${CEMETERY_DIR}/mountains.png`;
+const cemeteryGraveyard = new Image(); cemeteryGraveyard.src = `${CEMETERY_DIR}/graveyard.png`;
+const CEMETERY_SCALE = 2;
+const CEMETERY_SKY_COLOR = '#170a1f';
+const CEMETERY_FLOOR_COLOR = '#0a0510';
+function drawBGCemetery(){
+  const areaH = CH-WALL_TOP, floorH = FLOOR_ROWS*TILE*TS, wallH = areaH-floorH, seamY = WALL_TOP+wallH;
+  ctx.fillStyle = CEMETERY_SKY_COLOR; ctx.fillRect(0, WALL_TOP, CW, wallH);
+  ctx.imageSmoothingEnabled = false;
+  drawParallaxLayer(cemeteryBg, CEMETERY_SCALE, seamY, 0.05);
+  drawParallaxLayer(cemeteryMountains, CEMETERY_SCALE, seamY, 0.2);
+  drawParallaxLayer(cemeteryGraveyard, CEMETERY_SCALE, seamY, 0.5);
+  ctx.fillStyle = CEMETERY_FLOOR_COLOR; ctx.fillRect(0, seamY, CW, floorH);
+  drawSeamAndVignette(seamY, areaH);
+}
+
+// ---- "Болото" (Gothicvania Swamp) — тёмно-зелёный фон-текстура + ближний
+// слой (свисающие лианы, факелы, тыквы).
+const SWAMP_DIR = "sprites/fantasy_arena/stage7_swamp";
+const swampBg = new Image(); swampBg.src = `${SWAMP_DIR}/background.png`;
+const swampMid = new Image(); swampMid.src = `${SWAMP_DIR}/mid-layer-01.png`;
+const SWAMP_SCALE = 2;
+const SWAMP_SKY_COLOR = '#0d2416';
+const SWAMP_FLOOR_COLOR = '#040d07';
+function drawBGSwamp(){
+  const areaH = CH-WALL_TOP, floorH = FLOOR_ROWS*TILE*TS, wallH = areaH-floorH, seamY = WALL_TOP+wallH;
+  ctx.fillStyle = SWAMP_SKY_COLOR; ctx.fillRect(0, WALL_TOP, CW, wallH);
+  ctx.imageSmoothingEnabled = false;
+  drawParallaxLayer(swampBg, SWAMP_SCALE, seamY, 0.05);
+  drawParallaxLayer(swampMid, SWAMP_SCALE, seamY, 0.4);
+  ctx.fillStyle = SWAMP_FLOOR_COLOR; ctx.fillRect(0, seamY, CW, floorH);
+  drawSeamAndVignette(seamY, areaH);
+}
+
+// ---- "Собор" (GothicVania Church) — витражи/алтарь/горгулья (5 панелей
+// подряд) + повторяющаяся колонна с факелами на переднем плане.
+const CHURCH_DIR = "sprites/fantasy_arena/stage8_church";
+const churchBg = new Image(); churchBg.src = `${CHURCH_DIR}/backgrounds.png`;
+const churchColumn = new Image(); churchColumn.src = `${CHURCH_DIR}/column.png`;
+const CHURCH_SCALE = 2;
+const CHURCH_SKY_COLOR = '#100a24';
+const CHURCH_FLOOR_COLOR = '#241a3a';
+function drawBGChurch(){
+  const areaH = CH-WALL_TOP, floorH = FLOOR_ROWS*TILE*TS, wallH = areaH-floorH, seamY = WALL_TOP+wallH;
+  ctx.fillStyle = CHURCH_SKY_COLOR; ctx.fillRect(0, WALL_TOP, CW, wallH);
+  ctx.imageSmoothingEnabled = false;
+  drawParallaxLayer(churchBg, CHURCH_SCALE, seamY, 0.15);
+  drawParallaxLayer(churchColumn, CHURCH_SCALE, seamY, 0.5);
+  ctx.fillStyle = CHURCH_FLOOR_COLOR; ctx.fillRect(0, seamY, CW, floorH);
+  drawSeamAndVignette(seamY, areaH);
+}
+
+const MAPS = [
+  { key:'corridor', label:'⛪ Готический зал', draw: drawBGCorridor },
+  { key:'cemetery', label:'⚰️ Кладбище', draw: drawBGCemetery },
+  { key:'swamp', label:'🐸 Болото', draw: drawBGSwamp },
+  { key:'church', label:'🕯️ Собор', draw: drawBGChurch },
+];
+let currentMap = 'corridor';
+function renderMapPicks(){
+  const el = document.getElementById('mapPicks');
+  el.innerHTML = '';
+  MAPS.forEach(m=>{
+    const b = document.createElement('button');
+    b.textContent = m.label;
+    if(m.key===currentMap) b.classList.add('active');
+    b.onclick = ()=>{ currentMap = m.key; renderMapPicks(); };
+    el.appendChild(b);
+  });
+}
+renderMapPicks();
+function drawBG(){
+  (MAPS.find(m=>m.key===currentMap) || MAPS[0]).draw();
 }
 
 // ---------- HUD panel (same layout as Street Fighter: rules left, top right) ----------
