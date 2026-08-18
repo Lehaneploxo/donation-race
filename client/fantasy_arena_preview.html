@@ -84,11 +84,77 @@ function spawnFighter(x){
     wanderPause: 200+Math.random()*800,
     punchCooldown:0, inExchange:false,
     alive:true, respawnAt:0,
+    streak:0, // серия побед подряд без поражений — см. киллстрик ниже
   };
 }
 
 let fighters = [];
 let activeExchanges = [];
+
+// ---------- зрелищность: киллстрик, всплывающий урон, тряска экрана ----------
+// киллстрик — 1-в-1 идея из client/killstreak_bigdonation_preview.html
+// (готовый неиспользованный черновик): растёт при каждой победе одного и
+// того же бойца подряд, сбрасывается его собственным поражением. На
+// силу/урон НЕ влияет — чисто зрелищность (баннер + бейдж + тряска на добивании).
+const STREAK_TIERS = [3, 5, 8]; // дальше — каждые +5 (13,18,23...), см. streakTierFor
+function streakTierFor(s){
+  if (s < 3) return null;
+  if (s <= 8) return STREAK_TIERS.filter(t=>t<=s).pop();
+  return (s-8)%5===0 ? s : null; // 13, 18, 23... тоже триггерят баннер
+}
+const STREAK_COLORS = { 3:'#ffcf3f', 5:'#ff8c1a', 8:'#ff2e4d' };
+function streakColorFor(s){ return STREAK_COLORS[s] || '#ff2e4d'; }
+let streakBannerText = '', streakBannerUntil = 0;
+
+let damageNumbers = []; // {x,y,text,vy,born}
+function spawnDamageNumber(x, y, dmg){
+  damageNumbers.push({ x: x+(Math.random()*30-15), y, text:'-'+dmg, vy:-55, born:performance.now() });
+}
+function updateDrawDamageNumbers(now, dt){
+  for(let i=damageNumbers.length-1;i>=0;i--){
+    const d = damageNumbers[i];
+    const age = now - d.born;
+    if(age > 900){ damageNumbers.splice(i,1); continue; }
+    d.y += d.vy*dt;
+    const alpha = 1 - age/900;
+    ctx.save();
+    ctx.globalAlpha = Math.max(0,alpha);
+    ctx.font = 'bold 22px Arial Black'; ctx.textAlign='center';
+    ctx.strokeStyle='rgba(0,0,0,0.85)'; ctx.lineWidth=3.5;
+    ctx.strokeText(d.text, d.x, d.y);
+    ctx.fillStyle='#fff2a0';
+    ctx.fillText(d.text, d.x, d.y);
+    ctx.restore();
+  }
+}
+
+let shakeUntil = 0, koFlashUntil = 0;
+function triggerKOImpact(){
+  shakeUntil = performance.now() + 220;
+  koFlashUntil = performance.now() + 180;
+}
+function drawKOFlash(){
+  const now = performance.now();
+  if(now >= koFlashUntil) return;
+  const alpha = (koFlashUntil-now)/180 * 0.35;
+  ctx.save(); ctx.globalAlpha = alpha; ctx.fillStyle='#ffffff';
+  ctx.fillRect(0, WALL_TOP, CW, CH-WALL_TOP);
+  ctx.restore();
+}
+function drawStreakBanner(){
+  if(performance.now() >= streakBannerUntil) return;
+  const remain = streakBannerUntil - performance.now();
+  const alpha = Math.min(1, remain/300);
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.textAlign='center';
+  ctx.font='900 40px Arial Black';
+  ctx.strokeStyle='rgba(0,0,0,0.7)'; ctx.lineWidth=6;
+  ctx.strokeText(streakBannerText, CW/2, 340);
+  ctx.fillStyle='#ffcf3f';
+  ctx.fillText(streakBannerText, CW/2, 340);
+  ctx.restore();
+}
 
 function startBattle(){
   fighters = [];
@@ -119,9 +185,17 @@ function throwPunch(attacker, defender){
   defender.facing = attacker.x>=defender.x ? 1 : -1;
   const dmg = 8 + Math.floor(Math.random()*10);
   defender.hp = Math.max(0, defender.hp - dmg);
+  spawnDamageNumber(defender.x, defender.y-360, dmg);
   if(defender.hp<=0){
     if(odef.anims.death){ defender.anim='death'; defender.frame=0; defender.t=0; defender.animLockUntil=performance.now()+100000; }
     defender.alive = false; defender.respawnAt = performance.now()+RESPAWN_DELAY_MS;
+    triggerKOImpact();
+    attacker.streak = (attacker.streak||0) + 1;
+    const tier = streakTierFor(attacker.streak);
+    if(tier){
+      streakBannerText = `🥊 СЕРИЯ x${attacker.streak}!`;
+      streakBannerUntil = performance.now() + 1800;
+    }
   } else if(odef.anims.hit){
     defender.anim='hit'; defender.frame=0; defender.t=0; defender.animLockUntil=performance.now()+PUNCH_TICK_MS+60;
   }
@@ -561,6 +635,22 @@ function drawFighter(f, now){
     const hpColor = pct>0.5?'#5ee06a':(pct>0.25?'#ffcc4d':'#ff5050');
     ctx.fillStyle=hpColor; ctx.fillRect(bx,by,bw*pct,bh);
     ctx.strokeStyle='rgba(255,255,255,0.5)'; ctx.lineWidth=1; ctx.strokeRect(bx,by,bw,bh);
+
+    // бейдж серии — перчатка 🥊 + число, растёт по тиру (см. STREAK_COLORS)
+    if(f.streak>=2){
+      const tier = f.streak>=8 ? 8 : (f.streak>=5?5:3);
+      const r = tier===8?24:(tier===5?19:15);
+      const badgeX = f.x, badgeY = by - r - 8;
+      ctx.save();
+      ctx.beginPath(); ctx.arc(badgeX, badgeY, r, 0, Math.PI*2);
+      ctx.fillStyle='#fdf6e3'; ctx.fill();
+      ctx.lineWidth=3; ctx.strokeStyle=streakColorFor(tier); ctx.stroke();
+      ctx.fillStyle='#1a1a1a';
+      ctx.font=`900 ${Math.round(r*0.95)}px Arial Black`;
+      ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText('🥊'+f.streak, badgeX, badgeY+1);
+      ctx.restore();
+    }
   }
 }
 
@@ -572,9 +662,17 @@ function render(t){
   updateMapSwitch(t);
   updateBattle(t, dt);
   ctx.clearRect(0,0,CW,CH);
+
+  const shaking = t < shakeUntil;
+  if(shaking){ ctx.save(); ctx.translate((Math.random()*2-1)*6, (Math.random()*2-1)*6); }
   drawBG();
   fighters.forEach(f => drawFighter(f, t));
+  drawKOFlash();
+  updateDrawDamageNumbers(t, dt);
+  if(shaking) ctx.restore();
+
   drawHUD();
+  drawStreakBanner();
   requestAnimationFrame(render);
 }
 requestAnimationFrame(render);
