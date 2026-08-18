@@ -374,8 +374,18 @@ pushEvent('🔔 Бой начался!');
 // толпу из N бойцов вместо строгого 1 на 1)
 const FIGHTER_COUNT = 5;      // сколько ботов подсаживается на старте
 const MAX_FIGHTERS = 8;       // потолок одновременно живых на арене
-const MAX_BOTS = 5;           // из них ботов не больше
-const MIN_REAL_ONSCREEN = 3;  // если реальных меньше — подсаживаем ботов
+const MAX_BOTS = 5;           // ботов не больше — только пока реальных нет вообще
+const MIN_REAL_ONSCREEN = 3;  // (используется только когда реальных 0 — см. maxBotsAllowed)
+// сколько ботов допустимо ОДНОВРЕМЕННО в зависимости от числа реальных
+// зрителей на арене — по прямой просьбе пользователя: живой зритель не
+// должен "тонуть" в толпе ботов. 0 реальных — как раньше (до MAX_BOTS,
+// чтобы арена не пустовала); 1 реальный — не больше 2 ботов; 2+ реальных —
+// ботов быть не должно вообще.
+function maxBotsAllowed(realAlive){
+  if (realAlive >= 2) return 0;
+  if (realAlive === 1) return 2;
+  return MAX_BOTS;
+}
 const MAX_REAL_ONSCREEN = 10; // потолок РЕАЛЬНЫХ зрителей одновременно на арене —
 // сверх этого новые лайки/донаты копятся в очереди (см. realQueue ниже),
 // донатеры получают приоритет перед теми, кто просто лайкнул
@@ -620,7 +630,7 @@ function updateBotSpawns(dtMs){
   const totalAlive = fighters.filter(f=>f.alive).length;
   const botsAlive = fighters.filter(f=>f.isBot && f.alive).length;
   const realAlive = fighters.filter(f=>!f.isBot && f.alive && !f.eliminated).length;
-  if (totalAlive >= MAX_FIGHTERS || botsAlive >= MAX_BOTS || realAlive >= MIN_REAL_ONSCREEN) return;
+  if (totalAlive >= MAX_FIGHTERS || botsAlive >= maxBotsAllowed(realAlive)) return;
   const x = RING_X.min + Math.random()*(RING_X.max-RING_X.min);
   fighters.push(spawnBotFighter(x));
 }
@@ -868,7 +878,19 @@ function updateBattle(now, dt){
     const f = fighters[i];
     if(!f.alive){
       if (f.isBot){
-        if (now >= f.respawnAt) Object.assign(f, spawnBotFighter(f.x));
+        if (now >= f.respawnAt){
+          // не возвращаем побеждённого бота, если сейчас ботов и так уже
+          // достаточно/больше не положено при текущем числе реальных
+          // зрителей (см. maxBotsAllowed) — тихо убираем, без резкого
+          // "исчезновения" посреди боя (он и так уже лежит мёртвый)
+          const realAlive = fighters.filter(x=>!x.isBot && x.alive && !x.eliminated).length;
+          const botsAlive = fighters.filter(x=>x.isBot && x.alive).length;
+          if (botsAlive < maxBotsAllowed(realAlive)){
+            Object.assign(f, spawnBotFighter(f.x));
+          } else {
+            fighters.splice(i,1);
+          }
+        }
       } else if (!f.eliminated){
         f.koTimer -= dt*1000;
         if (f.koTimer<=0){
