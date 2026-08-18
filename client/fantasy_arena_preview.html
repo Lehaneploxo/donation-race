@@ -353,12 +353,89 @@ function drawBGTown(){
   drawSeamAndVignette(seamY, areaH);
 }
 
+// ---- "Лес иллюзий" (SunnyLand Forest of Illusion) — светлый солнечный лес,
+// 2 слоя (back/middle) + отдельный тайл земли (tiles.png, как ground у "Улицы").
+const ILLUSION_DIR = "sprites/fantasy_arena/stage10_illusion";
+const illusionBack = new Image(); illusionBack.src = `${ILLUSION_DIR}/back.png`;
+const illusionMiddle = new Image(); illusionMiddle.src = `${ILLUSION_DIR}/middle.png`;
+const illusionTiles = new Image(); illusionTiles.src = `${ILLUSION_DIR}/tiles.png`;
+const ILLUSION_SCALE = 2;
+const ILLUSION_SKY_COLOR = '#aee8ff';
+const ILLUSION_FLOOR_COLOR = '#3f7a3a';
+function drawBGIllusion(){
+  const areaH = CH-WALL_TOP, floorH = FLOOR_ROWS*TILE*TS, wallH = areaH-floorH, seamY = WALL_TOP+wallH;
+  ctx.fillStyle = ILLUSION_SKY_COLOR; ctx.fillRect(0, WALL_TOP, CW, wallH);
+  ctx.imageSmoothingEnabled = false;
+  drawParallaxLayer(illusionBack, ILLUSION_SCALE, seamY, 0.1);
+  drawParallaxLayer(illusionMiddle, ILLUSION_SCALE, seamY, 0.35);
+  ctx.fillStyle = ILLUSION_FLOOR_COLOR; ctx.fillRect(0, seamY, CW, floorH);
+  if(illusionTiles.complete && illusionTiles.naturalWidth>0){
+    const tw = illusionTiles.naturalWidth*ILLUSION_SCALE, th = illusionTiles.naturalHeight*ILLUSION_SCALE;
+    const off = ((scrollX*0.35 % tw) + tw) % tw;
+    for(let x=-off; x<CW; x+=tw){
+      ctx.drawImage(illusionTiles, 0,0, illusionTiles.naturalWidth, illusionTiles.naturalHeight, x, seamY, tw, th);
+    }
+  }
+  drawSeamAndVignette(seamY, areaH);
+}
+
+// ---- "Высокий лес" (SunnyLand Tall Forest Environment) — светлый лес,
+// 3 слоя (back/far/middle) + тайлсет земли.
+const TALLFOREST_DIR = "sprites/fantasy_arena/stage11_tallforest";
+const tallforestBack = new Image(); tallforestBack.src = `${TALLFOREST_DIR}/back.png`;
+const tallforestFar = new Image(); tallforestFar.src = `${TALLFOREST_DIR}/far.png`;
+const tallforestMiddle = new Image(); tallforestMiddle.src = `${TALLFOREST_DIR}/middle.png`;
+const tallforestTileset = new Image(); tallforestTileset.src = `${TALLFOREST_DIR}/tileset.png`;
+const TALLFOREST_SCALE = 2;
+const TALLFOREST_SKY_COLOR = '#bdeeff';
+const TALLFOREST_FLOOR_COLOR = '#2f6b34';
+function drawBGTallforest(){
+  const areaH = CH-WALL_TOP, floorH = FLOOR_ROWS*TILE*TS, wallH = areaH-floorH, seamY = WALL_TOP+wallH;
+  ctx.fillStyle = TALLFOREST_SKY_COLOR; ctx.fillRect(0, WALL_TOP, CW, wallH);
+  ctx.imageSmoothingEnabled = false;
+  drawParallaxLayer(tallforestBack, TALLFOREST_SCALE, seamY, 0.08);
+  drawParallaxLayer(tallforestFar, TALLFOREST_SCALE, seamY, 0.2);
+  drawParallaxLayer(tallforestMiddle, TALLFOREST_SCALE, seamY, 0.45);
+  ctx.fillStyle = TALLFOREST_FLOOR_COLOR; ctx.fillRect(0, seamY, CW, floorH);
+  if(tallforestTileset.complete && tallforestTileset.naturalWidth>0){
+    const tw = tallforestTileset.naturalWidth*TALLFOREST_SCALE, th = tallforestTileset.naturalHeight*TALLFOREST_SCALE;
+    const off = ((scrollX*0.45 % tw) + tw) % tw;
+    for(let x=-off; x<CW; x+=tw){
+      ctx.drawImage(tallforestTileset, 0,0, tallforestTileset.naturalWidth, tallforestTileset.naturalHeight, x, seamY, tw, th);
+    }
+  }
+  drawSeamAndVignette(seamY, areaH);
+}
+
+// ---- "Осенний лес" (Parallax Forest v2) — тёплый золотистый лес, 3 слоя
+// (back/middle/front), без отдельного тайла земли — пол плоской заливкой.
+const AUTUMN_DIR = "sprites/fantasy_arena/stage12_parallaxforest";
+const autumnBack = new Image(); autumnBack.src = `${AUTUMN_DIR}/back.png`;
+const autumnMiddle = new Image(); autumnMiddle.src = `${AUTUMN_DIR}/middle.png`;
+const autumnFront = new Image(); autumnFront.src = `${AUTUMN_DIR}/front.png`;
+const AUTUMN_SCALE = 3;
+const AUTUMN_SKY_COLOR = '#f3c26b';
+const AUTUMN_FLOOR_COLOR = '#4a2f18';
+function drawBGAutumn(){
+  const areaH = CH-WALL_TOP, floorH = FLOOR_ROWS*TILE*TS, wallH = areaH-floorH, seamY = WALL_TOP+wallH;
+  ctx.fillStyle = AUTUMN_SKY_COLOR; ctx.fillRect(0, WALL_TOP, CW, wallH);
+  ctx.imageSmoothingEnabled = false;
+  drawParallaxLayer(autumnBack, AUTUMN_SCALE, seamY, 0.08);
+  drawParallaxLayer(autumnMiddle, AUTUMN_SCALE, seamY, 0.25);
+  drawParallaxLayer(autumnFront, AUTUMN_SCALE, seamY, 0.5);
+  ctx.fillStyle = AUTUMN_FLOOR_COLOR; ctx.fillRect(0, seamY, CW, floorH);
+  drawSeamAndVignette(seamY, areaH);
+}
+
 const MAPS = [
   { key:'corridor', label:'⛪ Готический зал', draw: drawBGCorridor },
   { key:'cemetery', label:'⚰️ Кладбище', draw: drawBGCemetery },
   { key:'swamp', label:'🐸 Болото', draw: drawBGSwamp },
   { key:'church', label:'🕯️ Собор', draw: drawBGChurch },
   { key:'town', label:'🏘️ Улица', draw: drawBGTown },
+  { key:'illusion', label:'🌳 Лес иллюзий', draw: drawBGIllusion },
+  { key:'tallforest', label:'🌲 Высокий лес', draw: drawBGTallforest },
+  { key:'autumn', label:'🍂 Осенний лес', draw: drawBGAutumn },
 ];
 let currentMap = 'corridor';
 function renderMapPicks(){
