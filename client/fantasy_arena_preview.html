@@ -185,15 +185,15 @@ function drawLeaderBadge(){
   const pulse = 1 + Math.sin(performance.now()/300)*0.06;
   const pad = 10;
   ctx.save();
-  ctx.font=`bold ${Math.round(13*pulse)}px Arial Black`; ctx.textAlign='left';
+  ctx.font=`bold ${Math.round(19*pulse)}px Arial Black`; ctx.textAlign='left';
   const text = `🔥 Лидер: ${leader.name} (${leader.kos})`;
   const w = Math.min(CW-2*pad-16, ctx.measureText(text).width);
   ctx.fillStyle='rgba(0,0,0,0.55)';
-  ctx.fillRect(pad, WALL_TOP+8, w+16, 24);
-  ctx.strokeStyle='rgba(0,0,0,0.85)'; ctx.lineWidth=2.5;
-  ctx.strokeText(text, pad+8, WALL_TOP+25, CW-2*pad-16);
+  ctx.fillRect(pad, WALL_TOP+8, w+16, 32);
+  ctx.strokeStyle='rgba(0,0,0,0.85)'; ctx.lineWidth=3;
+  ctx.strokeText(text, pad+8, WALL_TOP+31, CW-2*pad-16);
   ctx.fillStyle='#ffcf3f';
-  ctx.fillText(text, pad+8, WALL_TOP+25, CW-2*pad-16);
+  ctx.fillText(text, pad+8, WALL_TOP+31, CW-2*pad-16);
   ctx.restore();
 }
 
