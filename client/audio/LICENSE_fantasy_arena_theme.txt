@@ -1,0 +1,8 @@
+Track: "Faerie Shrine" (renamed to fantasy_arena_theme.mp3)
+From pack: Fantasy Game Music Tracks (CC0)
+Author: kmontesdev (https://kmontesdev.itch.io/7-fantasy-music-tracks)
+License: Creative Commons Zero (CC0) / Public Domain
+https://creativecommons.org/publicdomain/zero/1.0/
+
+Free for any use, commercial or non-commercial, no attribution required.
+Used here as background loop for Fantasy Arena game (client/fantasy_arena.html).

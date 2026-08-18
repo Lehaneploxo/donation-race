@@ -9,9 +9,10 @@
   #wrap { position:absolute; left:0; top:0; width:600px; height:1000px; transform-origin:0 0; }
   canvas { display:block; background:#000; }
   .ui-btn { position: fixed; z-index: 99999; width: 26px; height: 26px; font-size: 12px; background: rgba(0,0,0,0.55); color: rgba(255,255,255,0.55); border: 1px solid rgba(255,255,255,0.2); border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
-  #backBtn  { top: calc(50% - 49px); right: 10px; }
-  #voiceBtn { top: calc(50%);        right: 10px; }
-  #fsBtn    { top: calc(50% + 49px); right: 10px; }
+  #backBtn  { top: calc(50% - 74px); right: 10px; }
+  #voiceBtn { top: calc(50% - 25px); right: 10px; }
+  #musicBtn { top: calc(50% + 24px); right: 10px; }
+  #fsBtn    { top: calc(50% + 73px); right: 10px; }
   #statusBadge { position: fixed; bottom: 10px; left: 50%; transform: translateX(-50%); font-size: 12px; padding: 4px 12px; border-radius: 8px; border: 2px solid #555; background: rgba(0,0,0,0.78); color: #AAA; white-space: nowrap; z-index: 99999; display: none; }
   #statusBadge.live  { color: #00FF88; border-color: #00FF88; }
   #statusBadge.demo  { color: #FF9900; border-color: #FF9900; }
@@ -21,8 +22,10 @@
 <body>
 <button id="backBtn"  class="ui-btn" title="Главное меню">⌂</button>
 <button id="voiceBtn" class="ui-btn" title="Озвучка">🔇</button>
+<button id="musicBtn" class="ui-btn" title="Музыка">🎵</button>
 <button id="fsBtn"    class="ui-btn" title="На весь экран">⛶</button>
 <div id="statusBadge"></div>
+<audio id="bgMusic" src="audio/fantasy_arena_theme.mp3" loop preload="auto"></audio>
 <div id="ratingOverlay" style="position:fixed;top:27%;left:50%;transform:translateX(-50%);z-index:200;pointer-events:none;display:none;background:rgba(0,0,0,0.88);border:1.5px solid rgba(160,80,255,0.5);border-radius:8px;padding:6px 12px 7px;font-family:Arial,sans-serif;min-width:150px;text-align:center;line-height:1.25;white-space:nowrap;"></div>
 <div id="wrap"><canvas id="c" width="600" height="1000"></canvas></div>
 <script>
@@ -312,10 +315,31 @@ function cleanNickForSpeech(name){
     .replace(/\s+/g, ' ')
     .trim();
 }
-// заглушка — в этой игре пока нет фоновой музыки для приглушения (в
-// отличие от Street Fighter), функции оставлены для совместимости с speak()
-function duckBgMusic(){}
-function unduckBgMusic(){}
+// ── Фоновая музыка ("Faerie Shrine", kmontesdev, CC0 — см.
+// audio/LICENSE_fantasy_arena_theme.txt) — тихая, приглушается ещё сильнее
+// на время фразы диктора (duck) и возвращается, когда диктор замолчал.
+const BG_MUSIC_VOLUME = 0.16, BG_MUSIC_DUCK_VOLUME = 0.04;
+const bgMusic = document.getElementById('bgMusic');
+bgMusic.volume = BG_MUSIC_VOLUME;
+function tryUnlockMusic(){
+  bgMusic.play().then(()=>{
+    document.removeEventListener('pointerdown', tryUnlockMusic);
+  }).catch(()=>{});
+}
+document.addEventListener('pointerdown', tryUnlockMusic);
+document.getElementById('musicBtn').addEventListener('click', ()=>{
+  bgMusic.muted = !bgMusic.muted;
+  document.getElementById('musicBtn').textContent = bgMusic.muted ? '🔇' : '🎵';
+});
+let _duckTimer = null;
+function duckBgMusic(){
+  if (_duckTimer) clearTimeout(_duckTimer);
+  bgMusic.volume = BG_MUSIC_DUCK_VOLUME;
+}
+function unduckBgMusic(){
+  if (_duckTimer) clearTimeout(_duckTimer);
+  _duckTimer = setTimeout(()=>{ bgMusic.volume = BG_MUSIC_VOLUME; }, 250);
+}
 function speak(text, onDone){
   const done = onDone || (()=>{});
   if(!voiceEnabled || !window.speechSynthesis){ done(); return; }
