@@ -487,7 +487,7 @@ const RULES_OTHER = [
   'Напиши в чате слово рейтинг — узнаешь своё место в топе!',
   'Нокаутированный боец вернётся в бой, если его снова лайкнуть или задонатить!',
   'Забыл про бойца на 15 минут? Его Сила начнёт слабеть — лайкни, чтобы не терять форму!',
-  'Заходите в наш телеграм чат — бокс арена один, ссылка прямо на табло!',
+  'Заходите в наш телеграм канал — ссылка прямо на табло!',
 ];
 let _ruleOtherIdx = 0;
 const FILLER = [
@@ -1418,14 +1418,14 @@ function drawHUD() {
   ctx.textAlign = 'right';
   ctx.font = 'bold 11px Arial Black';
   ctx.strokeStyle = 'rgba(0,0,0,0.85)'; ctx.lineWidth = 3;
-  ctx.strokeText('📱 ТЕЛЕГРАМ ЧАТ', CW/2-8, roundY-2, tgBoxW-12);
+  ctx.strokeText('📱 ТЕЛЕГРАМ КАНАЛ', CW/2-8, roundY-2, tgBoxW-12);
   ctx.fillStyle = '#4fc3ff';
-  ctx.fillText('📱 ТЕЛЕГРАМ ЧАТ', CW/2-8, roundY-2, tgBoxW-12);
+  ctx.fillText('📱 ТЕЛЕГРАМ КАНАЛ', CW/2-8, roundY-2, tgBoxW-12);
 
-  ctx.font = 'bold 17px Arial Black';
-  ctx.strokeText('boxingarena1', CW/2-8, roundY+22, tgBoxW-12);
+  ctx.font = 'bold 15px Arial Black';
+  ctx.strokeText('t.me/tiktokgames777', CW/2-8, roundY+22, tgBoxW-12);
   ctx.fillStyle = '#7fd3ff';
-  ctx.fillText('boxingarena1', CW/2-8, roundY+22, tgBoxW-12);
+  ctx.fillText('t.me/tiktokgames777', CW/2-8, roundY+22, tgBoxW-12);
 
   // правая колонка — топ по силе
   ctx.font = 'bold 12px Arial Black'; ctx.textAlign = 'center';
