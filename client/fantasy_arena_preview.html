@@ -74,6 +74,10 @@ const RESPAWN_DELAY_MS = 2200; // сколько лежит труп, прежд
 
 function clampX(x){ return Math.max(RING_X.min, Math.min(RING_X.max, x)); }
 
+// тестовые ники+Сила — на черновике нет реальных зрителей/доната, это
+// только чтобы можно было вживую посмотреть VS-карточку и бейдж лидера дня
+// (в проде name/power уже настоящие, из applyGrowth)
+const NICK_POOL = ['dragon_slay3r','moonlit_fox','gg_viewer','kkatya','no_name','shadow_wolf','pixel_queen','ivan1990','mira_star','toxic_ronin'];
 function spawnFighter(x){
   const keys = Object.keys(ROSTER);
   const charKey = keys[Math.floor(Math.random()*keys.length)];
@@ -85,6 +89,8 @@ function spawnFighter(x){
     punchCooldown:0, inExchange:false,
     alive:true, respawnAt:0,
     streak:0, // серия побед подряд без поражений — см. киллстрик ниже
+    name: NICK_POOL[Math.floor(Math.random()*NICK_POOL.length)], // тестовый ник (см. коммент выше)
+    power: 40 + Math.floor(Math.random()*320), // тестовая "Сила" — часть больше 100, часть меньше
   };
 }
 
@@ -128,6 +134,69 @@ function updateDrawDamageNumbers(now, dt){
   }
 }
 
+// ---- "VS-карточка" — когда сходятся два реальных зрителя с приличной
+// Силой (>100), крупно показываем оба ника сверху, чтобы было видно, что
+// это серьёзная схватка, а не рутинная стычка с ботом.
+const VS_POWER_THRESHOLD = 100;
+let vsCardA = '', vsCardB = '', vsCardUntil = 0;
+function maybeTriggerVsCard(a, b){
+  if((a.power||0) > VS_POWER_THRESHOLD && (b.power||0) > VS_POWER_THRESHOLD){
+    vsCardA = a.name; vsCardB = b.name;
+    vsCardUntil = performance.now() + 2200;
+  }
+}
+function drawVsCard(){
+  if(performance.now() >= vsCardUntil) return;
+  const remain = vsCardUntil - performance.now();
+  const alpha = Math.min(1, remain/350);
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.textAlign='center';
+  ctx.font='900 30px Arial Black';
+  ctx.strokeStyle='rgba(0,0,0,0.75)'; ctx.lineWidth=5;
+  const line = `${vsCardA}  ⚔️  ${vsCardB}`;
+  ctx.strokeText(line, CW/2, 405);
+  ctx.fillStyle='#ff5566';
+  ctx.fillText(line, CW/2, 405);
+  ctx.font='bold 14px Arial Black'; ctx.fillStyle='rgba(255,255,255,0.75)';
+  ctx.strokeText('серьёзная схватка!', CW/2, 425);
+  ctx.fillText('серьёзная схватка!', CW/2, 425);
+  ctx.restore();
+}
+
+// ---- "лидер дня" — небольшой бейдж в углу, показывает, у кого сейчас
+// больше всего побед за сессию (не сбрасывается серией/поражением, в
+// отличие от киллстрика — это отдельный, накопительный счётчик)
+const koTotals = {}; // name -> число побед за сессию
+function recordKO(name){
+  if(!name) return;
+  koTotals[name] = (koTotals[name]||0) + 1;
+}
+function currentLeader(){
+  let best = null;
+  for(const name in koTotals){
+    if(!best || koTotals[name] > koTotals[best]) best = name;
+  }
+  return best ? { name: best, kos: koTotals[best] } : null;
+}
+function drawLeaderBadge(){
+  const leader = currentLeader();
+  if(!leader) return;
+  const pulse = 1 + Math.sin(performance.now()/300)*0.06;
+  const pad = 10;
+  ctx.save();
+  ctx.font=`bold ${Math.round(13*pulse)}px Arial Black`; ctx.textAlign='left';
+  const text = `🔥 Лидер: ${leader.name} (${leader.kos})`;
+  const w = Math.min(CW-2*pad-16, ctx.measureText(text).width);
+  ctx.fillStyle='rgba(0,0,0,0.55)';
+  ctx.fillRect(pad, WALL_TOP+8, w+16, 24);
+  ctx.strokeStyle='rgba(0,0,0,0.85)'; ctx.lineWidth=2.5;
+  ctx.strokeText(text, pad+8, WALL_TOP+25, CW-2*pad-16);
+  ctx.fillStyle='#ffcf3f';
+  ctx.fillText(text, pad+8, WALL_TOP+25, CW-2*pad-16);
+  ctx.restore();
+}
+
 let shakeUntil = 0, koFlashUntil = 0;
 function triggerKOImpact(){
   shakeUntil = performance.now() + 220;
@@ -166,6 +235,7 @@ function startBattle(){
 }
 
 function startExchange(a,b){
+  maybeTriggerVsCard(a,b);
   a.inExchange = b.inExchange = true;
   const hits = 1 + Math.floor(Math.random()*3);
   const queue = [];
@@ -191,6 +261,7 @@ function throwPunch(attacker, defender){
     defender.alive = false; defender.respawnAt = performance.now()+RESPAWN_DELAY_MS;
     triggerKOImpact();
     attacker.streak = (attacker.streak||0) + 1;
+    recordKO(attacker.name);
     const tier = streakTierFor(attacker.streak);
     if(tier){
       streakBannerText = `💀 СЕРИЯ x${attacker.streak}!`;
@@ -672,7 +743,9 @@ function render(t){
   if(shaking) ctx.restore();
 
   drawHUD();
+  drawLeaderBadge();
   drawStreakBanner();
+  drawVsCard();
   requestAnimationFrame(render);
 }
 requestAnimationFrame(render);
