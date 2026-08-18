@@ -1,0 +1,922 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>🏰 Fantasy Arena</title>
+<style>
+  html, body { width:100vw; height:100vh; margin:0; background:#000; overflow:hidden; font-family:Arial,sans-serif; }
+  #wrap { position:absolute; left:0; top:0; width:600px; height:1000px; transform-origin:0 0; }
+  canvas { display:block; background:#000; }
+  .ui-btn { position: fixed; z-index: 99999; width: 26px; height: 26px; font-size: 12px; background: rgba(0,0,0,0.55); color: rgba(255,255,255,0.55); border: 1px solid rgba(255,255,255,0.2); border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+  #backBtn { top: calc(50% - 25px); right: 10px; }
+  #fsBtn   { top: calc(50% + 24px); right: 10px; }
+  #statusBadge { position: fixed; bottom: 10px; left: 50%; transform: translateX(-50%); font-size: 12px; padding: 4px 12px; border-radius: 8px; border: 2px solid #555; background: rgba(0,0,0,0.78); color: #AAA; white-space: nowrap; z-index: 99999; display: none; }
+  #statusBadge.live  { color: #00FF88; border-color: #00FF88; }
+  #statusBadge.demo  { color: #FF9900; border-color: #FF9900; }
+  #statusBadge.error { color: #FF4444; border-color: #FF4444; }
+</style>
+</head>
+<body>
+<button id="backBtn" class="ui-btn" title="Главное меню">⌂</button>
+<button id="fsBtn"   class="ui-btn" title="На весь экран">⛶</button>
+<div id="statusBadge"></div>
+<div id="ratingOverlay" style="position:fixed;top:27%;left:50%;transform:translateX(-50%);z-index:200;pointer-events:none;display:none;background:rgba(0,0,0,0.88);border:1.5px solid rgba(160,80,255,0.5);border-radius:8px;padding:6px 12px 7px;font-family:Arial,sans-serif;min-width:150px;text-align:center;line-height:1.25;white-space:nowrap;"></div>
+<div id="wrap"><canvas id="c" width="600" height="1000"></canvas></div>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const CW = canvas.width, CH = canvas.height;
+const PANEL_TOP = 14, PANEL_H = 250;
+const WALL_TOP = PANEL_TOP + PANEL_H + 10;
+
+function fitScreen(){
+  const s = Math.min(window.innerWidth/CW, window.innerHeight/CH);
+  const wrap = document.getElementById('wrap');
+  wrap.style.transform = `translate(${(window.innerWidth-CW*s)/2}px,${(window.innerHeight-CH*s)/2}px) scale(${s})`;
+}
+window.addEventListener('resize', fitScreen); fitScreen();
+
+document.getElementById('backBtn').addEventListener('click', ()=>{ window.location.href='/'; });
+document.getElementById('fsBtn').addEventListener('click', ()=>{
+  if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(()=>{});
+  else document.exitFullscreen().catch(()=>{});
+});
+
+// ---------- roster (frame size == sheet height, frames laid out horizontally) ----------
+const ROSTER = {
+  hero_knight: { label:'🛡️ Рыцарь', speed:110,
+    anims:{ idle:['Idle.png',11], move:['Run.png',8], attack:['Attack1.png',7], hit:['Take Hit.png',4], death:['Death.png',11] } },
+  martial_hero: { label:'🥋 Самурай', speed:130,
+    anims:{ idle:['Idle.png',8], move:['Run.png',8], attack:['Attack1.png',6], hit:['Take Hit.png',4], death:['Death.png',6] } },
+  evil_wizard: { label:'🧙 Маг', speed:90,
+    anims:{ idle:['Idle.png',8], move:['Move.png',8], attack:['Attack.png',8], hit:['Take Hit.png',4], death:['Death.png',5] } },
+  huntress: { label:'🏹 Охотница', speed:120,
+    anims:{ idle:['Idle.png',8], move:['Run.png',8], attack:['Attack1.png',5], hit:['Take hit.png',3], death:['Death.png',8] } },
+};
+// frame size (кадр == высоте листа) отдельно от анимаций — общий на все скины одного героя
+const ROSTER_FRAME = { hero_knight:180, martial_hero:200, evil_wizard:150, huntress:150 };
+const imgCache = {};
+function getImg(dir,file){
+  const key = dir+'/'+file;
+  if(!imgCache[key]){ const im = new Image(); im.src = `sprites/fantasy_arena/${dir}/${file}`; imgCache[key]=im; }
+  return imgCache[key];
+}
+
+// ---------- скины: 4 героя x 7 цветов каждый (база + 6 перекрасок recolor_fantasy_arena.js) ----------
+const HERO_KEYS = Object.keys(ROSTER);
+const VARIANT_SUFFIXES = [
+  { suffix:'',                  color:'#ff5566' },
+  { suffix:'_v2_yellowgreen',   color:'#c6e05a' },
+  { suffix:'_v3_green',         color:'#5fe36a' },
+  { suffix:'_v4_teal',          color:'#4fe3d0' },
+  { suffix:'_v5_blue',          color:'#4fa8ff' },
+  { suffix:'_v6_purple',        color:'#8a6bff' },
+  { suffix:'_v7_pink',          color:'#e06bff' },
+];
+const SKIN_VARIANTS = [];
+HERO_KEYS.forEach(h => VARIANT_SUFFIXES.forEach(v => SKIN_VARIANTS.push({ baseType:h, dir:h+v.suffix, color:v.color })));
+function randomSkin(){ return SKIN_VARIANTS[Math.floor(Math.random()*SKIN_VARIANTS.length)]; }
+function randomVariantForBaseType(baseType){
+  const pool = SKIN_VARIANTS.filter(v=>v.baseType===baseType);
+  return pool[Math.floor(Math.random()*pool.length)];
+}
+// preload all skins (все герои x все цвета x все анимации — грузится один раз при заходе на страницу)
+HERO_KEYS.forEach(h => Object.values(ROSTER[h].anims).forEach(a => {
+  VARIANT_SUFFIXES.forEach(v => getImg(h+v.suffix, a[0]));
+}));
+
+// команда чата "hero1".."hero4" — фиксирует НАВСЕГДА только героя (силуэт),
+// закрепляется за ником через БД (chosen_skin в server.js/db.js). Цвет
+// внутри героя всё равно каждый раз выбирается заново случайно при
+// возрождении — закреплён только герой, не конкретная перекраска.
+const SKIN_BASE_TYPES = { 1:'hero_knight', 2:'martial_hero', 3:'evil_wizard', 4:'huntress' };
+function applyChosenSkin(f, skinIndex){
+  const baseType = SKIN_BASE_TYPES[skinIndex];
+  if (!baseType || !f) return;
+  const skin = randomVariantForBaseType(baseType);
+  f.charKey = skin.baseType; f.dir = skin.dir; f.color = skin.color;
+  f.skinChosen = true;
+}
+
+// ---------- уровень зрителя (1-в-1 кривая с остальными играми проекта — см.
+// LEVEL_THRESHOLDS в streetfighter_arena.html, дублируется намеренно) ----------
+const LEVEL_THRESHOLDS = [
+  0,30,250,1000,2500,5000,10000,16000,25000,35000,
+  55000,70000,95000,125000,150000,200000,250000,300000,375000,450000,
+  525000,600000,700000,825000,950000,1100000,1200000,1400000,1600000,1800000,
+  2000000,2200000,2500000,2700000,3000000,3300000,3600000,4000000,4300000,4700000,
+  5100000,5600000,6000000,6500000,7000000,7600000,8100000,8700000,9300000,10000000,
+];
+const LEVEL_RANKS = [
+  { name:'Новичок арены',   from:1,  to:5,  color:'#9a9a9a' },
+  { name:'Странник врат',   from:6,  to:10, color:'#b8752e' },
+  { name:'Заклинатель',     from:11, to:15, color:'#3fa9f5' },
+  { name:'Боец арены',      from:16, to:20, color:'#2ecc71' },
+  { name:'Гроза подземелья',from:21, to:25, color:'#17c9b2' },
+  { name:'Ветеран арены',   from:26, to:30, color:'#9b59f6' },
+  { name:'Мастер клинка',   from:31, to:35, color:'#ef4bb0' },
+  { name:'Повелитель арены',from:36, to:40, color:'#ff8c1a' },
+  { name:'Чемпион арены',   from:41, to:45, color:'#ff2e4d' },
+  { name:'Легенда Fantasy Arena', from:46, to:50, color:'#ffd700' },
+];
+function levelOf(total){
+  total = total || 0;
+  let lvl = 1;
+  for (let i=0; i<LEVEL_THRESHOLDS.length; i++){
+    if (total >= LEVEL_THRESHOLDS[i]) lvl = i+1; else break;
+  }
+  return lvl;
+}
+function rankOfLevel(level){ return LEVEL_RANKS.find(r => level>=r.from && level<=r.to) || LEVEL_RANKS[0]; }
+function rankIndexOfLevel(level){
+  const idx = LEVEL_RANKS.findIndex(r => level>=r.from && level<=r.to);
+  return idx>=0 ? idx : 0;
+}
+function levelProgress(total){
+  total = total || 0;
+  const level = levelOf(total);
+  const cur = LEVEL_THRESHOLDS[level-1];
+  const next = LEVEL_THRESHOLDS[level] ?? null;
+  const frac = next==null ? 1 : Math.min(1, Math.max(0, (total-cur)/(next-cur)));
+  return { level, cur, next, frac };
+}
+
+// ---------- бойцы: боты + реальные зрители (лайки/донаты), крауд-арена ----------
+// (updateBotSpawns/update/startExchange/updateExchanges/finishExchange — тот
+// же паттерн, что и в streetfighter_arena.html, адаптированный под нашу
+// толпу из N бойцов вместо строгого 1 на 1)
+const FIGHTER_COUNT = 5;      // сколько ботов подсаживается на старте
+const MAX_FIGHTERS = 8;       // потолок одновременно живых на арене
+const MAX_BOTS = 5;           // из них ботов не больше
+const MIN_REAL_ONSCREEN = 3;  // если реальных меньше — подсаживаем ботов
+const BOT_CHECK_MS = 10000;
+const BOT_ENERGY = 100, BOT_POWER = 5;
+const RING_X = { min:70, max: CW-70 };
+const FIGHT_DIST = 100;
+const MIN_SEP = 85;
+const PUNCH_TICK_MS = 260;
+const RETREAT_PUSH = 55;
+const RESPAWN_DELAY_MS = 2200; // боты — сколько лежат перед возрождением на новом месте
+const KO_FALL_MS = 1800;       // реальные — сколько играет анимация падения перед уходом с арены
+const LIKE_POWER_CAP = 500;    // лайки растят Силу только до этого потолка (донат — без потолка)
+
+function clampX(x){ return Math.max(RING_X.min, Math.min(RING_X.max, x)); }
+
+function spawnBotFighter(x){
+  const skin = randomSkin();
+  return {
+    charKey: skin.baseType, dir: skin.dir, color: skin.color,
+    isBot:true, name:null,
+    x, tx:x, y:985, facing: Math.random()<0.5?1:-1,
+    anim:'idle', frame:0, t:0, animLockUntil:0,
+    energy:BOT_ENERGY, energyMax:BOT_ENERGY, power:BOT_POWER, powerMax:BOT_POWER,
+    stolenEnergy:0, kos:0,
+    wanderPause: 200+Math.random()*800,
+    punchCooldown:0, inExchange:false,
+    alive:true, eliminated:false, respawnAt:0, koTimer:0, lastAttacker:null,
+  };
+}
+function spawnRealFighter(username){
+  const skin = randomSkin();
+  const x = RING_X.min + Math.random()*(RING_X.max-RING_X.min);
+  return {
+    charKey: skin.baseType, dir: skin.dir, color: skin.color,
+    isBot:false, name:username,
+    x, tx:x, y:985, facing: Math.random()<0.5?1:-1,
+    anim:'idle', frame:0, t:0, animLockUntil:0,
+    energy:0, energyMax:0, power:0, powerMax:0,
+    stolenEnergy:0, allTimeStolen:0, kos:0,
+    skinChosen:false, knownRankIdx:0, lastActiveAt:Date.now(),
+    wanderPause: Math.random()*800,
+    punchCooldown:0, inExchange:false,
+    alive:true, eliminated:false, respawnAt:0, koTimer:0, lastAttacker:null,
+  };
+}
+
+let fighters = [];
+let activeExchanges = [];
+// кэш "уровень/закреплённый герой" для выбывших реальных бойцов — читается
+// в applyGrowth, когда тот же зритель возвращается новым лайком/донатом
+const _fighterCache = new Map();
+
+function startBattle(){
+  fighters = [];
+  for(let i=0;i<FIGHTER_COUNT;i++){
+    const x = RING_X.min + (RING_X.max-RING_X.min) * ((i+0.5)/FIGHTER_COUNT);
+    fighters.push(spawnBotFighter(x));
+  }
+  activeExchanges = [];
+}
+startBattle();
+
+function findRealFighter(username){ return fighters.find(f=>!f.isBot && f.name===username); }
+
+function applyGrowth(username, gain, isGift){
+  if (!username) return;
+  let f = findRealFighter(username);
+  const isNew = !f;
+  if (!f){
+    f = spawnRealFighter(username);
+    const cached = _fighterCache.get(username);
+    if (cached){
+      f.allTimeStolen = cached.allTimeStolen;
+      f.knownRankIdx = cached.knownRankIdx;
+      if (cached.skinChosen){ f.skinChosen=true; f.charKey=cached.charKey; f.dir=cached.dir; f.color=cached.color; }
+    }
+    fighters.push(f);
+    requestTier(username);
+  }
+  f.lastActiveAt = Date.now();
+
+  let gainedEnergy = gain.giftEnergy || 0;
+  let gainedPower  = gain.giftPower  || 0;
+  gainedEnergy += gain.likeEnergy || 0;
+  if (gain.likePower && f.power < LIKE_POWER_CAP) gainedPower += gain.likePower;
+
+  f.energyMax += gainedEnergy;
+  f.powerMax  += gainedPower;
+
+  const wasDown = !f.alive || f.eliminated;
+  if (wasDown){
+    const skin = f.skinChosen ? randomVariantForBaseType(f.charKey) : randomSkin();
+    f.charKey = skin.baseType; f.dir = skin.dir; f.color = skin.color;
+    f.alive = true; f.eliminated = false;
+    f.energy = f.energyMax; f.power = f.powerMax;
+    f.anim = 'idle'; f.frame = 0;
+    f.x = RING_X.min + Math.random()*(RING_X.max-RING_X.min); f.tx = f.x;
+  } else {
+    f.energy += gainedEnergy;
+    f.power  += gainedPower;
+  }
+
+  // бонус энергии за уровень при каждом выходе на арену (спавн/возврат) —
+  // тот же приём, что у Street Fighter, мелкий довесок, не меняет баланс
+  if (isNew || wasDown){
+    const lvlBonus = levelOf(f.allTimeStolen||0);
+    f.energyMax += lvlBonus; f.energy += lvlBonus;
+  }
+}
+function onGift(username, coins){
+  coins = Math.max(1, Math.floor(Number(coins)||1));
+  applyGrowth(username, { giftEnergy:100*coins, giftPower:10*coins }, true);
+}
+function onLike(username){ applyGrowth(username, { likeEnergy:10, likePower:1 }, false); }
+
+function restoreFighter(entry){
+  if (!entry || !entry.username) return;
+  if (findRealFighter(entry.username)) return;
+  const energy = Math.max(0, Number(entry.energy)||0);
+  if (energy <= 0) return;
+  const f = spawnRealFighter(entry.username);
+  f.energyMax = Math.max(0, Number(entry.energyMax)||0);
+  f.energy = energy;
+  f.powerMax = Math.max(0, Number(entry.powerMax)||0);
+  f.power = Math.max(0, Number(entry.power)||0);
+  fighters.push(f);
+  requestTier(entry.username);
+}
+
+// ---------- боты: подсаживаются, только если реальных на арене < MIN_REAL_ONSCREEN ----------
+const BOT_NAMES = ['forest_ghoul','tomb_wraith','swamp_lurker','stray_gargoyle','wandering_orc','dusk_bandit','ash_specter','moor_hollow'];
+function getBotName(){ return BOT_NAMES[Math.floor(Math.random()*BOT_NAMES.length)]; }
+let botSpawnTimer = BOT_CHECK_MS;
+function updateBotSpawns(dtMs){
+  botSpawnTimer -= dtMs;
+  if (botSpawnTimer > 0) return;
+  botSpawnTimer = BOT_CHECK_MS;
+  const totalAlive = fighters.filter(f=>f.alive).length;
+  const botsAlive = fighters.filter(f=>f.isBot && f.alive).length;
+  const realAlive = fighters.filter(f=>!f.isBot && f.alive && !f.eliminated).length;
+  if (totalAlive >= MAX_FIGHTERS || botsAlive >= MAX_BOTS || realAlive >= MIN_REAL_ONSCREEN) return;
+  const x = RING_X.min + Math.random()*(RING_X.max-RING_X.min);
+  fighters.push(spawnBotFighter(x));
+}
+
+function startExchange(a,b){
+  a.inExchange = b.inExchange = true;
+  const hits = 1 + Math.floor(Math.random()*3);
+  const queue = [];
+  for(let i=0;i<hits;i++){
+    if(Math.random()<0.5){ queue.push({attacker:a,defender:b}); queue.push({attacker:b,defender:a}); }
+    else { queue.push({attacker:b,defender:a}); queue.push({attacker:a,defender:b}); }
+  }
+  activeExchanges.push({ a, b, queue, idx:0, timer:0 });
+}
+
+function throwPunch(attacker, defender){
+  const def = ROSTER[attacker.charKey], odef = ROSTER[defender.charKey];
+  if(def.anims.attack){ attacker.anim='attack'; attacker.frame=0; attacker.t=0; attacker.animLockUntil=performance.now()+PUNCH_TICK_MS+120; }
+  attacker.facing = defender.x>=attacker.x ? 1 : -1;
+  defender.facing = attacker.x>=defender.x ? 1 : -1;
+
+  const dmg = Math.max(1, Math.floor(attacker.power||1));
+  // очки рейтинга — не больше, чем у защищающегося реально было энергии
+  const stolen = Math.min(dmg, Math.max(0, defender.energy));
+  defender.energy = Math.max(0, defender.energy - dmg);
+  defender.lastAttacker = attacker;
+
+  attacker.stolenEnergy = (attacker.stolenEnergy||0) + stolen;
+  if (!attacker.isBot){
+    attacker.allTimeStolen = (attacker.allTimeStolen||0) + stolen;
+    reportStolen(attacker.name, stolen);
+    const newRankIdx = rankIndexOfLevel(levelOf(attacker.allTimeStolen));
+    if (newRankIdx > (attacker.knownRankIdx||0)) attacker.knownRankIdx = newRankIdx;
+  }
+
+  if (defender.energy<=0){
+    if(odef.anims.death){ defender.anim='death'; defender.frame=0; defender.t=0; defender.animLockUntil=performance.now()+100000; }
+    defender.alive = false;
+    if (defender.isBot) defender.respawnAt = performance.now()+RESPAWN_DELAY_MS;
+    else defender.koTimer = KO_FALL_MS;
+    if (!attacker.isBot){ attacker.kos = (attacker.kos||0)+1; reportKO(attacker.name); }
+  } else if(odef.anims.hit){
+    defender.anim='hit'; defender.frame=0; defender.t=0; defender.animLockUntil=performance.now()+PUNCH_TICK_MS+60;
+  }
+}
+
+function finishExchange(ex){
+  const { a, b } = ex;
+  const cd = 1000 + Math.random()*500;
+  a.punchCooldown = cd; b.punchCooldown = cd;
+  a.inExchange = false; b.inExchange = false;
+  if(a.alive) a.anim='idle';
+  if(b.alive) b.anim='idle';
+  if(a.alive && b.alive){
+    const dir = a.x<=b.x ? -1 : 1;
+    a.tx = clampX(a.x + dir*RETREAT_PUSH);
+    b.tx = clampX(b.x - dir*RETREAT_PUSH);
+    a.wanderPause = b.wanderPause = 500;
+  }
+}
+
+function updateExchanges(dt){
+  for(let i=activeExchanges.length-1; i>=0; i--){
+    const ex = activeExchanges[i];
+    ex.timer -= dt*1000;
+    if(ex.timer > 0) continue;
+    if(!ex.a.alive || !ex.b.alive || ex.idx >= ex.queue.length){
+      finishExchange(ex);
+      activeExchanges.splice(i,1);
+      continue;
+    }
+    const {attacker,defender} = ex.queue[ex.idx];
+    ex.idx++;
+    ex.timer = PUNCH_TICK_MS;
+    if(attacker.alive && defender.alive) throwPunch(attacker, defender);
+  }
+}
+
+function updateBattle(now, dt){
+  for(let i=fighters.length-1; i>=0; i--){
+    const f = fighters[i];
+    if(!f.alive){
+      if (f.isBot){
+        if (now >= f.respawnAt) Object.assign(f, spawnBotFighter(f.x));
+      } else if (!f.eliminated){
+        f.koTimer -= dt*1000;
+        if (f.koTimer<=0){
+          f.eliminated = true;
+          _fighterCache.set(f.name, {
+            allTimeStolen: f.allTimeStolen, knownRankIdx: f.knownRankIdx,
+            skinChosen: f.skinChosen, charKey: f.charKey, dir: f.dir, color: f.color,
+          });
+          fighters.splice(i,1);
+        }
+      }
+      continue;
+    }
+    if(f.punchCooldown>0) f.punchCooldown -= dt*1000;
+    if(f.inExchange) continue;
+
+    f.wanderPause -= dt*1000;
+    const dx = f.tx - f.x;
+    if(Math.abs(dx)<6 && f.wanderPause<=0){
+      f.tx = RING_X.min + Math.random()*(RING_X.max-RING_X.min);
+      f.wanderPause = 500 + Math.random()*1400;
+    }
+    if(Math.abs(dx)>6){
+      const def = ROSTER[f.charKey];
+      f.x += Math.sign(dx) * (def.speed||100) * dt;
+      f.facing = dx>0 ? 1 : -1;
+      f.anim = 'move';
+    } else {
+      f.anim = 'idle';
+    }
+  }
+
+  for(let i=0;i<fighters.length;i++){
+    const a = fighters[i]; if(!a.alive) continue;
+    for(let j=i+1;j<fighters.length;j++){
+      const b = fighters[j]; if(!b.alive) continue;
+      const d = b.x-a.x, ad = Math.abs(d)||0.001;
+      if(ad < MIN_SEP){
+        const push=(MIN_SEP-ad)/2, dir = d<0?-1:1;
+        a.x = clampX(a.x - dir*push);
+        b.x = clampX(b.x + dir*push);
+      }
+    }
+  }
+
+  for(let i=0;i<fighters.length;i++){
+    const a = fighters[i]; if(!a.alive || a.punchCooldown>0 || a.inExchange) continue;
+    for(let j=i+1;j<fighters.length;j++){
+      const b = fighters[j]; if(!b.alive || b.punchCooldown>0 || b.inExchange) continue;
+      if(Math.abs(a.x-b.x) < FIGHT_DIST) startExchange(a,b);
+    }
+  }
+
+  updateExchanges(dt);
+  updateBotSpawns(dt*1000);
+}
+
+// ---------- фоны-карты: 8 готовых пиксель-арт паков ansimuz (5 тёмных
+// готических + 3 светлых лесных), автосмена каждые 5 минут ----------
+const TILE = 16;
+const TS = 3;
+const FLOOR_ROWS = 4;
+const SCROLL_SPEED = 42;
+let scrollX = 0;
+
+function drawParallaxLayer(img, scale, bottomY, speedFactor){
+  if(!img.complete || img.naturalWidth===0) return;
+  const dw = img.naturalWidth*scale, dh = img.naturalHeight*scale;
+  const y = bottomY - dh;
+  const off = ((scrollX*speedFactor % dw) + dw) % dw;
+  for(let x=-off; x<CW; x+=dw){
+    ctx.drawImage(img, x, y, dw, dh);
+  }
+}
+function drawSeamAndVignette(seamY, areaH){
+  const seam = ctx.createLinearGradient(0,seamY-24,0,seamY+10);
+  seam.addColorStop(0,'rgba(0,0,0,0)'); seam.addColorStop(1,'rgba(0,0,0,0.55)');
+  ctx.fillStyle=seam; ctx.fillRect(0,seamY-24,CW,34);
+  const vgrad = ctx.createLinearGradient(0,0,CW,0);
+  vgrad.addColorStop(0,'rgba(0,0,0,0.5)'); vgrad.addColorStop(0.12,'rgba(0,0,0,0)');
+  vgrad.addColorStop(0.88,'rgba(0,0,0,0)'); vgrad.addColorStop(1,'rgba(0,0,0,0.5)');
+  ctx.fillStyle=vgrad; ctx.fillRect(0,WALL_TOP,CW,areaH);
+}
+
+const CORRIDOR_DIR = "sprites/fantasy_arena/stage5_corridor/Cold Corridors Files/Assets/Layers";
+const corridorLayerNames = ['back','far','middle','near','foreground'];
+const corridorLayers = corridorLayerNames.map(n => { const im = new Image(); im.src = `${CORRIDOR_DIR}/${n}.png`; return im; });
+const corridorTileset = new Image(); corridorTileset.src = `${CORRIDOR_DIR}/tileset.png`;
+const CORRIDOR_SCALE = 2;
+const CORRIDOR_SKY_COLOR = '#1a0f52';
+const CORRIDOR_FLOOR_COLOR = '#6b4a8f';
+const CORRIDOR_SPEEDS = [0.03, 0.08, 0.18, 0.4, 0.7];
+function drawBGCorridor(){
+  const areaH = CH-WALL_TOP, floorH = FLOOR_ROWS*TILE*TS, wallH = areaH-floorH, seamY = WALL_TOP+wallH;
+  ctx.fillStyle = CORRIDOR_SKY_COLOR; ctx.fillRect(0, WALL_TOP, CW, wallH);
+  ctx.imageSmoothingEnabled = false;
+  corridorLayers.forEach((img,i) => drawParallaxLayer(img, CORRIDOR_SCALE, seamY, CORRIDOR_SPEEDS[i]));
+  ctx.fillStyle = CORRIDOR_FLOOR_COLOR; ctx.fillRect(0, seamY, CW, floorH);
+  if(corridorTileset.complete && corridorTileset.naturalWidth>0){
+    const tw = corridorTileset.naturalWidth*CORRIDOR_SCALE, th = corridorTileset.naturalHeight*CORRIDOR_SCALE;
+    const off = ((scrollX*0.4 % tw) + tw) % tw;
+    for(let x=-off; x<CW; x+=tw){
+      ctx.drawImage(corridorTileset, 0,0, corridorTileset.naturalWidth, corridorTileset.naturalHeight, x, seamY, tw, th);
+    }
+  }
+  drawSeamAndVignette(seamY, areaH);
+}
+
+const CEMETERY_DIR = "sprites/fantasy_arena/stage6_cemetery";
+const cemeteryBg = new Image(); cemeteryBg.src = `${CEMETERY_DIR}/background.png`;
+const cemeteryMountains = new Image(); cemeteryMountains.src = `${CEMETERY_DIR}/mountains.png`;
+const cemeteryGraveyard = new Image(); cemeteryGraveyard.src = `${CEMETERY_DIR}/graveyard.png`;
+const CEMETERY_SCALE = 2;
+const CEMETERY_SKY_COLOR = '#170a1f';
+const CEMETERY_FLOOR_COLOR = '#0a0510';
+function drawBGCemetery(){
+  const areaH = CH-WALL_TOP, floorH = FLOOR_ROWS*TILE*TS, wallH = areaH-floorH, seamY = WALL_TOP+wallH;
+  ctx.fillStyle = CEMETERY_SKY_COLOR; ctx.fillRect(0, WALL_TOP, CW, wallH);
+  ctx.imageSmoothingEnabled = false;
+  drawParallaxLayer(cemeteryBg, CEMETERY_SCALE, seamY, 0.05);
+  drawParallaxLayer(cemeteryMountains, CEMETERY_SCALE, seamY, 0.2);
+  drawParallaxLayer(cemeteryGraveyard, CEMETERY_SCALE, seamY, 0.5);
+  ctx.fillStyle = CEMETERY_FLOOR_COLOR; ctx.fillRect(0, seamY, CW, floorH);
+  drawSeamAndVignette(seamY, areaH);
+}
+
+const SWAMP_DIR = "sprites/fantasy_arena/stage7_swamp";
+const swampBg = new Image(); swampBg.src = `${SWAMP_DIR}/background.png`;
+const swampMid = new Image(); swampMid.src = `${SWAMP_DIR}/mid-layer-01.png`;
+const SWAMP_SCALE = 2;
+const SWAMP_SKY_COLOR = '#0d2416';
+const SWAMP_FLOOR_COLOR = '#040d07';
+function drawBGSwamp(){
+  const areaH = CH-WALL_TOP, floorH = FLOOR_ROWS*TILE*TS, wallH = areaH-floorH, seamY = WALL_TOP+wallH;
+  ctx.fillStyle = SWAMP_SKY_COLOR; ctx.fillRect(0, WALL_TOP, CW, wallH);
+  ctx.imageSmoothingEnabled = false;
+  drawParallaxLayer(swampBg, SWAMP_SCALE, seamY, 0.05);
+  drawParallaxLayer(swampMid, SWAMP_SCALE, seamY, 0.4);
+  ctx.fillStyle = SWAMP_FLOOR_COLOR; ctx.fillRect(0, seamY, CW, floorH);
+  drawSeamAndVignette(seamY, areaH);
+}
+
+const CHURCH_DIR = "sprites/fantasy_arena/stage8_church";
+const churchBg = new Image(); churchBg.src = `${CHURCH_DIR}/backgrounds.png`;
+const churchColumn = new Image(); churchColumn.src = `${CHURCH_DIR}/column.png`;
+const CHURCH_SCALE = 2;
+const CHURCH_SKY_COLOR = '#100a24';
+const CHURCH_FLOOR_COLOR = '#241a3a';
+function drawBGChurch(){
+  const areaH = CH-WALL_TOP, floorH = FLOOR_ROWS*TILE*TS, wallH = areaH-floorH, seamY = WALL_TOP+wallH;
+  ctx.fillStyle = CHURCH_SKY_COLOR; ctx.fillRect(0, WALL_TOP, CW, wallH);
+  ctx.imageSmoothingEnabled = false;
+  drawParallaxLayer(churchBg, CHURCH_SCALE, seamY, 0.15);
+  drawParallaxLayer(churchColumn, CHURCH_SCALE, seamY, 0.5);
+  ctx.fillStyle = CHURCH_FLOOR_COLOR; ctx.fillRect(0, seamY, CW, floorH);
+  drawSeamAndVignette(seamY, areaH);
+}
+
+const TOWN_DIR = "sprites/fantasy_arena/stage9_town";
+const townBg = new Image(); townBg.src = `${TOWN_DIR}/background.png`;
+const townMid = new Image(); townMid.src = `${TOWN_DIR}/middleground.png`;
+const townGround = new Image(); townGround.src = `${TOWN_DIR}/ground.png`;
+const TOWN_SCALE = 2;
+const TOWN_SKY_COLOR = '#4a2f42';
+const TOWN_FLOOR_COLOR = '#241220';
+function drawBGTown(){
+  const areaH = CH-WALL_TOP, floorH = FLOOR_ROWS*TILE*TS, wallH = areaH-floorH, seamY = WALL_TOP+wallH;
+  ctx.fillStyle = TOWN_SKY_COLOR; ctx.fillRect(0, WALL_TOP, CW, wallH);
+  ctx.imageSmoothingEnabled = false;
+  drawParallaxLayer(townBg, TOWN_SCALE, seamY, 0.08);
+  drawParallaxLayer(townMid, TOWN_SCALE, seamY, 0.25);
+  ctx.fillStyle = TOWN_FLOOR_COLOR; ctx.fillRect(0, seamY, CW, floorH);
+  if(townGround.complete && townGround.naturalWidth>0){
+    const tw = townGround.naturalWidth*TS, th = townGround.naturalHeight*TS;
+    const off = ((scrollX % tw) + tw) % tw;
+    for(let x=-off; x<CW; x+=tw){
+      ctx.drawImage(townGround, 0,0, townGround.naturalWidth, townGround.naturalHeight, x, seamY, tw, th);
+    }
+  }
+  drawSeamAndVignette(seamY, areaH);
+}
+
+const ILLUSION_DIR = "sprites/fantasy_arena/stage10_illusion";
+const illusionBack = new Image(); illusionBack.src = `${ILLUSION_DIR}/back.png`;
+const illusionMiddle = new Image(); illusionMiddle.src = `${ILLUSION_DIR}/middle.png`;
+const ILLUSION_SCALE = 2;
+const ILLUSION_SKY_COLOR = '#aee8ff';
+const ILLUSION_FLOOR_COLOR = '#3f7a3a';
+function drawBGIllusion(){
+  const areaH = CH-WALL_TOP, floorH = FLOOR_ROWS*TILE*TS, wallH = areaH-floorH, seamY = WALL_TOP+wallH;
+  ctx.fillStyle = ILLUSION_SKY_COLOR; ctx.fillRect(0, WALL_TOP, CW, wallH);
+  ctx.imageSmoothingEnabled = false;
+  drawParallaxLayer(illusionBack, ILLUSION_SCALE, seamY, 0.1);
+  drawParallaxLayer(illusionMiddle, ILLUSION_SCALE, seamY, 0.35);
+  ctx.fillStyle = ILLUSION_FLOOR_COLOR; ctx.fillRect(0, seamY, CW, floorH);
+  drawSeamAndVignette(seamY, areaH);
+}
+
+const TALLFOREST_DIR = "sprites/fantasy_arena/stage11_tallforest";
+const tallforestBack = new Image(); tallforestBack.src = `${TALLFOREST_DIR}/back.png`;
+const tallforestFar = new Image(); tallforestFar.src = `${TALLFOREST_DIR}/far.png`;
+const tallforestMiddle = new Image(); tallforestMiddle.src = `${TALLFOREST_DIR}/middle.png`;
+const TALLFOREST_SCALE = 2;
+const TALLFOREST_SKY_COLOR = '#bdeeff';
+const TALLFOREST_FLOOR_COLOR = '#2f6b34';
+function drawBGTallforest(){
+  const areaH = CH-WALL_TOP, floorH = FLOOR_ROWS*TILE*TS, wallH = areaH-floorH, seamY = WALL_TOP+wallH;
+  ctx.fillStyle = TALLFOREST_SKY_COLOR; ctx.fillRect(0, WALL_TOP, CW, wallH);
+  ctx.imageSmoothingEnabled = false;
+  drawParallaxLayer(tallforestBack, TALLFOREST_SCALE, seamY, 0.08);
+  drawParallaxLayer(tallforestFar, TALLFOREST_SCALE, seamY, 0.2);
+  drawParallaxLayer(tallforestMiddle, TALLFOREST_SCALE, seamY, 0.45);
+  ctx.fillStyle = TALLFOREST_FLOOR_COLOR; ctx.fillRect(0, seamY, CW, floorH);
+  drawSeamAndVignette(seamY, areaH);
+}
+
+const AUTUMN_DIR = "sprites/fantasy_arena/stage12_parallaxforest";
+const autumnBack = new Image(); autumnBack.src = `${AUTUMN_DIR}/back.png`;
+const autumnMiddle = new Image(); autumnMiddle.src = `${AUTUMN_DIR}/middle.png`;
+const autumnFront = new Image(); autumnFront.src = `${AUTUMN_DIR}/front.png`;
+const AUTUMN_SCALE = 3;
+const AUTUMN_SKY_COLOR = '#f3c26b';
+const AUTUMN_FLOOR_COLOR = '#4a2f18';
+function drawBGAutumn(){
+  const areaH = CH-WALL_TOP, floorH = FLOOR_ROWS*TILE*TS, wallH = areaH-floorH, seamY = WALL_TOP+wallH;
+  ctx.fillStyle = AUTUMN_SKY_COLOR; ctx.fillRect(0, WALL_TOP, CW, wallH);
+  ctx.imageSmoothingEnabled = false;
+  drawParallaxLayer(autumnBack, AUTUMN_SCALE, seamY, 0.08);
+  drawParallaxLayer(autumnMiddle, AUTUMN_SCALE, seamY, 0.25);
+  drawParallaxLayer(autumnFront, AUTUMN_SCALE, seamY, 0.5);
+  ctx.fillStyle = AUTUMN_FLOOR_COLOR; ctx.fillRect(0, seamY, CW, floorH);
+  drawSeamAndVignette(seamY, areaH);
+}
+
+const MAPS = [
+  { key:'corridor', draw: drawBGCorridor },
+  { key:'cemetery', draw: drawBGCemetery },
+  { key:'swamp', draw: drawBGSwamp },
+  { key:'church', draw: drawBGChurch },
+  { key:'town', draw: drawBGTown },
+  { key:'illusion', draw: drawBGIllusion },
+  { key:'tallforest', draw: drawBGTallforest },
+  { key:'autumn', draw: drawBGAutumn },
+];
+let currentMap = 'corridor';
+function drawBG(){ (MAPS.find(m=>m.key===currentMap) || MAPS[0]).draw(); }
+
+const MAP_SWITCH_MS = 5*60*1000;
+let nextMapSwitchAt = 0;
+function updateMapSwitch(now){
+  if(nextMapSwitchAt===0){ nextMapSwitchAt = now + MAP_SWITCH_MS; return; }
+  if(now < nextMapSwitchAt) return;
+  const idx = MAPS.findIndex(m=>m.key===currentMap);
+  currentMap = MAPS[(idx+1) % MAPS.length].key;
+  nextMapSwitchAt = now + MAP_SWITCH_MS;
+}
+
+// ---------- HUD panel ----------
+let _dbTop = []; // [{username, stolen}]
+function drawHUD(){
+  const T = PANEL_TOP, TH = PANEL_H;
+  const bg = ctx.createLinearGradient(0,T,0,T+TH);
+  bg.addColorStop(0,'rgba(20,10,25,0.97)'); bg.addColorStop(1,'rgba(8,4,10,0.97)');
+  ctx.fillStyle=bg; ctx.fillRect(0,T,CW,TH);
+  ctx.strokeStyle='rgba(180,80,255,0.4)'; ctx.lineWidth=1.5;
+  ctx.strokeRect(2,T+2,CW-4,TH-4);
+
+  ctx.font='bold 24px Arial Black'; ctx.textAlign='center';
+  ctx.strokeStyle='rgba(0,0,0,0.9)'; ctx.lineWidth=4;
+  ctx.strokeText('FANTASY ARENA', CW/2, T+34, CW-20);
+  ctx.save(); ctx.shadowColor='#b040ff'; ctx.shadowBlur=10;
+  ctx.fillStyle='#c060ff'; ctx.fillText('FANTASY ARENA', CW/2, T+34, CW-20);
+  ctx.restore();
+
+  const vg = ctx.createLinearGradient(0,T+58,0,T+TH-6);
+  vg.addColorStop(0,'rgba(255,255,255,0)'); vg.addColorStop(0.3,'rgba(255,255,255,0.12)');
+  vg.addColorStop(0.7,'rgba(255,255,255,0.12)'); vg.addColorStop(1,'rgba(255,255,255,0)');
+  ctx.strokeStyle=vg; ctx.beginPath(); ctx.moveTo(CW/2,T+58); ctx.lineTo(CW/2,T+TH-6); ctx.stroke();
+
+  const rules = [
+    { text:'👍 1 лайк = +10⚡ +1💪', color:'#FF88CC' },
+    { text:'🎁 1 монета = +100⚡ +10💪', color:'#FFD700' },
+    { text:'💬 Напиши "rating" — узнаешь топ', color:'#8fffb0' },
+    { text:'🎮 Напиши "hero1"-"hero4" — выбери героя', color:'#7fd3ff' },
+  ];
+  const rY = T+72, rStep = 28;
+  const ruleFont='bold 22px Arial Black';
+  const ruleAvailW = CW/2-16;
+  ctx.font=ruleFont;
+  let sx=1; rules.forEach(r=>{sx=Math.min(sx, ruleAvailW/ctx.measureText(r.text).width);});
+  rules.forEach((r,i)=>{
+    ctx.save(); ctx.scale(sx,1); ctx.font=ruleFont; ctx.textAlign='left';
+    ctx.strokeStyle='rgba(0,0,0,0.85)'; ctx.lineWidth=3.5;
+    ctx.strokeText(r.text, 8/sx, rY+i*rStep);
+    ctx.fillStyle=r.color; ctx.fillText(r.text, 8/sx, rY+i*rStep);
+    ctx.restore();
+  });
+
+  ctx.font='bold 12px Arial Black'; ctx.textAlign='center';
+  ctx.strokeStyle='rgba(0,0,0,0.9)'; ctx.lineWidth=3;
+  ctx.strokeText('🏆 ТОП ДНЯ 🏆', CW*0.75, T+70, CW/2-16);
+  ctx.fillStyle='#ffd24f'; ctx.fillText('🏆 ТОП ДНЯ 🏆', CW*0.75, T+70, CW/2-16);
+
+  const rankColors = ['#FFD700','#C0C0C0','#CD7F32','#AAAAAA','#666666'];
+  const tX = CW/2+8, tY = T+98, tStep=29;
+  if (_dbTop.length === 0){
+    ctx.font='13px Arial'; ctx.fillStyle='rgba(255,255,255,0.4)'; ctx.textAlign='center';
+    ctx.fillText('пока никого нет в топе', CW*0.75, tY+30);
+  }
+  _dbTop.slice(0,5).forEach((p,i)=>{
+    const y = tY+i*tStep;
+    if(i===0){ ctx.fillStyle='rgba(255,215,0,0.08)'; ctx.fillRect(tX-4,y-21,CW/2-12,tStep-1); }
+    ctx.font = i===0?'bold 20px Arial Black':'bold 18px Arial Black';
+    ctx.textAlign='left'; ctx.strokeStyle='rgba(0,0,0,0.9)'; ctx.lineWidth=3.5;
+    ctx.strokeText((i+1)+'.', tX, y);
+    ctx.fillStyle=rankColors[i]; ctx.fillText((i+1)+'.', tX, y);
+    ctx.strokeText(p.username, tX+24, y, 148);
+    ctx.fillStyle = i===0?'#FFE566':'#EEEEEE'; ctx.fillText(p.username, tX+24, y, 148);
+    ctx.textAlign='right'; ctx.strokeStyle='rgba(0,0,0,0.9)'; ctx.lineWidth=3;
+    ctx.font = i===0?'bold 16px Arial':'bold 15px Arial';
+    ctx.strokeText('⚡'+p.stolen, CW-8, y);
+    ctx.fillStyle='#e0a0ff'; ctx.fillText('⚡'+p.stolen, CW-8, y);
+  });
+}
+
+// ---------- fighter render ----------
+let _championName = null;
+function drawFighter(f, now){
+  const def = ROSTER[f.charKey];
+  const animDef = def.anims[f.anim] || def.anims.idle;
+  const [file, count] = animDef;
+  const img = getImg(f.dir, file);
+  const fps = f.anim==='idle' ? 8 : 14;
+  if(now - f.t > 1000/fps){
+    f.t = now;
+    if(f.anim==='move'){ f.frame = (f.frame+1) % count; }
+    else if(f.frame < count-1) f.frame++;
+    else if(f.anim==='death'){ /* hold last frame */ }
+    else if(f.anim!=='idle' && now < f.animLockUntil){ /* hold */ }
+    else { f.anim='idle'; f.frame=0; }
+  }
+  if(!img.complete || img.naturalWidth===0) return;
+  const size = ROSTER_FRAME[f.charKey];
+  const sx = Math.min(f.frame, count-1) * size;
+  const drawH = 380, drawW = 380;
+  ctx.save();
+  ctx.translate(f.x, f.y);
+  ctx.scale(f.facing, 1);
+  ctx.drawImage(img, sx, 0, size, size, -drawW/2, -drawH, drawW, drawH);
+  ctx.restore();
+
+  if(f.anim!=='death'){
+    const bw=90, bh=8, bx=f.x-bw/2, by=f.y-345;
+    ctx.fillStyle='rgba(0,0,0,0.6)'; ctx.fillRect(bx-2,by-2,bw+4,bh+4);
+    const maxE = f.energyMax||1;
+    const pct = Math.max(0,f.energy)/maxE;
+    const hpColor = pct>0.5?'#5ee06a':(pct>0.25?'#ffcc4d':'#ff5050');
+    ctx.fillStyle=hpColor; ctx.fillRect(bx,by,bw*pct,bh);
+    ctx.strokeStyle='rgba(255,255,255,0.5)'; ctx.lineWidth=1; ctx.strokeRect(bx,by,bw,bh);
+
+    if(!f.isBot && f.name){
+      const isChamp = _championName && f.name.toLowerCase()===_championName.toLowerCase();
+      const lvl = levelOf(f.allTimeStolen||0);
+      const rank = rankOfLevel(lvl);
+      const label = (isChamp?'👑 ':'') + '@'+f.name+' ур.'+lvl;
+      ctx.save();
+      ctx.font='bold 13px Arial Black'; ctx.textAlign='center';
+      ctx.strokeStyle='rgba(0,0,0,0.9)'; ctx.lineWidth=3;
+      ctx.strokeText(label, f.x, by-8);
+      ctx.fillStyle = isChamp ? '#ffd700' : rank.color;
+      ctx.fillText(label, f.x, by-8);
+      ctx.restore();
+    }
+  }
+}
+
+// ---------- рейтинг-карточка по команде "rating" ----------
+let _ratingHideTimer = null;
+function _showRating(html){
+  const el = document.getElementById('ratingOverlay');
+  if (!el) return;
+  el.innerHTML = html;
+  el.style.display = 'block';
+  if (_ratingHideTimer) clearTimeout(_ratingHideTimer);
+  _ratingHideTimer = setTimeout(()=>{ el.style.display = 'none'; }, 6000);
+}
+
+// ---------- отправка очков/КО в БД (батчинг раз в 4 сек) ----------
+let _pendingStolen = {};
+function reportStolen(username, amount){
+  if (!username || !amount) return;
+  _pendingStolen[username] = (_pendingStolen[username]||0) + amount;
+}
+setInterval(()=>{
+  if (!_ws || _ws.readyState!==1) return;
+  for (const u in _pendingStolen){
+    const amount = _pendingStolen[u];
+    if (amount > 0) _ws.send(JSON.stringify({ type:'fantasyarena_stolen', username:u, amount }));
+  }
+  _pendingStolen = {};
+}, 4000);
+function reportKO(username){
+  if (_ws && _ws.readyState===1) _ws.send(JSON.stringify({ type:'fantasyarena_ko', username }));
+}
+function requestTier(username){
+  if (_ws && _ws.readyState===1) _ws.send(JSON.stringify({ type:'fantasyarena_tier_request', username }));
+}
+
+// ---------- автосейв энергии/силы (раз в 15 сек + на скрытии вкладки) ----------
+function saveStateSnapshot(){
+  if (!_ws || _ws.readyState!==1) return;
+  const players = fighters
+    .filter(f=>!f.isBot && f.alive && !f.eliminated && f.energy>0)
+    .map(f=>({ username:f.name, energyMax:f.energyMax, energy:f.energy, powerMax:f.powerMax, power:f.power }));
+  _ws.send(JSON.stringify({ type:'fantasyarena_state_save', players }));
+}
+setInterval(saveStateSnapshot, 15000);
+document.addEventListener('visibilitychange', ()=>{ if (document.hidden) saveStateSnapshot(); });
+window.addEventListener('pagehide', saveStateSnapshot);
+
+// ---------- дневной топ + чемпион дня ----------
+function fetchFantasyArenaTop(){
+  fetch('/top-fantasyarena?limit=5').then(r=>r.json()).then(d=>{
+    if (d.ok && d.top) _dbTop = d.top.map(p=>({ username:p.username, stolen:p.total_stolen }));
+  }).catch(()=>{});
+}
+fetchFantasyArenaTop();
+setInterval(fetchFantasyArenaTop, 30000);
+
+let _weeklyChampion = null;
+function fetchFantasyArenaChampion(){
+  fetch('/fantasyarena-weekly-champion').then(r=>r.json()).then(d=>{
+    if (d.ok) { _weeklyChampion = d.champion || null; _championName = _weeklyChampion ? _weeklyChampion.username : null; }
+  }).catch(()=>{});
+}
+fetchFantasyArenaChampion();
+setInterval(fetchFantasyArenaChampion, 30000);
+
+// ---------- живое подключение к TikTok-чату ----------
+let _ws = null, _wsUser = '', _gameMode = 'connecting';
+function setStatus(cls, text){
+  const el = document.getElementById('statusBadge');
+  if (!el) return;
+  el.style.display = 'block';
+  el.className = cls;
+  el.textContent = text;
+}
+function wsConnect(username){
+  _wsUser = username;
+  if (_ws && _ws.readyState < 2){ _ws.onclose = null; _ws.close(); }
+  const proto = location.protocol==='https:' ? 'wss:' : 'ws:';
+  _ws = new WebSocket(`${proto}//${location.host}?username=${encodeURIComponent(username)}`);
+  _ws.onopen = ()=>{
+    setStatus('connecting', '⏳ @'+username+'…');
+    _ws.send(JSON.stringify({ type:'fantasyarena_state_request' }));
+  };
+  _ws.onmessage = (e)=>{
+    try {
+      const d = JSON.parse(e.data);
+      if (d.type==='fantasyarena_state_restore'){
+        (d.players||[]).forEach(restoreFighter);
+      }
+      if (d.type==='init' || d.type==='status'){
+        const m = d.tiktokMode || d.mode;
+        _gameMode = m || 'connecting';
+        if (m==='tiktok') setStatus('live', '🔴 LIVE @'+(d.username||username));
+        else if (m==='demo') setStatus('demo', '🟡 Ожидание эфира…');
+        else setStatus('connecting', '⏳ @'+username+'…');
+      }
+      if (d.type==='arena_like' && _gameMode==='tiktok') onLike(d.username);
+      if (d.type==='arena_gift' && _gameMode==='tiktok') onGift(d.username, d.coins);
+      if (d.type==='top_fantasyarena') { _dbTop = (d.data||[]).map(p=>({ username:p.username, stolen:p.total_stolen })); }
+      if (d.type==='fantasyarena_weekly_champion') { _weeklyChampion = d.champion || null; _championName = _weeklyChampion ? _weeklyChampion.username : null; }
+      if (d.type==='fantasyarena_tier_info'){
+        const f = findRealFighter(d.username);
+        if (f){
+          f.allTimeStolen = Number(d.lifetimeStolen)||0;
+          f.knownRankIdx = rankIndexOfLevel(levelOf(f.allTimeStolen));
+          if (d.chosenSkin) applyChosenSkin(f, d.chosenSkin);
+        }
+      }
+      if (d.type==='fantasyarena_skin_choice'){
+        const f = findRealFighter(d.username);
+        if (f) applyChosenSkin(f, d.skinIndex);
+      }
+      if (d.type==='arena_fantasyarena_rating'){
+        if (d.rank){
+          let html = `<span style="color:#c060ff;font-size:16px;font-weight:bold;">📊 @${d.username}</span><br>`;
+          const lifetimeTotal = Number(d.lifetimeStolen||0);
+          const prog = levelProgress(lifetimeTotal);
+          const rank = rankOfLevel(prog.level);
+          html += `<span style="color:#7fd3ff;font-size:15px;font-weight:700;">🎖️ ${prog.level} уровень — ${rank.name}</span>`;
+          if (prog.next != null){
+            const pct = Math.round(prog.frac*100);
+            const need = (prog.next - lifetimeTotal).toLocaleString('ru-RU');
+            html += `<div style="margin-top:2px;background:rgba(255,255,255,0.12);border-radius:5px;height:6px;overflow:hidden;">`
+              + `<div style="width:${pct}%;height:100%;background:${rank.color};"></div></div>`
+              + `<div style="margin-top:1px;color:#aaa;font-size:11px;">ещё ${need}⚡ до ${prog.level+1} уровня</div>`;
+          } else {
+            html += `<div style="margin-top:1px;color:#ffd75e;font-size:11px;">Максимальный уровень!</div>`;
+          }
+          const stolenTotal = Number(d.stolen||0);
+          const pts = stolenTotal.toLocaleString('ru-RU');
+          html += `<div style="margin-top:3px;padding-top:3px;border-top:1px dashed rgba(255,255,255,0.18);">`
+            + `<span style="color:#ffb4c4;font-size:13.5px;">⚔️ Нокаутов: ${d.kos||0}</span><br>`
+            + `<span style="color:#FFD700;font-size:14.5px;">#${d.rank} место за день</span><br>`
+            + `<span style="color:#FFD700;font-size:14.5px;">⚡${pts} очков за день</span>`
+            + `</div>`;
+          if (d.weeklyKingWins > 0){
+            html += `<div style="margin-top:3px;padding-top:3px;border-top:1px dashed rgba(255,215,0,0.25);color:#fff2b0;">`
+              + `<div style="display:flex;align-items:center;justify-content:center;gap:6px;font-size:14px;font-weight:700;">👑<span>Чемпион дня ×${d.weeklyKingWins}</span></div>`
+              + `</div>`;
+          }
+          _showRating(html);
+        } else {
+          _showRating(`<span style="color:#AAA;font-size:15px;">📊 @${d.username}<br>пока не в рейтинге</span>`);
+        }
+      }
+    } catch(err){ console.error('[fantasyarena ws]', err); }
+  };
+  _ws.onclose = ()=>{ setStatus('error', '❌ Disconnected…'); setTimeout(()=>wsConnect(_wsUser), 3000); };
+  _ws.onerror = ()=>{};
+}
+(function initLive(){
+  const p = new URLSearchParams(location.search);
+  const u = (p.get('username')||'').replace(/^@/,'').trim();
+  if (u) wsConnect(u);
+})();
+
+// ---------- main loop ----------
+let lastT = 0;
+function render(t){
+  const dt = lastT ? Math.min((t-lastT)/1000, 0.05) : 0;
+  lastT = t;
+  scrollX += SCROLL_SPEED*dt;
+  updateMapSwitch(t);
+  updateBattle(t, dt);
+  ctx.clearRect(0,0,CW,CH);
+  drawBG();
+  fighters.forEach(f => drawFighter(f, t));
+  drawHUD();
+  requestAnimationFrame(render);
+}
+requestAnimationFrame(render);
+</script>
+</body>
+</html>

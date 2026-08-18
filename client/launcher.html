@@ -307,6 +307,30 @@
     <a class="btn-start" href="/fishing-db" style="display:block;text-align:center;text-decoration:none;background:linear-gradient(90deg,#0a3350,#3aa8ff);color:#fff;box-shadow:0 4px 20px rgba(80,180,255,0.4)">📊 ОТКРЫТЬ БАЗУ ДАННЫХ</a>
   </div>
 
+  <!-- ── FANTASY ARENA ── -->
+  <div class="game-panel panel-arena" style="border-left:1px solid rgba(192,96,255,0.3)">
+    <div class="panel-title" style="color:#c060ff;text-shadow:0 0 18px #9333ff">🏰 FANTASY ARENA 🏰</div>
+    <div class="panel-sub">Рыцарь/Самурай/Маг/Охотница · лайки/донаты · пиши "rating" в чате</div>
+
+    <input class="nick-input" id="fantasyarenaInput" type="text"
+           placeholder="@your_username"
+           autocomplete="off" autocorrect="off" spellcheck="false">
+
+    <div class="error-msg" id="fantasyarenaError">Введи никнейм TikTok</div>
+
+    <button class="btn-start" id="fantasyarenaStart" style="background:linear-gradient(90deg,#4a0e8f,#c060ff);color:#fff;box-shadow:0 4px 20px rgba(192,96,255,0.4)">🏰 START FANTASY ARENA</button>
+
+    <div class="status-msg" id="fantasyarenaStatus">⏳ Открываю игру…</div>
+  </div>
+
+  <!-- ── FANTASY ARENA: БАЗА ДАННЫХ ── -->
+  <div class="game-panel panel-arena" style="border-left:1px solid rgba(192,96,255,0.3)">
+    <div class="panel-title" style="color:#c060ff;text-shadow:0 0 18px #9333ff">📊 БАЗА ДАННЫХ FANTASY ARENA</div>
+    <div class="panel-sub">Полный список игроков и все их показатели</div>
+
+    <a class="btn-start" href="/fantasyarena-db" style="display:block;text-align:center;text-decoration:none;background:linear-gradient(90deg,#2e0a66,#a858ff);color:#fff;box-shadow:0 4px 20px rgba(192,96,255,0.4)">📊 ОТКРЫТЬ БАЗУ ДАННЫХ</a>
+  </div>
+
   <!-- ── ЦИВИЛИЗАЦИЯ ── -->
   <div class="game-panel panel-civ">
     <div class="panel-title">🏛️ ЦИВИЛИЗАЦИЯ 🏛️</div>
@@ -335,12 +359,13 @@
   document.getElementById('boxingEnInput').value = saved;
   document.getElementById('streetfighterInput').value = saved;
   document.getElementById('fishingInput').value = saved;
+  document.getElementById('fantasyarenaInput').value = saved;
 
   // Sync all inputs when typing
-  ['civInput','boxingInput','boxingEnInput','streetfighterInput','fishingInput'].forEach(id => {
+  ['civInput','boxingInput','boxingEnInput','streetfighterInput','fishingInput','fantasyarenaInput'].forEach(id => {
     document.getElementById(id).addEventListener('input', function() {
       if (this.value.startsWith('@')) this.value = this.value.slice(1);
-      ['civInput','boxingInput','boxingEnInput','streetfighterInput','fishingInput'].forEach(oid => {
+      ['civInput','boxingInput','boxingEnInput','streetfighterInput','fishingInput','fantasyarenaInput'].forEach(oid => {
         if (oid !== id) document.getElementById(oid).value = this.value;
       });
     });
@@ -396,6 +421,13 @@
     handleClick('fishingInput','fishingError','fishingStatus','fishingStart','/fishing'));
   document.getElementById('fishingInput').addEventListener('keydown', e => {
     if (e.key === 'Enter') document.getElementById('fishingStart').click();
+  });
+
+  // Fantasy Arena
+  document.getElementById('fantasyarenaStart').addEventListener('click', () =>
+    handleClick('fantasyarenaInput','fantasyarenaError','fantasyarenaStatus','fantasyarenaStart','/fantasyarena'));
+  document.getElementById('fantasyarenaInput').addEventListener('keydown', e => {
+    if (e.key === 'Enter') document.getElementById('fantasyarenaStart').click();
   });
 </script>
 

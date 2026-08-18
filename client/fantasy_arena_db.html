@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>База данных — Fantasy Arena</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  background:#0a0512; color:#fff; min-height:100vh;
+  font-family:'Segoe UI',Arial,sans-serif;
+  padding:20px 14px 60px;
+}
+.top {
+  display:flex; align-items:center; justify-content:space-between;
+  max-width:900px; margin:0 auto 18px; gap:12px; flex-wrap:wrap;
+}
+h1 {
+  font-family:'Arial Black',Arial,sans-serif;
+  font-size:22px; color:#c060ff; text-shadow:0 0 18px #7a2fd6;
+  letter-spacing:1px;
+}
+.back-btn {
+  display:inline-block; padding:8px 16px; border-radius:8px;
+  background:rgba(255,255,255,0.08); color:#fff; text-decoration:none;
+  font-weight:700; font-size:14px; border:1px solid rgba(255,255,255,0.15);
+  transition:background 0.15s;
+}
+.back-btn:hover { background:rgba(255,255,255,0.16); }
+.meta {
+  max-width:900px; margin:0 auto 14px; color:rgba(255,255,255,0.5);
+  font-size:13px; display:flex; justify-content:space-between; flex-wrap:wrap; gap:8px;
+}
+.meta span#refreshBtn { cursor:pointer; color:#c060ff; text-decoration:underline; }
+.tabs {
+  max-width:900px; margin:0 auto 14px; display:flex; gap:8px;
+}
+.tab-btn {
+  flex:1; padding:10px 14px; border-radius:10px; border:1px solid rgba(255,255,255,0.15);
+  background:rgba(255,255,255,0.05); color:rgba(255,255,255,0.7);
+  font-size:14px; font-weight:700; cursor:pointer; transition:background 0.15s,color 0.15s;
+  font-family:inherit;
+}
+.tab-btn.active {
+  background:rgba(192,96,255,0.18); border-color:#c060ff; color:#e0b0ff;
+}
+table {
+  max-width:900px; margin:0 auto; width:100%; border-collapse:collapse;
+  background:rgba(255,255,255,0.03); border-radius:12px; overflow:hidden;
+}
+thead th {
+  background:rgba(192,96,255,0.15); color:#e0b0ff; text-align:left;
+  padding:10px 12px; font-size:13px; letter-spacing:0.5px; position:sticky; top:0;
+}
+thead th.num { text-align:right; }
+tbody td {
+  padding:9px 12px; font-size:14px; border-top:1px solid rgba(255,255,255,0.06);
+}
+tbody td.num { text-align:right; font-variant-numeric:tabular-nums; }
+tbody tr:hover { background:rgba(255,255,255,0.04); }
+.rank-cell { font-weight:900; }
+.rank-1 { color:#FFD700; }
+.rank-2 { color:#C8C8D8; }
+.rank-3 { color:#CD7F32; }
+.nick-cell { display:flex; align-items:center; gap:7px; }
+.nick { font-weight:700; }
+.lvl-badge {
+  display:inline-flex; align-items:center; justify-content:center;
+  min-width:22px; height:22px; padding:0 5px; border-radius:50%;
+  background:#fdf6e3; font-weight:900; font-size:11.5px; color:#1a1a1a;
+  border:2px solid #999; flex:none;
+}
+.empty, .loading, .error {
+  max-width:900px; margin:40px auto; text-align:center; color:rgba(255,255,255,0.5);
+  font-size:15px;
+}
+.error { color:#FF6666; }
+@media (max-width:520px){
+  h1 { font-size:18px; }
+  thead th, tbody td { padding:7px 8px; font-size:12.5px; }
+}
+</style>
+</head>
+<body>
+
+<div class="top">
+  <h1>🏰 База данных — Fantasy Arena</h1>
+  <a class="back-btn" href="/">⌂ Меню</a>
+</div>
+<div class="meta">
+  <span id="countLabel">Загрузка…</span>
+  <span id="refreshBtn" onclick="load()">🔄 обновить</span>
+</div>
+<div class="tabs">
+  <button type="button" class="tab-btn" id="tabLifetime" onclick="setTab('lifetime')">🏆 За всё время</button>
+  <button type="button" class="tab-btn" id="tabWeekly" onclick="setTab('weekly')">📅 За день</button>
+</div>
+
+<div id="content"><div class="loading">Загрузка данных…</div></div>
+
+<script>
+// ── Уровень бойца (для бейджа рядом с ником) — скопировано из
+// fantasy_arena.html (LEVEL_THRESHOLDS/LEVEL_RANKS/levelOf/rankOfLevel).
+// Считается от lifetime_stolen, как и в самой игре. Дублирование
+// сознательное (та же практика, что и у остальных игр проекта) — эта
+// страница не грузит движок игры целиком.
+const LEVEL_THRESHOLDS = [
+  0,30,250,1000,2500,5000,10000,16000,25000,35000,
+  55000,70000,95000,125000,150000,200000,250000,300000,375000,450000,
+  525000,600000,700000,825000,950000,1100000,1200000,1400000,1600000,1800000,
+  2000000,2200000,2500000,2700000,3000000,3300000,3600000,4000000,4300000,4700000,
+  5100000,5600000,6000000,6500000,7000000,7600000,8100000,8700000,9300000,10000000,
+];
+const LEVEL_RANKS = [
+  { name:'Новичок арены',   from:1,  to:5,  color:'#9a9a9a' },
+  { name:'Странник врат',   from:6,  to:10, color:'#b8752e' },
+  { name:'Заклинатель',     from:11, to:15, color:'#3fa9f5' },
+  { name:'Боец арены',      from:16, to:20, color:'#2ecc71' },
+  { name:'Гроза подземелья',from:21, to:25, color:'#17c9b2' },
+  { name:'Ветеран арены',   from:26, to:30, color:'#9b59f6' },
+  { name:'Мастер клинка',   from:31, to:35, color:'#ef4bb0' },
+  { name:'Повелитель арены',from:36, to:40, color:'#ff8c1a' },
+  { name:'Чемпион арены',   from:41, to:45, color:'#ff2e4d' },
+  { name:'Легенда Fantasy Arena', from:46, to:50, color:'#ffd700' },
+];
+function levelOf(total){
+  total = total || 0;
+  let lvl = 1;
+  for (let i=0; i<LEVEL_THRESHOLDS.length; i++){
+    if (total >= LEVEL_THRESHOLDS[i]) lvl = i+1; else break;
+  }
+  return lvl;
+}
+function rankOfLevel(level){
+  return LEVEL_RANKS.find(r => level>=r.from && level<=r.to) || LEVEL_RANKS[0];
+}
+function levelBadgeHtml(lifetimeStolen){
+  const lvl = levelOf(lifetimeStolen);
+  const rank = rankOfLevel(lvl);
+  return `<span class="lvl-badge" style="border-color:${rank.color}" title="${escapeHtml(rank.name)}">${lvl}</span>`;
+}
+
+function fmtTime(sec){
+  sec = Math.floor(sec||0);
+  const h = Math.floor(sec/3600), m = Math.floor((sec%3600)/60), s = sec%60;
+  if (h>0) return `${h}ч ${m}м`;
+  if (m>0) return `${m}м ${s}с`;
+  return `${s}с`;
+}
+function rankClass(r){
+  if (r===1) return 'rank-cell rank-1';
+  if (r===2) return 'rank-cell rank-2';
+  if (r===3) return 'rank-cell rank-3';
+  return 'rank-cell';
+}
+
+let _rows = [];
+let _tab = 'lifetime'; // 'lifetime' | 'weekly'
+
+function setTab(tab){
+  _tab = tab;
+  document.getElementById('tabLifetime').classList.toggle('active', tab==='lifetime');
+  document.getElementById('tabWeekly').classList.toggle('active', tab==='weekly');
+  render();
+}
+
+function render(){
+  const content = document.getElementById('content');
+  if (_rows.length === 0){
+    content.innerHTML = '<div class="empty">В базе данных пока никого нет.</div>';
+    return;
+  }
+  const sorted = [..._rows].sort((a,b) => _tab==='lifetime'
+    ? b.lifetime_stolen - a.lifetime_stolen
+    : b.total_stolen - a.total_stolen
+  );
+  const statLabel = _tab==='lifetime' ? '⚡ Всего энергии' : '⚡ За день';
+  const lastCol = _tab==='lifetime'
+    ? { label:'👑 Побед дня', get:r=>r.weekly_king_wins.toLocaleString() }
+    : { label:'👑 Чемпион (день)', get:r=>fmtTime(r.weekly_belt_seconds) };
+
+  const tableRows = sorted.map((r, i) => `
+    <tr>
+      <td class="${rankClass(i+1)}">${i+1}</td>
+      <td class="nick-cell">${levelBadgeHtml(r.lifetime_stolen)}<span class="nick">${escapeHtml(r.username)}</span></td>
+      <td class="num">${(_tab==='lifetime' ? r.lifetime_stolen : r.total_stolen).toLocaleString()}</td>
+      <td class="num">${r.total_kos.toLocaleString()}</td>
+      <td class="num">${lastCol.get(r)}</td>
+    </tr>
+  `).join('');
+  content.innerHTML = `
+    <table>
+      <thead>
+        <tr>
+          <th>Место</th>
+          <th>Ник</th>
+          <th class="num">${statLabel}</th>
+          <th class="num">⚔️ Нокауты</th>
+          <th class="num">${lastCol.label}</th>
+        </tr>
+      </thead>
+      <tbody>${tableRows}</tbody>
+    </table>
+  `;
+}
+
+async function load(){
+  const countLabel = document.getElementById('countLabel');
+  const content = document.getElementById('content');
+  try{
+    const res = await fetch('/api/fantasyarena-db');
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || 'unknown error');
+    _rows = data.rows || [];
+    countLabel.textContent = `Всего игроков в базе: ${_rows.length}`;
+    render();
+  } catch(e){
+    countLabel.textContent = '';
+    content.innerHTML = `<div class="error">Не удалось загрузить данные: ${escapeHtml(e.message)}</div>`;
+  }
+}
+function escapeHtml(s){
+  return String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+setTab('lifetime');
+load();
+setInterval(load, 15000);
+</script>
+
+</body>
+</html>
