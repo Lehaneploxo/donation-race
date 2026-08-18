@@ -216,7 +216,7 @@ function spawnBotFighter(x){
   return {
     charKey: skin.baseType, dir: skin.dir, color: skin.color,
     isBot:true, name:null,
-    x, tx:x, y:985, facing: Math.random()<0.5?1:-1,
+    x, tx:x, y:889, facing: Math.random()<0.5?1:-1,
     anim:'idle', frame:0, t:0, animLockUntil:0,
     energy:BOT_ENERGY, energyMax:BOT_ENERGY, power:BOT_POWER, powerMax:BOT_POWER,
     stolenEnergy:0, kos:0,
@@ -231,7 +231,7 @@ function spawnRealFighter(username){
   return {
     charKey: skin.baseType, dir: skin.dir, color: skin.color,
     isBot:false, name:username,
-    x, tx:x, y:985, facing: Math.random()<0.5?1:-1,
+    x, tx:x, y:889, facing: Math.random()<0.5?1:-1,
     anim:'idle', frame:0, t:0, animLockUntil:0,
     energy:0, energyMax:0, power:0, powerMax:0,
     stolenEnergy:0, allTimeStolen:0, kos:0,
