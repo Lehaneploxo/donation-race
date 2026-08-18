@@ -354,11 +354,11 @@ function drawBGTown(){
 }
 
 // ---- "Лес иллюзий" (SunnyLand Forest of Illusion) — светлый солнечный лес,
-// 2 слоя (back/middle) + отдельный тайл земли (tiles.png, как ground у "Улицы").
+// 2 слоя (back/middle), пол — плоская заливка (родной tiles.png давал те же
+// "островки" с зазорами, что и у "Высокого леса" — от него отказались).
 const ILLUSION_DIR = "sprites/fantasy_arena/stage10_illusion";
 const illusionBack = new Image(); illusionBack.src = `${ILLUSION_DIR}/back.png`;
 const illusionMiddle = new Image(); illusionMiddle.src = `${ILLUSION_DIR}/middle.png`;
-const illusionTiles = new Image(); illusionTiles.src = `${ILLUSION_DIR}/tiles.png`;
 const ILLUSION_SCALE = 2;
 const ILLUSION_SKY_COLOR = '#aee8ff';
 const ILLUSION_FLOOR_COLOR = '#3f7a3a';
@@ -369,13 +369,6 @@ function drawBGIllusion(){
   drawParallaxLayer(illusionBack, ILLUSION_SCALE, seamY, 0.1);
   drawParallaxLayer(illusionMiddle, ILLUSION_SCALE, seamY, 0.35);
   ctx.fillStyle = ILLUSION_FLOOR_COLOR; ctx.fillRect(0, seamY, CW, floorH);
-  if(illusionTiles.complete && illusionTiles.naturalWidth>0){
-    const tw = illusionTiles.naturalWidth*ILLUSION_SCALE, th = illusionTiles.naturalHeight*ILLUSION_SCALE;
-    const off = ((scrollX*0.35 % tw) + tw) % tw;
-    for(let x=-off; x<CW; x+=tw){
-      ctx.drawImage(illusionTiles, 0,0, illusionTiles.naturalWidth, illusionTiles.naturalHeight, x, seamY, tw, th);
-    }
-  }
   drawSeamAndVignette(seamY, areaH);
 }
 
@@ -445,6 +438,19 @@ function renderMapPicks(){
 renderMapPicks();
 function drawBG(){
   (MAPS.find(m=>m.key===currentMap) || MAPS[0]).draw();
+}
+
+// ---- автосмена карт каждые 5 минут (как комнаты в Street Fighter) — бой
+// не сбрасывается, просто на следующем кадре меняется фон + подсветка кнопки.
+const MAP_SWITCH_MS = 5*60*1000;
+let nextMapSwitchAt = 0;
+function updateMapSwitch(now){
+  if(nextMapSwitchAt===0){ nextMapSwitchAt = now + MAP_SWITCH_MS; return; }
+  if(now < nextMapSwitchAt) return;
+  const idx = MAPS.findIndex(m=>m.key===currentMap);
+  currentMap = MAPS[(idx+1) % MAPS.length].key;
+  renderMapPicks();
+  nextMapSwitchAt = now + MAP_SWITCH_MS;
 }
 
 // ---------- HUD panel (same layout as Street Fighter: rules left, top right) ----------
@@ -559,6 +565,7 @@ function render(t){
   const dt = lastT ? Math.min((t-lastT)/1000, 0.05) : 0; // сек, клампим на случай лагов вкладки
   lastT = t;
   scrollX += SCROLL_SPEED*dt;
+  updateMapSwitch(t);
   updateBattle(t, dt);
   ctx.clearRect(0,0,CW,CH);
   drawBG();
