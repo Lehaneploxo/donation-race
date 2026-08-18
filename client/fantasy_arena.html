@@ -160,6 +160,12 @@ const RETREAT_PUSH = 55;
 const RESPAWN_DELAY_MS = 2200; // боты — сколько лежат перед возрождением на новом месте
 const KO_FALL_MS = 1800;       // реальные — сколько играет анимация падения перед уходом с арены
 const LIKE_POWER_CAP = 500;    // лайки растят Силу только до этого потолка (донат — без потолка)
+// боец без лайков/донатов INACTIVITY_MS подряд — Сила капает по 1/сек, не
+// ниже 1 (ботов не касается); любой новый лайк/донат сбрасывает таймер (см.
+// applyGrowth). 1-в-1 механика Street Fighter, только там порог 15 минут —
+// здесь короче, 5, по прямой просьбе пользователя.
+const INACTIVITY_MS = 5*60*1000;
+const POWER_DECAY_INTERVAL_MS = 1000;
 
 // ── Звуки боя (удары/нокаут) — синтезируются на лету через AudioContext,
 // без файлов (1-в-1 приём из streetfighter_arena.html) ──
@@ -235,7 +241,7 @@ function spawnRealFighter(username){
     anim:'idle', frame:0, t:0, animLockUntil:0,
     energy:0, energyMax:0, power:0, powerMax:0,
     stolenEnergy:0, allTimeStolen:0, kos:0,
-    skinChosen:false, knownRankIdx:0, lastActiveAt:Date.now(),
+    skinChosen:false, knownRankIdx:0, lastActiveAt:performance.now(),
     wanderPause: Math.random()*800,
     punchCooldown:0, inExchange:false,
     alive:true, eliminated:false, respawnAt:0, koTimer:0, lastAttacker:null,
@@ -275,7 +281,7 @@ function applyGrowth(username, gain, isGift){
     fighters.push(f);
     requestTier(username);
   }
-  f.lastActiveAt = Date.now();
+  f.lastActiveAt = performance.now();
 
   let gainedEnergy = gain.giftEnergy || 0;
   let gainedPower  = gain.giftPower  || 0;
@@ -437,6 +443,17 @@ function updateBattle(now, dt){
       }
       continue;
     }
+
+    if (!f.isBot && f.power>1 && now-f.lastActiveAt >= INACTIVITY_MS){
+      f.powerDecayAcc = (f.powerDecayAcc||0) + dt*1000;
+      while (f.powerDecayAcc >= POWER_DECAY_INTERVAL_MS && f.power>1){
+        f.powerDecayAcc -= POWER_DECAY_INTERVAL_MS;
+        f.power -= 1;
+      }
+    } else if (!f.isBot){
+      f.powerDecayAcc = 0;
+    }
+
     if(f.punchCooldown>0) f.punchCooldown -= dt*1000;
     if(f.inExchange) continue;
 
