@@ -960,10 +960,19 @@ function drawHUD(){
   ctx.fillStyle='#c060ff'; ctx.fillText('FANTASY ARENA', CW/2, T+34, CW-20);
   ctx.restore();
 
-  const vg = ctx.createLinearGradient(0,T+58,0,T+TH-6);
+  // creator-подпись (как в остальных играх проекта — streetfighter_arena.html и т.д.)
+  ctx.font='bold 15px Arial Black'; ctx.textAlign='center';
+  ctx.save(); ctx.shadowColor='rgba(255,215,0,0.55)'; ctx.shadowBlur=8;
+  ctx.strokeStyle='rgba(0,0,0,0.7)'; ctx.lineWidth=3;
+  ctx.strokeText('🎮 creator: Leha Neploxo', CW/2, T+51, CW-20);
+  ctx.fillStyle='rgba(255,215,0,0.8)';
+  ctx.fillText('🎮 creator: Leha Neploxo', CW/2, T+51, CW-20);
+  ctx.restore();
+
+  const vg = ctx.createLinearGradient(0,T+62,0,T+TH-6);
   vg.addColorStop(0,'rgba(255,255,255,0)'); vg.addColorStop(0.3,'rgba(255,255,255,0.12)');
   vg.addColorStop(0.7,'rgba(255,255,255,0.12)'); vg.addColorStop(1,'rgba(255,255,255,0)');
-  ctx.strokeStyle=vg; ctx.beginPath(); ctx.moveTo(CW/2,T+58); ctx.lineTo(CW/2,T+TH-6); ctx.stroke();
+  ctx.strokeStyle=vg; ctx.beginPath(); ctx.moveTo(CW/2,T+62); ctx.lineTo(CW/2,T+TH-6); ctx.stroke();
 
   const rules = [
     { text:'👍 1 лайк = +10⚡ +1💪', color:'#FF88CC' },
@@ -972,7 +981,7 @@ function drawHUD(){
     { text:'🎮 Напиши "hero1"-"hero4" — выбери героя', color:'#7fd3ff' },
     { text:'⏳ 5 мин тишины = 💪Сила -1/сек', color:'#ffa64d' },
   ];
-  const rY = T+72, rStep = 28;
+  const rY = T+78, rStep = 27;
   const ruleFont='bold 22px Arial Black';
   const ruleAvailW = CW/2-16;
   ctx.font=ruleFont;
