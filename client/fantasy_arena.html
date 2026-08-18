@@ -445,11 +445,16 @@ document.addEventListener('pointerdown', function unlockAudioOnce(){
 
 function clampX(x){ return Math.max(RING_X.min, Math.min(RING_X.max, x)); }
 
+// имена ботов-заполнителей — только для отображения (🤖 + имя над головой),
+// в БД/топ дня не попадают (везде гейт !isBot на репортах в БД)
+const BOT_NAMES = ['forest_ghoul','tomb_wraith','swamp_lurker','stray_gargoyle','wandering_orc','dusk_bandit','ash_specter','moor_hollow'];
+function getBotName(){ return BOT_NAMES[Math.floor(Math.random()*BOT_NAMES.length)]; }
+
 function spawnBotFighter(x){
   const skin = randomSkin();
   return {
     charKey: skin.baseType, dir: skin.dir, color: skin.color,
-    isBot:true, name:null,
+    isBot:true, name:getBotName(), // только для отображения — в БД/топ дня боты не попадают (везде гейт !isBot)
     x, tx:x, y:889, facing: Math.random()<0.5?1:-1,
     anim:'idle', frame:0, t:0, animLockUntil:0,
     energy:BOT_ENERGY, energyMax:BOT_ENERGY, power:BOT_POWER, powerMax:BOT_POWER,
@@ -606,8 +611,6 @@ function restoreFighter(entry){
 }
 
 // ---------- боты: подсаживаются, только если реальных на арене < MIN_REAL_ONSCREEN ----------
-const BOT_NAMES = ['forest_ghoul','tomb_wraith','swamp_lurker','stray_gargoyle','wandering_orc','dusk_bandit','ash_specter','moor_hollow'];
-function getBotName(){ return BOT_NAMES[Math.floor(Math.random()*BOT_NAMES.length)]; }
 let botSpawnTimer = BOT_CHECK_MS;
 function updateBotSpawns(dtMs){
   botSpawnTimer -= dtMs;
@@ -1263,7 +1266,8 @@ function drawFighter(f, now){
     ctx.fillStyle=hpColor; ctx.fillRect(bx,by,bw*pct,bh);
     ctx.strokeStyle='rgba(255,255,255,0.5)'; ctx.lineWidth=1; ctx.strokeRect(bx,by,bw,bh);
 
-    if(!f.isBot && f.name){
+    if(f.name && !f.isBot){
+      // реальный зритель — полная подпись: ник + уровень (+ корона чемпиона)
       const isChamp = _championName && f.name.toLowerCase()===_championName.toLowerCase();
       const lvl = levelOf(f.allTimeStolen||0);
       const rank = rankOfLevel(lvl);
@@ -1284,6 +1288,21 @@ function drawFighter(f, now){
       ctx.fillStyle = isChamp ? '#ffd700' : rank.color;
       ctx.fillText(label, f.x, labelY);
       ctx.restore();
+    } else if(f.name && f.isBot){
+      // бот-заполнитель — просто имя с меткой 🤖, без уровня (нет в БД/топе
+      // дня — гейт !isBot стоит везде, где что-то шлётся на сервер)
+      const label = '🤖 '+f.name;
+      const labelY = by-10;
+      ctx.save();
+      ctx.font='bold 12px Arial Black'; ctx.textAlign='center';
+      const labelW = ctx.measureText(label).width;
+      ctx.fillStyle='rgba(0,0,0,0.45)';
+      ctx.fillRect(f.x-labelW/2-5, labelY-12, labelW+10, 16);
+      ctx.strokeStyle='rgba(0,0,0,0.85)'; ctx.lineWidth=2.5;
+      ctx.strokeText(label, f.x, labelY);
+      ctx.fillStyle='rgba(200,200,210,0.85)';
+      ctx.fillText(label, f.x, labelY);
+      ctx.restore();
     }
 
     // бейдж серии — череп 💀 + число, растёт по тиру (не только у реальных —
@@ -1291,7 +1310,7 @@ function drawFighter(f, now){
     if(f.streak>=2){
       const tier = f.streak>=8 ? 8 : (f.streak>=5?5:3);
       const r = tier===8?24:(tier===5?19:15);
-      const badgeX = f.x, badgeY = by - (f.isBot?0:22) - r - 8;
+      const badgeX = f.x, badgeY = by - 20 - r - 8;
       ctx.save();
       ctx.beginPath(); ctx.arc(badgeX, badgeY, r, 0, Math.PI*2);
       ctx.fillStyle='#fdf6e3'; ctx.fill();
