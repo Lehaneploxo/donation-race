@@ -9,8 +9,9 @@
   #wrap { position:absolute; left:0; top:0; width:600px; height:1000px; transform-origin:0 0; }
   canvas { display:block; background:#000; }
   .ui-btn { position: fixed; z-index: 99999; width: 26px; height: 26px; font-size: 12px; background: rgba(0,0,0,0.55); color: rgba(255,255,255,0.55); border: 1px solid rgba(255,255,255,0.2); border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
-  #backBtn { top: calc(50% - 25px); right: 10px; }
-  #fsBtn   { top: calc(50% + 24px); right: 10px; }
+  #backBtn  { top: calc(50% - 49px); right: 10px; }
+  #voiceBtn { top: calc(50%);        right: 10px; }
+  #fsBtn    { top: calc(50% + 49px); right: 10px; }
   #statusBadge { position: fixed; bottom: 10px; left: 50%; transform: translateX(-50%); font-size: 12px; padding: 4px 12px; border-radius: 8px; border: 2px solid #555; background: rgba(0,0,0,0.78); color: #AAA; white-space: nowrap; z-index: 99999; display: none; }
   #statusBadge.live  { color: #00FF88; border-color: #00FF88; }
   #statusBadge.demo  { color: #FF9900; border-color: #FF9900; }
@@ -18,8 +19,9 @@
 </style>
 </head>
 <body>
-<button id="backBtn" class="ui-btn" title="Главное меню">⌂</button>
-<button id="fsBtn"   class="ui-btn" title="На весь экран">⛶</button>
+<button id="backBtn"  class="ui-btn" title="Главное меню">⌂</button>
+<button id="voiceBtn" class="ui-btn" title="Озвучка">🔇</button>
+<button id="fsBtn"    class="ui-btn" title="На весь экран">⛶</button>
 <div id="statusBadge"></div>
 <div id="ratingOverlay" style="position:fixed;top:27%;left:50%;transform:translateX(-50%);z-index:200;pointer-events:none;display:none;background:rgba(0,0,0,0.88);border:1.5px solid rgba(160,80,255,0.5);border-radius:8px;padding:6px 12px 7px;font-family:Arial,sans-serif;min-width:150px;text-align:center;line-height:1.25;white-space:nowrap;"></div>
 <div id="wrap"><canvas id="c" width="600" height="1000"></canvas></div>
@@ -141,6 +143,205 @@ function levelProgress(total){
   const frac = next==null ? 1 : Math.min(1, Math.max(0, (total-cur)/(next-cur)));
   return { level, cur, next, frac };
 }
+
+// ---------- озвучка (диктор) — 1-в-1 архитектура streetfighter_arena.html ----------
+function pick(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
+
+let vQueue = [];        // очередь {text, protected} — то, что реально будет сказано
+let vSpeaking = false;
+let vProtected = false; // пока true — текущую фразу нельзя оборвать другим urgent-событием
+let vQuietPool = [];
+let vQuietTimer = null;
+
+const RULE_PRIMARY = 'Подпишись, ставь лайки, донать — и твой герой получит энергию и силу!';
+const RULE_LEVELS = 'Твой уровень растёт от каждого удара и никогда не обнуляется — дерись, качай ранг от новичка до легенды арены!';
+const RULE_WEEKLY_KING = 'Каждую полночь корона арены обнуляется — кто заработает больше всех очков за день, станет чемпионом дня!';
+const RULES_OTHER = [
+  'Напиши в чате слово рейтинг — узнаешь своё место в топе!',
+  'Побеждённый герой вернётся в бой, если его снова лайкнуть или задонатить!',
+  'Забыл про героя на 5 минут? Его Сила начнёт слабеть — лайкни, чтобы не терять форму!',
+  'Напиши в чате hero1, hero2, hero3 или hero4 — выбери своего героя навсегда!',
+];
+let _ruleOtherIdx = 0;
+const FILLER = [
+  'Бой продолжается — не моргайте!',
+  'На арене как-то тихо... герои заскучали без лайков!',
+  'Зрители уже взяли попкорн — а герои всё ждут вас!',
+  'Герой без доната — как герой без оружия. Помоги ему!',
+  'Тишина на арене просто от скуки — оживите бой лайком!',
+  'Чем больше донат — тем больнее удар. Инвестируй в боль!',
+  'Кто-то там точно метит в чемпионы арены!',
+  'Разогрев продолжается — лайки решают исход боя!',
+  'Наш диктор питается лайками. Без них он грустнеет. Как сейчас, например.',
+  'Три секунды тишины. Четыре. Пять. Окей, это уже неловко.',
+  'Секретный способ стать легендой арены: донатить. Больше секретов нет, всё просто.',
+];
+function nextQuietPhrase(){
+  if (vQuietPool.length===0) vQuietPool = [...FILLER].sort(()=>Math.random()-0.5);
+  return vQuietPool.shift();
+}
+
+const JOIN_LINES = [
+  n=>`Встречайте на арене — ${n}!`,
+  n=>`${n} выходит на арену! Похлопаем!`,
+  n=>`Новый герой — ${n}! Готовься к драке!`,
+  n=>`${n} на арене! Разминка окончена, начинаем!`,
+  n=>`О! ${n} в деле! Добро пожаловать в самую безумную драку тиктока!`,
+];
+const GIFT_LINES = [
+  n=>`${n} не жалеет монет! Удар становится больнее!`,
+  n=>`${n} вложился в победу! Соперникам не позавидуешь!`,
+  n=>`${n} прокачался донатом! Берегитесь, соперники!`,
+  n=>`${n} только что купил себе лишнюю мощь!`,
+  n=>`Казна арены пополнилась! ${n} готовится к разрушению!`,
+];
+const REVIVE_LINES = [
+  n=>`${n} возвращается в бой!`,
+  n=>`${n} поднялся с земли и снова на арене!`,
+  n=>`Зелье подействовало — ${n} снова в деле!`,
+  n=>`${n} не сдаётся! Возвращение на арену!`,
+];
+const CHAMPION_ENTRANCE_LINES = [
+  n=>`Чемпион арены ${n} вышел на бой! Бойтесь, герои!`,
+  n=>`На арене чемпион — ${n}! Никому не поздоровится!`,
+  n=>`Чемпион арены ${n} здесь! Пощады не будет!`,
+  n=>`Внимание, арена! Чемпион ${n} возвращается! Дрожите!`,
+];
+const RANK_UP_LINES = [
+  (n, rank)=>`Внимание, арена! ${n} получает новое звание — ${rank}! Все встали и захлопали!`,
+  (n, rank)=>`Ого! ${n} дорос до звания «${rank}»! Соперники уже переходят на другую сторону арены!`,
+  (n, rank)=>`Новый ранг на арене! ${n} теперь официально ${rank}!`,
+  (n, rank)=>`${n} прокачался до «${rank}»! Земля под ногами начинает потрескивать от гордости!`,
+];
+const KO_LINES = [
+  (w,l)=>`⚔️ ${w} повергает ${l}!`,
+  (w,l)=>`💥 ${w} впечатал ${l} в стену!`,
+  (w,l)=>`🥋 ${l} досчитался до десяти от ${w}!`,
+  (w,l)=>`😵 ${w} выключил свет для ${l}!`,
+  (w,l)=>`🌟 ${l} увидел звёзды после удара ${w}!`,
+];
+
+// urgent=true — обычно обрывает текущую фразу и говорит сразу; НО если
+// сейчас играет protected-фраза (чемпион/правило) — её не обрываем, новая
+// просто становится следующей в очереди. protect=true — сама эта фраза,
+// начав звучать, тоже не может быть оборвана.
+function pushEvent(text, urgent, protect){
+  const item = { text, protected: !!protect, ts: Date.now() };
+  if (urgent){
+    if (!vProtected){
+      if (window.speechSynthesis) window.speechSynthesis.cancel();
+      vSpeaking = false;
+    }
+    vQueue.unshift(item);
+    if (vQueue.length>12) vQueue.length = 12;
+  } else {
+    vQueue.push(item);
+    if (vQueue.length>12) vQueue.shift();
+  }
+  vSpeakNext();
+}
+
+function estimateSpeechMs(text){
+  return Math.min(7000, Math.max(2200, text.length*75));
+}
+const SPEECH_STALE_MS = 10000;
+
+function vSpeakNext(){
+  if (vSpeaking) return;
+  while (vQueue.length && Date.now() - vQueue[0].ts > SPEECH_STALE_MS){
+    vQueue.shift();
+  }
+  if (vQueue.length===0){ vScheduleQuiet(); return; }
+  clearTimeout(vQuietTimer);
+  const item = vQueue.shift();
+  const text = item.text;
+  vSpeaking = true;
+  vProtected = item.protected;
+  const dur = estimateSpeechMs(text);
+  const onDone = ()=>{ vSpeaking=false; vProtected=false; setTimeout(vSpeakNext, 400); };
+  if (voiceEnabled && window.speechSynthesis){
+    speak(text, onDone);
+  } else {
+    setTimeout(onDone, dur);
+  }
+}
+
+setInterval(()=>{ pushEvent(RULE_PRIMARY, true, true); }, 30000);
+setInterval(()=>{ pushEvent(RULE_LEVELS, true, true); }, 60000);
+setInterval(()=>{ pushEvent(RULE_WEEKLY_KING, true, true); }, 60000);
+setInterval(()=>{
+  pushEvent(RULES_OTHER[_ruleOtherIdx % RULES_OTHER.length], true, true);
+  _ruleOtherIdx++;
+}, 60000);
+
+function vScheduleQuiet(){
+  clearTimeout(vQuietTimer);
+  vQuietTimer = setTimeout(()=>{
+    if (vSpeaking || vQueue.length>0) return;
+    pushEvent(nextQuietPhrase());
+  }, 10000);
+}
+
+let voiceEnabled = false, _cachedVoice = null;
+function getRuVoice(){
+  if(_cachedVoice) return _cachedVoice;
+  const voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+  _cachedVoice = voices.find(v=>/pavel/i.test(v.name))
+    || voices.find(v=>/ru/i.test(v.lang) && /male/i.test(v.name))
+    || voices.find(v=>/ru[-_]/i.test(v.lang))
+    || voices.find(v=>/ru/i.test(v.lang))
+    || voices.find(v=>v.default)
+    || voices[0] || null;
+  return _cachedVoice;
+}
+function speakClean(text){
+  return text
+    .replace(/[\u{1F1E6}-\u{1F1FF}\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{2190}-\u{21FF}\u{2300}-\u{23FF}\u{2B00}-\u{2BFF}\u{FE0F}\u{200D}]/gu, '')
+    .replace(/@/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+// ник в TikTok может содержать любые декоративные символы — для озвучки
+// оставляем только буквы/цифры (NFKD раскладывает декоративный unicode
+// обратно в обычные буквы перед фильтрацией)
+function cleanNickForSpeech(name){
+  return String(name||'')
+    .normalize('NFKD')
+    .replace(/[_.\-]+/g, ' ')
+    .replace(/[^\p{L}\p{N} ]+/gu, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+// заглушка — в этой игре пока нет фоновой музыки для приглушения (в
+// отличие от Street Fighter), функции оставлены для совместимости с speak()
+function duckBgMusic(){}
+function unduckBgMusic(){}
+function speak(text, onDone){
+  const done = onDone || (()=>{});
+  if(!voiceEnabled || !window.speechSynthesis){ done(); return; }
+  const clean = speakClean(text);
+  const u = new SpeechSynthesisUtterance(clean);
+  const v = getRuVoice();
+  if(v) u.voice = v;
+  u.lang = 'ru-RU'; u.rate = 1.08; u.volume = 1;
+  duckBgMusic();
+  let finished = false;
+  const finish = ()=>{ if(finished) return; finished = true; unduckBgMusic(); done(); };
+  u.onend = u.onerror = finish;
+  setTimeout(finish, Math.max(8000, clean.length*90 + 2500));
+  try{ window.speechSynthesis.speak(u); }catch(e){ finish(); }
+}
+if(window.speechSynthesis) window.speechSynthesis.onvoiceschanged = ()=>{ _cachedVoice = null; };
+
+document.getElementById('voiceBtn').addEventListener('click', ()=>{
+  voiceEnabled = !voiceEnabled;
+  document.getElementById('voiceBtn').textContent = voiceEnabled ? '🔊' : '🔇';
+  if(voiceEnabled && window.speechSynthesis){
+    try{ const s=new SpeechSynthesisUtterance(''); s.volume=0; window.speechSynthesis.speak(s); }catch(e){}
+  }
+});
+
+pushEvent('🔔 Бой начался!');
 
 // ---------- бойцы: боты + реальные зрители (лайки/донаты), крауд-арена ----------
 // (updateBotSpawns/update/startExchange/updateExchanges/finishExchange — тот
@@ -292,6 +493,7 @@ function applyGrowth(username, gain, isGift){
   f.powerMax  += gainedPower;
 
   const wasDown = !f.alive || f.eliminated;
+  const isChamp = _championName && username.toLowerCase()===_championName.toLowerCase();
   if (wasDown){
     const skin = f.skinChosen ? randomVariantForBaseType(f.charKey) : randomSkin();
     f.charKey = skin.baseType; f.dir = skin.dir; f.color = skin.color;
@@ -299,6 +501,8 @@ function applyGrowth(username, gain, isGift){
     f.energy = f.energyMax; f.power = f.powerMax;
     f.anim = 'idle'; f.frame = 0;
     f.x = RING_X.min + Math.random()*(RING_X.max-RING_X.min); f.tx = f.x;
+    pushEvent(isChamp ? pick(CHAMPION_ENTRANCE_LINES)(cleanNickForSpeech(username))
+                       : pick(REVIVE_LINES)(cleanNickForSpeech(username)), true, isChamp);
   } else {
     f.energy += gainedEnergy;
     f.power  += gainedPower;
@@ -310,6 +514,14 @@ function applyGrowth(username, gain, isGift){
     const lvlBonus = levelOf(f.allTimeStolen||0);
     f.energyMax += lvlBonus; f.energy += lvlBonus;
   }
+
+  if (isNew && !wasDown){
+    pushEvent(isChamp ? pick(CHAMPION_ENTRANCE_LINES)(cleanNickForSpeech(username))
+                       : pick(JOIN_LINES)(cleanNickForSpeech(username)), true, isChamp);
+  } else if (isGift && !wasDown){
+    pushEvent(pick(GIFT_LINES)(cleanNickForSpeech(username)), true);
+  }
+  // обычный лайк на уже живого бойца — молча, диктор не озвучивает каждый лайк
 }
 function onGift(username, coins){
   coins = Math.max(1, Math.floor(Number(coins)||1));
@@ -377,7 +589,11 @@ function throwPunch(attacker, defender){
     attacker.allTimeStolen = (attacker.allTimeStolen||0) + stolen;
     reportStolen(attacker.name, stolen);
     const newRankIdx = rankIndexOfLevel(levelOf(attacker.allTimeStolen));
-    if (newRankIdx > (attacker.knownRankIdx||0)) attacker.knownRankIdx = newRankIdx;
+    if (newRankIdx > (attacker.knownRankIdx||0)){
+      attacker.knownRankIdx = newRankIdx;
+      const rankName = LEVEL_RANKS[newRankIdx].name;
+      pushEvent(pick(RANK_UP_LINES)(cleanNickForSpeech(attacker.name), rankName), true, true);
+    }
   }
 
   if (defender.energy<=0){
@@ -386,7 +602,12 @@ function throwPunch(attacker, defender){
     defender.alive = false;
     if (defender.isBot) defender.respawnAt = performance.now()+RESPAWN_DELAY_MS;
     else defender.koTimer = KO_FALL_MS;
-    if (!attacker.isBot){ attacker.kos = (attacker.kos||0)+1; reportKO(attacker.name); }
+    // диктор объявляет только реальных победителей — бот-победитель молчит
+    if (!attacker.isBot){
+      attacker.kos = (attacker.kos||0)+1; reportKO(attacker.name);
+      const loserName = defender.isBot ? getBotName().replace(/_/g,' ') : cleanNickForSpeech(defender.name);
+      pushEvent(pick(KO_LINES)(cleanNickForSpeech(attacker.name), loserName), true);
+    }
   } else if(odef.anims.hit){
     defender.anim='hit'; defender.frame=0; defender.t=0; defender.animLockUntil=performance.now()+PUNCH_TICK_MS+60;
   }
