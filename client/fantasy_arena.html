@@ -375,6 +375,9 @@ const FIGHTER_COUNT = 5;      // сколько ботов подсаживае�
 const MAX_FIGHTERS = 8;       // потолок одновременно живых на арене
 const MAX_BOTS = 5;           // из них ботов не больше
 const MIN_REAL_ONSCREEN = 3;  // если реальных меньше — подсаживаем ботов
+const MAX_REAL_ONSCREEN = 10; // потолок РЕАЛЬНЫХ зрителей одновременно на арене —
+// сверх этого новые лайки/донаты копятся в очереди (см. realQueue ниже),
+// донатеры получают приоритет перед теми, кто просто лайкнул
 const BOT_CHECK_MS = 10000;
 const BOT_ENERGY = 100, BOT_POWER = 5;
 const RING_X = { min:70, max: CW-70 };
@@ -450,7 +453,7 @@ function spawnBotFighter(x){
     x, tx:x, y:889, facing: Math.random()<0.5?1:-1,
     anim:'idle', frame:0, t:0, animLockUntil:0,
     energy:BOT_ENERGY, energyMax:BOT_ENERGY, power:BOT_POWER, powerMax:BOT_POWER,
-    stolenEnergy:0, kos:0,
+    stolenEnergy:0, kos:0, streak:0,
     wanderPause: 200+Math.random()*800,
     punchCooldown:0, inExchange:false,
     alive:true, eliminated:false, respawnAt:0, koTimer:0, lastAttacker:null,
@@ -465,7 +468,7 @@ function spawnRealFighter(username){
     x, tx:x, y:889, facing: Math.random()<0.5?1:-1,
     anim:'idle', frame:0, t:0, animLockUntil:0,
     energy:0, energyMax:0, power:0, powerMax:0,
-    stolenEnergy:0, allTimeStolen:0, kos:0,
+    stolenEnergy:0, allTimeStolen:0, kos:0, streak:0,
     skinChosen:false, knownRankIdx:0, lastActiveAt:performance.now(),
     wanderPause: Math.random()*800,
     punchCooldown:0, inExchange:false,
@@ -491,10 +494,45 @@ startBattle();
 
 function findRealFighter(username){ return fighters.find(f=>!f.isBot && f.name===username); }
 
+// ---------- очередь реальных зрителей — сверх MAX_REAL_ONSCREEN на арене,
+// новые лайки/донаты копятся здесь, а не спавнят бойца сразу. Донатеры
+// (hasGift=true) идут в очереди впереди тех, кто только лайкал; внутри
+// одного приоритета — по времени захода (FIFO). ----------
+let realQueue = []; // [{username, giftEnergy, giftPower, likeEnergy, likePower, hasGift, queuedAt}]
+function findQueued(username){ return realQueue.find(q=>q.username===username); }
+function realOnscreenCount(){ return fighters.filter(f=>!f.isBot).length; }
+function enqueueGrowth(username, gain, isGift){
+  let q = findQueued(username);
+  if(!q){
+    q = { username, giftEnergy:0, giftPower:0, likeEnergy:0, likePower:0, hasGift:false, queuedAt:Date.now() };
+    realQueue.push(q);
+  }
+  q.giftEnergy += gain.giftEnergy||0; q.giftPower += gain.giftPower||0;
+  q.likeEnergy += gain.likeEnergy||0; q.likePower += gain.likePower||0;
+  if(isGift) q.hasGift = true;
+}
+// вызывается каждый кадр — как только освобождается слот, впускаем
+// следующего по приоритету из очереди (копившиеся лайки/донаты применяются
+// одним махом через тот же applyGrowth, что и обычный спавн)
+function processRealQueue(){
+  if(realQueue.length===0 || realOnscreenCount() >= MAX_REAL_ONSCREEN) return;
+  realQueue.sort((a,b)=> (b.hasGift - a.hasGift) || (a.queuedAt - b.queuedAt));
+  const q = realQueue.shift();
+  applyGrowth(q.username, {
+    giftEnergy:q.giftEnergy, giftPower:q.giftPower,
+    likeEnergy:q.likeEnergy, likePower:q.likePower,
+  }, q.hasGift);
+}
+
 function applyGrowth(username, gain, isGift){
   if (!username) return;
   let f = findRealFighter(username);
   const isNew = !f;
+  if (!f && (findQueued(username) || realOnscreenCount() >= MAX_REAL_ONSCREEN)){
+    // уже в очереди, или арена заполнена — копим рост, на арену не выходит
+    enqueueGrowth(username, gain, isGift);
+    return;
+  }
   if (!f){
     f = spawnRealFighter(username);
     const cached = _fighterCache.get(username);
@@ -583,7 +621,150 @@ function updateBotSpawns(dtMs){
   fighters.push(spawnBotFighter(x));
 }
 
+// ---------- зрелищность: киллстрик, всплывающий урон, тряска экрана,
+// VS-карточка, "лидер дня" (проверено на fantasy_arena_preview.html) ----------
+const STREAK_TIERS = [3, 5, 8]; // дальше — каждые +5 (13,18,23...)
+function streakTierFor(s){
+  if (s < 3) return null;
+  if (s <= 8) return STREAK_TIERS.filter(t=>t<=s).pop();
+  return (s-8)%5===0 ? s : null;
+}
+const STREAK_COLORS = { 3:'#ffcf3f', 5:'#ff8c1a', 8:'#ff2e4d' };
+function streakColorFor(s){ return STREAK_COLORS[s] || '#ff2e4d'; }
+let streakBannerText = '', streakBannerUntil = 0;
+
+let damageNumbers = [];
+function spawnDamageNumber(x, y, dmg){
+  damageNumbers.push({ x: x+(Math.random()*30-15), y, text:'-'+dmg, vy:-55, born:performance.now() });
+}
+function updateDrawDamageNumbers(now, dt){
+  for(let i=damageNumbers.length-1;i>=0;i--){
+    const d = damageNumbers[i];
+    const age = now - d.born;
+    if(age > 900){ damageNumbers.splice(i,1); continue; }
+    d.y += d.vy*dt;
+    const alpha = 1 - age/900;
+    ctx.save();
+    ctx.globalAlpha = Math.max(0,alpha);
+    ctx.font = 'bold 22px Arial Black'; ctx.textAlign='center';
+    ctx.strokeStyle='rgba(0,0,0,0.85)'; ctx.lineWidth=3.5;
+    ctx.strokeText(d.text, d.x, d.y);
+    ctx.fillStyle='#fff2a0';
+    ctx.fillText(d.text, d.x, d.y);
+    ctx.restore();
+  }
+}
+
+let shakeUntil = 0, koFlashUntil = 0;
+function triggerKOImpact(){
+  shakeUntil = performance.now() + 220;
+  koFlashUntil = performance.now() + 180;
+}
+function drawKOFlash(){
+  const now = performance.now();
+  if(now >= koFlashUntil) return;
+  const alpha = (koFlashUntil-now)/180 * 0.35;
+  ctx.save(); ctx.globalAlpha = alpha; ctx.fillStyle='#ffffff';
+  ctx.fillRect(0, WALL_TOP, CW, CH-WALL_TOP);
+  ctx.restore();
+}
+function drawStreakBanner(){
+  if(performance.now() >= streakBannerUntil) return;
+  const remain = streakBannerUntil - performance.now();
+  const alpha = Math.min(1, remain/300);
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.textAlign='center';
+  ctx.font='900 40px Arial Black';
+  ctx.strokeStyle='rgba(0,0,0,0.7)'; ctx.lineWidth=6;
+  ctx.strokeText(streakBannerText, CW/2, 340);
+  ctx.fillStyle='#ffcf3f';
+  ctx.fillText(streakBannerText, CW/2, 340);
+  ctx.restore();
+}
+
+// VS-карточка — только между двумя РЕАЛЬНЫМИ зрителями (не ботами) с
+// Силой >100, как просил пользователь ("когда сходятся два человека")
+const VS_POWER_THRESHOLD = 100;
+let vsCardA = '', vsCardB = '', vsCardUntil = 0;
+function maybeTriggerVsCard(a, b){
+  if(a.isBot || b.isBot) return;
+  if((a.power||0) > VS_POWER_THRESHOLD && (b.power||0) > VS_POWER_THRESHOLD){
+    vsCardA = a.name; vsCardB = b.name;
+    vsCardUntil = performance.now() + 2200;
+  }
+}
+function drawVsCard(){
+  if(performance.now() >= vsCardUntil) return;
+  const remain = vsCardUntil - performance.now();
+  const alpha = Math.min(1, remain/350);
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.textAlign='center';
+  ctx.font='900 30px Arial Black';
+  ctx.strokeStyle='rgba(0,0,0,0.75)'; ctx.lineWidth=5;
+  const line = `${vsCardA}  ⚔️  ${vsCardB}`;
+  ctx.strokeText(line, CW/2, 405);
+  ctx.fillStyle='#ff5566';
+  ctx.fillText(line, CW/2, 405);
+  ctx.font='bold 14px Arial Black'; ctx.fillStyle='rgba(255,255,255,0.75)';
+  ctx.strokeText('серьёзная схватка!', CW/2, 425);
+  ctx.fillText('серьёзная схватка!', CW/2, 425);
+  ctx.restore();
+}
+
+// "лидер дня" — считает победы за сессию только реальным зрителям (боты не
+// участвуют), небольшой пульсирующий бейдж в углу арены
+const koTotals = {};
+function recordKO(name, isBot){
+  if(!name || isBot) return;
+  koTotals[name] = (koTotals[name]||0) + 1;
+}
+function currentLeader(){
+  let best = null;
+  for(const name in koTotals){
+    if(!best || koTotals[name] > koTotals[best]) best = name;
+  }
+  return best ? { name: best, kos: koTotals[best] } : null;
+}
+function drawLeaderBadge(){
+  const leader = currentLeader();
+  if(!leader) return;
+  const pulse = 1 + Math.sin(performance.now()/300)*0.06;
+  const pad = 10;
+  ctx.save();
+  ctx.font=`bold ${Math.round(19*pulse)}px Arial Black`; ctx.textAlign='left';
+  const text = `🔥 Лидер: ${leader.name} (${leader.kos})`;
+  const w = Math.min(CW-2*pad-16, ctx.measureText(text).width);
+  ctx.fillStyle='rgba(0,0,0,0.55)';
+  ctx.fillRect(pad, WALL_TOP+8, w+16, 32);
+  ctx.strokeStyle='rgba(0,0,0,0.85)'; ctx.lineWidth=3;
+  ctx.strokeText(text, pad+8, WALL_TOP+31, CW-2*pad-16);
+  ctx.fillStyle='#ffcf3f';
+  ctx.fillText(text, pad+8, WALL_TOP+31, CW-2*pad-16);
+  ctx.restore();
+}
+
+// индикатор очереди — сверху справа, чтобы было видно, что донат/лайк
+// не пропал, а копится, пока не освободится место на арене
+function drawQueueIndicator(){
+  if(realQueue.length===0) return;
+  const pad = 10;
+  const text = `⏳ В очереди: ${realQueue.length}`;
+  ctx.save();
+  ctx.font='bold 15px Arial Black'; ctx.textAlign='right';
+  const w = ctx.measureText(text).width;
+  ctx.fillStyle='rgba(0,0,0,0.55)';
+  ctx.fillRect(CW-pad-w-16, WALL_TOP+8, w+16, 26);
+  ctx.strokeStyle='rgba(0,0,0,0.85)'; ctx.lineWidth=2.5;
+  ctx.strokeText(text, CW-pad-8, WALL_TOP+27);
+  ctx.fillStyle='#7fd3ff';
+  ctx.fillText(text, CW-pad-8, WALL_TOP+27);
+  ctx.restore();
+}
+
 function startExchange(a,b){
+  maybeTriggerVsCard(a,b);
   a.inExchange = b.inExchange = true;
   const hits = 1 + Math.floor(Math.random()*3);
   const queue = [];
@@ -607,6 +788,7 @@ function throwPunch(attacker, defender){
   const stolen = Math.min(dmg, Math.max(0, defender.energy));
   defender.energy = Math.max(0, defender.energy - dmg);
   defender.lastAttacker = attacker;
+  spawnDamageNumber(defender.x, defender.y-360, dmg);
 
   attacker.stolenEnergy = (attacker.stolenEnergy||0) + stolen;
   if (!attacker.isBot){
@@ -626,6 +808,14 @@ function throwPunch(attacker, defender){
     defender.alive = false;
     if (defender.isBot) defender.respawnAt = performance.now()+RESPAWN_DELAY_MS;
     else defender.koTimer = KO_FALL_MS;
+    triggerKOImpact();
+    attacker.streak = (attacker.streak||0) + 1;
+    recordKO(attacker.name, attacker.isBot);
+    const tier = streakTierFor(attacker.streak);
+    if(tier){
+      streakBannerText = `💀 СЕРИЯ x${attacker.streak}!`;
+      streakBannerUntil = performance.now() + 1800;
+    }
     // диктор объявляет только реальных победителей — бот-победитель молчит
     if (!attacker.isBot){
       attacker.kos = (attacker.kos||0)+1; reportKO(attacker.name);
@@ -717,6 +907,8 @@ function updateBattle(now, dt){
       f.anim = 'idle';
     }
   }
+
+  processRealQueue(); // как только освобождается слот — впускаем следующего из очереди
 
   for(let i=0;i<fighters.length;i++){
     const a = fighters[i]; if(!a.alive) continue;
@@ -1093,6 +1285,23 @@ function drawFighter(f, now){
       ctx.fillText(label, f.x, labelY);
       ctx.restore();
     }
+
+    // бейдж серии — череп 💀 + число, растёт по тиру (не только у реальных —
+    // у ботов тоже может идти серия, это чисто зрелищность)
+    if(f.streak>=2){
+      const tier = f.streak>=8 ? 8 : (f.streak>=5?5:3);
+      const r = tier===8?24:(tier===5?19:15);
+      const badgeX = f.x, badgeY = by - (f.isBot?0:22) - r - 8;
+      ctx.save();
+      ctx.beginPath(); ctx.arc(badgeX, badgeY, r, 0, Math.PI*2);
+      ctx.fillStyle='#fdf6e3'; ctx.fill();
+      ctx.lineWidth=3; ctx.strokeStyle=streakColorFor(tier); ctx.stroke();
+      ctx.fillStyle='#1a1a1a';
+      ctx.font=`900 ${Math.round(r*0.95)}px Arial Black`;
+      ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText('💀'+f.streak, badgeX, badgeY+1);
+      ctx.restore();
+    }
   }
 }
 
@@ -1258,9 +1467,20 @@ function render(t){
   updateMapSwitch(t);
   updateBattle(t, dt);
   ctx.clearRect(0,0,CW,CH);
+
+  const shaking = t < shakeUntil;
+  if(shaking){ ctx.save(); ctx.translate((Math.random()*2-1)*6, (Math.random()*2-1)*6); }
   drawBG();
   fighters.forEach(f => drawFighter(f, t));
+  drawKOFlash();
+  updateDrawDamageNumbers(t, dt);
+  if(shaking) ctx.restore();
+
   drawHUD();
+  drawLeaderBadge();
+  drawQueueIndicator();
+  drawStreakBanner();
+  drawVsCard();
   requestAnimationFrame(render);
 }
 requestAnimationFrame(render);
