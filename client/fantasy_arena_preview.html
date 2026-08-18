@@ -380,12 +380,12 @@ function drawBGIllusion(){
 }
 
 // ---- "Высокий лес" (SunnyLand Tall Forest Environment) — светлый лес,
-// 3 слоя (back/far/middle) + тайлсет земли.
+// 3 слоя (back/far/middle), пол — плоская заливка (родной тайлсет земли
+// давал вид "кирпичей"/пеньков с зазорами — от него отказались).
 const TALLFOREST_DIR = "sprites/fantasy_arena/stage11_tallforest";
 const tallforestBack = new Image(); tallforestBack.src = `${TALLFOREST_DIR}/back.png`;
 const tallforestFar = new Image(); tallforestFar.src = `${TALLFOREST_DIR}/far.png`;
 const tallforestMiddle = new Image(); tallforestMiddle.src = `${TALLFOREST_DIR}/middle.png`;
-const tallforestTileset = new Image(); tallforestTileset.src = `${TALLFOREST_DIR}/tileset.png`;
 const TALLFOREST_SCALE = 2;
 const TALLFOREST_SKY_COLOR = '#bdeeff';
 const TALLFOREST_FLOOR_COLOR = '#2f6b34';
@@ -397,13 +397,6 @@ function drawBGTallforest(){
   drawParallaxLayer(tallforestFar, TALLFOREST_SCALE, seamY, 0.2);
   drawParallaxLayer(tallforestMiddle, TALLFOREST_SCALE, seamY, 0.45);
   ctx.fillStyle = TALLFOREST_FLOOR_COLOR; ctx.fillRect(0, seamY, CW, floorH);
-  if(tallforestTileset.complete && tallforestTileset.naturalWidth>0){
-    const tw = tallforestTileset.naturalWidth*TALLFOREST_SCALE, th = tallforestTileset.naturalHeight*TALLFOREST_SCALE;
-    const off = ((scrollX*0.45 % tw) + tw) % tw;
-    for(let x=-off; x<CW; x+=tw){
-      ctx.drawImage(tallforestTileset, 0,0, tallforestTileset.naturalWidth, tallforestTileset.naturalHeight, x, seamY, tw, th);
-    }
-  }
   drawSeamAndVignette(seamY, areaH);
 }
 
