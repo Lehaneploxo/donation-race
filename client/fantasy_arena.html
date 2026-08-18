@@ -966,7 +966,7 @@ function drawHUD(){
   {
     const name = _weeklyChampion ? _weeklyChampion.username : null;
     const shortName = name && name.length>13 ? name.slice(0,12)+'…' : name;
-    const champText = shortName ? ('🏆 Вчера: @'+shortName) : '🏆 Вчера: пока никого';
+    const champText = shortName ? ('🏆 @'+shortName) : '🏆 пока никого';
     ctx.save();
     ctx.font='bold 20px Arial Black'; ctx.textAlign='left';
     ctx.strokeStyle='rgba(0,0,0,0.85)'; ctx.lineWidth=4;
