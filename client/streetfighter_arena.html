@@ -799,6 +799,7 @@ const RULES_OTHER = [
   'Напиши в чате слово рейтинг — узнаешь своё место в топе!',
   'Нокаутированный боец вернётся в бой, если его снова лайкнуть или задонатить!',
   'Забыл про бойца на 15 минут? Его Сила начнёт слабеть — лайкни, чтобы не терять форму!',
+  'Заходите в наш телеграм канал — ссылка прямо на табло!',
 ];
 let _ruleOtherIdx = 0;
 const FILLER = [
@@ -1941,7 +1942,7 @@ function drawHUD() {
     { text: '🎮 Напиши "skin1"-"skin5" — выбери героя', color: '#4fc3ff' },
     { text: '⏳ 15 мин тишины = 💪Сила -1/сек', color: '#ffa64d' },
   ];
-  const rY = T+82, rStep = 28;
+  const rY = T+78, rStep = 24; // сжато с 82/28 — освободило строку снизу под телеграм-канал
   // буквы "растянуты" по высоте: берём шрифт покрупнее и сжимаем его по
   // ширине через ctx.scale(sx,1) — так же, как сделано в arena2/arena3 —
   // ширина остаётся в рамках левой колонки (не вылезает на топ-список),
@@ -1964,6 +1965,19 @@ function drawHUD() {
     ctx.restore();
   });
 
+  // телеграм-канал — отдельной строкой под правилами, своим размером
+  // шрифта (не участвует в общем ruleScaleX, чтобы не сжимать остальные
+  // правила из-за длинного адреса)
+  {
+    const tgText = '📱 Наш канал: t.me/tiktokgames777';
+    ctx.save();
+    ctx.font = 'bold 16px Arial Black'; ctx.textAlign = 'left';
+    ctx.strokeStyle = 'rgba(0,0,0,0.85)'; ctx.lineWidth = 3;
+    ctx.strokeText(tgText, 8, rY + rules.length*rStep, ruleAvailW);
+    ctx.fillStyle = '#4fc3ff';
+    ctx.fillText(tgText, 8, rY + rules.length*rStep, ruleAvailW);
+    ctx.restore();
+  }
 
   // правая колонка — топ по силе
   ctx.font = 'bold 12px Arial Black'; ctx.textAlign = 'center';
