@@ -137,6 +137,40 @@ async function init() {
     )
   `);
 
+  // ── Fantasy Arena (2026-08-18) — 1-в-1 схема Street Fighter выше (см.
+  // комментарии там для каждого поля), отдельная таблица/архив/метка сброса.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS fantasyarena_stolen (
+      username TEXT PRIMARY KEY,
+      total_stolen INTEGER NOT NULL DEFAULT 0
+    )
+  `);
+  await pool.query(`ALTER TABLE fantasyarena_stolen ADD COLUMN IF NOT EXISTS total_kos INTEGER NOT NULL DEFAULT 0`);
+  await pool.query(`ALTER TABLE fantasyarena_stolen ADD COLUMN IF NOT EXISTS belt_seconds INTEGER NOT NULL DEFAULT 0`);
+  // выбор героя командой "hero1".."hero4" в чате (см. Street Fighter chosen_skin
+  // выше — тот же смысл, другое имя команды, чтобы не путать с Street Fighter)
+  await pool.query(`ALTER TABLE fantasyarena_stolen ADD COLUMN IF NOT EXISTS chosen_skin INTEGER`);
+  await pool.query(`ALTER TABLE fantasyarena_stolen ADD COLUMN IF NOT EXISTS lifetime_stolen INTEGER NOT NULL DEFAULT 0`);
+  await pool.query(`UPDATE fantasyarena_stolen SET lifetime_stolen = total_stolen WHERE lifetime_stolen = 0 AND total_stolen > 0`);
+  await pool.query(`ALTER TABLE fantasyarena_stolen ADD COLUMN IF NOT EXISTS weekly_belt_seconds INTEGER NOT NULL DEFAULT 0`);
+  await pool.query(`ALTER TABLE fantasyarena_stolen ADD COLUMN IF NOT EXISTS weekly_king_wins INTEGER NOT NULL DEFAULT 0`);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS fantasyarena_weekly_kings (
+      id SERIAL PRIMARY KEY,
+      week_start TIMESTAMPTZ NOT NULL,
+      username TEXT NOT NULL,
+      weekly_belt_seconds INTEGER NOT NULL,
+      weekly_points INTEGER NOT NULL DEFAULT 0,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS fantasyarena_weekly_meta (
+      id INTEGER PRIMARY KEY DEFAULT 1,
+      last_reset_at TIMESTAMPTZ NOT NULL
+    )
+  `);
+
   // ── Рыбалка (2026-08-10) — рейтинг строится на количестве "рыбок", не
   // донатов: 1 монета/100 лайков = 1 рыбка, total_fish копится вечно (по
   // нему db-страница), daily_fish — ЕЖЕДНЕВНЫЙ (обнуляется в полночь по
@@ -633,6 +667,164 @@ async function getStreetFighterWeeklyHistory() {
   }));
 }
 
+// ── Fantasy Arena: 1-в-1 логика Street Fighter выше (см. комментарии там),
+// своя таблица/архив/метка сброса. ──
+const fantasyArena = makeBoxingApi('fantasyarena_stolen');
+const getTopFantasyArenaStolen = fantasyArena.getTop;
+const addFantasyArenaKO = fantasyArena.addKO;
+const resetFantasyArenaRating = fantasyArena.reset;
+const setFantasyArenaStolen = fantasyArena.setStolen;
+const deleteFantasyArenaUser = fantasyArena.deleteUser;
+const setFantasyArenaWeeklyKingWins = fantasyArena.setWeeklyKingWins;
+
+async function addFantasyArenaStolen(username, amount) {
+  if (!pool || !username || !amount) return;
+  await pool.query(`
+    INSERT INTO fantasyarena_stolen (username, total_stolen, lifetime_stolen)
+    VALUES ($1, $2, $2)
+    ON CONFLICT (username)
+    DO UPDATE SET total_stolen = fantasyarena_stolen.total_stolen + $2,
+                  lifetime_stolen = fantasyarena_stolen.lifetime_stolen + $2
+  `, [username, Math.floor(amount)]);
+}
+
+async function addFantasyArenaBeltSeconds(username, seconds) {
+  if (!pool || !username || !seconds) return;
+  await pool.query(`
+    INSERT INTO fantasyarena_stolen (username, belt_seconds, weekly_belt_seconds)
+    VALUES ($1, $2, $2)
+    ON CONFLICT (username)
+    DO UPDATE SET belt_seconds = fantasyarena_stolen.belt_seconds + $2,
+                  weekly_belt_seconds = fantasyarena_stolen.weekly_belt_seconds + $2
+  `, [username, Math.floor(seconds)]);
+}
+
+async function getUserFantasyArenaRank(username) {
+  if (!pool || !username) return null;
+  const res = await pool.query(`
+    SELECT username, total_stolen, total_kos, belt_seconds, lifetime_stolen, weekly_king_wins, weekly_belt_seconds,
+           RANK() OVER (ORDER BY total_stolen DESC) AS rank
+    FROM fantasyarena_stolen
+  `);
+  const row = res.rows.find(r => r.username.toLowerCase() === username.toLowerCase());
+  return row ? {
+    rank: Number(row.rank),
+    total_stolen: Number(row.total_stolen),
+    total_kos: Number(row.total_kos),
+    belt_seconds: Number(row.belt_seconds),
+    lifetime_stolen: Number(row.lifetime_stolen),
+    weekly_king_wins: Number(row.weekly_king_wins),
+    weekly_belt_seconds: Number(row.weekly_belt_seconds),
+  } : null;
+}
+
+async function getAllFantasyArenaStolen() {
+  if (!pool) return [];
+  const res = await pool.query(`
+    SELECT username, total_stolen, total_kos, belt_seconds, lifetime_stolen, weekly_king_wins, weekly_belt_seconds,
+           ROW_NUMBER() OVER (ORDER BY total_stolen DESC, username ASC) AS rank
+    FROM fantasyarena_stolen
+    ORDER BY total_stolen DESC, username ASC
+  `);
+  return res.rows.map(r => ({
+    rank: Number(r.rank),
+    username: r.username,
+    total_stolen: Number(r.total_stolen),
+    total_kos: Number(r.total_kos),
+    belt_seconds: Number(r.belt_seconds),
+    lifetime_stolen: Number(r.lifetime_stolen),
+    weekly_king_wins: Number(r.weekly_king_wins),
+    weekly_belt_seconds: Number(r.weekly_belt_seconds),
+  }));
+}
+
+async function performFantasyArenaWeeklyResetIfNeeded() {
+  if (!pool) return null;
+  const boundaryMs = mostRecentMidnightKyivMs(Date.now());
+  const boundary = new Date(boundaryMs);
+
+  const metaRes = await pool.query(`SELECT last_reset_at FROM fantasyarena_weekly_meta WHERE id=1`);
+  if (metaRes.rows.length === 0) {
+    await pool.query(`INSERT INTO fantasyarena_weekly_meta (id, last_reset_at) VALUES (1, $1)`, [boundary]);
+    return null;
+  }
+
+  const lastReset = metaRes.rows[0].last_reset_at;
+  if (boundary <= lastReset) return null;
+
+  const winnerRes = await pool.query(`
+    SELECT username, total_stolen, weekly_belt_seconds FROM fantasyarena_stolen
+    WHERE total_stolen > 0
+    ORDER BY total_stolen DESC LIMIT 1
+  `);
+  let winner = null;
+  if (winnerRes.rows.length) {
+    winner = winnerRes.rows[0];
+    await pool.query(`
+      INSERT INTO fantasyarena_weekly_kings (week_start, username, weekly_belt_seconds, weekly_points)
+      VALUES ($1, $2, $3, $4)
+    `, [lastReset, winner.username, winner.weekly_belt_seconds, winner.total_stolen]);
+    await pool.query(`
+      UPDATE fantasyarena_stolen SET weekly_king_wins = weekly_king_wins + 1
+      WHERE LOWER(username) = LOWER($1)
+    `, [winner.username]);
+  }
+
+  await pool.query(`UPDATE fantasyarena_stolen SET total_stolen = 0, weekly_belt_seconds = 0`);
+  await pool.query(`UPDATE fantasyarena_weekly_meta SET last_reset_at = $1 WHERE id=1`, [boundary]);
+
+  console.log(`[FANTASYARENA] Дневной сброс выполнен, граница=${boundary.toISOString()}, король дня: ${winner ? winner.username + ' (' + winner.total_stolen + ' очков)' : 'нет (очков никто не набрал)'}`);
+
+  return { winner: winner ? winner.username : null, weekStart: lastReset.toISOString() };
+}
+
+// выбор героя (hero1..hero4) — специфично для Fantasy Arena, не часть
+// общей фабрики makeBoxingApi
+async function setFantasyArenaSkin(username, skinIndex) {
+  if (!pool || !username) return;
+  await pool.query(`
+    INSERT INTO fantasyarena_stolen (username, chosen_skin)
+    VALUES ($1, $2)
+    ON CONFLICT (username)
+    DO UPDATE SET chosen_skin = $2
+  `, [username, skinIndex]);
+}
+async function getFantasyArenaSkin(username) {
+  if (!pool || !username) return null;
+  const res = await pool.query(
+    `SELECT chosen_skin FROM fantasyarena_stolen WHERE LOWER(username) = LOWER($1)`,
+    [username]
+  );
+  return res.rows.length ? res.rows[0].chosen_skin : null;
+}
+
+async function getLastFantasyArenaWeeklyChampion() {
+  if (!pool) return null;
+  const res = await pool.query(`
+    SELECT username, weekly_points, week_start FROM fantasyarena_weekly_kings
+    ORDER BY week_start DESC LIMIT 1
+  `);
+  return res.rows.length ? {
+    username: res.rows[0].username,
+    weeklyPoints: Number(res.rows[0].weekly_points),
+    weekStart: res.rows[0].week_start,
+  } : null;
+}
+
+async function getFantasyArenaWeeklyHistory() {
+  if (!pool) return [];
+  const res = await pool.query(`
+    SELECT username, weekly_points, weekly_belt_seconds, week_start, created_at
+    FROM fantasyarena_weekly_kings ORDER BY week_start ASC
+  `);
+  return res.rows.map(r => ({
+    username: r.username,
+    weeklyPoints: Number(r.weekly_points),
+    weekStart: r.week_start,
+    createdAt: r.created_at,
+  }));
+}
+
 // ── Boxing Arena RU: тот же еженедельный "Пояс чемпиона" (2026-08-08) ──
 // 1-в-1 логика Street Fighter выше, только своя таблица/архив/метка сброса.
 // EN-версия бокса НЕ трогается — остаётся на старой all-time схеме (фабрика
@@ -922,6 +1114,12 @@ module.exports = {
   setStreetFighterSkin, getStreetFighterSkin,
   performStreetFighterWeeklyResetIfNeeded, getLastStreetFighterWeeklyChampion,
   setStreetFighterWeeklyKingWins, getStreetFighterWeeklyHistory,
+  addFantasyArenaStolen, getTopFantasyArenaStolen, getUserFantasyArenaRank,
+  addFantasyArenaKO, addFantasyArenaBeltSeconds, resetFantasyArenaRating,
+  setFantasyArenaStolen, deleteFantasyArenaUser, getAllFantasyArenaStolen,
+  setFantasyArenaSkin, getFantasyArenaSkin,
+  performFantasyArenaWeeklyResetIfNeeded, getLastFantasyArenaWeeklyChampion,
+  setFantasyArenaWeeklyKingWins, getFantasyArenaWeeklyHistory,
   addFishingCatch, getTopFishingDaily, getAllFishing, getUserFishingRank,
   resetFishingRating, setFishingTotal, deleteFishingUser,
   performFishingDailyResetIfNeeded, getYesterdayTopFishing,

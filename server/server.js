@@ -66,6 +66,8 @@ app.get('/boxing-en',    serveHtml('boxing_arena_en.html'));
 app.get('/boxing-db-en', serveHtml('boxing_db_en.html'));
 app.get('/streetfighter',    serveHtml('streetfighter_arena.html'));
 app.get('/streetfighter-db', serveHtml('streetfighter_db.html'));
+app.get('/fantasyarena',     serveHtml('fantasy_arena.html'));
+app.get('/fantasyarena-db',  serveHtml('fantasy_arena_db.html'));
 app.get('/fishing',    serveHtml('fishing.html'));
 app.get('/fishing-db', serveHtml('fishing_db.html'));
 
@@ -425,6 +427,99 @@ app.get('/admin/streetfighter-weekly-check', async (req, res) => {
   }
 });
 
+app.get('/api/fantasyarena-db', async (req, res) => {
+  try {
+    const rows = await db.getAllFantasyArenaStolen();
+    res.json({ ok: true, count: rows.length, rows });
+  } catch(e) {
+    res.json({ ok: false, error: e.message });
+  }
+});
+
+app.get('/admin/reset-fantasyarena-rating', async (req, res) => {
+  try {
+    await db.resetFantasyArenaRating();
+    res.json({ ok: true });
+  } catch(e) {
+    res.json({ ok: false, error: e.message });
+  }
+});
+
+app.get('/admin/set-fantasyarena-stolen', async (req, res) => {
+  try {
+    const username = req.query.username || '';
+    const value = parseInt(req.query.value);
+    if (!username || Number.isNaN(value)) return res.json({ ok: false, error: 'username and value required' });
+    await db.setFantasyArenaStolen(username, value);
+    console.log(`[ADMIN-SET-FANTASYARENA-STOLEN] username="${username}" value=${value}`);
+    res.json({ ok: true, username, value });
+  } catch(e) {
+    res.json({ ok: false, error: e.message });
+  }
+});
+
+app.get('/admin/set-fantasyarena-wins', async (req, res) => {
+  try {
+    const username = req.query.username || '';
+    const value = parseInt(req.query.value);
+    if (!username || Number.isNaN(value)) return res.json({ ok: false, error: 'username and value required' });
+    await db.setFantasyArenaWeeklyKingWins(username, value);
+    console.log(`[ADMIN-SET-FANTASYARENA-WINS] username="${username}" value=${value}`);
+    res.json({ ok: true, username, value });
+  } catch(e) {
+    res.json({ ok: false, error: e.message });
+  }
+});
+
+app.get('/admin/delete-fantasyarena-user', async (req, res) => {
+  try {
+    const username = req.query.username || '';
+    if (!username) return res.json({ ok: false, error: 'username required' });
+    await db.deleteFantasyArenaUser(username);
+    console.log(`[ADMIN-DELETE-FANTASYARENA-USER] username="${username}"`);
+    res.json({ ok: true, username });
+  } catch(e) {
+    res.json({ ok: false, error: e.message });
+  }
+});
+
+app.get('/top-fantasyarena', async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 100;
+    const top = await db.getTopFantasyArenaStolen(limit);
+    res.json({ ok: true, count: top.length, top });
+  } catch(e) {
+    res.json({ ok: false, error: e.message });
+  }
+});
+
+app.get('/fantasyarena-weekly-champion', async (req, res) => {
+  try {
+    const champion = await db.getLastFantasyArenaWeeklyChampion();
+    res.json({ ok: true, champion });
+  } catch(e) {
+    res.json({ ok: false, error: e.message });
+  }
+});
+
+app.get('/admin/fantasyarena-weekly-history', async (req, res) => {
+  try {
+    const history = await db.getFantasyArenaWeeklyHistory();
+    res.json({ ok: true, count: history.length, history });
+  } catch(e) {
+    res.json({ ok: false, error: e.message });
+  }
+});
+
+app.get('/admin/fantasyarena-weekly-check', async (req, res) => {
+  try {
+    const result = await checkFantasyArenaWeeklyReset();
+    res.json({ ok: true, result });
+  } catch(e) {
+    res.json({ ok: false, error: e.message });
+  }
+});
+
 app.get('/api/fishing-db', async (req, res) => {
   try {
     const rows = await db.getAllFishing();
@@ -510,6 +605,7 @@ const STATE_RESTORE_TYPE = {
   streetfighter: 'streetfighter_state_restore',
   boxing: 'boxing_state_restore',
   boxing_en: 'boxing_state_restore_en',
+  fantasyarena: 'fantasyarena_state_restore',
 };
 
 class Room {
@@ -675,6 +771,17 @@ class Room {
           this.broadcast({ type: 'streetfighter_skin_choice', username: data.username, skinIndex });
         }
 
+        // Fantasy Arena: "hero1".."hero4" — выбор героя, закрепляется за
+        // ником навсегда (отдельная команда от Street Fighter "skinN", чтобы
+        // не пересекаться — обе рассылаются всем клиентам сразу)
+        const faSkinMatch = msgLower.match(/^hero([1-4])$/);
+        if (faSkinMatch) {
+          const skinIndex = parseInt(faSkinMatch[1], 10);
+          db.setFantasyArenaSkin(data.username, skinIndex)
+            .catch(e => console.error('[DB] fantasyarena_skin error:', e.message));
+          this.broadcast({ type: 'fantasyarena_skin_choice', username: data.username, skinIndex });
+        }
+
         const lowerUser = (data.username || '').toLowerCase();
         if (msgLower.startsWith('boost')) {
           console.log(`[BOOST-ATTEMPT] from="${data.username}" lowerUser="${lowerUser}" msg="${msg}" isAdmin=${lowerUser.includes('leha') && lowerUser.includes('neplox')}`);
@@ -770,6 +877,23 @@ class Room {
             })
             .catch(() => {
               this.broadcast({ type: 'arena_streetfighter_rating', username: data.username, rank: null, stolen: 0, kos: 0, lifetimeStolen: 0, weeklyKingWins: 0, weeklyBeltSeconds: 0 });
+            });
+          // Fantasy Arena: тот же топ, но по своей таблице (1-в-1 Street Fighter)
+          db.getUserFantasyArenaRank(data.username)
+            .then(rank => {
+              this.broadcast({
+                type: 'arena_fantasyarena_rating',
+                username: data.username,
+                rank: rank ? rank.rank : null,
+                stolen: rank ? rank.total_stolen : 0,
+                kos: rank ? rank.total_kos : 0,
+                lifetimeStolen: rank ? rank.lifetime_stolen : 0,
+                weeklyKingWins: rank ? rank.weekly_king_wins : 0,
+                weeklyBeltSeconds: rank ? rank.weekly_belt_seconds : 0,
+              });
+            })
+            .catch(() => {
+              this.broadcast({ type: 'arena_fantasyarena_rating', username: data.username, rank: null, stolen: 0, kos: 0, lifetimeStolen: 0, weeklyKingWins: 0, weeklyBeltSeconds: 0 });
             });
           // Рыбалка: место в дневном топе + вечный счёт рыбок
           db.getUserFishingRank(data.username)
@@ -1031,6 +1155,38 @@ wss.on('connection', (ws, req) => {
             room.broadcast({ type: 'streetfighter_tier_info', username: msg.username, lifetimeStolen: 0, chosenSkin: null });
           });
       }
+      if (msg.type === 'fantasyarena_stolen' && msg.username && msg.amount) {
+        db.addFantasyArenaStolen(msg.username, msg.amount)
+          .then(() => db.getTopFantasyArenaStolen(5))
+          .then(top => {
+            room.broadcast({ type: 'top_fantasyarena', data: top });
+          })
+          .catch(e => console.error('[DB] fantasyarena_stolen error:', e.message));
+      }
+      if (msg.type === 'fantasyarena_ko' && msg.username) {
+        db.addFantasyArenaKO(msg.username).catch(e => console.error('[DB] fantasyarena_ko error:', e.message));
+      }
+      if (msg.type === 'fantasyarena_belt' && msg.username && msg.seconds) {
+        db.addFantasyArenaBeltSeconds(msg.username, msg.seconds).catch(e => console.error('[DB] fantasyarena_belt error:', e.message));
+      }
+      if (msg.type === 'fantasyarena_tier_request' && msg.username) {
+        Promise.all([
+          db.getUserFantasyArenaRank(msg.username),
+          db.getFantasyArenaSkin(msg.username),
+        ])
+          .then(([rank, chosenSkin]) => {
+            room.broadcast({ type: 'fantasyarena_tier_info', username: msg.username, lifetimeStolen: rank ? rank.lifetime_stolen : 0, chosenSkin });
+          })
+          .catch(() => {
+            room.broadcast({ type: 'fantasyarena_tier_info', username: msg.username, lifetimeStolen: 0, chosenSkin: null });
+          });
+      }
+      if (msg.type === 'fantasyarena_state_save') {
+        room.saveStateSnapshot('fantasyarena', msg.players);
+      }
+      if (msg.type === 'fantasyarena_state_request') {
+        room.sendStateSnapshot(ws, 'fantasyarena');
+      }
       if (msg.type === 'fishing_catch' && msg.username && msg.fish) {
         db.addFishingCatch(msg.username, msg.fish)
           .then(() => db.getTopFishingDaily(10))
@@ -1148,6 +1304,26 @@ async function checkBoxingWeeklyReset() {
 }
 setInterval(() => { checkBoxingWeeklyReset().catch(e => console.error('[BOXING] weekly-check error:', e.message)); }, 10*60*1000);
 setTimeout(() => { checkBoxingWeeklyReset().catch(e => console.error('[BOXING] weekly-check (startup) error:', e.message)); }, 15*1000);
+
+// ─── Fantasy Arena: ЕЖЕДНЕВНЫЙ сброс рейтинга (полночь по Киеву) ─────
+// 1-в-1 паттерн Street Fighter выше (см. комментарий там).
+async function checkFantasyArenaWeeklyReset() {
+  const result = await db.performFantasyArenaWeeklyResetIfNeeded();
+  if (result) {
+    console.log('[FANTASYARENA] Рассылаю обновлённый топ и нового чемпиона дня во все активные комнаты после сброса');
+    for (const room of rooms.values()) {
+      db.getTopFantasyArenaStolen(5)
+        .then(top => room.broadcast({ type: 'top_fantasyarena', data: top }))
+        .catch(e => console.error('[FANTASYARENA] Ошибка рассылки топа после сброса:', e.message));
+      db.getLastFantasyArenaWeeklyChampion()
+        .then(champion => room.broadcast({ type: 'fantasyarena_weekly_champion', champion }))
+        .catch(e => console.error('[FANTASYARENA] Ошибка рассылки чемпиона после сброса:', e.message));
+    }
+  }
+  return result;
+}
+setInterval(() => { checkFantasyArenaWeeklyReset().catch(e => console.error('[FANTASYARENA] weekly-check error:', e.message)); }, 10*60*1000);
+setTimeout(() => { checkFantasyArenaWeeklyReset().catch(e => console.error('[FANTASYARENA] weekly-check (startup) error:', e.message)); }, 15*1000);
 
 // ─── Рыбалка: ежедневный сброс "ТОП ЗА СЕГОДНЯ" (полночь по Киеву) ─────
 async function checkFishingDailyReset() {
