@@ -598,7 +598,7 @@ function applyGrowth(username, gain, isGift){
 }
 function onGift(username, coins){
   coins = Math.max(1, Math.floor(Number(coins)||1));
-  applyGrowth(username, { giftEnergy:100*coins, giftPower:10*coins }, true);
+  applyGrowth(username, { giftEnergy:50*coins, giftPower:5*coins }, true);
 }
 function onLike(username){ applyGrowth(username, { likeEnergy:10, likePower:1 }, false); }
 
@@ -1193,7 +1193,7 @@ function drawHUD(){
 
   const rules = [
     { text:'👍 1 лайк = +10⚡ +1💪', color:'#FF88CC' },
-    { text:'🎁 1 монета = +100⚡ +10💪', color:'#FFD700' },
+    { text:'🎁 1 монета = +50⚡ +5💪', color:'#FFD700' },
     { text:'💬 Напиши "rating" — узнаешь топ', color:'#8fffb0' },
     { text:'🎮 Напиши "hero1"-"hero4" — выбери героя', color:'#7fd3ff' },
     { text:'⏳ 5 мин тишины = 💪Сила -1/сек', color:'#ffa64d' },
