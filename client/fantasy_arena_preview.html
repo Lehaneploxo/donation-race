@@ -193,7 +193,7 @@ function throwPunch(attacker, defender){
     attacker.streak = (attacker.streak||0) + 1;
     const tier = streakTierFor(attacker.streak);
     if(tier){
-      streakBannerText = `🥊 СЕРИЯ x${attacker.streak}!`;
+      streakBannerText = `💀 СЕРИЯ x${attacker.streak}!`;
       streakBannerUntil = performance.now() + 1800;
     }
   } else if(odef.anims.hit){
@@ -636,7 +636,7 @@ function drawFighter(f, now){
     ctx.fillStyle=hpColor; ctx.fillRect(bx,by,bw*pct,bh);
     ctx.strokeStyle='rgba(255,255,255,0.5)'; ctx.lineWidth=1; ctx.strokeRect(bx,by,bw,bh);
 
-    // бейдж серии — перчатка 🥊 + число, растёт по тиру (см. STREAK_COLORS)
+    // бейдж серии — череп 💀 + число, растёт по тиру (см. STREAK_COLORS)
     if(f.streak>=2){
       const tier = f.streak>=8 ? 8 : (f.streak>=5?5:3);
       const r = tier===8?24:(tier===5?19:15);
@@ -648,7 +648,7 @@ function drawFighter(f, now){
       ctx.fillStyle='#1a1a1a';
       ctx.font=`900 ${Math.round(r*0.95)}px Arial Black`;
       ctx.textAlign='center'; ctx.textBaseline='middle';
-      ctx.fillText('🥊'+f.streak, badgeX, badgeY+1);
+      ctx.fillText('💀'+f.streak, badgeX, badgeY+1);
       ctx.restore();
     }
   }
