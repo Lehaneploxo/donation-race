@@ -1279,6 +1279,17 @@ function drawFighter(f, now){
     ctx.fillStyle=hpColor; ctx.fillRect(bx,by,bw*pct,bh);
     ctx.strokeStyle='rgba(255,255,255,0.5)'; ctx.lineWidth=1; ctx.strokeRect(bx,by,bw,bh);
 
+    // 💪 Сила — числом под полоской Энергии (как ❤️/💪 в streetfighter_arena.html)
+    {
+      const pwTxt = `💪 ${Math.floor(f.power||0)}`;
+      ctx.save();
+      ctx.font='bold 12px Arial'; ctx.textAlign='center';
+      ctx.lineWidth=3; ctx.strokeStyle='rgba(0,0,0,0.9)';
+      ctx.strokeText(pwTxt, f.x, by+bh+14);
+      ctx.fillStyle='#ff9d5c'; ctx.fillText(pwTxt, f.x, by+bh+14);
+      ctx.restore();
+    }
+
     if(f.name && !f.isBot){
       // реальный зритель — полная подпись: ник + уровень (+ корона чемпиона)
       const isChamp = _championName && f.name.toLowerCase()===_championName.toLowerCase();
