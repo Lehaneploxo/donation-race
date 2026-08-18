@@ -161,6 +161,54 @@ const RESPAWN_DELAY_MS = 2200; // боты — сколько лежат пер�
 const KO_FALL_MS = 1800;       // реальные — сколько играет анимация падения перед уходом с арены
 const LIKE_POWER_CAP = 500;    // лайки растят Силу только до этого потолка (донат — без потолка)
 
+// ── Звуки боя (удары/нокаут) — синтезируются на лету через AudioContext,
+// без файлов (1-в-1 приём из streetfighter_arena.html) ──
+let audioCtx = null;
+function getAudioCtx(){
+  if (!audioCtx) audioCtx = new (window.AudioContext||window.webkitAudioContext)();
+  return audioCtx;
+}
+function playPunchSound(){
+  const ac = getAudioCtx(); const now = ac.currentTime;
+
+  const osc = ac.createOscillator(), gain = ac.createGain();
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(150, now);
+  osc.frequency.exponentialRampToValueAtTime(55, now+0.09);
+  gain.gain.setValueAtTime(0.4, now);
+  gain.gain.exponentialRampToValueAtTime(0.001, now+0.13);
+  osc.connect(gain); gain.connect(ac.destination);
+  osc.start(now); osc.stop(now+0.14);
+
+  const bufSize = Math.floor(ac.sampleRate*0.06);
+  const buf = ac.createBuffer(1, bufSize, ac.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i=0;i<bufSize;i++) data[i] = (Math.random()*2-1)*(1-i/bufSize);
+  const noise = ac.createBufferSource(); noise.buffer = buf;
+  const noiseGain = ac.createGain();
+  noiseGain.gain.setValueAtTime(0.3, now);
+  noiseGain.gain.exponentialRampToValueAtTime(0.001, now+0.06);
+  noise.connect(noiseGain); noiseGain.connect(ac.destination);
+  noise.start(now);
+}
+function playKOSound(){
+  const ac = getAudioCtx(); const now = ac.currentTime;
+  const osc = ac.createOscillator(), gain = ac.createGain();
+  osc.type = 'sawtooth';
+  osc.frequency.setValueAtTime(200, now);
+  osc.frequency.exponentialRampToValueAtTime(38, now+0.5);
+  gain.gain.setValueAtTime(0.32, now);
+  gain.gain.exponentialRampToValueAtTime(0.001, now+0.55);
+  osc.connect(gain); gain.connect(ac.destination);
+  osc.start(now); osc.stop(now+0.6);
+}
+// AudioContext стартует "suspended" до первого жеста пользователя —
+// разблокируем на первом клике/тапе по странице
+document.addEventListener('pointerdown', function unlockAudioOnce(){
+  try{ getAudioCtx().resume(); }catch(e){}
+  document.removeEventListener('pointerdown', unlockAudioOnce);
+}, { once: true });
+
 function clampX(x){ return Math.max(RING_X.min, Math.min(RING_X.max, x)); }
 
 function spawnBotFighter(x){
@@ -310,6 +358,8 @@ function throwPunch(attacker, defender){
   attacker.facing = defender.x>=attacker.x ? 1 : -1;
   defender.facing = attacker.x>=defender.x ? 1 : -1;
 
+  playPunchSound();
+
   const dmg = Math.max(1, Math.floor(attacker.power||1));
   // очки рейтинга — не больше, чем у защищающегося реально было энергии
   const stolen = Math.min(dmg, Math.max(0, defender.energy));
@@ -325,6 +375,7 @@ function throwPunch(attacker, defender){
   }
 
   if (defender.energy<=0){
+    playKOSound();
     if(odef.anims.death){ defender.anim='death'; defender.frame=0; defender.t=0; defender.animLockUntil=performance.now()+100000; }
     defender.alive = false;
     if (defender.isBot) defender.respawnAt = performance.now()+RESPAWN_DELAY_MS;
