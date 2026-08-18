@@ -747,11 +747,11 @@ function drawHUD(){
     const shortName = name && name.length>13 ? name.slice(0,12)+'…' : name;
     const champText = shortName ? ('🏆 Вчера: @'+shortName) : '🏆 Вчера: пока никого';
     ctx.save();
-    ctx.font='bold 16px Arial Black'; ctx.textAlign='left';
-    ctx.strokeStyle='rgba(0,0,0,0.85)'; ctx.lineWidth=3;
-    ctx.strokeText(champText, 8, T+214, CW/2-16);
+    ctx.font='bold 20px Arial Black'; ctx.textAlign='left';
+    ctx.strokeStyle='rgba(0,0,0,0.85)'; ctx.lineWidth=4;
+    ctx.strokeText(champText, 8, T+216, CW/2-16);
     ctx.fillStyle='#FFD700';
-    ctx.fillText(champText, 8, T+214, CW/2-16);
+    ctx.fillText(champText, 8, T+216, CW/2-16);
     ctx.restore();
   }
 
