@@ -999,7 +999,10 @@ function drawParallaxLayer(img, scale, bottomY, speedFactor){
   if(!img.complete || img.naturalWidth===0) return;
   const dw = img.naturalWidth*scale, dh = img.naturalHeight*scale;
   const y = bottomY - dh;
-  const off = ((scrollX*speedFactor % dw) + dw) % dw;
+  // округляем до целого пикселя — scrollX копится по реальному времени (dt),
+  // без округления x почти всегда дробный, и канвас размывает край картинки
+  // при отрисовке не на целый пиксель (даже с imageSmoothingEnabled=false)
+  const off = Math.round(((scrollX*speedFactor % dw) + dw) % dw);
   for(let x=-off; x<CW; x+=dw){
     ctx.drawImage(img, x, y, dw, dh);
   }
@@ -1030,7 +1033,7 @@ function drawBGCorridor(){
   ctx.fillStyle = CORRIDOR_FLOOR_COLOR; ctx.fillRect(0, seamY, CW, floorH);
   if(corridorTileset.complete && corridorTileset.naturalWidth>0){
     const tw = corridorTileset.naturalWidth*CORRIDOR_SCALE, th = corridorTileset.naturalHeight*CORRIDOR_SCALE;
-    const off = ((scrollX*0.4 % tw) + tw) % tw;
+    const off = Math.round(((scrollX*0.4 % tw) + tw) % tw);
     for(let x=-off; x<CW; x+=tw){
       ctx.drawImage(corridorTileset, 0,0, corridorTileset.naturalWidth, corridorTileset.naturalHeight, x, seamY, tw, th);
     }
@@ -1104,7 +1107,7 @@ function drawBGTown(){
   ctx.fillStyle = TOWN_FLOOR_COLOR; ctx.fillRect(0, seamY, CW, floorH);
   if(townGround.complete && townGround.naturalWidth>0){
     const tw = townGround.naturalWidth*TS, th = townGround.naturalHeight*TS;
-    const off = ((scrollX % tw) + tw) % tw;
+    const off = Math.round(((scrollX % tw) + tw) % tw);
     for(let x=-off; x<CW; x+=tw){
       ctx.drawImage(townGround, 0,0, townGround.naturalWidth, townGround.naturalHeight, x, seamY, tw, th);
     }
@@ -1327,7 +1330,15 @@ function drawFighter(f, now){
   const sx = Math.min(f.frame, count-1) * size;
   const drawH = 380, drawW = 380;
   ctx.save();
-  ctx.translate(f.x, f.y);
+  // герои — не пиксель-арт (в отличие от фона карты, где чуть выше стоит
+  // ctx.imageSmoothingEnabled=false и не возвращается обратно) — включаем
+  // сглаживание явно, иначе кадр растягивается нецелым множителем (180-200px
+  // источник -> 380px) без сглаживания и края получаются рваными
+  ctx.imageSmoothingEnabled = true;
+  // f.x копится по реальному времени (dt) при ходьбе — округляем до целого
+  // пикселя перед отрисовкой, иначе спрайт весь кадр рисуется со сдвигом на
+  // доли пикселя и края размываются (сам f.x не трогаем — только точку отрисовки)
+  ctx.translate(Math.round(f.x), Math.round(f.y));
   ctx.scale(f.facing, 1);
   ctx.drawImage(img, sx, 0, size, size, -drawW/2, -drawH, drawW, drawH);
   ctx.restore();
