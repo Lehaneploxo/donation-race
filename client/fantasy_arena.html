@@ -42,6 +42,35 @@ canvas.height = CH * DPR;
 canvas.style.width = CW + 'px';
 canvas.style.height = CH + 'px';
 ctx.scale(DPR, DPR);
+
+// Adaptive perf mode — 1-в-1 перенос из streetfighter_arena.html (19.08.2026,
+// по прямой просьбе "давай думать что может нагружать игру"). shadowBlur
+// (свечения) — самая дорогая операция Canvas 2D; меряем реальное время
+// кадра первые ~2-3 сек, и если телефон не тянет — отключаем свечения на
+// весь остаток сессии. Перехватываем сеттер shadowBlur на самом ctx, чтобы
+// не переписывать каждое место в коде отрисовки, где он используется.
+let _lowPerfMode = false, _perfSamples = 0, _perfSlowFrames = 0, _perfChecked = false;
+(function(){
+  let proto = ctx, desc;
+  while (proto && !desc) { desc = Object.getOwnPropertyDescriptor(proto, 'shadowBlur'); proto = Object.getPrototypeOf(proto); }
+  if (desc && desc.set) {
+    Object.defineProperty(ctx, 'shadowBlur', {
+      get(){ return desc.get.call(this); },
+      set(v){ desc.set.call(this, _lowPerfMode ? 0 : v); },
+      configurable: true
+    });
+  }
+})();
+function trackPerf(workMs){
+  if (_perfChecked) return;
+  _perfSamples++;
+  if (workMs > 18) _perfSlowFrames++; // дольше 18мс из бюджета ~33мс (30fps) = телефон не тянет
+  if (_perfSamples >= 90){ // ~2-3 секунды наблюдения при 30fps
+    _perfChecked = true;
+    if (_perfSlowFrames / _perfSamples > 0.35) _lowPerfMode = true;
+  }
+}
+
 const PANEL_TOP = 14, PANEL_H = 260;
 const WALL_TOP = PANEL_TOP + PANEL_H + 10;
 
@@ -1604,7 +1633,14 @@ function wsConnect(username){
 
 // ---------- main loop ----------
 let lastT = 0;
+// FPS-кап 30 кадров/сек — как в streetfighter_arena.html: без него rAF
+// крутится на частоте экрана (на ProMotion-телефонах вроде iPhone 15 Pro
+// Max — до 120Гц), т.е. рисует в 2-4 раза чаще, чем нужно, без всякой
+// пользы для глаза. Добавлено 19.08.2026, по прямой просьбе.
+const FRAME_INTERVAL = 1000/30;
 function render(t){
+  if (lastT && t - lastT < FRAME_INTERVAL) { requestAnimationFrame(render); return; }
+  const _workStart = performance.now();
   const dt = lastT ? Math.min((t-lastT)/1000, 0.05) : 0;
   lastT = t;
   scrollX += SCROLL_SPEED*dt;
@@ -1625,6 +1661,7 @@ function render(t){
   drawQueueIndicator();
   drawStreakBanner();
   drawVsCard();
+  trackPerf(performance.now() - _workStart);
   requestAnimationFrame(render);
 }
 requestAnimationFrame(render);
