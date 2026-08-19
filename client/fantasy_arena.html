@@ -31,8 +31,18 @@
 <script>
 const canvas = document.getElementById('c');
 const ctx = canvas.getContext('2d');
-const CW = canvas.width, CH = canvas.height;
-const PANEL_TOP = 14, PANEL_H = 250;
+const CW = 600, CH = 1000; // логические игровые координаты — не меняются
+// реальное разрешение канваса поднимаем под devicePixelRatio экрана — иначе
+// на Retina/AMOLED телефонах картинка (шрифты, спрайты) выглядит размытой,
+// когда CSS-transform в fitScreen растягивает канвас крупнее его исходных
+// 600x1000 пикселей (по просьбе пользователя, жаловался на размытость)
+const DPR = Math.min(window.devicePixelRatio || 1, 3);
+canvas.width = CW * DPR;
+canvas.height = CH * DPR;
+canvas.style.width = CW + 'px';
+canvas.style.height = CH + 'px';
+ctx.scale(DPR, DPR);
+const PANEL_TOP = 14, PANEL_H = 260;
 const WALL_TOP = PANEL_TOP + PANEL_H + 10;
 
 function fitScreen(){
@@ -1225,17 +1235,18 @@ function drawHUD(){
     ctx.restore();
   }
 
-  // чемпион ПРОШЛОГО ДНЯ — под телеграм-каналом
+  // чемпион ПРОШЛОГО ДНЯ — под телеграм-каналом (крупный шрифт, ~2x —
+  // по просьбе пользователя, в плашке хватало свободного места снизу)
   {
     const name = _weeklyChampion ? _weeklyChampion.username : null;
     const shortName = name && name.length>13 ? name.slice(0,12)+'…' : name;
     const champText = shortName ? ('🏆 @'+shortName) : '🏆 пока никого';
     ctx.save();
-    ctx.font='bold 20px Arial Black'; ctx.textAlign='left';
-    ctx.strokeStyle='rgba(0,0,0,0.85)'; ctx.lineWidth=4;
-    ctx.strokeText(champText, 8, T+218, CW/2-16);
+    ctx.font='bold 34px Arial Black'; ctx.textAlign='left';
+    ctx.strokeStyle='rgba(0,0,0,0.85)'; ctx.lineWidth=6;
+    ctx.strokeText(champText, 8, T+238, CW/2-16);
     ctx.fillStyle='#FFD700';
-    ctx.fillText(champText, 8, T+218, CW/2-16);
+    ctx.fillText(champText, 8, T+238, CW/2-16);
     ctx.restore();
   }
 
@@ -1323,26 +1334,30 @@ function drawFighter(f, now){
       const shortName = f.name.length>14 ? f.name.slice(0,13)+'…' : f.name;
       const nickLine = (isChamp?'👑 ':'') + '@'+shortName;
       const lvlLine = 'ур.'+lvl;
-      const nickY = by-8, lvlY = by-25;
+      // размер шрифта и отступы 1-в-1 как в streetfighter_arena.html
+      // (ник bold 16*s≈17px, уровень bold 15*s≈16px, где s=FIGHTER_SCALE≈1.0625)
+      // — по просьбе пользователя, там читабельнее. Строки разнесены шире,
+      // чтобы более крупные подписи не наезжали друг на друга.
+      const nickY = by-8, lvlY = by-30;
       ctx.save();
       ctx.textAlign='center';
       // подложки под обеими строками — читаемость не зависит от фона
-      ctx.font='bold 13px Arial Black';
+      ctx.font='bold 17px Arial Black';
       const nickW = ctx.measureText(nickLine).width;
-      ctx.font='bold 12px Arial Black';
+      ctx.font='bold 16px Arial Black';
       const lvlW = ctx.measureText(lvlLine).width;
       ctx.fillStyle='rgba(0,0,0,0.5)';
-      ctx.fillRect(f.x-nickW/2-5, nickY-13, nickW+10, 17);
-      ctx.fillRect(f.x-lvlW/2-5, lvlY-11, lvlW+10, 15);
+      ctx.fillRect(f.x-nickW/2-6, nickY-16, nickW+12, 21);
+      ctx.fillRect(f.x-lvlW/2-6, lvlY-14, lvlW+12, 20);
 
-      ctx.font='bold 12px Arial Black';
-      ctx.strokeStyle='rgba(0,0,0,0.9)'; ctx.lineWidth=3;
+      ctx.font='bold 16px Arial Black';
+      ctx.strokeStyle='rgba(0,0,0,0.9)'; ctx.lineWidth=3.5;
       ctx.strokeText(lvlLine, f.x, lvlY);
       ctx.fillStyle = rank.color;
       ctx.fillText(lvlLine, f.x, lvlY);
 
-      ctx.font='bold 13px Arial Black';
-      ctx.strokeStyle='rgba(0,0,0,0.9)'; ctx.lineWidth=3;
+      ctx.font='bold 17px Arial Black';
+      ctx.strokeStyle='rgba(0,0,0,0.9)'; ctx.lineWidth=3.5;
       ctx.strokeText(nickLine, f.x, nickY);
       ctx.fillStyle = isChamp ? '#ffd700' : colorForName(f.name);
       ctx.fillText(nickLine, f.x, nickY);
@@ -1355,11 +1370,11 @@ function drawFighter(f, now){
       const label = '🤖 '+f.name;
       const labelY = by-10;
       ctx.save();
-      ctx.font='bold 12px Arial Black'; ctx.textAlign='center';
+      ctx.font='bold 15px Arial Black'; ctx.textAlign='center';
       const labelW = ctx.measureText(label).width;
       ctx.fillStyle='rgba(0,0,0,0.45)';
-      ctx.fillRect(f.x-labelW/2-5, labelY-12, labelW+10, 16);
-      ctx.strokeStyle='rgba(0,0,0,0.85)'; ctx.lineWidth=2.5;
+      ctx.fillRect(f.x-labelW/2-6, labelY-15, labelW+12, 19);
+      ctx.strokeStyle='rgba(0,0,0,0.85)'; ctx.lineWidth=3;
       ctx.strokeText(label, f.x, labelY);
       ctx.fillStyle=colorForName(f.name).replace('78%, 68%','30%, 62%');
       ctx.fillText(label, f.x, labelY);
@@ -1371,7 +1386,7 @@ function drawFighter(f, now){
     {
       const statsLabelY = by-10;
       ctx.save();
-      ctx.font='bold 13px Arial'; ctx.textAlign='center';
+      ctx.font='bold 14px Arial'; ctx.textAlign='center';
       ctx.lineWidth=3; ctx.strokeStyle='rgba(0,0,0,0.9)';
       const enTxt = `❤️ ${Math.max(0,Math.floor(f.energy||0))}`;
       ctx.strokeText(enTxt, f.x, statsLabelY+18);
@@ -1384,7 +1399,9 @@ function drawFighter(f, now){
     }
 
     // бейдж серии — череп 💀 + число, растёт по тиру (не только у реальных —
-    // у ботов тоже может идти серия, это чисто зрелищность)
+    // у ботов тоже может идти серия, это чисто зрелищность). Раньше был в
+    // кружке-подложке — убран по просьбе пользователя (был ни к чему),
+    // теперь просто текст с обводкой, как остальные подписи над бойцом.
     if(f.streak>=2){
       const tier = f.streak>=8 ? 8 : (f.streak>=5?5:3);
       const r = tier===8?24:(tier===5?19:15);
@@ -1392,13 +1409,13 @@ function drawFighter(f, now){
       // (уровень + ник), нужно больше места сверху под бейдж серии
       const badgeX = f.x, badgeY = by - 36 - r - 8;
       ctx.save();
-      ctx.beginPath(); ctx.arc(badgeX, badgeY, r, 0, Math.PI*2);
-      ctx.fillStyle='#fdf6e3'; ctx.fill();
-      ctx.lineWidth=3; ctx.strokeStyle=streakColorFor(tier); ctx.stroke();
-      ctx.fillStyle='#1a1a1a';
+      ctx.fillStyle=streakColorFor(tier);
       ctx.font=`900 ${Math.round(r*0.95)}px Arial Black`;
       ctx.textAlign='center'; ctx.textBaseline='middle';
-      ctx.fillText('💀'+f.streak, badgeX, badgeY+1);
+      ctx.lineWidth=3; ctx.strokeStyle='rgba(0,0,0,0.9)';
+      const streakTxt = '💀'+f.streak;
+      ctx.strokeText(streakTxt, badgeX, badgeY+1);
+      ctx.fillText(streakTxt, badgeX, badgeY+1);
       ctx.restore();
     }
   }
