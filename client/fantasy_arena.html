@@ -218,7 +218,7 @@ const RULE_WEEKLY_KING = 'Каждую полночь корона арены о
 const RULES_OTHER = [
   'Напиши в чате слово рейтинг — узнаешь своё место в топе!',
   'Побеждённый герой вернётся в бой, если его снова лайкнуть или задонатить!',
-  'Забыл про героя на 5 минут? Его Сила начнёт слабеть — лайкни, чтобы не терять форму!',
+  'Забыл про героя на 5 минут? Его Сила и Энергия начнут слабеть — лайкни, чтобы не терять форму!',
   'Напиши в чате hero1, hero2, hero3 или hero4 — выбери своего героя навсегда!',
   'Заходите в наш телеграм канал — ссылка прямо на табло!',
 ];
@@ -452,10 +452,19 @@ const KO_FALL_MS = 1800;       // реальные — сколько играе
 const LIKE_POWER_CAP = 500;    // лайки растят Силу только до этого потолка (донат — без потолка)
 // боец без лайков/донатов INACTIVITY_MS подряд — Сила капает по 1/сек, не
 // ниже 1 (ботов не касается); любой новый лайк/донат сбрасывает таймер (см.
-// applyGrowth). 1-в-1 механика Street Fighter, только там порог 15 минут —
-// здесь короче, 5, по прямой просьбе пользователя.
+// applyGrowth). Порог 5 минут — короче, чем в Street Fighter (там 15), по
+// прямой просьбе пользователя.
+// Энергия при том же бездействии тоже тает — в отличие от Street Fighter,
+// где decay есть только у Силы (по прямой просьбе, 20.08.2026): без этого
+// зритель, давно накопивший тысячи Энергии и переставший лайкать, оставался
+// непробиваемым "танком" сколько угодно долго. Капает в % от ТЕКУЩЕЙ
+// Энергии в секунду (а не фиксированным числом, как Сила) — иначе у
+// большого "танка" распад был бы незаметен, а у скромного бойца — слишком
+// резким. Не ниже 1 (как и Сила) — простой сам по себе не может убить
+// бойца, только реальный удар (energy<=0 в throwPunch).
 const INACTIVITY_MS = 5*60*1000;
 const POWER_DECAY_INTERVAL_MS = 1000;
+const ENERGY_DECAY_PCT = 0.01;
 
 // ── Звуки боя (удары/нокаут) — синтезируются на лету через AudioContext,
 // без файлов (1-в-1 приём из streetfighter_arena.html) ──
@@ -654,7 +663,8 @@ function applyGrowth(username, gain, isGift){
 }
 function onGift(username, coins){
   coins = Math.max(1, Math.floor(Number(coins)||1));
-  applyGrowth(username, { giftEnergy:50*coins, giftPower:5*coins }, true);
+  // 1-в-1 формула Street Fighter (было вдвое меньше — по прямой просьбе, 20.08.2026)
+  applyGrowth(username, { giftEnergy:100*coins, giftPower:10*coins }, true);
 }
 function onLike(username){ applyGrowth(username, { likeEnergy:10, likePower:1 }, false); }
 
@@ -960,14 +970,24 @@ function updateBattle(now, dt){
       continue;
     }
 
-    if (!f.isBot && f.power>1 && now-f.lastActiveAt >= INACTIVITY_MS){
-      f.powerDecayAcc = (f.powerDecayAcc||0) + dt*1000;
-      while (f.powerDecayAcc >= POWER_DECAY_INTERVAL_MS && f.power>1){
-        f.powerDecayAcc -= POWER_DECAY_INTERVAL_MS;
-        f.power -= 1;
+    if (!f.isBot && now-f.lastActiveAt >= INACTIVITY_MS){
+      if (f.power>1){
+        f.powerDecayAcc = (f.powerDecayAcc||0) + dt*1000;
+        while (f.powerDecayAcc >= POWER_DECAY_INTERVAL_MS && f.power>1){
+          f.powerDecayAcc -= POWER_DECAY_INTERVAL_MS;
+          f.power -= 1;
+        }
+      }
+      if (f.energy>1){
+        f.energyDecayAcc = (f.energyDecayAcc||0) + dt*1000;
+        while (f.energyDecayAcc >= POWER_DECAY_INTERVAL_MS && f.energy>1){
+          f.energyDecayAcc -= POWER_DECAY_INTERVAL_MS;
+          f.energy = Math.max(1, f.energy - Math.max(1, Math.round(f.energy*ENERGY_DECAY_PCT)));
+        }
       }
     } else if (!f.isBot){
       f.powerDecayAcc = 0;
+      f.energyDecayAcc = 0;
     }
 
     if(f.punchCooldown>0) f.punchCooldown -= dt*1000;
@@ -1255,7 +1275,7 @@ function drawHUD(){
     { text:'🎁 1 монета = +50⚡ +5💪', color:'#FFD700' },
     { text:'💬 Напиши "rating" — узнаешь топ', color:'#8fffb0' },
     { text:'🎮 Напиши "hero1"-"hero4" — выбери героя', color:'#7fd3ff' },
-    { text:'⏳ 5 мин тишины = 💪Сила -1/сек', color:'#ffa64d' },
+    { text:'⏳ 5 мин тишины = 💪Сила и ⚡Энергия тают', color:'#ffa64d' },
   ];
   const rY = T+74, rStep = 23; // сжато с 78/27 — освободило место снизу под чемпиона+телеграм
   const ruleFont='bold 22px Arial Black';
