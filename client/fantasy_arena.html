@@ -758,13 +758,21 @@ function drawStreakBanner(){
   ctx.restore();
 }
 
-// VS-карточка — только между двумя РЕАЛЬНЫМИ зрителями (не ботами) с
-// Силой >100, как просил пользователь ("когда сходятся два человека")
-const VS_POWER_THRESHOLD = 100;
+// VS-карточка — только между двумя РЕАЛЬНЫМИ зрителями (не ботами), и только
+// если это ДВОЕ САМЫХ СИЛЬНЫХ реальных бойцов на арене прямо сейчас (не
+// фиксированный порог Силы — по прямой просьбе пользователя, 20.08.2026:
+// раньше был статичный порог >100, который в начале стрима почти никогда не
+// срабатывал, а к вечеру срабатывал на любую пару подряд)
 let vsCardA = '', vsCardB = '', vsCardUntil = 0;
 function maybeTriggerVsCard(a, b){
   if(a.isBot || b.isBot) return;
-  if((a.power||0) > VS_POWER_THRESHOLD && (b.power||0) > VS_POWER_THRESHOLD){
+  const topTwo = fighters
+    .filter(f=>!f.isBot && f.alive && !f.eliminated)
+    .sort((x,y)=>(y.power||0)-(x.power||0))
+    .slice(0,2);
+  if(topTwo.length<2) return;
+  const topNames = new Set([topTwo[0].name, topTwo[1].name]);
+  if(topNames.has(a.name) && topNames.has(b.name)){
     vsCardA = a.name; vsCardB = b.name;
     vsCardUntil = performance.now() + 2200;
   }
