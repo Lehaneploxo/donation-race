@@ -663,10 +663,10 @@ function applyGrowth(username, gain, isGift){
 }
 function onGift(username, coins){
   coins = Math.max(1, Math.floor(Number(coins)||1));
-  // 1-в-1 формула Street Fighter (было вдвое меньше — по прямой просьбе, 20.08.2026)
-  applyGrowth(username, { giftEnergy:100*coins, giftPower:10*coins }, true);
+  // формула поднята по прямой просьбе, 21.08.2026 (было 100⚡/10💪 за коин)
+  applyGrowth(username, { giftEnergy:500*coins, giftPower:50*coins }, true);
 }
-function onLike(username){ applyGrowth(username, { likeEnergy:10, likePower:1 }, false); }
+function onLike(username){ applyGrowth(username, { likeEnergy:50, likePower:5 }, false); }
 
 function restoreFighter(entry){
   if (!entry || !entry.username) return;
@@ -1279,8 +1279,8 @@ function drawHUD(){
   ctx.strokeStyle=vg; ctx.beginPath(); ctx.moveTo(CW/2,T+62); ctx.lineTo(CW/2,T+TH-6); ctx.stroke();
 
   const rules = [
-    { text:'👍 1 лайк = +10⚡ +1💪', color:'#FF88CC' },
-    { text:'🎁 1 монета = +50⚡ +5💪', color:'#FFD700' },
+    { text:'👍 1 лайк = +50⚡ +5💪', color:'#FF88CC' },
+    { text:'🎁 1 монета = +500⚡ +50💪', color:'#FFD700' },
     { text:'💬 Напиши "rating" — узнаешь топ', color:'#8fffb0' },
     { text:'🎮 Напиши "hero1"-"hero4" — выбери героя', color:'#7fd3ff' },
     { text:'⏳ 5 мин тишины = 💪Сила и ⚡Энергия тают', color:'#ffa64d' },
