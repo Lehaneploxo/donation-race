@@ -1317,7 +1317,7 @@ function drawHUD(){
   {
     const name = _weeklyChampion ? _weeklyChampion.username : null;
     const shortName = name && name.length>13 ? name.slice(0,12)+'…' : name;
-    const champText = shortName ? ('🏆 @'+shortName) : '🏆 пока никого';
+    const champText = shortName ? ('🏆 '+shortName) : '🏆 пока никого';
     ctx.save();
     ctx.font='bold 34px Arial Black'; ctx.textAlign='left';
     ctx.strokeStyle='rgba(0,0,0,0.85)'; ctx.lineWidth=6;
@@ -1417,7 +1417,7 @@ function drawFighter(f, now){
       // длинные ники обрезаем — иначе у близко стоящих бойцов подписи
       // наезжают друг на друга и превращаются в кашу
       const shortName = f.name.length>14 ? f.name.slice(0,13)+'…' : f.name;
-      const nickLine = (isChamp?'👑 ':'') + '@'+shortName;
+      const nickLine = (isChamp?'👑 ':'') + shortName;
       const lvlLine = 'ур.'+lvl;
       // размер шрифта и отступы 1-в-1 как в streetfighter_arena.html
       // (ник bold 16*s≈17px, уровень bold 15*s≈16px, где s=FIGHTER_SCALE≈1.0625)
@@ -1583,7 +1583,7 @@ function wsConnect(username){
   const proto = location.protocol==='https:' ? 'wss:' : 'ws:';
   _ws = new WebSocket(`${proto}//${location.host}?username=${encodeURIComponent(username)}`);
   _ws.onopen = ()=>{
-    setStatus('connecting', '⏳ @'+username+'…');
+    setStatus('connecting', '⏳ '+username+'…');
     _ws.send(JSON.stringify({ type:'fantasyarena_state_request' }));
   };
   _ws.onmessage = (e)=>{
@@ -1595,9 +1595,9 @@ function wsConnect(username){
       if (d.type==='init' || d.type==='status'){
         const m = d.tiktokMode || d.mode;
         _gameMode = m || 'connecting';
-        if (m==='tiktok') setStatus('live', '🔴 LIVE @'+(d.username||username));
+        if (m==='tiktok') setStatus('live', '🔴 LIVE '+(d.username||username));
         else if (m==='demo') setStatus('demo', '🟡 Ожидание эфира…');
-        else setStatus('connecting', '⏳ @'+username+'…');
+        else setStatus('connecting', '⏳ '+username+'…');
       }
       if (d.type==='arena_like' && _gameMode==='tiktok') onLike(d.username);
       if (d.type==='arena_gift' && _gameMode==='tiktok') onGift(d.username, d.coins);
@@ -1617,7 +1617,7 @@ function wsConnect(username){
       }
       if (d.type==='arena_fantasyarena_rating'){
         if (d.rank){
-          let html = `<span style="color:#c060ff;font-size:16px;font-weight:bold;">📊 @${d.username}</span><br>`;
+          let html = `<span style="color:#c060ff;font-size:16px;font-weight:bold;">📊 ${d.username}</span><br>`;
           const lifetimeTotal = Number(d.lifetimeStolen||0);
           const prog = levelProgress(lifetimeTotal);
           const rank = rankOfLevel(prog.level);
@@ -1645,7 +1645,7 @@ function wsConnect(username){
           }
           _showRating(html);
         } else {
-          _showRating(`<span style="color:#AAA;font-size:15px;">📊 @${d.username}<br>пока не в рейтинге</span>`);
+          _showRating(`<span style="color:#AAA;font-size:15px;">📊 ${d.username}<br>пока не в рейтинге</span>`);
         }
       }
     } catch(err){ console.error('[fantasyarena ws]', err); }
