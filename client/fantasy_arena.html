@@ -473,35 +473,54 @@ function getAudioCtx(){
   if (!audioCtx) audioCtx = new (window.AudioContext||window.webkitAudioContext)();
   return audioCtx;
 }
-function playPunchSound(){
+// антиспам: при вирусном донат-моменте одновременно может биться много
+// реальных бойцов сразу (их число ничем не ограничено) — без лимита звуки
+// ударов накладываются друг на друга и превращаются в кашу
+let _punchSfxTimes = [];
+const PUNCH_SFX_MAX = 6, PUNCH_SFX_WINDOW_MS = 90;
+function punchSfxAllowed(){
+  const now = performance.now();
+  _punchSfxTimes = _punchSfxTimes.filter(t => now-t < PUNCH_SFX_WINDOW_MS);
+  if (_punchSfxTimes.length >= PUNCH_SFX_MAX) return false;
+  _punchSfxTimes.push(now);
+  return true;
+}
+// сила удара (dmg) определяет "вес" звука — лёгкий тычок и мощный
+// нокаутирующий удар звучат по-разному, плюс лёгкий случайный питч на
+// каждый удар, чтобы одинаковые попадания не звучали как один и тот же файл
+function playPunchSound(dmg){
+  if (!punchSfxAllowed()) return;
   const ac = getAudioCtx(); const now = ac.currentTime;
+  const heavy = (dmg||0) >= 15;
+  const jitter = 0.9 + Math.random()*0.2;
 
   const osc = ac.createOscillator(), gain = ac.createGain();
-  osc.type = 'sine';
-  osc.frequency.setValueAtTime(150, now);
-  osc.frequency.exponentialRampToValueAtTime(55, now+0.09);
-  gain.gain.setValueAtTime(0.4, now);
-  gain.gain.exponentialRampToValueAtTime(0.001, now+0.13);
+  osc.type = heavy ? 'triangle' : 'sine';
+  osc.frequency.setValueAtTime((heavy?115:150)*jitter, now);
+  osc.frequency.exponentialRampToValueAtTime((heavy?40:55)*jitter, now+(heavy?0.13:0.09));
+  gain.gain.setValueAtTime(heavy?0.5:0.4, now);
+  gain.gain.exponentialRampToValueAtTime(0.001, now+(heavy?0.19:0.13));
   osc.connect(gain); gain.connect(ac.destination);
-  osc.start(now); osc.stop(now+0.14);
+  osc.start(now); osc.stop(now+(heavy?0.2:0.14));
 
-  const bufSize = Math.floor(ac.sampleRate*0.06);
+  const bufSize = Math.floor(ac.sampleRate*(heavy?0.09:0.06));
   const buf = ac.createBuffer(1, bufSize, ac.sampleRate);
   const data = buf.getChannelData(0);
   for (let i=0;i<bufSize;i++) data[i] = (Math.random()*2-1)*(1-i/bufSize);
   const noise = ac.createBufferSource(); noise.buffer = buf;
   const noiseGain = ac.createGain();
-  noiseGain.gain.setValueAtTime(0.3, now);
-  noiseGain.gain.exponentialRampToValueAtTime(0.001, now+0.06);
+  noiseGain.gain.setValueAtTime(heavy?0.4:0.3, now);
+  noiseGain.gain.exponentialRampToValueAtTime(0.001, now+(heavy?0.08:0.06));
   noise.connect(noiseGain); noiseGain.connect(ac.destination);
   noise.start(now);
 }
 function playKOSound(){
   const ac = getAudioCtx(); const now = ac.currentTime;
+  const jitter = 0.92 + Math.random()*0.16;
   const osc = ac.createOscillator(), gain = ac.createGain();
   osc.type = 'sawtooth';
-  osc.frequency.setValueAtTime(200, now);
-  osc.frequency.exponentialRampToValueAtTime(38, now+0.5);
+  osc.frequency.setValueAtTime(200*jitter, now);
+  osc.frequency.exponentialRampToValueAtTime(38*jitter, now+0.5);
   gain.gain.setValueAtTime(0.32, now);
   gain.gain.exponentialRampToValueAtTime(0.001, now+0.55);
   osc.connect(gain); gain.connect(ac.destination);
@@ -864,10 +883,9 @@ function throwPunch(attacker, defender){
   attacker.facing = defender.x>=attacker.x ? 1 : -1;
   defender.facing = attacker.x>=defender.x ? 1 : -1;
 
-  playPunchSound();
-
   // урон = Сила напрямую (1-в-1 damageFor/throwPunch в streetfighter_arena.html)
   const dmg = Math.max(1, attacker.power||1);
+  playPunchSound(dmg);
   // очки рейтинга — не больше, чем у защищающегося реально было энергии:
   // Сила бьёт на dmg, но "отжать" физически можно максимум то, что было
   const stolen = Math.min(dmg, Math.max(0, defender.energy));
