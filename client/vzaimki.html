@@ -69,11 +69,17 @@
     70%{ box-shadow: 0 0 0 8px rgba(87,217,163,0); }
     100%{ box-shadow: 0 0 0 0 rgba(87,217,163,0); }
   }
-  .muteBtn{
-    width:32px; height:32px; border-radius:10px;
-    border:1px solid var(--border); background: var(--panel-soft);
-    color:#fff; font-size:15px; cursor:pointer;
+  /* ── Кнопки справа (домой/музыка/полный экран) — как в остальных играх:
+     фиксированы к вьюпорту, не масштабируются вместе со сценой ────────── */
+  .ui-btn{
+    position:fixed; z-index:99999; width:26px; height:26px; font-size:12px;
+    background:rgba(0,0,0,0.55); color:rgba(255,255,255,0.55);
+    border:1px solid rgba(255,255,255,0.2); border-radius:6px; cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
   }
+  #backBtn{ top: calc(50% - 49px); right:10px; }
+  #musicBtn{ top: calc(50%); right:10px; }
+  #fsBtn{ top: calc(50% + 49px); right:10px; }
   .connBadge{
     font-size:11px; padding:3px 9px; border-radius:8px;
     background: rgba(255,255,255,0.08); color: var(--text-dim);
@@ -246,6 +252,14 @@
 </head>
 <body>
 
+<!-- Кнопки справа как в остальных играх — фиксированы к экрану, не масштабируются
+     вместе со сценой. Кнопки озвучки диктора нет специально: диктор говорит
+     всегда, выключать его нельзя (музыки на странице пока нет — появится позже,
+     кнопка уже готова и запоминает выбор пользователя). -->
+<button id="backBtn" class="ui-btn" title="Главное меню">⌂</button>
+<button id="musicBtn" class="ui-btn" title="Музыка">🎵</button>
+<button id="fsBtn" class="ui-btn" title="На весь экран">⛶</button>
+
 <div id="stageWrap">
   <div id="stage">
 
@@ -253,7 +267,6 @@
       <div class="brand"><span class="dotpulse"></span></div>
       <div style="display:flex; align-items:center; gap:8px;">
         <span class="connBadge" id="connBadge" hidden>—</span>
-        <button class="muteBtn" id="muteBtn" title="Звук диктора">🔊</button>
       </div>
     </div>
 
@@ -1067,13 +1080,20 @@ window.addEventListener('resize', fitStage);
     Debug.wire();
   }
 
-  const savedVoice = localStorage.getItem('vzaimki_voice');
-  const muteBtn = document.getElementById('muteBtn');
-  if (savedVoice === '0'){ CONFIG.VOICE_ENABLED = false; muteBtn.textContent = '🔇'; }
-  muteBtn.addEventListener('click', () => {
-    CONFIG.VOICE_ENABLED = !CONFIG.VOICE_ENABLED;
-    localStorage.setItem('vzaimki_voice', CONFIG.VOICE_ENABLED ? '1' : '0');
-    muteBtn.textContent = CONFIG.VOICE_ENABLED ? '🔊' : '🔇';
+  document.getElementById('backBtn').addEventListener('click', () => { window.location.href = '/'; });
+  document.getElementById('fsBtn').addEventListener('click', () => {
+    if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(()=>{});
+    else document.exitFullscreen().catch(()=>{});
+  });
+  // Музыки пока нет в проекте — кнопка только хранит выбор пользователя
+  // (localStorage), чтобы когда фоновую музыку добавят, mute сразу заработал.
+  const musicBtn = document.getElementById('musicBtn');
+  let musicEnabled = localStorage.getItem('vzaimki_music') !== '0';
+  musicBtn.textContent = musicEnabled ? '🎵' : '🔇';
+  musicBtn.addEventListener('click', () => {
+    musicEnabled = !musicEnabled;
+    localStorage.setItem('vzaimki_music', musicEnabled ? '1' : '0');
+    musicBtn.textContent = musicEnabled ? '🎵' : '🔇';
   });
 
   const u = (p.get('username')||'').replace(/^@/,'').trim();
