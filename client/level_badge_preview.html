@@ -24,6 +24,21 @@
 <div class="rowNote">1-10 ур. (2 ранга) — круг; 11-40 ур. (6 рангов) — треугольник→...→восьмиугольник (+1 угол за ранг); с 41 ур. — звезда (5, потом 7 лучей)</div>
 <canvas id="cA" width="980" height="130"></canvas>
 
+<div class="rowLabel">Вариант B (обсуждаем сейчас) — вообще без значка, просто текст уровня рядом с ником</div>
+<div class="rowNote">4 варианта формата, тот же цвет ранга что раньше был у обводки значка. Показано в контексте — как табличка над головой бойца в бою (тёмная подложка + чёрная обводка)</div>
+
+<div class="rowNote">B1: "Ур.26 @Ник" — уровень перед ником</div>
+<canvas id="cB1" width="1500" height="80"></canvas>
+
+<div class="rowNote" style="margin-top:14px;">B2: "@Ник Ур.26" — уровень после ника</div>
+<canvas id="cB2" width="1500" height="80"></canvas>
+
+<div class="rowNote" style="margin-top:14px;">B3: "26 ур. @Ник" — число впереди слова</div>
+<canvas id="cB3" width="1500" height="80"></canvas>
+
+<div class="rowNote" style="margin-top:14px;">B4: "[26] @Ник" — компактно, в скобках</div>
+<canvas id="cB4" width="1500" height="80"></canvas>
+
 <script>
 // новая цветовая история: тусклый металл (новичок) -> холодные яркие цвета
 // -> тёплые/огненные -> раскалённый красный -> золото (легенда). Не
@@ -179,6 +194,44 @@ function drawBadgeShape(ctx, cx, cy, r, sides, isStar, starPoints, rank, level, 
     drawLabel(ctx, cx, cy+r+16, rank, extra);
   });
 })();
+
+// ── ВАРИАНТ B (2026-08-08): без значка вообще — просто текст уровня рядом
+// с ником, тем же цветом ранга, что и раньше был у обводки значка.
+// Смоделировано поверх мини-таблички с ником, как это выглядит в реальном
+// бою над головой бойца (тёмная подложка + обводка), чтобы оценить в контексте.
+// 4 варианта формата текста — buildParts(rank) возвращает массив кусков
+// [{text, color}] в порядке отрисовки слева направо.
+function drawTextLevelRow(canvasId, buildParts){
+  const ctx = document.getElementById(canvasId).getContext('2d');
+  const SLOT_W_B = 150, START_X_B = 90;
+  LEVEL_RANKS.forEach((rank, i)=>{
+    const cx = START_X_B + i*SLOT_W_B, cy = 45;
+    const parts = buildParts(rank);
+    ctx.font = 'bold 15px Arial Black';
+    let totalW = 0;
+    parts.forEach((p,idx)=>{ totalW += ctx.measureText(p.text).width; if (idx<parts.length-1) totalW += 6; });
+    const startX = cx - totalW/2;
+
+    ctx.fillStyle = 'rgba(0,0,0,0.45)';
+    ctx.fillRect(startX-6, cy-12, totalW+12, 20);
+
+    ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    let x = startX;
+    parts.forEach(p=>{
+      ctx.font = 'bold 15px Arial Black';
+      ctx.lineWidth = 3.5; ctx.strokeStyle = 'rgba(0,0,0,0.95)';
+      ctx.strokeText(p.text, x, cy);
+      ctx.fillStyle = p.color;
+      ctx.fillText(p.text, x, cy);
+      x += ctx.measureText(p.text).width + 6;
+    });
+    drawLabel(ctx, cx, cy+22, rank);
+  });
+}
+drawTextLevelRow('cB1', rank => [ {text:'Ур.'+rank.from, color:rank.color}, {text:'@Player', color:'#fff'} ]);
+drawTextLevelRow('cB2', rank => [ {text:'@Player', color:'#fff'}, {text:'Ур.'+rank.from, color:rank.color} ]);
+drawTextLevelRow('cB3', rank => [ {text:rank.from+' ур.', color:rank.color}, {text:'@Player', color:'#fff'} ]);
+drawTextLevelRow('cB4', rank => [ {text:'['+rank.from+']', color:rank.color}, {text:'@Player', color:'#fff'} ]);
 </script>
 </body>
 </html>

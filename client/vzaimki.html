@@ -54,7 +54,7 @@
     padding: 6px 4px;
   }
   .brand{
-    font-weight:800; font-size:19px; letter-spacing:0.5px;
+    font-weight:800; font-size:22px; letter-spacing:0.5px;
     display:flex; align-items:center; gap:8px;
     color:#fff; text-shadow: 0 1px 6px rgba(0,0,0,0.5);
   }
@@ -125,7 +125,7 @@
   .hf-layer.on{ opacity:1; }
   .hf-layer svg{ width:100%; height:100%; display:block; }
   .host-tag{
-    font-size:9.5px; font-weight:700; letter-spacing:1px; color: var(--text-dim);
+    font-size:11px; font-weight:700; letter-spacing:1px; color: var(--text-dim);
     display:flex; align-items:center; gap:4px; text-transform:uppercase;
   }
   .host-tag .hdot{ width:6px; height:6px; border-radius:50%; background: var(--green); }
@@ -149,18 +149,18 @@
     0%{ box-shadow:0 0 0 0 rgba(255,207,107,0.7); }
     100%{ box-shadow:0 0 0 14px rgba(255,207,107,0); }
   }
-  .t3medal{ font-size:15px; line-height:1; }
-  .t3card.t3-1 .t3medal{ font-size:19px; }
+  .t3medal{ font-size:18px; line-height:1; }
+  .t3card.t3-1 .t3medal{ font-size:23px; }
   .t3avatar{
-    width:44px; height:44px; border-radius:50%; overflow:hidden; flex:none;
+    width:48px; height:48px; border-radius:50%; overflow:hidden; flex:none;
     border:2px solid var(--border);
   }
-  .t3card.t3-1 .t3avatar{ width:56px; height:56px; border-color: var(--gold); }
+  .t3card.t3-1 .t3avatar{ width:64px; height:64px; border-color: var(--gold); }
   .t3card.t3-2 .t3avatar{ border-color: var(--silver); }
   .t3card.t3-3 .t3avatar{ border-color: var(--bronze); }
   .t3avatar img, .t3avatar .avfallback{ width:100%; height:100%; object-fit:cover; display:block; }
-  .t3name{ font-size:11.5px; font-weight:700; color:#fff; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .t3coins{ font-size:11px; font-weight:800; color: var(--gold); }
+  .t3name{ font-size:14px; font-weight:700; color:#fff; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .t3coins{ font-size:13.5px; font-weight:800; color: var(--gold); }
   .t3card.t3-2 .t3coins{ color: var(--silver); }
   .t3card.t3-3 .t3coins{ color: var(--bronze); }
 
@@ -174,14 +174,14 @@
   .eventbanner{
     background: linear-gradient(90deg, rgba(143,123,255,0.20), rgba(14,17,26,0.72));
     border:1px solid var(--border); border-radius: var(--radius);
-    padding: 10px 12px; display:flex; align-items:center; gap:10px;
-    min-height:44px;
+    padding: 14px 18px; display:flex; align-items:center; gap:14px;
+    min-height:88px;
     backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
   }
   .eventbanner.pop{ animation: ebpop .35s ease; }
   @keyframes ebpop{ 0%{ transform:scale(0.985); } 60%{ transform:scale(1.005); } 100%{ transform:scale(1); } }
-  .eb-icon{ font-size:22px; flex:none; }
-  .eb-text{ font-size:13px; line-height:1.32; color: var(--text); }
+  .eb-icon{ font-size:36px; flex:none; }
+  .eb-text{ font-size:18px; line-height:1.3; color: var(--text); }
   .eb-text b{ color:#fff; }
 
   /* ── Leaderboards ──────────────────────────────────────── */
@@ -194,25 +194,25 @@
     backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
   }
   .lbhead{
-    font-size:10.5px; font-weight:800; letter-spacing:0.3px;
-    display:flex; align-items:center; gap:4px; margin-bottom:6px; flex:none;
+    font-size:13px; font-weight:800; letter-spacing:0.3px;
+    display:flex; align-items:center; gap:4px; margin-bottom:5px; flex:none;
   }
   .lbhead.coins{ color: var(--gold); }
   .lbhead.following{ color: var(--accent2); }
   .lbhead.likes{ color: var(--pink); }
-  .lblist{ display:flex; flex-direction:column; gap:3px; overflow:hidden; }
+  .lblist{ display:flex; flex-direction:column; gap:2px; overflow:hidden; }
   .lbrow{
-    display:flex; align-items:center; gap:5px; padding:2.5px 2px; border-radius:6px;
+    display:flex; align-items:center; gap:5px; padding:2px 2px; border-radius:6px;
   }
   .lbrow.flash{ animation: rowflash 1s ease; }
   @keyframes rowflash{ 0%{ background:rgba(255,255,255,0.18); } 100%{ background:rgba(255,255,255,0); } }
-  .lbrank{ flex:none; width:14px; font-size:10px; font-weight:800; color:var(--text-faint); text-align:center; }
+  .lbrank{ flex:none; width:16px; font-size:12px; font-weight:800; color:var(--text-faint); text-align:center; }
   .lbrank.r1{ color:var(--gold); } .lbrank.r2{ color:var(--silver); } .lbrank.r3{ color:var(--bronze); }
-  .lbav{ flex:none; width:18px; height:18px; border-radius:50%; overflow:hidden; background:rgba(255,255,255,0.08); }
-  .lbav img, .lbav .avfallback{ width:100%; height:100%; object-fit:cover; font-size:9px; }
-  .lbname{ flex:1; font-size:10.2px; color:var(--text-dim); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; }
-  .lbval{ flex:none; font-size:10.2px; font-weight:800; color:#fff; }
-  .lbempty{ font-size:10.5px; color:var(--text-faint); padding:8px 2px; line-height:1.4; }
+  .lbav{ flex:none; width:20px; height:20px; border-radius:50%; overflow:hidden; background:rgba(255,255,255,0.08); }
+  .lbav img, .lbav .avfallback{ width:100%; height:100%; object-fit:cover; font-size:10px; }
+  .lbname{ flex:1; font-size:12.5px; color:var(--text-dim); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; }
+  .lbval{ flex:none; font-size:12.5px; font-weight:800; color:#fff; }
+  .lbempty{ font-size:12.5px; color:var(--text-faint); padding:8px 2px; line-height:1.4; }
 
   /* ── CTA bar ───────────────────────────────────────────── */
   .ctabar{
@@ -221,10 +221,10 @@
     padding: 10px 14px; text-align:center; flex:none;
     backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
   }
-  .ctabar span{ font-size:12.5px; font-weight:700; color:#fff; }
+  .ctabar span{ font-size:15.5px; font-weight:700; color:#fff; }
 
   .footer{
-    text-align:center; font-size:10px; color: var(--text-faint); padding: 2px 0 0; flex:none;
+    text-align:center; font-size:11.5px; color: var(--text-faint); padding: 2px 0 0; flex:none;
     letter-spacing:0.3px;
   }
 
@@ -249,7 +249,7 @@
   <div id="stage">
 
     <div class="topbar">
-      <div class="brand"><span class="dotpulse"></span>ВЗАИМКИ</div>
+      <div class="brand"><span class="dotpulse"></span></div>
       <div style="display:flex; align-items:center; gap:8px;">
         <span class="connBadge" id="connBadge" hidden>—</span>
         <button class="muteBtn" id="muteBtn" title="Звук диктора">🔊</button>
