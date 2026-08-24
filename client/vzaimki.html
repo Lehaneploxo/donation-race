@@ -7,6 +7,17 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&display=swap" rel="stylesheet">
+<!-- import map для Three.js/three-vrm (грузятся динамическим import() в
+     HostManager) — GLTFLoader и three-vrm внутри себя делают `import "three"`,
+     без этой карты браузер не знает, куда он ведёт. -->
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
 <style>
   :root{
     --gap: 12px;
@@ -116,7 +127,10 @@
     position:absolute; inset:-28px; border-radius:50%;
     background: radial-gradient(circle, rgba(255,214,158,0.30), rgba(255,214,158,0) 68%);
   }
-  #hostCanvas{ position:absolute; inset:0; width:100%; height:100%; display:block; }
+  #hostCanvas{
+    position:absolute; inset:0; width:100%; height:100%; display:block;
+    border-radius:50%; overflow:hidden;
+  }
   .host-tag{
     font-size:11px; font-weight:700; letter-spacing:1px; color: var(--text-dim);
     display:flex; align-items:center; gap:4px; text-transform:uppercase;
@@ -258,15 +272,14 @@
     </div>
 
       <div class="hostCard">
-        <!-- Лицо ведущей: Live2D-модель "Kei", официальный бесплатный сэмпл
-             (https://www.live2d.com/en/learn/sample/kei/, разрешено для
-             коммерческого использования компаниям с доходом до 10 млн иен/год).
-             Рендерится через pixi-live2d-display в canvas; рот/моргание
-             управляются вручную из HostManager (см. ниже) — настоящего
-             аудио-лип-синка нет (у браузерного speechSynthesis нет доступа
-             к аудио-потоку), поэтому рот открывается по тем же "тикам" на
-             границах слов, что и раньше, просто через Live2D это выглядит
-             плавнее и живее (плюс бесплатно идут моргание и физика волос). -->
+        <!-- Лицо ведущей: 3D-модель "Kai" с VTubeMe (https://vtubeme.com/free-vrm-avatars,
+             формат VRM, лицензия CC BY 4.0 — свободно для коммерческого
+             использования с указанием авторства vtubeme.com, см. footer).
+             Рендерится через Three.js + @pixiv/three-vrm (грузятся динамическим
+             import() внутри HostManager, без статичных <script> тут). Рот/глаза
+             управляются вручную теми же сигналами речи, что и раньше — настоящего
+             аудио-лип-синка нет (у браузерного speechSynthesis нет доступа к
+             аудио-потоку). -->
         <div class="host-avatar" id="host" data-state="waiting">
           <div class="hf-halo"></div>
           <canvas id="hostCanvas"></canvas>
@@ -317,17 +330,11 @@
 
     <div class="ctabar"><span id="ctaText">Подписывайтесь друг на друга — участвуйте во взаимках!</span></div>
 
-    <div class="footer">📱 tiktokgames777</div>
+    <div class="footer">📱 tiktokgames777 · аватар: <a href="https://vtubeme.com" target="_blank" rel="noopener" style="color:inherit;">vtubeme.com</a></div>
 
   </div>
 </div>
 
-<!-- Live2D-рендер ведущей (Kei, официальный бесплатный сэмпл Live2D,
-     https://www.live2d.com/en/learn/sample/kei/) — коммерческое использование
-     разрешено лицензией (компании с доходом до 10 млн иен/год). -->
-<script src="https://cubism.live2d.com/sdk-web/cubismcore/live2dcubismcore.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/pixi.js@6.5.10/dist/browser/pixi.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/pixi-live2d-display@0.4.0/dist/cubism4.min.js"></script>
 
 <div id="debugPanel" hidden>
   <div class="dbg-row"><b>DEBUG</b> — статус: <span id="dbgStatus">—</span></div>
@@ -485,7 +492,7 @@ const RankingEngine = (() => {
 // Лицо — 5 готовых SVG-слоёв (idle/small/open/excited/blink), друг на друге,
 // видимым делается только нужный (см. .hf-layer.on в CSS).
 const HostManager = (() => {
-  let hostEl, app, model = null;
+  let hostEl, vrm = null;
   let state = 'waiting';
   let mouthLoopId = null;
   let mouthTarget = 0, eyeTarget = 1;
@@ -496,36 +503,59 @@ const HostManager = (() => {
     hostEl = document.getElementById('host');
     const canvas = document.getElementById('hostCanvas');
     const box = hostEl.getBoundingClientRect();
-    app = new PIXI.Application({
-      view: canvas, width: box.width || 270, height: box.height || 270,
-      resolution: Math.min(window.devicePixelRatio || 1, 2), autoDensity: true,
-      backgroundAlpha: 0, antialias: true,
-    });
-    // грузим модель асинхронно и без автообновления — сами прогоняем model.update()
-    // каждый кадр и следом переопределяем параметры рта/глаз, иначе их бы
-    // затирал собственный цикл дыхания/физики модели
-    PIXI.live2d.Live2DModel.from('sprites/kei_live2d/kei_basic_free.model3.json', { autoUpdate: false })
-      .then(m => {
-        model = m;
-        model.anchor.set(0.5, 0.5);
-        const scale = Math.min(app.screen.width / model.width, app.screen.height / model.height) * 1.65;
-        model.scale.set(scale);
-        model.x = app.screen.width / 2;
-        model.y = app.screen.height * 0.58;
-        app.stage.addChild(model);
-      })
-      .catch(e => console.error('[HostManager] Live2D load failed', e));
+    const width = box.width || 270, height = box.height || 270;
 
-    app.ticker.add(() => {
-      if (!model) return;
-      model.update(PIXI.Ticker.shared.deltaMS);
-      mouthValue += (mouthTarget - mouthValue) * 0.35;
-      eyeValue += (eyeTarget - eyeValue) * 0.4;
-      const core = model.internalModel.coreModel;
-      core.setParameterValueById('ParamMouthOpenY', mouthValue);
-      core.setParameterValueById('ParamEyeLOpen', eyeValue);
-      core.setParameterValueById('ParamEyeROpen', eyeValue);
-    });
+    // Three.js/three-vrm грузятся динамическим import() прямо тут, без
+    // статичных <script> в <head> — держит остальную страницу classic-script.
+    Promise.all([
+      import('three'),
+      import('three/addons/loaders/GLTFLoader.js'),
+      import('https://cdn.jsdelivr.net/npm/@pixiv/three-vrm@2.1.1/lib/three-vrm.module.js'),
+    ]).then(([THREE, { GLTFLoader }, { VRMLoaderPlugin, VRMUtils }]) => {
+      const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
+      renderer.setSize(width, height, false);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+
+      const scene = new THREE.Scene();
+      const camera = new THREE.PerspectiveCamera(22, width / height, 0.1, 20);
+      scene.add(new THREE.AmbientLight(0xffffff, 1.15));
+      const key = new THREE.DirectionalLight(0xfff2df, 1.2);
+      key.position.set(0.4, 1, 1.2);
+      scene.add(key);
+
+      const loader = new GLTFLoader();
+      loader.register(parser => new VRMLoaderPlugin(parser));
+      loader.load('sprites/kai_vrm/kai.vrm', (gltf) => {
+        const v = gltf.userData.vrm;
+        VRMUtils.removeUnnecessaryVertices(gltf.scene);
+        VRMUtils.removeUnnecessaryJoints(gltf.scene);
+        v.scene.rotation.y = Math.PI; // VRM смотрит на -Z по умолчанию — разворачиваем к камере
+        scene.add(v.scene);
+        vrm = v;
+        // Кадрируем камеру на голову (портрет, как у остальных персонажей),
+        // а не показываем всю полноростовую модель.
+        const head = vrm.humanoid.getNormalizedBoneNode('head');
+        const headPos = new THREE.Vector3();
+        head.getWorldPosition(headPos);
+        camera.position.set(headPos.x, headPos.y + 0.06, headPos.z + 0.56);
+        camera.lookAt(headPos.x, headPos.y + 0.03, headPos.z);
+      }, undefined, e => console.error('[HostManager] VRM load failed', e));
+
+      const clock = new THREE.Clock();
+      (function loop(){
+        requestAnimationFrame(loop);
+        const dt = clock.getDelta();
+        if (vrm){
+          mouthValue += (mouthTarget - mouthValue) * 0.35;
+          eyeValue += (eyeTarget - eyeValue) * 0.4;
+          vrm.expressionManager.setValue('aa', mouthValue);
+          vrm.expressionManager.setValue('blink', 1 - eyeValue);
+          vrm.expressionManager.update();
+          vrm.update(dt);
+        }
+        renderer.render(scene, camera);
+      })();
+    }).catch(e => console.error('[HostManager] Three/VRM libs failed to load', e));
 
     scheduleBlink();
   }
