@@ -182,8 +182,14 @@
   .eventbanner.pop{ animation: ebpop .35s ease; }
   @keyframes ebpop{ 0%{ transform:scale(0.985); } 60%{ transform:scale(1.005); } 100%{ transform:scale(1); } }
   .eb-icon{ font-size:36px; flex:none; }
+  .eb-body{ flex:1; min-width:0; }
   .eb-text{ font-size:18px; line-height:1.3; color: var(--text); }
   .eb-text b{ color:#fff; }
+  .eb-next{
+    margin-top:4px; font-size:12.5px; color: var(--text-dim);
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  }
+  .eb-next b{ color: var(--gold); }
 
   /* ── Leaderboards ──────────────────────────────────────── */
   .leaderboards{
@@ -233,6 +239,33 @@
     order:6;
     text-align:center; font-size:11.5px; color: var(--text-faint); padding: 2px 0 0; flex:none;
     letter-spacing:0.3px;
+  }
+
+  /* ── Визуальные эффекты (конфетти/монеты/вспышка на крупный донат) ────── */
+  #fxLayer{ position:absolute; inset:0; pointer-events:none; overflow:hidden; z-index:50; }
+  .fx-confetti{
+    position:absolute; width:7px; height:12px; top:190px; border-radius:2px;
+    animation: fxFall 1.6s ease-in forwards;
+  }
+  @keyframes fxFall{
+    0%{ transform: translateY(0) rotate(0deg); opacity:1; }
+    100%{ transform: translateY(480px) rotate(540deg); opacity:0; }
+  }
+  .fx-coin{
+    position:absolute; top:-24px; font-size:20px;
+    animation: fxCoinFall 1.3s ease-in forwards;
+  }
+  @keyframes fxCoinFall{
+    0%{ transform: translateY(0) rotate(0deg); opacity:1; }
+    100%{ transform: translateY(260px) rotate(200deg); opacity:0; }
+  }
+  .fx-flash{
+    position:absolute; inset:0;
+    background: radial-gradient(circle at 50% 22%, rgba(255,214,120,0.55), rgba(255,214,120,0) 70%);
+    opacity:0; animation: fxFlash 0.6s ease-out forwards;
+  }
+  @keyframes fxFlash{
+    0%{ opacity:0; } 15%{ opacity:1; } 100%{ opacity:0; }
   }
 
   /* ── Debug panel ───────────────────────────────────────── */
@@ -310,7 +343,10 @@
 
     <div class="eventbanner" id="eventBanner">
       <div class="eb-icon" id="ebIcon">🤝</div>
-      <div class="eb-text" id="ebText">Ждём первые события эфира…</div>
+      <div class="eb-body">
+        <div class="eb-text" id="ebText">Ждём первые события эфира…</div>
+        <div class="eb-next" id="ebNext" hidden></div>
+      </div>
     </div>
 
     <div class="leaderboards">
@@ -331,6 +367,8 @@
     <div class="ctabar"><span id="ctaText">Подписывайтесь друг на друга — участвуйте во взаимках!</span></div>
 
     <div class="footer">📱 tiktokgames777</div>
+
+    <div id="fxLayer"></div>
 
   </div>
 </div>
@@ -689,29 +727,41 @@ const VoiceManager = (() => {
     try { synth.speak(u); } catch(e){ finish(); }
   }
 
+  // Следующий в очереди на озвучку (только для реальных доноров/подписчиков,
+  // не для CTA-филлеров — у тех нет ника) — показываем в UI, чтобы человек
+  // видел, что его точно услышат, даже пока диктор договаривает про другого.
+  function peekNextNick(){
+    const item = queueA[0] || queueB[0];
+    return item ? item.nick : null;
+  }
+  function updateNextTicker(){ UI.setNextUp(peekNextNick()); }
+
   function next(){
     if (speaking) return;
     clearTimeout(idleTimer);
-    let text = null;
-    if (queueA.length) text = queueA.shift();
-    else if (queueB.length) text = queueB.shift();
-    if (!text){ scheduleFiller(); return; }
+    let item = null;
+    if (queueA.length) item = queueA.shift();
+    else if (queueB.length) item = queueB.shift();
+    updateNextTicker();
+    if (!item){ scheduleFiller(); return; }
     speaking = true;
-    speakText(text, () => { speaking = false; setTimeout(next, CONFIG.SPEECH_COOLDOWN_MS); });
+    speakText(item.text, () => { speaking = false; setTimeout(next, CONFIG.SPEECH_COOLDOWN_MS); });
   }
 
-  function say(text, level){
+  function say(text, level, nick){
     if (!text) return;
+    const item = { text, nick: nick || null };
     if (level === 'A'){
       if (synth) synth.cancel();
       speaking = false;
-      queueA.push(text);
+      queueA.push(item);
       if (queueA.length > 4) queueA.shift();
     } else {
-      queueB.push(text);
+      queueB.push(item);
       if (queueB.length > 5) queueB.shift(); // защита от спама при шквале событий
     }
     next();
+    updateNextTicker();
   }
 
   function nextFiller(){
@@ -852,15 +902,70 @@ const UI = (() => {
     document.getElementById('ctaText').textContent = text;
   }
 
+  // "Далее в озвучке" — чтобы задонативший видел, что его точно заметят,
+  // даже пока диктор ещё договаривает фразу про кого-то другого.
+  function setNextUp(nick){
+    const el = document.getElementById('ebNext');
+    if (!nick){ el.hidden = true; return; }
+    el.innerHTML = 'Далее: <b>@'+escHtml(nick)+'</b>';
+    el.hidden = false;
+  }
+
   function resetAll(){
     renderTop3([]);
     renderLb('coins', []);
     renderLb('following', []);
     renderLb('likes', []);
     showEvent('🤝', 'Новый эфир — ждём первые события…');
+    setNextUp(null);
   }
 
-  return { scheduleRender, showEvent, setCta, resetAll, renderTop3, renderLb };
+  return { scheduleRender, showEvent, setCta, setNextUp, resetAll, renderTop3, renderLb };
+})();
+
+// ── FX — визуальные эффекты на донаты (конфетти/монеты/вспышка) ─────────
+const FX = (() => {
+  const COLORS = ['#ffcf6b','#ff6f9c','#6a8bff','#57d9a3','#ffffff'];
+  const layer = () => document.getElementById('fxLayer');
+
+  function confettiBurst(){
+    const l = layer(); if (!l) return;
+    const cx = 40 + Math.random()*20;
+    for (let i=0;i<28;i++){
+      const el = document.createElement('div');
+      el.className = 'fx-confetti';
+      el.style.left = (cx - 15 + Math.random()*30) + '%';
+      el.style.background = COLORS[i % COLORS.length];
+      el.style.animationDelay = (Math.random()*0.15) + 's';
+      el.style.animationDuration = (1.2 + Math.random()*0.8) + 's';
+      l.appendChild(el);
+      setTimeout(() => el.remove(), 2200);
+    }
+  }
+
+  function coinRain(){
+    const l = layer(); if (!l) return;
+    const n = 5 + Math.floor(Math.random()*3);
+    for (let i=0;i<n;i++){
+      const el = document.createElement('div');
+      el.className = 'fx-coin';
+      el.textContent = '🪙';
+      el.style.left = (20 + Math.random()*60) + '%';
+      el.style.animationDelay = (Math.random()*0.3) + 's';
+      l.appendChild(el);
+      setTimeout(() => el.remove(), 1800);
+    }
+  }
+
+  function screenFlash(){
+    const l = layer(); if (!l) return;
+    const el = document.createElement('div');
+    el.className = 'fx-flash';
+    l.appendChild(el);
+    setTimeout(() => el.remove(), 700);
+  }
+
+  return { confettiBurst, coinRain, screenFlash };
 })();
 
 // ── Фразы диктора ───────────────────────────────────────────────────────
@@ -925,8 +1030,9 @@ EventBus.on('GIFT_RECEIVED', (d) => {
   UI.scheduleRender('coins'); UI.scheduleRender('top3');
 
   const big = coins >= CONFIG.BIG_GIFT_COINS;
-  VoiceManager.say(tpl(rnd(big ? PHRASES.giftBig : PHRASES.gift), nick, coins), big ? 'A' : 'B');
-  if (big) HostManager.pulseExcited();
+  VoiceManager.say(tpl(rnd(big ? PHRASES.giftBig : PHRASES.gift), nick, coins), big ? 'A' : 'B', nick);
+  if (big){ HostManager.pulseExcited(); FX.confettiBurst(); FX.screenFlash(); }
+  else { FX.coinRain(); }
 });
 
 EventBus.on('LIKE_RECEIVED', (d) => {
@@ -949,14 +1055,15 @@ EventBus.on('FOLLOW_RECEIVED', (d) => {
   const now = Date.now();
   if (now - _lastFollowSpokenAt >= CONFIG.FOLLOW_ANNOUNCEMENT_COOLDOWN_MS){
     _lastFollowSpokenAt = now;
-    VoiceManager.say(tpl(rnd(PHRASES.follow), nick), 'B');
+    VoiceManager.say(tpl(rnd(PHRASES.follow), nick), 'B', nick);
   }
 });
 
 EventBus.on('TOP1_CHANGED', (d) => {
   const nick = filterNick(d.user.username);
   if (!nick) return;
-  VoiceManager.say(tpl(rnd(PHRASES.becameTop1), nick), 'A');
+  VoiceManager.say(tpl(rnd(PHRASES.becameTop1), nick), 'A', nick);
+  FX.screenFlash();
 });
 
 EventBus.on('TOP3_CHANGED', (d) => {
