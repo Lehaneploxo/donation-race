@@ -188,39 +188,40 @@
   .eb-text{ font-size:18px; line-height:1.3; color: var(--text); }
   .eb-text b{ color:#fff; }
 
-  /* ── Leaderboards ──────────────────────────────────────── */
+  /* ── Leaderboards (горизонтальные ленты, топ-5 в ряд с переносом) ────── */
   .leaderboards{
-    flex:1; display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; min-height:0;
+    flex:1; display:flex; flex-direction:column; gap:7px; min-height:0; justify-content:center;
   }
   .lbcol{
-    background: var(--panel); border:1px solid var(--border); border-top-width:2px;
+    background: var(--panel); border:1px solid var(--border); border-left-width:3px;
     border-radius:14px;
-    padding:8px 7px; display:flex; flex-direction:column; min-height:0;
+    padding:7px 10px; display:flex; align-items:center; gap:9px; flex-wrap:wrap;
     backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
   }
-  .lbcol.coins{ border-top-color: var(--gold); }
-  .lbcol.following{ border-top-color: var(--accent2); }
-  .lbcol.likes{ border-top-color: var(--pink); }
+  .lbcol.coins{ border-left-color: var(--gold); }
+  .lbcol.following{ border-left-color: var(--accent2); }
+  .lbcol.likes{ border-left-color: var(--pink); }
   .lbhead{
-    font-size:13px; font-weight:800; letter-spacing:0.3px;
-    display:flex; align-items:center; gap:4px; margin-bottom:5px; flex:none;
+    font-size:12.5px; font-weight:800; letter-spacing:0.3px;
+    display:flex; align-items:center; gap:4px; flex:none;
   }
   .lbhead.coins{ color: var(--gold); }
   .lbhead.following{ color: var(--accent2); }
   .lbhead.likes{ color: var(--pink); }
-  .lblist{ display:flex; flex-direction:column; gap:5px; overflow:hidden; }
+  .lblist{ flex:1; display:flex; flex-direction:row; flex-wrap:wrap; gap:6px 8px; min-width:0; }
   .lbrow{
-    display:flex; align-items:center; gap:6px; padding:3px 2px; border-radius:6px;
+    display:flex; align-items:center; gap:5px; padding:4px 9px 4px 7px; border-radius:20px;
+    background: rgba(255,255,255,0.06); flex:none; max-width:150px;
   }
   .lbrow.flash{ animation: rowflash 1s ease; }
-  @keyframes rowflash{ 0%{ background:rgba(255,255,255,0.18); } 100%{ background:rgba(255,255,255,0); } }
-  .lbrank{ flex:none; width:18px; font-size:14px; font-weight:800; color:var(--text-faint); text-align:center; }
+  @keyframes rowflash{ 0%{ background:rgba(255,255,255,0.32); } 100%{ background:rgba(255,255,255,0.06); } }
+  .lbrank{ flex:none; font-size:13px; font-weight:800; color:var(--text-faint); }
   .lbrank.r1{ color:var(--gold); } .lbrank.r2{ color:var(--silver); } .lbrank.r3{ color:var(--bronze); }
-  .lbav{ flex:none; width:24px; height:24px; border-radius:50%; overflow:hidden; background:rgba(255,255,255,0.08); }
-  .lbav img, .lbav .avfallback{ width:100%; height:100%; object-fit:cover; font-size:11px; }
-  .lbname{ flex:1; font-size:15px; font-weight:600; color:var(--text-dim); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; }
-  .lbval{ flex:none; font-size:15px; font-weight:800; color:#fff; }
-  .lbempty{ font-size:12.5px; color:var(--text-faint); padding:8px 2px; line-height:1.4; }
+  .lbav{ flex:none; width:22px; height:22px; border-radius:50%; overflow:hidden; background:rgba(255,255,255,0.08); }
+  .lbav img, .lbav .avfallback{ width:100%; height:100%; object-fit:cover; font-size:10.5px; }
+  .lbname{ font-size:14px; font-weight:600; color:var(--text-dim); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; }
+  .lbval{ flex:none; font-size:14px; font-weight:800; color:#fff; }
+  .lbempty{ font-size:12.5px; color:var(--text-faint); padding:2px 2px; line-height:1.4; }
 
   /* ── CTA bar ───────────────────────────────────────────── */
   .ctabar{
