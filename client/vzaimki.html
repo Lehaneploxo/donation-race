@@ -176,17 +176,28 @@
     background: linear-gradient(90deg, rgba(143,123,255,0.20), rgba(14,17,26,0.72));
     border:1px solid var(--border); border-radius: var(--radius);
     padding: 14px 18px; display:flex; align-items:center; gap:14px;
-    min-height:88px;
+    min-height:96px;
     backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
   }
   .eventbanner.pop{ animation: ebpop .35s ease; }
   @keyframes ebpop{ 0%{ transform:scale(0.985); } 60%{ transform:scale(1.005); } 100%{ transform:scale(1); } }
-  .eb-icon{ font-size:36px; flex:none; }
+  .eb-avwrap{ position:relative; flex:none; }
+  .eb-icon{ font-size:36px; }
+  .eb-icon.badge{
+    position:absolute; right:-4px; bottom:-4px; font-size:16px; line-height:1;
+    background: var(--panel); border:1px solid var(--border); border-radius:50%;
+    width:24px; height:24px; display:flex; align-items:center; justify-content:center;
+  }
+  .eb-avatar{
+    width:54px; height:54px; border-radius:50%; overflow:hidden; flex:none;
+    border:2px solid var(--border); background:rgba(255,255,255,0.06);
+  }
+  .eb-avatar img, .eb-avatar .avfallback{ width:100%; height:100%; object-fit:cover; font-size:1.3em; }
   .eb-body{ flex:1; min-width:0; }
-  .eb-text{ font-size:18px; line-height:1.3; color: var(--text); }
+  .eb-text{ font-size:21px; line-height:1.32; color: var(--text); }
   .eb-text b{ color:#fff; }
   .eb-next{
-    margin-top:4px; font-size:12.5px; color: var(--text-dim);
+    margin-top:5px; font-size:13.5px; color: var(--text-dim);
     overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
   }
   .eb-next b{ color: var(--gold); }
@@ -344,7 +355,10 @@
       </div>
 
     <div class="eventbanner" id="eventBanner">
-      <div class="eb-icon" id="ebIcon">🤝</div>
+      <div class="eb-avwrap">
+        <div class="eb-icon" id="ebIcon">🤝</div>
+        <div class="eb-avatar" id="ebAvatar" hidden></div>
+      </div>
       <div class="eb-body">
         <div class="eb-text" id="ebText">Ждём первые события эфира…</div>
         <div class="eb-next" id="ebNext" hidden></div>
@@ -893,9 +907,19 @@ const UI = (() => {
     });
   }
 
-  function showEvent(icon, html){
+  function showEvent(icon, html, person){
     const b = document.getElementById('eventBanner');
-    document.getElementById('ebIcon').textContent = icon;
+    const iconEl = document.getElementById('ebIcon');
+    const avEl = document.getElementById('ebAvatar');
+    iconEl.textContent = icon;
+    if (person){
+      avEl.innerHTML = avatarNode(person);
+      avEl.hidden = false;
+      iconEl.classList.add('badge');
+    } else {
+      avEl.hidden = true;
+      iconEl.classList.remove('badge');
+    }
     document.getElementById('ebText').innerHTML = html;
     b.classList.remove('pop'); void b.offsetWidth; b.classList.add('pop');
   }
@@ -1031,7 +1055,7 @@ EventBus.on('GIFT_RECEIVED', (d) => {
   RankingEngine.updateCoins(uid, nick, d.avatarUrl, coins);
   UI.showEvent('🎁', '<b>@'+escHtml(nick)+'</b> отправил'
     + (d.giftName ? ' «'+escHtml(d.giftName)+'»' : ' подарок')
-    + ' — <b>'+fmt(coins)+' coins</b>!');
+    + ' — <b>'+fmt(coins)+' coins</b>!', { username: nick, userId: uid, avatarUrl: d.avatarUrl });
   UI.scheduleRender('coins'); UI.scheduleRender('top3');
 
   const big = coins >= CONFIG.BIG_GIFT_COINS;
@@ -1054,7 +1078,7 @@ EventBus.on('FOLLOW_RECEIVED', (d) => {
   const uid = String(d.userId||'');
   if (!nick || !uid) return;
   RankingEngine.updateFollowing(uid, nick, d.avatarUrl, 1);
-  UI.showEvent('🤝', '<b>@'+escHtml(nick)+'</b> подписался! Новая взаимка.');
+  UI.showEvent('🤝', '<b>@'+escHtml(nick)+'</b> подписался! Новая взаимка.', { username: nick, userId: uid, avatarUrl: d.avatarUrl });
   UI.scheduleRender('following');
 
   const now = Date.now();
