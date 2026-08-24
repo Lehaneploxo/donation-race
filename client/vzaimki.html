@@ -81,23 +81,22 @@
   }
   .connBadge[hidden]{ display:none; }
 
-  /* ── Host + TOP3 row ───────────────────────────────────── */
-  .hostRow{
-    display:flex; gap:10px; align-items:stretch;
+  /* ── TOP3 row ──────────────────────────────────────────── */
+  .top3{
+    order:1; display:flex; align-items:flex-end; gap:8px;
   }
 
+  /* ── Ведущая (внизу, под рейтингами, без карточки — просто крупнее
+     поверх прозрачного фона). Позиция задаётся через flex `order` на
+     #stage — .hostCard физически остаётся первым в DOM (никто не трогал
+     соседний огромный инлайн-SVG лица), но визуально едет вниз. ────── */
   .hostCard{
-    flex: 0 0 124px;
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: 10px 6px 8px;
-    display:flex; flex-direction:column; align-items:center; gap:6px;
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
+    order:4;
+    flex:1; display:flex; flex-direction:column; align-items:center;
+    justify-content:center; gap:10px; min-height:0;
   }
   .host-avatar{
-    position:relative; width:112px; height:112px;
+    position:relative; width:190px; height:190px;
     animation: hostBob 4.2s ease-in-out infinite;
   }
   /* #host сам является .host-avatar (id и class на одном узле) — переопределяем
@@ -114,7 +113,7 @@
   }
   /* тёплое мягкое свечение позади — премиальный акцент без неона */
   .hf-halo{
-    position:absolute; inset:-12px; border-radius:50%;
+    position:absolute; inset:-20px; border-radius:50%;
     background: radial-gradient(circle, rgba(255,214,158,0.30), rgba(255,214,158,0) 68%);
   }
   /* Лицо — готовая иллюстрация (DiceBear/Avataaars, Pablo Stanley, свободная
@@ -130,9 +129,6 @@
   }
   .host-tag .hdot{ width:6px; height:6px; border-radius:50%; background: var(--green); }
 
-  .top3{
-    flex:1; display:flex; align-items:flex-end; gap:6px;
-  }
   .t3card{
     flex:1; background: var(--panel); border:1px solid var(--border);
     border-radius: 14px; padding: 8px 6px 9px; text-align:center;
@@ -176,6 +172,7 @@
 
   /* ── Event banner ──────────────────────────────────────── */
   .eventbanner{
+    order:2;
     background: linear-gradient(90deg, rgba(143,123,255,0.20), rgba(14,17,26,0.72));
     border:1px solid var(--border); border-radius: var(--radius);
     padding: 14px 18px; display:flex; align-items:center; gap:14px;
@@ -190,7 +187,7 @@
 
   /* ── Leaderboards ──────────────────────────────────────── */
   .leaderboards{
-    flex:1; display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; min-height:0;
+    order:3; flex:none; display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px;
   }
   .lbcol{
     background: var(--panel); border:1px solid var(--border); border-top-width:2px;
@@ -224,6 +221,7 @@
 
   /* ── CTA bar ───────────────────────────────────────────── */
   .ctabar{
+    order:5;
     background: linear-gradient(90deg, rgba(255,207,107,0.16), rgba(143,123,255,0.16));
     border:1px solid var(--border); border-radius: var(--radius);
     padding: 10px 14px; text-align:center; flex:none;
@@ -232,6 +230,7 @@
   .ctabar span{ font-size:15.5px; font-weight:700; color:#fff; }
 
   .footer{
+    order:6;
     text-align:center; font-size:11.5px; color: var(--text-faint); padding: 2px 0 0; flex:none;
     letter-spacing:0.3px;
   }
@@ -264,7 +263,6 @@
       </div>
     </div>
 
-    <div class="hostRow">
       <div class="hostCard">
         <!-- Лицо ведущей: "Avataaars" (Pablo Stanley) через DiceBear —
              свободная лицензия для коммерческого использования
@@ -301,7 +299,6 @@
           <div class="t3coins"></div>
         </div>
       </div>
-    </div>
 
     <div class="eventbanner" id="eventBanner">
       <div class="eb-icon" id="ebIcon">🤝</div>
