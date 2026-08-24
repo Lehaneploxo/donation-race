@@ -88,8 +88,8 @@
 
   /* ── Ведущая (внизу, под рейтингами, без карточки — просто крупнее
      поверх прозрачного фона). Позиция задаётся через flex `order` на
-     #stage — .hostCard физически остаётся первым в DOM (никто не трогал
-     соседний огромный инлайн-SVG лица), но визуально едет вниз. ────── */
+     #stage — .hostCard физически остаётся первым в DOM, но визуально
+     едет вниз. ──────────────────────────────────────────────────── */
   .hostCard{
     order:4;
     flex:1; display:flex; flex-direction:column; align-items:center;
@@ -116,13 +116,7 @@
     position:absolute; inset:-28px; border-radius:50%;
     background: radial-gradient(circle, rgba(255,214,158,0.30), rgba(255,214,158,0) 68%);
   }
-  /* Лицо — готовая иллюстрация (DiceBear/Avataaars, Pablo Stanley, свободная
-     для коммерческого использования), несколько состояний рта/глаз лежат
-     друг на друге и переключаются прозрачностью — простой, но надёжный
-     "flip-book" лип-синк без честного разбора по фонемам */
-  .hf-layer{ position:absolute; inset:0; opacity:0; transition:opacity .07s linear; }
-  .hf-layer.on{ opacity:1; }
-  .hf-layer svg{ width:100%; height:100%; display:block; }
+  #hostCanvas{ position:absolute; inset:0; width:100%; height:100%; display:block; }
   .host-tag{
     font-size:11px; font-weight:700; letter-spacing:1px; color: var(--text-dim);
     display:flex; align-items:center; gap:4px; text-transform:uppercase;
@@ -264,17 +258,18 @@
     </div>
 
       <div class="hostCard">
-        <!-- Лицо ведущей: "Avataaars" (Pablo Stanley) через DiceBear —
-             свободная лицензия для коммерческого использования
-             (https://avataaars.com/). 5 состояний рта/глаз наложены друг на
-             друга, видимое переключается прозрачностью (см. HostManager). -->
+        <!-- Лицо ведущей: Live2D-модель "Kei", официальный бесплатный сэмпл
+             (https://www.live2d.com/en/learn/sample/kei/, разрешено для
+             коммерческого использования компаниям с доходом до 10 млн иен/год).
+             Рендерится через pixi-live2d-display в canvas; рот/моргание
+             управляются вручную из HostManager (см. ниже) — настоящего
+             аудио-лип-синка нет (у браузерного speechSynthesis нет доступа
+             к аудио-потоку), поэтому рот открывается по тем же "тикам" на
+             границах слов, что и раньше, просто через Live2D это выглядит
+             плавнее и живее (плюс бесплатно идут моргание и физика волос). -->
         <div class="host-avatar" id="host" data-state="waiting">
           <div class="hf-halo"></div>
-          <div class="hf-layer on" id="hfIdle"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 280 280" fill="none" shape-rendering="auto"><mask id="vzHostMask-idle"><rect width="280" height="280" x="0" y="0" fill="#fff"/></mask><g mask="url(#vzHostMask-idle)"><g transform="translate(8)"><path d="M132 36a56 56 0 0 0-56 56v6.17A12 12 0 0 0 66 110v14a12 12 0 0 0 10.3 11.88 56.04 56.04 0 0 0 31.7 44.73v18.4h-4a72 72 0 0 0-72 72v9h200v-9a72 72 0 0 0-72-72h-4v-18.39a56.04 56.04 0 0 0 31.7-44.73A12 12 0 0 0 198 124v-14a12 12 0 0 0-10-11.83V92a56 56 0 0 0-56-56Z" fill="#f8d25c"/><path d="M108 180.61v8a55.79 55.79 0 0 0 24 5.39c8.59 0 16.73-1.93 24-5.39v-8a55.79 55.79 0 0 1-24 5.39 55.79 55.79 0 0 1-24-5.39Z" fill="#000" fill-opacity=".1"/><g transform="translate(0 170)"><path d="M132.5 51.83c18.5 0 33.5-9.62 33.5-21.48 0-.36-.01-.7-.04-1.06A72 72 0 0 1 232 101.04V110H32v-8.95a72 72 0 0 1 67.05-71.83c-.03.37-.05.75-.05 1.13 0 11.86 15 21.48 33.5 21.48Z" fill="#E6E6E6"/><path d="M132.5 58.76c21.89 0 39.63-12.05 39.63-26.91 0-.6-.02-1.2-.08-1.8-2-.33-4.03-.59-6.1-.76.04.35.05.7.05 1.06 0 11.86-15 21.48-33.5 21.48S99 42.2 99 30.35c0-.38.02-.76.05-1.13-2.06.14-4.08.36-6.08.67-.07.65-.1 1.3-.1 1.96 0 14.86 17.74 26.91 39.63 26.91Z" fill="#000" fill-opacity=".16"/><path d="M100.78 29.12 101 28c-2.96.05-6 1-6 1l-.42.66A72.01 72.01 0 0 0 32 101.06V110h74s-10.7-51.56-5.24-80.8l.02-.08ZM158 110s11-53 5-82c2.96.05 6 1 6 1l.42.66a72.01 72.01 0 0 1 62.58 71.4V110h-74Z" fill="#ff488e"/><path d="M101 28c-6 29 5 82 5 82H90L76 74l6-9-6-6 19-30s3.04-.95 6-1ZM163 28c6 29-5 82-5 82h16l14-36-6-9 6-6-19-30s-3.04-.95-6-1Z" fill-rule="evenodd" clip-rule="evenodd" fill="#000" fill-opacity=".15"/><path d="m183.42 85.77.87-2.24 6.27-4.7a4 4 0 0 1 4.85.05l6.6 5.12-18.59 1.77Z" fill="#E6E6E6"/></g><g transform="translate(78 134)"><path fill-rule="evenodd" clip-rule="evenodd" d="M35.12 15.13a19 19 0 0 0 37.77-.09c.08-.77-.77-2.04-1.85-2.04H37.1C36 13 35 14.18 35.12 15.13Z" fill="#000" fill-opacity=".7"/><path d="M70 13H39a5 5 0 0 0 5 5h21a5 5 0 0 0 5-5Z" fill="#fff"/><path d="M66.7 27.14A10.96 10.96 0 0 0 54 25.2a10.95 10.95 0 0 0-12.7 1.94A18.93 18.93 0 0 0 54 32c4.88 0 9.33-1.84 12.7-4.86Z" fill="#FF4F6D"/></g><g transform="translate(104 122)"><path fill-rule="evenodd" clip-rule="evenodd" d="M16 8c0 4.42 5.37 8 12 8s12-3.58 12-8" fill="#000" fill-opacity=".16"/></g><g transform="translate(76 90)"><path d="M36 22a6 6 0 1 1-12 0 6 6 0 0 1 12 0ZM88 22a6 6 0 1 1-12 0 6 6 0 0 1 12 0Z" fill="#000" fill-opacity=".6"/></g><g transform="translate(76 82)"><path d="M26.55 6.15c-5.8.27-15.2 4.49-14.96 10.34.01.18.3.27.43.12 2.76-2.96 22.32-5.95 29.2-4.36.64.14 1.12-.48.72-.93-3.43-3.85-10.2-5.43-15.4-5.18ZM86.45 6.15c5.8.27 15.2 4.49 14.96 10.34-.01.18-.3.27-.43.12-2.76-2.96-22.32-5.95-29.2-4.36-.64.14-1.12-.48-.72-.93 3.43-3.85 10.2-5.43 15.4-5.18Z" fill-rule="evenodd" clip-rule="evenodd" fill="#000" fill-opacity=".6"/></g><g transform="translate(-1)"><path d="M40 145c-.62-30.84 28.32-95.2 39-108 7.92-9.5 29.7-17.45 54-17 24.3.45 46.86 5.81 55 16 12.32 15.43 37.87 74.08 38 109 .1 24.8-9.54 49.66-23 51-7.6.76-17.26-.23-28.86-1.4-5.3-.55-11.02-1.13-17.14-1.6V180.6A56 56 0 0 0 189 130v-28.44a130.34 130.34 0 0 1-26.9-19.88c3.35 6.24 7.19 11.9 11.51 16.2-30.57-8.59-51.71-26.16-64.38-39.94C103.39 69.02 92.96 85.23 77 97.57V130a56 56 0 0 0 32 50.61v13.14c-6.95.95-13.41 2.16-19.36 3.27-10.85 2.02-19.98 3.73-27.26 2.98-14.22-1.47-21.88-30.2-22.38-55Z" fill="#f59797"/></g></g></g></svg></div>
-          <div class="hf-layer" id="hfSmall"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 280 280" fill="none" shape-rendering="auto"><mask id="vzHostMask-small"><rect width="280" height="280" x="0" y="0" fill="#fff"/></mask><g mask="url(#vzHostMask-small)"><g transform="translate(8)"><path d="M132 36a56 56 0 0 0-56 56v6.17A12 12 0 0 0 66 110v14a12 12 0 0 0 10.3 11.88 56.04 56.04 0 0 0 31.7 44.73v18.4h-4a72 72 0 0 0-72 72v9h200v-9a72 72 0 0 0-72-72h-4v-18.39a56.04 56.04 0 0 0 31.7-44.73A12 12 0 0 0 198 124v-14a12 12 0 0 0-10-11.83V92a56 56 0 0 0-56-56Z" fill="#f8d25c"/><path d="M108 180.61v8a55.79 55.79 0 0 0 24 5.39c8.59 0 16.73-1.93 24-5.39v-8a55.79 55.79 0 0 1-24 5.39 55.79 55.79 0 0 1-24-5.39Z" fill="#000" fill-opacity=".1"/><g transform="translate(0 170)"><path d="M132.5 51.83c18.5 0 33.5-9.62 33.5-21.48 0-.36-.01-.7-.04-1.06A72 72 0 0 1 232 101.04V110H32v-8.95a72 72 0 0 1 67.05-71.83c-.03.37-.05.75-.05 1.13 0 11.86 15 21.48 33.5 21.48Z" fill="#E6E6E6"/><path d="M132.5 58.76c21.89 0 39.63-12.05 39.63-26.91 0-.6-.02-1.2-.08-1.8-2-.33-4.03-.59-6.1-.76.04.35.05.7.05 1.06 0 11.86-15 21.48-33.5 21.48S99 42.2 99 30.35c0-.38.02-.76.05-1.13-2.06.14-4.08.36-6.08.67-.07.65-.1 1.3-.1 1.96 0 14.86 17.74 26.91 39.63 26.91Z" fill="#000" fill-opacity=".16"/><path d="M100.78 29.12 101 28c-2.96.05-6 1-6 1l-.42.66A72.01 72.01 0 0 0 32 101.06V110h74s-10.7-51.56-5.24-80.8l.02-.08ZM158 110s11-53 5-82c2.96.05 6 1 6 1l.42.66a72.01 72.01 0 0 1 62.58 71.4V110h-74Z" fill="#ff488e"/><path d="M101 28c-6 29 5 82 5 82H90L76 74l6-9-6-6 19-30s3.04-.95 6-1ZM163 28c6 29-5 82-5 82h16l14-36-6-9 6-6-19-30s-3.04-.95-6-1Z" fill-rule="evenodd" clip-rule="evenodd" fill="#000" fill-opacity=".15"/><path d="m183.42 85.77.87-2.24 6.27-4.7a4 4 0 0 1 4.85.05l6.6 5.12-18.59 1.77Z" fill="#E6E6E6"/></g><g transform="translate(78 134)"><path fill-rule="evenodd" clip-rule="evenodd" d="M40 15a14 14 0 1 0 28 0" fill="#000" fill-opacity=".7"/></g><g transform="translate(104 122)"><path fill-rule="evenodd" clip-rule="evenodd" d="M16 8c0 4.42 5.37 8 12 8s12-3.58 12-8" fill="#000" fill-opacity=".16"/></g><g transform="translate(76 90)"><path d="M36 22a6 6 0 1 1-12 0 6 6 0 0 1 12 0ZM88 22a6 6 0 1 1-12 0 6 6 0 0 1 12 0Z" fill="#000" fill-opacity=".6"/></g><g transform="translate(76 82)"><path d="M26.55 6.15c-5.8.27-15.2 4.49-14.96 10.34.01.18.3.27.43.12 2.76-2.96 22.32-5.95 29.2-4.36.64.14 1.12-.48.72-.93-3.43-3.85-10.2-5.43-15.4-5.18ZM86.45 6.15c5.8.27 15.2 4.49 14.96 10.34-.01.18-.3.27-.43.12-2.76-2.96-22.32-5.95-29.2-4.36-.64.14-1.12-.48-.72-.93 3.43-3.85 10.2-5.43 15.4-5.18Z" fill-rule="evenodd" clip-rule="evenodd" fill="#000" fill-opacity=".6"/></g><g transform="translate(-1)"><path d="M40 145c-.62-30.84 28.32-95.2 39-108 7.92-9.5 29.7-17.45 54-17 24.3.45 46.86 5.81 55 16 12.32 15.43 37.87 74.08 38 109 .1 24.8-9.54 49.66-23 51-7.6.76-17.26-.23-28.86-1.4-5.3-.55-11.02-1.13-17.14-1.6V180.6A56 56 0 0 0 189 130v-28.44a130.34 130.34 0 0 1-26.9-19.88c3.35 6.24 7.19 11.9 11.51 16.2-30.57-8.59-51.71-26.16-64.38-39.94C103.39 69.02 92.96 85.23 77 97.57V130a56 56 0 0 0 32 50.61v13.14c-6.95.95-13.41 2.16-19.36 3.27-10.85 2.02-19.98 3.73-27.26 2.98-14.22-1.47-21.88-30.2-22.38-55Z" fill="#f59797"/></g></g></g></svg></div>
-          <div class="hf-layer" id="hfOpen"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 280 280" fill="none" shape-rendering="auto"><mask id="vzHostMask-open"><rect width="280" height="280" x="0" y="0" fill="#fff"/></mask><g mask="url(#vzHostMask-open)"><g transform="translate(8)"><path d="M132 36a56 56 0 0 0-56 56v6.17A12 12 0 0 0 66 110v14a12 12 0 0 0 10.3 11.88 56.04 56.04 0 0 0 31.7 44.73v18.4h-4a72 72 0 0 0-72 72v9h200v-9a72 72 0 0 0-72-72h-4v-18.39a56.04 56.04 0 0 0 31.7-44.73A12 12 0 0 0 198 124v-14a12 12 0 0 0-10-11.83V92a56 56 0 0 0-56-56Z" fill="#f8d25c"/><path d="M108 180.61v8a55.79 55.79 0 0 0 24 5.39c8.59 0 16.73-1.93 24-5.39v-8a55.79 55.79 0 0 1-24 5.39 55.79 55.79 0 0 1-24-5.39Z" fill="#000" fill-opacity=".1"/><g transform="translate(0 170)"><path d="M132.5 51.83c18.5 0 33.5-9.62 33.5-21.48 0-.36-.01-.7-.04-1.06A72 72 0 0 1 232 101.04V110H32v-8.95a72 72 0 0 1 67.05-71.83c-.03.37-.05.75-.05 1.13 0 11.86 15 21.48 33.5 21.48Z" fill="#E6E6E6"/><path d="M132.5 58.76c21.89 0 39.63-12.05 39.63-26.91 0-.6-.02-1.2-.08-1.8-2-.33-4.03-.59-6.1-.76.04.35.05.7.05 1.06 0 11.86-15 21.48-33.5 21.48S99 42.2 99 30.35c0-.38.02-.76.05-1.13-2.06.14-4.08.36-6.08.67-.07.65-.1 1.3-.1 1.96 0 14.86 17.74 26.91 39.63 26.91Z" fill="#000" fill-opacity=".16"/><path d="M100.78 29.12 101 28c-2.96.05-6 1-6 1l-.42.66A72.01 72.01 0 0 0 32 101.06V110h74s-10.7-51.56-5.24-80.8l.02-.08ZM158 110s11-53 5-82c2.96.05 6 1 6 1l.42.66a72.01 72.01 0 0 1 62.58 71.4V110h-74Z" fill="#ff488e"/><path d="M101 28c-6 29 5 82 5 82H90L76 74l6-9-6-6 19-30s3.04-.95 6-1ZM163 28c6 29-5 82-5 82h16l14-36-6-9 6-6-19-30s-3.04-.95-6-1Z" fill-rule="evenodd" clip-rule="evenodd" fill="#000" fill-opacity=".15"/><path d="m183.42 85.77.87-2.24 6.27-4.7a4 4 0 0 1 4.85.05l6.6 5.12-18.59 1.77Z" fill="#E6E6E6"/></g><g transform="translate(78 134)"><path fill-rule="evenodd" clip-rule="evenodd" d="M34 38.86C35.14 24.88 38.24 13.01 54 13c15.76 0 18.92 11.94 20 26 .08 1.12-.83 2-1.96 2-6.69 0-9.37-2-18.05-2-8.7 0-13.24 2-17.9 2-1.15 0-2.2-.74-2.1-2.14Z" fill="#000" fill-opacity=".7"/><path d="M67.02 17.57c-.61.28-1.3.43-2.02.43H44c-.98 0-1.9-.28-2.67-.77C44.23 14.57 48.28 13 54 13c5.95 0 10.1 1.7 13.02 4.57Z" fill="#fff"/><path d="M69.8 40.92a44.2 44.2 0 0 1-5.54-.82c-2.73-.53-5.65-1.1-10.27-1.1-5.02 0-8.66.66-11.74 1.23-1.45.26-2.77.5-4.06.65A11 11 0 0 1 54 33.2a11 11 0 0 1 15.8 7.72Z" fill="#FF4F6D"/></g><g transform="translate(104 122)"><path fill-rule="evenodd" clip-rule="evenodd" d="M16 8c0 4.42 5.37 8 12 8s12-3.58 12-8" fill="#000" fill-opacity=".16"/></g><g transform="translate(76 90)"><path d="M36 22a6 6 0 1 1-12 0 6 6 0 0 1 12 0ZM88 22a6 6 0 1 1-12 0 6 6 0 0 1 12 0Z" fill="#000" fill-opacity=".6"/></g><g transform="translate(76 82)"><path d="M26.55 6.15c-5.8.27-15.2 4.49-14.96 10.34.01.18.3.27.43.12 2.76-2.96 22.32-5.95 29.2-4.36.64.14 1.12-.48.72-.93-3.43-3.85-10.2-5.43-15.4-5.18ZM86.45 6.15c5.8.27 15.2 4.49 14.96 10.34-.01.18-.3.27-.43.12-2.76-2.96-22.32-5.95-29.2-4.36-.64.14-1.12-.48-.72-.93 3.43-3.85 10.2-5.43 15.4-5.18Z" fill-rule="evenodd" clip-rule="evenodd" fill="#000" fill-opacity=".6"/></g><g transform="translate(-1)"><path d="M40 145c-.62-30.84 28.32-95.2 39-108 7.92-9.5 29.7-17.45 54-17 24.3.45 46.86 5.81 55 16 12.32 15.43 37.87 74.08 38 109 .1 24.8-9.54 49.66-23 51-7.6.76-17.26-.23-28.86-1.4-5.3-.55-11.02-1.13-17.14-1.6V180.6A56 56 0 0 0 189 130v-28.44a130.34 130.34 0 0 1-26.9-19.88c3.35 6.24 7.19 11.9 11.51 16.2-30.57-8.59-51.71-26.16-64.38-39.94C103.39 69.02 92.96 85.23 77 97.57V130a56 56 0 0 0 32 50.61v13.14c-6.95.95-13.41 2.16-19.36 3.27-10.85 2.02-19.98 3.73-27.26 2.98-14.22-1.47-21.88-30.2-22.38-55Z" fill="#f59797"/></g></g></g></svg></div>
-          <div class="hf-layer" id="hfExcited"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 280 280" fill="none" shape-rendering="auto"><mask id="vzHostMask-excited"><rect width="280" height="280" x="0" y="0" fill="#fff"/></mask><g mask="url(#vzHostMask-excited)"><g transform="translate(8)"><path d="M132 36a56 56 0 0 0-56 56v6.17A12 12 0 0 0 66 110v14a12 12 0 0 0 10.3 11.88 56.04 56.04 0 0 0 31.7 44.73v18.4h-4a72 72 0 0 0-72 72v9h200v-9a72 72 0 0 0-72-72h-4v-18.39a56.04 56.04 0 0 0 31.7-44.73A12 12 0 0 0 198 124v-14a12 12 0 0 0-10-11.83V92a56 56 0 0 0-56-56Z" fill="#f8d25c"/><path d="M108 180.61v8a55.79 55.79 0 0 0 24 5.39c8.59 0 16.73-1.93 24-5.39v-8a55.79 55.79 0 0 1-24 5.39 55.79 55.79 0 0 1-24-5.39Z" fill="#000" fill-opacity=".1"/><g transform="translate(0 170)"><path d="M132.5 51.83c18.5 0 33.5-9.62 33.5-21.48 0-.36-.01-.7-.04-1.06A72 72 0 0 1 232 101.04V110H32v-8.95a72 72 0 0 1 67.05-71.83c-.03.37-.05.75-.05 1.13 0 11.86 15 21.48 33.5 21.48Z" fill="#E6E6E6"/><path d="M132.5 58.76c21.89 0 39.63-12.05 39.63-26.91 0-.6-.02-1.2-.08-1.8-2-.33-4.03-.59-6.1-.76.04.35.05.7.05 1.06 0 11.86-15 21.48-33.5 21.48S99 42.2 99 30.35c0-.38.02-.76.05-1.13-2.06.14-4.08.36-6.08.67-.07.65-.1 1.3-.1 1.96 0 14.86 17.74 26.91 39.63 26.91Z" fill="#000" fill-opacity=".16"/><path d="M100.78 29.12 101 28c-2.96.05-6 1-6 1l-.42.66A72.01 72.01 0 0 0 32 101.06V110h74s-10.7-51.56-5.24-80.8l.02-.08ZM158 110s11-53 5-82c2.96.05 6 1 6 1l.42.66a72.01 72.01 0 0 1 62.58 71.4V110h-74Z" fill="#ff488e"/><path d="M101 28c-6 29 5 82 5 82H90L76 74l6-9-6-6 19-30s3.04-.95 6-1ZM163 28c6 29-5 82-5 82h16l14-36-6-9 6-6-19-30s-3.04-.95-6-1Z" fill-rule="evenodd" clip-rule="evenodd" fill="#000" fill-opacity=".15"/><path d="m183.42 85.77.87-2.24 6.27-4.7a4 4 0 0 1 4.85.05l6.6 5.12-18.59 1.77Z" fill="#E6E6E6"/></g><g transform="translate(78 134)"><path d="M40 16c0 5.37 6.16 9 14 9s14-3.63 14-9c0-1.1-.95-2-2-2-1.3 0-1.87.9-2 2-1.24 2.94-4.32 4.72-10 5-5.68-.28-8.76-2.06-10-5-.13-1.1-.7-2-2-2-1.05 0-2 .9-2 2Z" fill="#000" fill-opacity=".6"/></g><g transform="translate(104 122)"><path fill-rule="evenodd" clip-rule="evenodd" d="M16 8c0 4.42 5.37 8 12 8s12-3.58 12-8" fill="#000" fill-opacity=".16"/></g><g transform="translate(76 90)"><path d="M36 22a6 6 0 1 1-12 0 6 6 0 0 1 12 0ZM88 22a6 6 0 1 1-12 0 6 6 0 0 1 12 0Z" fill="#000" fill-opacity=".6"/></g><g transform="translate(76 82)"><path d="M26.55 6.15c-5.8.27-15.2 4.49-14.96 10.34.01.18.3.27.43.12 2.76-2.96 22.32-5.95 29.2-4.36.64.14 1.12-.48.72-.93-3.43-3.85-10.2-5.43-15.4-5.18ZM86.45 6.15c5.8.27 15.2 4.49 14.96 10.34-.01.18-.3.27-.43.12-2.76-2.96-22.32-5.95-29.2-4.36-.64.14-1.12-.48-.72-.93 3.43-3.85 10.2-5.43 15.4-5.18Z" fill-rule="evenodd" clip-rule="evenodd" fill="#000" fill-opacity=".6"/></g><g transform="translate(-1)"><path d="M40 145c-.62-30.84 28.32-95.2 39-108 7.92-9.5 29.7-17.45 54-17 24.3.45 46.86 5.81 55 16 12.32 15.43 37.87 74.08 38 109 .1 24.8-9.54 49.66-23 51-7.6.76-17.26-.23-28.86-1.4-5.3-.55-11.02-1.13-17.14-1.6V180.6A56 56 0 0 0 189 130v-28.44a130.34 130.34 0 0 1-26.9-19.88c3.35 6.24 7.19 11.9 11.51 16.2-30.57-8.59-51.71-26.16-64.38-39.94C103.39 69.02 92.96 85.23 77 97.57V130a56 56 0 0 0 32 50.61v13.14c-6.95.95-13.41 2.16-19.36 3.27-10.85 2.02-19.98 3.73-27.26 2.98-14.22-1.47-21.88-30.2-22.38-55Z" fill="#f59797"/></g></g></g></svg></div>
-          <div class="hf-layer" id="hfBlink"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 280 280" fill="none" shape-rendering="auto"><mask id="vzHostMask-blink"><rect width="280" height="280" x="0" y="0" fill="#fff"/></mask><g mask="url(#vzHostMask-blink)"><g transform="translate(8)"><path d="M132 36a56 56 0 0 0-56 56v6.17A12 12 0 0 0 66 110v14a12 12 0 0 0 10.3 11.88 56.04 56.04 0 0 0 31.7 44.73v18.4h-4a72 72 0 0 0-72 72v9h200v-9a72 72 0 0 0-72-72h-4v-18.39a56.04 56.04 0 0 0 31.7-44.73A12 12 0 0 0 198 124v-14a12 12 0 0 0-10-11.83V92a56 56 0 0 0-56-56Z" fill="#f8d25c"/><path d="M108 180.61v8a55.79 55.79 0 0 0 24 5.39c8.59 0 16.73-1.93 24-5.39v-8a55.79 55.79 0 0 1-24 5.39 55.79 55.79 0 0 1-24-5.39Z" fill="#000" fill-opacity=".1"/><g transform="translate(0 170)"><path d="M132.5 51.83c18.5 0 33.5-9.62 33.5-21.48 0-.36-.01-.7-.04-1.06A72 72 0 0 1 232 101.04V110H32v-8.95a72 72 0 0 1 67.05-71.83c-.03.37-.05.75-.05 1.13 0 11.86 15 21.48 33.5 21.48Z" fill="#E6E6E6"/><path d="M132.5 58.76c21.89 0 39.63-12.05 39.63-26.91 0-.6-.02-1.2-.08-1.8-2-.33-4.03-.59-6.1-.76.04.35.05.7.05 1.06 0 11.86-15 21.48-33.5 21.48S99 42.2 99 30.35c0-.38.02-.76.05-1.13-2.06.14-4.08.36-6.08.67-.07.65-.1 1.3-.1 1.96 0 14.86 17.74 26.91 39.63 26.91Z" fill="#000" fill-opacity=".16"/><path d="M100.78 29.12 101 28c-2.96.05-6 1-6 1l-.42.66A72.01 72.01 0 0 0 32 101.06V110h74s-10.7-51.56-5.24-80.8l.02-.08ZM158 110s11-53 5-82c2.96.05 6 1 6 1l.42.66a72.01 72.01 0 0 1 62.58 71.4V110h-74Z" fill="#ff488e"/><path d="M101 28c-6 29 5 82 5 82H90L76 74l6-9-6-6 19-30s3.04-.95 6-1ZM163 28c6 29-5 82-5 82h16l14-36-6-9 6-6-19-30s-3.04-.95-6-1Z" fill-rule="evenodd" clip-rule="evenodd" fill="#000" fill-opacity=".15"/><path d="m183.42 85.77.87-2.24 6.27-4.7a4 4 0 0 1 4.85.05l6.6 5.12-18.59 1.77Z" fill="#E6E6E6"/></g><g transform="translate(78 134)"><path fill-rule="evenodd" clip-rule="evenodd" d="M35.12 15.13a19 19 0 0 0 37.77-.09c.08-.77-.77-2.04-1.85-2.04H37.1C36 13 35 14.18 35.12 15.13Z" fill="#000" fill-opacity=".7"/><path d="M70 13H39a5 5 0 0 0 5 5h21a5 5 0 0 0 5-5Z" fill="#fff"/><path d="M66.7 27.14A10.96 10.96 0 0 0 54 25.2a10.95 10.95 0 0 0-12.7 1.94A18.93 18.93 0 0 0 54 32c4.88 0 9.33-1.84 12.7-4.86Z" fill="#FF4F6D"/></g><g transform="translate(104 122)"><path fill-rule="evenodd" clip-rule="evenodd" d="M16 8c0 4.42 5.37 8 12 8s12-3.58 12-8" fill="#000" fill-opacity=".16"/></g><g transform="translate(76 90)"><path d="M16.16 27.55c1.85 3.8 6 6.45 10.84 6.45 4.81 0 8.96-2.63 10.82-6.4.55-1.13-.24-2.05-1.03-1.37a15.05 15.05 0 0 1-9.8 3.43c-3.73 0-7.12-1.24-9.55-3.23-.9-.73-1.82.01-1.28 1.12ZM74.16 27.55c1.85 3.8 6 6.45 10.84 6.45 4.81 0 8.96-2.63 10.82-6.4.55-1.13-.24-2.05-1.03-1.37a15.05 15.05 0 0 1-9.8 3.43c-3.74 0-7.13-1.24-9.56-3.23-.9-.73-1.82.01-1.28 1.12Z" fill-rule="evenodd" clip-rule="evenodd" fill="#000" fill-opacity=".6"/></g><g transform="translate(76 82)"><path d="M26.55 6.15c-5.8.27-15.2 4.49-14.96 10.34.01.18.3.27.43.12 2.76-2.96 22.32-5.95 29.2-4.36.64.14 1.12-.48.72-.93-3.43-3.85-10.2-5.43-15.4-5.18ZM86.45 6.15c5.8.27 15.2 4.49 14.96 10.34-.01.18-.3.27-.43.12-2.76-2.96-22.32-5.95-29.2-4.36-.64.14-1.12-.48-.72-.93 3.43-3.85 10.2-5.43 15.4-5.18Z" fill-rule="evenodd" clip-rule="evenodd" fill="#000" fill-opacity=".6"/></g><g transform="translate(-1)"><path d="M40 145c-.62-30.84 28.32-95.2 39-108 7.92-9.5 29.7-17.45 54-17 24.3.45 46.86 5.81 55 16 12.32 15.43 37.87 74.08 38 109 .1 24.8-9.54 49.66-23 51-7.6.76-17.26-.23-28.86-1.4-5.3-.55-11.02-1.13-17.14-1.6V180.6A56 56 0 0 0 189 130v-28.44a130.34 130.34 0 0 1-26.9-19.88c3.35 6.24 7.19 11.9 11.51 16.2-30.57-8.59-51.71-26.16-64.38-39.94C103.39 69.02 92.96 85.23 77 97.57V130a56 56 0 0 0 32 50.61v13.14c-6.95.95-13.41 2.16-19.36 3.27-10.85 2.02-19.98 3.73-27.26 2.98-14.22-1.47-21.88-30.2-22.38-55Z" fill="#f59797"/></g></g></g></svg></div>
+          <canvas id="hostCanvas"></canvas>
         </div>
         <div class="host-tag"><span class="hdot"></span>ВЕДУЩАЯ</div>
       </div>
@@ -326,6 +321,13 @@
 
   </div>
 </div>
+
+<!-- Live2D-рендер ведущей (Kei, официальный бесплатный сэмпл Live2D,
+     https://www.live2d.com/en/learn/sample/kei/) — коммерческое использование
+     разрешено лицензией (компании с доходом до 10 млн иен/год). -->
+<script src="https://cubism.live2d.com/sdk-web/cubismcore/live2dcubismcore.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/pixi.js@6.5.10/dist/browser/pixi.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/pixi-live2d-display@0.4.0/dist/cubism4.min.js"></script>
 
 <div id="debugPanel" hidden>
   <div class="dbg-row"><b>DEBUG</b> — статус: <span id="dbgStatus">—</span></div>
@@ -483,27 +485,56 @@ const RankingEngine = (() => {
 // Лицо — 5 готовых SVG-слоёв (idle/small/open/excited/blink), друг на друге,
 // видимым делается только нужный (см. .hf-layer.on в CSS).
 const HostManager = (() => {
-  const LAYER_IDS = ['hfIdle','hfSmall','hfOpen','hfExcited','hfBlink'];
-  let hostEl, layers = {};
+  let hostEl, app, model = null;
   let state = 'waiting';
-  let mouthLoopId = null, mouthToggle = false;
+  let mouthLoopId = null;
+  let mouthTarget = 0, eyeTarget = 1;
+  let mouthValue = 0, eyeValue = 1;
   let excitedTimer = null, waitTimer = null, blinkTimer = null;
 
   function init(){
     hostEl = document.getElementById('host');
-    LAYER_IDS.forEach(id => { layers[id] = document.getElementById(id); });
+    const canvas = document.getElementById('hostCanvas');
+    const box = hostEl.getBoundingClientRect();
+    app = new PIXI.Application({
+      view: canvas, width: box.width || 270, height: box.height || 270,
+      resolution: Math.min(window.devicePixelRatio || 1, 2), autoDensity: true,
+      backgroundAlpha: 0, antialias: true,
+    });
+    // грузим модель асинхронно и без автообновления — сами прогоняем model.update()
+    // каждый кадр и следом переопределяем параметры рта/глаз, иначе их бы
+    // затирал собственный цикл дыхания/физики модели
+    PIXI.live2d.Live2DModel.from('sprites/kei_live2d/kei_basic_free.model3.json', { autoUpdate: false })
+      .then(m => {
+        model = m;
+        model.anchor.set(0.5, 0.5);
+        const scale = Math.min(app.screen.width / model.width, app.screen.height / model.height) * 1.65;
+        model.scale.set(scale);
+        model.x = app.screen.width / 2;
+        model.y = app.screen.height * 0.58;
+        app.stage.addChild(model);
+      })
+      .catch(e => console.error('[HostManager] Live2D load failed', e));
+
+    app.ticker.add(() => {
+      if (!model) return;
+      model.update(PIXI.Ticker.shared.deltaMS);
+      mouthValue += (mouthTarget - mouthValue) * 0.35;
+      eyeValue += (eyeTarget - eyeValue) * 0.4;
+      const core = model.internalModel.coreModel;
+      core.setParameterValueById('ParamMouthOpenY', mouthValue);
+      core.setParameterValueById('ParamEyeLOpen', eyeValue);
+      core.setParameterValueById('ParamEyeROpen', eyeValue);
+    });
+
     scheduleBlink();
   }
   function setState(s){
     state = s;
     if (hostEl) hostEl.setAttribute('data-state', s);
   }
-  function setLayer(id){
-    LAYER_IDS.forEach(k => { if (layers[k]) layers[k].classList.toggle('on', k === id); });
-  }
   function mouthTick(){
-    mouthToggle = !mouthToggle;
-    setLayer(mouthToggle ? 'hfOpen' : 'hfSmall');
+    mouthTarget = mouthTarget > 0.4 ? 0.05 : (0.5 + Math.random()*0.5);
   }
   function startMouthLoop(){
     stopMouthLoop();
@@ -511,7 +542,7 @@ const HostManager = (() => {
   }
   function stopMouthLoop(){
     if (mouthLoopId){ clearInterval(mouthLoopId); mouthLoopId = null; }
-    setLayer(state === 'excited' ? 'hfExcited' : 'hfIdle');
+    mouthTarget = 0;
   }
   function setSpeaking(isSpeaking){
     if (isSpeaking){
@@ -526,22 +557,14 @@ const HostManager = (() => {
   }
   function pulseExcited(){
     setState('excited');
-    if (!mouthLoopId) setLayer('hfExcited');
     clearTimeout(excitedTimer);
-    excitedTimer = setTimeout(() => {
-      setState(mouthLoopId ? 'speaking' : 'idle');
-      if (!mouthLoopId) setLayer('hfIdle');
-    }, 2200);
+    excitedTimer = setTimeout(() => { setState(mouthLoopId ? 'speaking' : 'idle'); }, 2200);
   }
   function scheduleBlink(){
     const delay = 2600 + Math.random()*3200;
     blinkTimer = setTimeout(() => {
-      // моргание только когда не говорит — иначе на кадр перебило бы рот
-      // обратно на "улыбку" посреди фразы
-      if (!mouthLoopId && state !== 'excited'){
-        setLayer('hfBlink');
-        setTimeout(() => { if (!mouthLoopId) setLayer('hfIdle'); }, 120);
-      }
+      eyeTarget = 0;
+      setTimeout(() => { eyeTarget = 1; }, 120);
       scheduleBlink();
     }, delay);
   }
