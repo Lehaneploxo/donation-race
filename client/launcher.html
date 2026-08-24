@@ -347,6 +347,22 @@
     <div class="status-msg" id="civStatus">⏳ Открываю игру…</div>
   </div>
 
+  <!-- ── ВЗАИМКИ (не игра — интерактивный инструмент для LIVE) ── -->
+  <div class="game-panel panel-arena" style="border-left:1px solid rgba(255,207,107,0.3)">
+    <div class="panel-title" style="color:#ffcf6b;text-shadow:0 0 18px #8f7bff">🤝 ВЗАИМКИ 🤝</div>
+    <div class="panel-sub">Не игра — оверлей поверх LIVE: топ по коинам/взаимкам/лайкам, голосовая ведущая</div>
+
+    <input class="nick-input" id="vzaimkiInput" type="text"
+           placeholder="@your_username"
+           autocomplete="off" autocorrect="off" spellcheck="false">
+
+    <div class="error-msg" id="vzaimkiError">Введи никнейм TikTok</div>
+
+    <button class="btn-start" id="vzaimkiStart" style="background:linear-gradient(90deg,#8f7bff,#ffcf6b);color:#1a1420;box-shadow:0 4px 20px rgba(143,123,255,0.4)">🤝 START ВЗАИМКИ</button>
+
+    <div class="status-msg" id="vzaimkiStatus">⏳ Открываю…</div>
+  </div>
+
 </div>
 
 <div class="stripe"></div>
@@ -360,12 +376,13 @@
   document.getElementById('streetfighterInput').value = saved;
   document.getElementById('fishingInput').value = saved;
   document.getElementById('fantasyarenaInput').value = saved;
+  document.getElementById('vzaimkiInput').value = saved;
 
   // Sync all inputs when typing
-  ['civInput','boxingInput','boxingEnInput','streetfighterInput','fishingInput','fantasyarenaInput'].forEach(id => {
+  ['civInput','boxingInput','boxingEnInput','streetfighterInput','fishingInput','fantasyarenaInput','vzaimkiInput'].forEach(id => {
     document.getElementById(id).addEventListener('input', function() {
       if (this.value.startsWith('@')) this.value = this.value.slice(1);
-      ['civInput','boxingInput','boxingEnInput','streetfighterInput','fishingInput','fantasyarenaInput'].forEach(oid => {
+      ['civInput','boxingInput','boxingEnInput','streetfighterInput','fishingInput','fantasyarenaInput','vzaimkiInput'].forEach(oid => {
         if (oid !== id) document.getElementById(oid).value = this.value;
       });
     });
@@ -428,6 +445,13 @@
     handleClick('fantasyarenaInput','fantasyarenaError','fantasyarenaStatus','fantasyarenaStart','/fantasyarena'));
   document.getElementById('fantasyarenaInput').addEventListener('keydown', e => {
     if (e.key === 'Enter') document.getElementById('fantasyarenaStart').click();
+  });
+
+  // Взаимки
+  document.getElementById('vzaimkiStart').addEventListener('click', () =>
+    handleClick('vzaimkiInput','vzaimkiError','vzaimkiStatus','vzaimkiStart','/vzaimki'));
+  document.getElementById('vzaimkiInput').addEventListener('keydown', e => {
+    if (e.key === 'Enter') document.getElementById('vzaimkiStart').click();
   });
 </script>
 

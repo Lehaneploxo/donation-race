@@ -70,6 +70,7 @@ app.get('/fantasyarena',     serveHtml('fantasy_arena.html'));
 app.get('/fantasyarena-db',  serveHtml('fantasy_arena_db.html'));
 app.get('/fishing',    serveHtml('fishing.html'));
 app.get('/fishing-db', serveHtml('fishing_db.html'));
+app.get('/vzaimki',    serveHtml('vzaimki.html'));
 
 // Локальный no-op сервис подписи — возвращает URL без изменений
 // Библиотека tiktok-live-connector использует его вместо eulerstream
@@ -637,6 +638,9 @@ class Room {
         // в демо-режим с ботами — эти фейковые донаты НЕ должны попадать в игру.
         if (this.connection?._tiktokMode === 'tiktok') {
           this.broadcast({ type: 'civ_gift', username: data.username, uniqueId: data.userId, coins: data.coins });
+          // Взаимки: тот же принцип, что и civ_gift — только реальные донаты,
+          // демо-боты не должны красить рейтинг подставными подарками
+          this.broadcast({ type: 'vzaimki_gift', username: data.username, userId: data.userId, avatarUrl: data.avatarUrl, giftName: data.giftName, coins: data.coins });
         }
 
         const giftLower = (data.giftName || '').toLowerCase();
@@ -695,6 +699,9 @@ class Room {
         // Arena: viewer joins stream → spawn with 1 coin if slot available
         this.broadcast({ type: 'arena_member', username: data.username });
         this.broadcast({ type: 'arena_join',   username: data.username });
+        if (this.connection?._tiktokMode === 'tiktok') {
+          this.broadcast({ type: 'vzaimki_member', username: data.username, userId: data.userId, avatarUrl: data.avatarUrl });
+        }
       },
       // onLike — лайки
       (data) => {
@@ -702,6 +709,7 @@ class Room {
         // растить население (та же защита, что уже стоит на civ_gift выше).
         if (this.connection?._tiktokMode === 'tiktok') {
           this.broadcast({ type: 'civ_like', likes: data.likes || 1, username: data.username });
+          this.broadcast({ type: 'vzaimki_like', likes: data.likes || 1, username: data.username, userId: data.userId, avatarUrl: data.avatarUrl });
         }
         // War game: broadcast raw like count regardless of race state
         this.broadcast({ type: 'war_like', likes: data.likes || 0, username: data.username });
@@ -905,6 +913,13 @@ class Room {
             });
         }
 
+      },
+      // onFollow — реальная подписка (отдельно от простого захода зрителя),
+      // нужна только "Взаимкам"; остальные игры этот колбэк не используют
+      (data) => {
+        if (this.connection?._tiktokMode === 'tiktok') {
+          this.broadcast({ type: 'vzaimki_follow', username: data.username, userId: data.userId, avatarUrl: data.avatarUrl });
+        }
       }
     );
   }

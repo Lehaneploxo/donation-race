@@ -22,7 +22,7 @@ else            console.log('[TikTok] sessionId НЕ задан');
 if (MS_TOKEN)   console.log('[TikTok] msToken найден');
 else            console.log('[TikTok] msToken НЕ задан');
 
-function connectToTikTok(username, onGift, onStatus, onMember, onLike, onChat) {
+function connectToTikTok(username, onGift, onStatus, onMember, onLike, onChat, onFollow) {
   const notify = onStatus || (() => {});
   const handle = { _tiktokMode: 'connecting' };
 
@@ -130,14 +130,18 @@ function connectToTikTok(username, onGift, onStatus, onMember, onLike, onChat) {
     });
 
     connection.on('follow', (data) => {
-      if (!onMember) return;
       const nick = data.nickname || data.uniqueId || 'Unknown';
       console.log(`[TikTok] ➕ ${nick} followed`);
-      onMember({
+      const payload = {
         userId:    String(data.userId || data.uniqueId || 'u'),
         username:  nick,
         avatarUrl: data.profilePictureUrl || '',
-      });
+      };
+      // follow остаётся видимым как обычный member (не менять — на нём завязан
+      // спавн бойцов в Arena-играх), onFollow — отдельный необязательный колбэк
+      // для "Взаимок", где нужно отличать реальную подписку от простого захода
+      if (onMember) onMember(payload);
+      if (onFollow) onFollow(payload);
     });
 
     connection.on('disconnected', (info) => {

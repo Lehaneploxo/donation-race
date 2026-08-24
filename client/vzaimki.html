@@ -1,0 +1,971 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Взаимки</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --gap: 12px;
+    --radius: 16px;
+    --panel: rgba(14,17,26,0.74);
+    --panel-soft: rgba(14,17,26,0.58);
+    --border: rgba(255,255,255,0.10);
+    --text: #f3f5fb;
+    --text-dim: rgba(243,245,251,0.62);
+    --text-faint: rgba(243,245,251,0.38);
+    --gold: #ffcf6b;
+    --gold-deep: #e0a83a;
+    --silver: #d7dcea;
+    --bronze: #e2a06a;
+    --accent: #8f7bff;
+    --accent2: #6a8bff;
+    --pink: #ff6f9c;
+    --green: #57d9a3;
+  }
+  *{ box-sizing:border-box; }
+  html,body{
+    margin:0; padding:0; width:100%; height:100%;
+    background: transparent;
+    font-family:'Manrope','Segoe UI',system-ui,sans-serif;
+    color: var(--text);
+    overflow: hidden;
+  }
+  img{ max-width:none; }
+
+  #stageWrap{
+    position:fixed; inset:0;
+  }
+  #stage{
+    position:absolute; top:50%; left:50%;
+    width:600px; height:1000px;
+    transform-origin:center center;
+    display:flex; flex-direction:column;
+    gap: var(--gap);
+    padding: 14px 14px 10px;
+  }
+
+  /* ── Top bar ───────────────────────────────────────────── */
+  .topbar{
+    display:flex; align-items:center; justify-content:space-between;
+    padding: 6px 4px;
+  }
+  .brand{
+    font-weight:800; font-size:19px; letter-spacing:0.5px;
+    display:flex; align-items:center; gap:8px;
+    color:#fff; text-shadow: 0 1px 6px rgba(0,0,0,0.5);
+  }
+  .brand .dotpulse{
+    width:9px; height:9px; border-radius:50%;
+    background: var(--green);
+    box-shadow: 0 0 0 0 rgba(87,217,163,0.6);
+    animation: dotpulse 2.2s infinite;
+  }
+  @keyframes dotpulse{
+    0%{ box-shadow: 0 0 0 0 rgba(87,217,163,0.55); }
+    70%{ box-shadow: 0 0 0 8px rgba(87,217,163,0); }
+    100%{ box-shadow: 0 0 0 0 rgba(87,217,163,0); }
+  }
+  .muteBtn{
+    width:32px; height:32px; border-radius:10px;
+    border:1px solid var(--border); background: var(--panel-soft);
+    color:#fff; font-size:15px; cursor:pointer;
+  }
+  .connBadge{
+    font-size:11px; padding:3px 9px; border-radius:8px;
+    background: rgba(255,255,255,0.08); color: var(--text-dim);
+    font-weight:600;
+  }
+  .connBadge[hidden]{ display:none; }
+
+  /* ── Host + TOP3 row ───────────────────────────────────── */
+  .hostRow{
+    display:flex; gap:10px; align-items:stretch;
+  }
+
+  .hostCard{
+    flex: 0 0 108px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 10px 6px 8px;
+    display:flex; flex-direction:column; align-items:center; gap:6px;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+  .host-avatar{
+    position:relative; width:82px; height:82px;
+    animation: hostBob 4.2s ease-in-out infinite;
+  }
+  /* #host сам является .host-avatar (id и class на одном узле) — переопределяем
+     анимацию на нём же, а не на несуществующем потомке */
+  #host[data-state="excited"]{ animation: hostBobExcited 0.7s ease-in-out infinite; }
+  #host[data-state="waiting"]{ animation: hostBob 5.4s ease-in-out infinite; }
+  @keyframes hostBob{
+    0%,100%{ transform: translateY(0) rotate(0deg); }
+    50%{ transform: translateY(-2px) rotate(-1deg); }
+  }
+  @keyframes hostBobExcited{
+    0%,100%{ transform: translateY(0) rotate(-2deg) scale(1.03); }
+    50%{ transform: translateY(-4px) rotate(2deg) scale(1.06); }
+  }
+  .hf-hairBack{
+    position:absolute; left:2px; top:6px; width:78px; height:78px;
+    border-radius: 50% 50% 46% 46%;
+    background: linear-gradient(160deg,#3b2f52,#241c38);
+  }
+  .hf-head{
+    position:absolute; left:9px; top:12px; width:64px; height:64px;
+    border-radius:50%;
+    background: radial-gradient(circle at 35% 30%, #ffe0c2, #eab98d 70%, #d9a172 100%);
+    box-shadow: inset 0 -6px 10px rgba(0,0,0,0.12);
+  }
+  .hf-hairFront{
+    position:absolute; left:6px; top:5px; width:70px; height:30px;
+    border-radius: 50% 50% 40% 40% / 60% 60% 20% 20%;
+    background: linear-gradient(160deg,#4a3b68,#241c38);
+  }
+  .hf-brow{ position:absolute; top:29px; width:11px; height:2.4px; border-radius:2px; background:#5b3e2c; }
+  .hf-brow.l{ left:18px; transform:rotate(-6deg); }
+  .hf-brow.r{ left:38px; transform:rotate(6deg); }
+  .hf-eye{ position:absolute; top:34px; width:10px; height:9px; overflow:hidden; }
+  .hf-eye.l{ left:17px; } .hf-eye.r{ left:37px; }
+  .hf-eye::before{
+    content:''; position:absolute; inset:0; margin:auto; width:7px; height:7px; border-radius:50%;
+    background:#2c2333;
+  }
+  .hf-lid{
+    position:absolute; left:-1px; right:-1px; top:-1px; height:11px;
+    background: linear-gradient(180deg,#eab98d,#eab98d);
+    transform: scaleY(0); transform-origin: top;
+    transition: transform 0.09s ease;
+  }
+  .hf-lid.blink{ transform: scaleY(1); }
+  .hf-blush{ position:absolute; top:42px; width:9px; height:5px; border-radius:50%; background:rgba(255,120,130,0.28); }
+  .hf-blush.l{ left:12px; } .hf-blush.r{ left:43px; }
+  .hf-mouth{
+    position:absolute; left:50%; top:49px; transform:translateX(-50%);
+    width:16px; height:5px; border-radius:9px; background:#b5544f;
+    transition: width .09s ease, height .09s ease, border-radius .09s ease, background .2s ease;
+  }
+  .hf-mouth.st-small{ width:13px; height:9px; border-radius:50%; }
+  .hf-mouth.st-open{ width:12px; height:14px; border-radius:48%; background:#933c3a; }
+  #host[data-state="excited"] .hf-mouth{ background:#d8544f; }
+  .host-tag{
+    font-size:9.5px; font-weight:700; letter-spacing:1px; color: var(--text-dim);
+    display:flex; align-items:center; gap:4px; text-transform:uppercase;
+  }
+  .host-tag .hdot{ width:6px; height:6px; border-radius:50%; background: var(--green); }
+
+  .top3{
+    flex:1; display:flex; align-items:flex-end; gap:6px;
+  }
+  .t3card{
+    flex:1; background: var(--panel); border:1px solid var(--border);
+    border-radius: 14px; padding: 8px 6px 9px; text-align:center;
+    display:flex; flex-direction:column; align-items:center; gap:4px;
+    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+    transition: transform .25s ease;
+  }
+  .t3card.t3-1{ padding-top:12px; padding-bottom:12px; order:2; }
+  .t3card.t3-2{ order:1; margin-bottom:12px; }
+  .t3card.t3-3{ order:3; margin-bottom:12px; }
+  .t3card.empty{ opacity:0.42; }
+  .t3card.flash{ animation: t3flash 0.9s ease; }
+  @keyframes t3flash{
+    0%{ box-shadow:0 0 0 0 rgba(255,207,107,0.7); }
+    100%{ box-shadow:0 0 0 14px rgba(255,207,107,0); }
+  }
+  .t3medal{ font-size:15px; line-height:1; }
+  .t3card.t3-1 .t3medal{ font-size:19px; }
+  .t3avatar{
+    width:44px; height:44px; border-radius:50%; overflow:hidden; flex:none;
+    border:2px solid var(--border);
+  }
+  .t3card.t3-1 .t3avatar{ width:56px; height:56px; border-color: var(--gold); }
+  .t3card.t3-2 .t3avatar{ border-color: var(--silver); }
+  .t3card.t3-3 .t3avatar{ border-color: var(--bronze); }
+  .t3avatar img, .t3avatar .avfallback{ width:100%; height:100%; object-fit:cover; display:block; }
+  .t3name{ font-size:11.5px; font-weight:700; color:#fff; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .t3coins{ font-size:11px; font-weight:800; color: var(--gold); }
+  .t3card.t3-2 .t3coins{ color: var(--silver); }
+  .t3card.t3-3 .t3coins{ color: var(--bronze); }
+
+  .avfallback{
+    display:flex; align-items:center; justify-content:center;
+    width:100%; height:100%; font-weight:800; color:#fff; font-size:0.9em;
+  }
+  .avfallback.empty{ background:rgba(255,255,255,0.08); color:var(--text-faint); }
+
+  /* ── Event banner ──────────────────────────────────────── */
+  .eventbanner{
+    background: linear-gradient(90deg, rgba(143,123,255,0.20), rgba(14,17,26,0.72));
+    border:1px solid var(--border); border-radius: var(--radius);
+    padding: 10px 12px; display:flex; align-items:center; gap:10px;
+    min-height:44px;
+    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  }
+  .eventbanner.pop{ animation: ebpop .35s ease; }
+  @keyframes ebpop{ 0%{ transform:scale(0.985); } 60%{ transform:scale(1.005); } 100%{ transform:scale(1); } }
+  .eb-icon{ font-size:22px; flex:none; }
+  .eb-text{ font-size:13px; line-height:1.32; color: var(--text); }
+  .eb-text b{ color:#fff; }
+
+  /* ── Leaderboards ──────────────────────────────────────── */
+  .leaderboards{
+    flex:1; display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; min-height:0;
+  }
+  .lbcol{
+    background: var(--panel); border:1px solid var(--border); border-radius:14px;
+    padding:8px 7px; display:flex; flex-direction:column; min-height:0;
+    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  }
+  .lbhead{
+    font-size:10.5px; font-weight:800; letter-spacing:0.3px;
+    display:flex; align-items:center; gap:4px; margin-bottom:6px; flex:none;
+  }
+  .lbhead.coins{ color: var(--gold); }
+  .lbhead.following{ color: var(--accent2); }
+  .lbhead.likes{ color: var(--pink); }
+  .lblist{ display:flex; flex-direction:column; gap:3px; overflow:hidden; }
+  .lbrow{
+    display:flex; align-items:center; gap:5px; padding:2.5px 2px; border-radius:6px;
+  }
+  .lbrow.flash{ animation: rowflash 1s ease; }
+  @keyframes rowflash{ 0%{ background:rgba(255,255,255,0.18); } 100%{ background:rgba(255,255,255,0); } }
+  .lbrank{ flex:none; width:14px; font-size:10px; font-weight:800; color:var(--text-faint); text-align:center; }
+  .lbrank.r1{ color:var(--gold); } .lbrank.r2{ color:var(--silver); } .lbrank.r3{ color:var(--bronze); }
+  .lbav{ flex:none; width:18px; height:18px; border-radius:50%; overflow:hidden; background:rgba(255,255,255,0.08); }
+  .lbav img, .lbav .avfallback{ width:100%; height:100%; object-fit:cover; font-size:9px; }
+  .lbname{ flex:1; font-size:10.2px; color:var(--text-dim); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; }
+  .lbval{ flex:none; font-size:10.2px; font-weight:800; color:#fff; }
+  .lbempty{ font-size:10.5px; color:var(--text-faint); padding:8px 2px; line-height:1.4; }
+
+  /* ── CTA bar ───────────────────────────────────────────── */
+  .ctabar{
+    background: linear-gradient(90deg, rgba(255,207,107,0.16), rgba(143,123,255,0.16));
+    border:1px solid var(--border); border-radius: var(--radius);
+    padding: 10px 14px; text-align:center; flex:none;
+    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  }
+  .ctabar span{ font-size:12.5px; font-weight:700; color:#fff; }
+
+  .footer{
+    text-align:center; font-size:10px; color: var(--text-faint); padding: 2px 0 0; flex:none;
+    letter-spacing:0.3px;
+  }
+
+  /* ── Debug panel ───────────────────────────────────────── */
+  #debugPanel{
+    position:fixed; right:8px; bottom:8px; z-index:99;
+    background: rgba(0,0,0,0.86); border:1px solid rgba(255,255,255,0.2);
+    border-radius:12px; padding:8px; width:220px; font-size:11px;
+  }
+  #debugPanel .dbg-row{ margin-bottom:6px; color:#fff; }
+  #debugPanel .dbg-btns{ display:grid; grid-template-columns:1fr 1fr; gap:5px; }
+  #debugPanel button{
+    font-size:10px; padding:6px 3px; border-radius:6px; border:1px solid rgba(255,255,255,0.25);
+    background:#1a1f2e; color:#fff; cursor:pointer;
+  }
+  #debugPanel button:active{ background:#2a3145; }
+</style>
+</head>
+<body>
+
+<div id="stageWrap">
+  <div id="stage">
+
+    <div class="topbar">
+      <div class="brand"><span class="dotpulse"></span>ВЗАИМКИ</div>
+      <div style="display:flex; align-items:center; gap:8px;">
+        <span class="connBadge" id="connBadge" hidden>—</span>
+        <button class="muteBtn" id="muteBtn" title="Звук диктора">🔊</button>
+      </div>
+    </div>
+
+    <div class="hostRow">
+      <div class="hostCard">
+        <div class="host-avatar" id="host" data-state="waiting">
+          <div class="hf-hairBack"></div>
+          <div class="hf-head">
+            <div class="hf-blush l"></div><div class="hf-blush r"></div>
+            <div class="hf-brow l"></div><div class="hf-brow r"></div>
+            <div class="hf-eye l"><div class="hf-lid" id="lidL"></div></div>
+            <div class="hf-eye r"><div class="hf-lid" id="lidR"></div></div>
+            <div class="hf-mouth st-idle" id="hfMouth"></div>
+          </div>
+          <div class="hf-hairFront"></div>
+        </div>
+        <div class="host-tag"><span class="hdot"></span>ВЕДУЩАЯ</div>
+      </div>
+
+      <div class="top3" id="top3">
+        <div class="t3card t3-2 empty" data-rank="2">
+          <div class="t3medal">🥈</div>
+          <div class="t3avatar"><div class="avfallback empty">?</div></div>
+          <div class="t3name">—</div>
+          <div class="t3coins"></div>
+        </div>
+        <div class="t3card t3-1 empty" data-rank="1">
+          <div class="t3medal">🥇</div>
+          <div class="t3avatar"><div class="avfallback empty">?</div></div>
+          <div class="t3name">—</div>
+          <div class="t3coins"></div>
+        </div>
+        <div class="t3card t3-3 empty" data-rank="3">
+          <div class="t3medal">🥉</div>
+          <div class="t3avatar"><div class="avfallback empty">?</div></div>
+          <div class="t3name">—</div>
+          <div class="t3coins"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="eventbanner" id="eventBanner">
+      <div class="eb-icon" id="ebIcon">🤝</div>
+      <div class="eb-text" id="ebText">Ждём первые события эфира…</div>
+    </div>
+
+    <div class="leaderboards">
+      <div class="lbcol">
+        <div class="lbhead coins">💰 TOP COINS</div>
+        <div class="lblist" id="lbCoins"><div class="lbempty">Пока пусто</div></div>
+      </div>
+      <div class="lbcol">
+        <div class="lbhead following">🤝 TOP ВЗАИМКИ</div>
+        <div class="lblist" id="lbFollowing"><div class="lbempty">Пока пусто</div></div>
+      </div>
+      <div class="lbcol">
+        <div class="lbhead likes">❤️ TOP LIKES</div>
+        <div class="lblist" id="lbLikes"><div class="lbempty">Пока пусто</div></div>
+      </div>
+    </div>
+
+    <div class="ctabar"><span id="ctaText">Подписывайтесь друг на друга — участвуйте во взаимках!</span></div>
+
+    <div class="footer">📱 tiktokgames777</div>
+
+  </div>
+</div>
+
+<div id="debugPanel" hidden>
+  <div class="dbg-row"><b>DEBUG</b> — статус: <span id="dbgStatus">—</span></div>
+  <div class="dbg-btns">
+    <button data-t="gift">TEST GIFT</button>
+    <button data-t="biggift">TEST BIG GIFT</button>
+    <button data-t="follow">TEST FOLLOW</button>
+    <button data-t="like">TEST LIKE</button>
+    <button data-t="join">TEST JOIN</button>
+    <button data-t="topchange">TEST TOP CHANGE</button>
+    <button data-t="mass">MASS EVENTS</button>
+    <button data-t="load">LOAD TEST 100/1000</button>
+    <button data-t="reset" style="grid-column:1/3">RESET SESSION</button>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════════════
+// ВЗАИМКИ — интерактивная программа для TikTok LIVE (не игра).
+// Архитектура (см. ТЗ п.30-36):
+//   WS Adapter → EventBus → RankingEngine (state) → UI / VoiceManager / HostManager
+// Все данные только "здесь и сейчас" — RankingEngine.reset() на каждый новый LIVE,
+// постоянная БД не используется (см. ТЗ п.28).
+// ═══════════════════════════════════════════════════════════════════════════
+
+const CONFIG = {
+  VOICE_ENABLED: true,
+  SPEECH_COOLDOWN_MS: 550,
+  BIG_GIFT_COINS: 200,
+  FOLLOW_ANNOUNCEMENT_COOLDOWN_MS: 4500,
+  CTA_INTERVAL_MIN_MS: 15000,
+  CTA_INTERVAL_MAX_MS: 24000,
+  MAX_LEADERBOARD_USERS: 10,
+};
+
+function fmt(n){ return Math.round(Number(n)||0).toLocaleString('ru-RU'); }
+function escHtml(s){
+  return String(s==null?'':s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function filterNick(n){ return (n||'').replace(/[^a-zA-Zа-яА-ЯёЁ0-9_.]/g,'').trim(); }
+function rnd(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
+function tpl(s, nick, val){ return s.replace(/\[НИК\]/g, nick).replace(/\[COINS\]/g, val!=null?fmt(val):''); }
+function hashHue(str){
+  let h=0; str = String(str||'x');
+  for (let i=0;i<str.length;i++) h = (h*31 + str.charCodeAt(i)) >>> 0;
+  return h % 360;
+}
+function vzAvatarFallback(img){
+  const initial = img.dataset.fallbackInitial || '?';
+  const hue = img.dataset.fallbackHue || '0';
+  const div = document.createElement('div');
+  div.className = 'avfallback';
+  div.style.background = 'hsl('+hue+',55%,42%)';
+  div.textContent = initial;
+  img.replaceWith(div);
+}
+function avatarNode(p){
+  const initial = escHtml((p.username||'?').trim().charAt(0).toUpperCase() || '?');
+  const hue = hashHue(p.userId || p.username || 'x');
+  if (p.avatarUrl){
+    return '<img src="'+escHtml(p.avatarUrl)+'" alt="" loading="lazy" '
+      + 'data-fallback-initial="'+initial+'" data-fallback-hue="'+hue+'" onerror="vzAvatarFallback(this)">';
+  }
+  return '<div class="avfallback" style="background:hsl('+hue+',55%,42%)">'+initial+'</div>';
+}
+
+// ── EventBus ─────────────────────────────────────────────────────────────
+const EventBus = (() => {
+  const listeners = {};
+  function on(type, fn){ (listeners[type] = listeners[type] || []).push(fn); }
+  function emit(type, payload){
+    (listeners[type]||[]).slice().forEach(fn => {
+      try { fn(payload); } catch(e){ console.error('[EventBus]', type, e); }
+    });
+  }
+  return { on, emit };
+})();
+
+// ── RankingEngine — только расчёт рейтингов, ничего не знает про UI/голос ──
+const RankingEngine = (() => {
+  let participants = new Map();
+  let prevTop3Ids = [];
+  let prevTop1Id = null;
+
+  function touch(userId, username, avatarUrl){
+    let p = participants.get(userId);
+    if (!p){
+      p = { userId, username: username||userId, avatarUrl: avatarUrl||'', coins:0, follows:0, likes:0 };
+      participants.set(userId, p);
+    } else {
+      if (username) p.username = username;
+      if (avatarUrl) p.avatarUrl = avatarUrl;
+    }
+    return p;
+  }
+
+  function updateCoins(userId, username, avatarUrl, amount){
+    const p = touch(userId, username, avatarUrl);
+    p.coins += amount;
+    _checkTopChange();
+    return p;
+  }
+  function updateFollowing(userId, username, avatarUrl, amount){
+    const p = touch(userId, username, avatarUrl);
+    p.follows += amount;
+    return p;
+  }
+  function updateLikes(userId, username, avatarUrl, amount){
+    const p = touch(userId, username, avatarUrl);
+    p.likes += amount;
+    return p;
+  }
+
+  function _sorted(field, n){
+    return Array.from(participants.values())
+      .filter(p => p[field] > 0)
+      .sort((a,b) => b[field]-a[field])
+      .slice(0, n);
+  }
+  function getTopCoins(n){ return _sorted('coins', n||10); }
+  function getTopFollowing(n){ return _sorted('follows', n||10); }
+  function getTopLikes(n){ return _sorted('likes', n||10); }
+  function getTop3Coins(){ return getTopCoins(3); }
+  function get(userId){ return participants.get(userId); }
+
+  function _checkTopChange(){
+    const top3 = getTop3Coins();
+    const ids = top3.map(p => p.userId);
+    const newTop1 = ids[0] || null;
+    const entered = ids.filter(id => prevTop3Ids.indexOf(id) === -1);
+
+    if (JSON.stringify(ids) !== JSON.stringify(prevTop3Ids)){
+      EventBus.emit('TOP3_CHANGED', { top3, entered, top1Id:newTop1 });
+    }
+    if (newTop1 && newTop1 !== prevTop1Id){
+      EventBus.emit('TOP1_CHANGED', { user: top3[0], previousUserId: prevTop1Id });
+    }
+    prevTop3Ids = ids;
+    prevTop1Id = newTop1;
+  }
+
+  function reset(){
+    participants = new Map();
+    prevTop3Ids = [];
+    prevTop1Id = null;
+  }
+
+  return { updateCoins, updateFollowing, updateLikes, getTopCoins, getTopFollowing, getTopLikes, getTop3Coins, get, reset };
+})();
+
+// ── HostManager — состояния виртуальной ведущей (IDLE/SPEAKING/EXCITED/WAITING) ──
+const HostManager = (() => {
+  let hostEl, mouthEl, lidL, lidR;
+  let state = 'waiting';
+  let mouthLoopId = null, mouthToggle = false;
+  let excitedTimer = null, waitTimer = null, blinkTimer = null;
+
+  function init(){
+    hostEl = document.getElementById('host');
+    mouthEl = document.getElementById('hfMouth');
+    lidL = document.getElementById('lidL');
+    lidR = document.getElementById('lidR');
+    scheduleBlink();
+  }
+  function setState(s){
+    state = s;
+    if (hostEl) hostEl.setAttribute('data-state', s);
+  }
+  function mouthTick(){
+    mouthToggle = !mouthToggle;
+    if (mouthEl) mouthEl.className = 'hf-mouth ' + (mouthToggle ? 'st-open' : 'st-small');
+  }
+  function startMouthLoop(){
+    stopMouthLoop();
+    mouthLoopId = setInterval(mouthTick, 100 + Math.random()*70);
+  }
+  function stopMouthLoop(){
+    if (mouthLoopId){ clearInterval(mouthLoopId); mouthLoopId = null; }
+    if (mouthEl) mouthEl.className = 'hf-mouth st-idle';
+  }
+  function setSpeaking(isSpeaking){
+    if (isSpeaking){
+      setState(state === 'excited' ? 'excited' : 'speaking');
+      startMouthLoop();
+    } else {
+      stopMouthLoop();
+      setState('idle');
+      clearTimeout(waitTimer);
+      waitTimer = setTimeout(() => { if (state === 'idle') setState('waiting'); }, 4000);
+    }
+  }
+  function pulseExcited(){
+    setState('excited');
+    clearTimeout(excitedTimer);
+    excitedTimer = setTimeout(() => setState(mouthLoopId ? 'speaking' : 'idle'), 2200);
+  }
+  function scheduleBlink(){
+    const delay = 2600 + Math.random()*3200;
+    blinkTimer = setTimeout(() => {
+      if (lidL && lidR){
+        lidL.classList.add('blink'); lidR.classList.add('blink');
+        setTimeout(() => { lidL.classList.remove('blink'); lidR.classList.remove('blink'); }, 120);
+      }
+      scheduleBlink();
+    }, delay);
+  }
+  return { init, setState, setSpeaking, mouthTick, pulseExcited };
+})();
+
+// ── VoiceManager — очередь фраз с приоритетами, TTS через speechSynthesis ──
+const VoiceManager = (() => {
+  const synth = window.speechSynthesis || null;
+  let queueA = [], queueB = [];
+  let speaking = false;
+  let cachedVoice = null;
+  let idleTimer = null;
+  let started = false;
+
+  const CTA = {
+    top:    ['Смотрите ТОП! Выбирайте участников и подписывайтесь друг на друга!','Хотите больше подписчиков? Поднимайтесь в рейтинге!','Не просто смотрим эфир — участвуем во взаимках!'],
+    mutual: ['Взаимки — это просто: подписался сам, подписались на тебя!','Ищите друг друга в топе и подписывайтесь взаимно!','Чем больше взаимок — тем веселее эфир!'],
+    chest:  ['Ставьте свои сундуки!','Поставьте сундук и собирайте новых подписчиков!','Хотите больше взаимок? Ставьте свой сундук!'],
+    likes:  ['Ставим лайки, разгоняем эфир!','Поддерживаем эфир лайками!','Чем активнее эфир — тем больше взаимок!'],
+    share:  ['Делимся эфиром с друзьями!','Отправьте эфир друзьям — чем больше людей, тем больше взаимок!'],
+    climb:  ['Хотите попасть в ТОП? Получайте активность и участвуйте во взаимках!','Ещё немного — и вы в лидерах!'],
+    telegram: ['Заходите в наш телеграм канал — все игры и новости там!'],
+  };
+  const CTA_ORDER = ['top','mutual','chest','likes','share','climb'];
+  let ctaIdx = -1, ctaCycles = 0;
+
+  function pickVoice(){
+    if (cachedVoice || !synth) return cachedVoice;
+    const voices = synth.getVoices();
+    cachedVoice =
+      voices.find(v => /ru/i.test(v.lang) && /(female|женск|milena|irina|anna|elena|katya|olya|alyona|цветкова)/i.test(v.name)) ||
+      voices.find(v => /ru[-_]/i.test(v.lang) && !/(pavel|male|мужск|dmitri|yuri)/i.test(v.name)) ||
+      voices.find(v => /ru/i.test(v.lang)) ||
+      voices.find(v => v.default) || voices[0] || null;
+    return cachedVoice;
+  }
+
+  function speakText(text, done){
+    if (!synth){ done(); return; }
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = 'ru-RU'; u.rate = 1.05; u.pitch = 1.08;
+    u.volume = CONFIG.VOICE_ENABLED ? 1 : 0;
+    const v = pickVoice(); if (v) u.voice = v;
+    let doneCalled = false;
+    const finish = () => { if (doneCalled) return; doneCalled = true; HostManager.setSpeaking(false); done(); };
+    u.onstart = () => HostManager.setSpeaking(true);
+    u.onboundary = () => HostManager.mouthTick();
+    u.onend = finish; u.onerror = finish;
+    setTimeout(finish, 9000);
+    try { synth.speak(u); } catch(e){ finish(); }
+  }
+
+  function next(){
+    if (speaking) return;
+    clearTimeout(idleTimer);
+    let text = null;
+    if (queueA.length) text = queueA.shift();
+    else if (queueB.length) text = queueB.shift();
+    if (!text){ scheduleFiller(); return; }
+    speaking = true;
+    speakText(text, () => { speaking = false; setTimeout(next, CONFIG.SPEECH_COOLDOWN_MS); });
+  }
+
+  function say(text, level){
+    if (!text) return;
+    if (level === 'A'){
+      if (synth) synth.cancel();
+      speaking = false;
+      queueA.push(text);
+      if (queueA.length > 4) queueA.shift();
+    } else {
+      queueB.push(text);
+      if (queueB.length > 5) queueB.shift(); // защита от спама при шквале событий
+    }
+    next();
+  }
+
+  function nextFiller(){
+    ctaCycles++;
+    if (ctaCycles % 5 === 0) return rnd(CTA.telegram);
+    ctaIdx = (ctaIdx + 1) % CTA_ORDER.length;
+    return rnd(CTA[CTA_ORDER[ctaIdx]]);
+  }
+  function scheduleFiller(){
+    clearTimeout(idleTimer);
+    const delay = CONFIG.CTA_INTERVAL_MIN_MS + Math.random()*(CONFIG.CTA_INTERVAL_MAX_MS-CONFIG.CTA_INTERVAL_MIN_MS);
+    idleTimer = setTimeout(() => {
+      if (speaking || queueA.length || queueB.length) return;
+      const text = nextFiller();
+      UI.setCta(text);
+      speaking = true;
+      speakText(text, () => { speaking = false; scheduleFiller(); });
+    }, delay);
+  }
+
+  let _unlocked = false;
+  function unlock(){
+    if (_unlocked || !synth) return;
+    _unlocked = true;
+    try { const u = new SpeechSynthesisUtterance(''); u.volume = 0; synth.speak(u); } catch(e){}
+  }
+  // iOS/некоторые браузеры усыпляют speechSynthesis без событий — периодически будим
+  setInterval(() => { try { if (synth && synth.paused) synth.resume(); } catch(e){} }, 4000);
+
+  function start(){
+    if (started) return; started = true;
+    unlock();
+    if (synth) synth.onvoiceschanged = () => { cachedVoice = null; pickVoice(); };
+    scheduleFiller();
+  }
+
+  return { say, start };
+})();
+
+// ── UI — рендер, троттлится через requestAnimationFrame ────────────────────
+const UI = (() => {
+  const dirty = { coins:false, following:false, likes:false, top3:false };
+  let rafScheduled = false;
+  let top3Cards = null;
+
+  function scheduleRender(field){
+    dirty[field] = true;
+    if (rafScheduled) return;
+    rafScheduled = true;
+    requestAnimationFrame(() => { rafScheduled = false; flush(); });
+  }
+  function flush(){
+    if (dirty.top3){ renderTop3(RankingEngine.getTop3Coins()); dirty.top3=false; }
+    if (dirty.coins){ renderLb('coins', RankingEngine.getTopCoins(CONFIG.MAX_LEADERBOARD_USERS)); dirty.coins=false; }
+    if (dirty.following){ renderLb('following', RankingEngine.getTopFollowing(CONFIG.MAX_LEADERBOARD_USERS)); dirty.following=false; }
+    if (dirty.likes){ renderLb('likes', RankingEngine.getTopLikes(CONFIG.MAX_LEADERBOARD_USERS)); dirty.likes=false; }
+  }
+
+  const LB_MAP = { coins:{el:'lbCoins', key:'coins'}, following:{el:'lbFollowing', key:'follows'}, likes:{el:'lbLikes', key:'likes'} };
+  function renderLb(field, list){
+    const cfg = LB_MAP[field];
+    const el = document.getElementById(cfg.el);
+    if (!el) return;
+    if (!list.length){ el.innerHTML = '<div class="lbempty">Пока никого — ждём активность</div>'; return; }
+    el.innerHTML = list.map((p,i) => {
+      const rankCls = i<3 ? ' r'+(i+1) : '';
+      return '<div class="lbrow"><span class="lbrank'+rankCls+'">'+(i+1)+'</span>'
+        + '<span class="lbav">'+avatarNode(p)+'</span>'
+        + '<span class="lbname">@'+escHtml(p.username)+'</span>'
+        + '<span class="lbval">'+fmt(p[cfg.key])+'</span></div>';
+    }).join('');
+  }
+
+  function renderTop3(top3){
+    if (!top3Cards) top3Cards = {
+      1: document.querySelector('.t3card.t3-1'),
+      2: document.querySelector('.t3card.t3-2'),
+      3: document.querySelector('.t3card.t3-3'),
+    };
+    [1,2,3].forEach(rank => {
+      const card = top3Cards[rank];
+      const p = top3[rank-1];
+      if (!p){
+        card.classList.add('empty');
+        card.querySelector('.t3name').textContent = '—';
+        card.querySelector('.t3coins').textContent = '';
+        card.querySelector('.t3avatar').innerHTML = '<div class="avfallback empty">?</div>';
+        return;
+      }
+      const wasUid = card.dataset.uid;
+      card.classList.remove('empty');
+      card.querySelector('.t3name').textContent = '@'+p.username;
+      card.querySelector('.t3coins').textContent = fmt(p.coins)+' coins';
+      card.querySelector('.t3avatar').innerHTML = avatarNode(p);
+      if (wasUid !== p.userId){
+        card.dataset.uid = p.userId;
+        card.classList.remove('flash'); void card.offsetWidth; card.classList.add('flash');
+      }
+    });
+  }
+
+  function showEvent(icon, html){
+    const b = document.getElementById('eventBanner');
+    document.getElementById('ebIcon').textContent = icon;
+    document.getElementById('ebText').innerHTML = html;
+    b.classList.remove('pop'); void b.offsetWidth; b.classList.add('pop');
+  }
+
+  function setCta(text){
+    document.getElementById('ctaText').textContent = text;
+  }
+
+  function resetAll(){
+    renderTop3([]);
+    renderLb('coins', []);
+    renderLb('following', []);
+    renderLb('likes', []);
+    showEvent('🤝', 'Новый эфир — ждём первые события…');
+  }
+
+  return { scheduleRender, showEvent, setCta, resetAll, renderTop3, renderLb };
+})();
+
+// ── Фразы диктора ───────────────────────────────────────────────────────
+const PHRASES = {
+  gift: [
+    '[НИК] отправил подарок на [COINS] coins!',
+    '[НИК] закинул [COINS] coins в наш эфир!',
+    'Подарок от [НИК] — [COINS] coins!',
+    '[НИК] поддержал эфир на [COINS] coins!',
+  ],
+  giftBig: [
+    'Вот это подарок! [НИК] отправил [COINS] coins!',
+    'Ничего себе! [НИК] закинул сразу [COINS] coins!',
+    'Огромный подарок от [НИК] — [COINS] coins! Вот это движение!',
+  ],
+  becameTop1: [
+    'И это выводит [НИК] на первое место!',
+    'Вот это движение! [НИК] выходит на первое место!',
+    '[НИК] теперь на первом месте в ТОП COINS!',
+  ],
+  enteredTop3: [
+    '[НИК] входит в ТОП 3! Подписываемся!',
+    'Смотрите — [НИК] уже в ТОП 3!',
+  ],
+  follow: [
+    '[НИК] подписался! Вот так работают взаимки!',
+    'Новая взаимка! [НИК] подписался!',
+    '[НИК] только что подписался — красота!',
+  ],
+};
+
+// ── Обработчики доменных событий ────────────────────────────────────────
+let _lastFollowSpokenAt = 0;
+
+EventBus.on('GIFT_RECEIVED', (d) => {
+  const nick = filterNick(d.username);
+  const uid = String(d.userId||'');
+  if (!nick || !uid) return;
+  const coins = Math.max(0, Math.floor(Number(d.coins)||0));
+  if (coins <= 0) return;
+
+  RankingEngine.updateCoins(uid, nick, d.avatarUrl, coins);
+  UI.showEvent('🎁', '<b>@'+escHtml(nick)+'</b> отправил'
+    + (d.giftName ? ' «'+escHtml(d.giftName)+'»' : ' подарок')
+    + ' — <b>'+fmt(coins)+' coins</b>!');
+  UI.scheduleRender('coins'); UI.scheduleRender('top3');
+
+  const big = coins >= CONFIG.BIG_GIFT_COINS;
+  VoiceManager.say(tpl(rnd(big ? PHRASES.giftBig : PHRASES.gift), nick, coins), big ? 'A' : 'B');
+  if (big) HostManager.pulseExcited();
+});
+
+EventBus.on('LIKE_RECEIVED', (d) => {
+  const nick = filterNick(d.username);
+  const uid = String(d.userId||'');
+  if (!nick || !uid) return;
+  const likes = Math.max(1, Math.floor(Number(d.likes)||1));
+  RankingEngine.updateLikes(uid, nick, d.avatarUrl, likes);
+  UI.scheduleRender('likes');
+});
+
+EventBus.on('FOLLOW_RECEIVED', (d) => {
+  const nick = filterNick(d.username);
+  const uid = String(d.userId||'');
+  if (!nick || !uid) return;
+  RankingEngine.updateFollowing(uid, nick, d.avatarUrl, 1);
+  UI.showEvent('🤝', '<b>@'+escHtml(nick)+'</b> подписался! Новая взаимка.');
+  UI.scheduleRender('following');
+
+  const now = Date.now();
+  if (now - _lastFollowSpokenAt >= CONFIG.FOLLOW_ANNOUNCEMENT_COOLDOWN_MS){
+    _lastFollowSpokenAt = now;
+    VoiceManager.say(tpl(rnd(PHRASES.follow), nick), 'B');
+  }
+});
+
+EventBus.on('TOP1_CHANGED', (d) => {
+  const nick = filterNick(d.user.username);
+  if (!nick) return;
+  VoiceManager.say(tpl(rnd(PHRASES.becameTop1), nick), 'A');
+});
+
+EventBus.on('TOP3_CHANGED', (d) => {
+  UI.scheduleRender('top3');
+  (d.entered||[]).forEach(id => {
+    if (id === d.top1Id) return; // уже озвучено через TOP1_CHANGED — не дублируем
+    const p = RankingEngine.get(id);
+    const nick = p ? filterNick(p.username) : '';
+    if (nick) VoiceManager.say(tpl(rnd(PHRASES.enteredTop3), nick), 'A');
+  });
+});
+
+// ── WS Adapter + SessionManager ─────────────────────────────────────────
+let _ws = null, _wsUser = '', _mode = 'connecting';
+
+function wsConnect(username){
+  _wsUser = username;
+  if (_ws && _ws.readyState < 2){ _ws.onclose = null; _ws.close(); }
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  _ws = new WebSocket(proto+'//'+location.host+'?username='+encodeURIComponent(username));
+  _ws.onopen = () => Debug.setStatus('connecting…');
+  _ws.onmessage = (e) => {
+    let d;
+    try { d = JSON.parse(e.data); } catch(err){ return; }
+    try {
+      if (d.type === 'status' || d.type === 'init'){
+        onConnStatus(d.tiktokMode || d.mode || 'connecting');
+      } else if (d.type === 'vzaimki_gift'){
+        EventBus.emit('GIFT_RECEIVED', d);
+      } else if (d.type === 'vzaimki_like'){
+        EventBus.emit('LIKE_RECEIVED', d);
+      } else if (d.type === 'vzaimki_follow'){
+        EventBus.emit('FOLLOW_RECEIVED', d);
+      } else if (d.type === 'vzaimki_member'){
+        EventBus.emit('USER_JOINED', d);
+      }
+    } catch(err){ console.error('[vzaimki ws]', err); }
+  };
+  _ws.onclose = () => { Debug.setStatus('❌ разрыв, переподключение…'); setTimeout(() => wsConnect(_wsUser), 3000); };
+  _ws.onerror = () => {};
+}
+
+function onConnStatus(mode){
+  Debug.setStatus(mode);
+  const badge = document.getElementById('connBadge');
+  if (badge) badge.textContent = mode === 'tiktok' ? '🔴 LIVE' : (mode === 'demo' ? '🟡 демо/ожидание' : '⏳ подключение');
+  if (mode === 'tiktok' && _mode !== 'tiktok'){
+    // новый реальный LIVE — по ТЗ п.27 каждый эфир это отдельная сессия,
+    // участники и рейтинги прошлого эфира не переносятся
+    RankingEngine.reset();
+    UI.resetAll();
+    _lastFollowSpokenAt = 0;
+    HostManager.setState('waiting');
+    EventBus.emit('SESSION_STARTED', {});
+  }
+  _mode = mode;
+}
+
+// ── DEBUG MODE — ручная генерация событий без реального TikTok LIVE ────────
+const Debug = (() => {
+  const NAMES = ['Alex','Lana_777','Vika_fire','Sergey_','Maximka','DoBro','Smile_21','NightWolf','Katya_M','Angel_Kiss','You_Smart','Dimonchik'];
+  let idCounter = 1000;
+  function rndUser(){
+    const n = NAMES[Math.floor(Math.random()*NAMES.length)] + (Math.random()<0.3 ? Math.floor(Math.random()*99) : '');
+    return { userId: 'test'+(idCounter++), username: n, avatarUrl: '' };
+  }
+  function setStatus(m){
+    const el = document.getElementById('dbgStatus');
+    if (el) el.textContent = m;
+  }
+  function fireGift(big){ EventBus.emit('GIFT_RECEIVED', Object.assign(rndUser(), { giftName: big?'Galaxy':'Rose', coins: big ? (500+Math.floor(Math.random()*2000)) : (1+Math.floor(Math.random()*80)) })); }
+  function fireFollow(){ EventBus.emit('FOLLOW_RECEIVED', rndUser()); }
+  function fireLike(){ EventBus.emit('LIKE_RECEIVED', Object.assign(rndUser(), { likes: 1+Math.floor(Math.random()*20) })); }
+  function fireJoin(){ EventBus.emit('USER_JOINED', rndUser()); }
+  function fireTopChange(){ EventBus.emit('GIFT_RECEIVED', Object.assign(rndUser(), { giftName:'Crown', coins: 5000+Math.floor(Math.random()*5000) })); }
+  function fireMass(){ for (let i=0;i<20;i++) setTimeout(() => (Math.random()<0.5?fireLike():fireGift(false)), i*80); }
+  function fireLoad(){
+    for (let i=0;i<1000;i++) setTimeout(fireLike, i*3);
+    for (let i=0;i<100;i++) setTimeout(fireFollow, i*15);
+    for (let i=0;i<100;i++) setTimeout(() => fireGift(false), i*20);
+  }
+  function wire(){
+    document.querySelectorAll('#debugPanel button[data-t]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const t = btn.dataset.t;
+        if (t==='gift') fireGift(false);
+        else if (t==='biggift') fireGift(true);
+        else if (t==='follow') fireFollow();
+        else if (t==='like') fireLike();
+        else if (t==='join') fireJoin();
+        else if (t==='topchange') fireTopChange();
+        else if (t==='mass') fireMass();
+        else if (t==='load') fireLoad();
+        else if (t==='reset'){ RankingEngine.reset(); UI.resetAll(); }
+      });
+    });
+  }
+  return { setStatus, wire };
+})();
+
+// ── Масштабирование 600×1000 под окно (OBS обычно даёт точный размер) ──────
+function fitStage(){
+  const stage = document.getElementById('stage');
+  const scale = Math.min(window.innerWidth/600, window.innerHeight/1000, 1.6);
+  stage.style.transform = 'translate(-50%,-50%) scale('+scale+')';
+}
+window.addEventListener('resize', fitStage);
+
+// ── Bootstrap ────────────────────────────────────────────────────────────
+(function init(){
+  fitStage();
+  HostManager.init();
+  UI.resetAll();
+  VoiceManager.start();
+
+  const p = new URLSearchParams(location.search);
+  const debug = p.get('debug') === '1';
+  if (debug){
+    document.getElementById('debugPanel').hidden = false;
+    document.getElementById('connBadge').hidden = false;
+    Debug.wire();
+  }
+
+  const savedVoice = localStorage.getItem('vzaimki_voice');
+  const muteBtn = document.getElementById('muteBtn');
+  if (savedVoice === '0'){ CONFIG.VOICE_ENABLED = false; muteBtn.textContent = '🔇'; }
+  muteBtn.addEventListener('click', () => {
+    CONFIG.VOICE_ENABLED = !CONFIG.VOICE_ENABLED;
+    localStorage.setItem('vzaimki_voice', CONFIG.VOICE_ENABLED ? '1' : '0');
+    muteBtn.textContent = CONFIG.VOICE_ENABLED ? '🔊' : '🔇';
+  });
+
+  const u = (p.get('username')||'').replace(/^@/,'').trim();
+  if (u) wsConnect(u);
+})();
+</script>
+
+</body>
+</html>
