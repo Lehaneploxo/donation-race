@@ -241,16 +241,8 @@
     letter-spacing:0.3px;
   }
 
-  /* ── Визуальные эффекты (конфетти/монеты/вспышка на крупный донат) ────── */
+  /* ── Визуальные эффекты (золотой дождь монет/вспышка на крупный донат) ── */
   #fxLayer{ position:absolute; inset:0; pointer-events:none; overflow:hidden; z-index:50; }
-  .fx-confetti{
-    position:absolute; width:7px; height:12px; top:190px; border-radius:2px;
-    animation: fxFall 1.6s ease-in forwards;
-  }
-  @keyframes fxFall{
-    0%{ transform: translateY(0) rotate(0deg); opacity:1; }
-    100%{ transform: translateY(480px) rotate(540deg); opacity:0; }
-  }
   .fx-coin{
     position:absolute; top:-24px; font-size:20px;
     animation: fxCoinFall 1.3s ease-in forwards;
@@ -258,6 +250,16 @@
   @keyframes fxCoinFall{
     0%{ transform: translateY(0) rotate(0deg); opacity:1; }
     100%{ transform: translateY(260px) rotate(200deg); opacity:0; }
+  }
+  .fx-goldcoin{
+    position:absolute; top:-40px;
+    animation: fxGoldFall linear forwards;
+    filter: drop-shadow(0 0 5px rgba(255,207,107,0.75));
+  }
+  @keyframes fxGoldFall{
+    0%{ transform: translateY(0) rotate(0deg); opacity:1; }
+    85%{ opacity:1; }
+    100%{ transform: translateY(940px) rotate(420deg); opacity:0; }
   }
   .fx-flash{
     position:absolute; inset:0;
@@ -923,23 +925,26 @@ const UI = (() => {
   return { scheduleRender, showEvent, setCta, setNextUp, resetAll, renderTop3, renderLb };
 })();
 
-// ── FX — визуальные эффекты на донаты (конфетти/монеты/вспышка) ─────────
+// ── FX — визуальные эффекты на донаты (золотой дождь/монеты/вспышка) ────
 const FX = (() => {
-  const COLORS = ['#ffcf6b','#ff6f9c','#6a8bff','#57d9a3','#ffffff'];
   const layer = () => document.getElementById('fxLayer');
 
-  function confettiBurst(){
+  // Крупный донат — дождь золотых монет на весь экран (не мелкое конфетти),
+  // вперемешку с искрами. По ощущению это должно быть событие "ого!", а не
+  // фоновая рябь.
+  function goldCoinShower(){
     const l = layer(); if (!l) return;
-    const cx = 40 + Math.random()*20;
-    for (let i=0;i<28;i++){
+    const n = 20 + Math.floor(Math.random()*6);
+    for (let i=0;i<n;i++){
       const el = document.createElement('div');
-      el.className = 'fx-confetti';
-      el.style.left = (cx - 15 + Math.random()*30) + '%';
-      el.style.background = COLORS[i % COLORS.length];
-      el.style.animationDelay = (Math.random()*0.15) + 's';
-      el.style.animationDuration = (1.2 + Math.random()*0.8) + 's';
+      el.className = 'fx-goldcoin';
+      el.textContent = Math.random() < 0.25 ? '✨' : '🪙';
+      el.style.left = (Math.random()*94) + '%';
+      el.style.fontSize = (22 + Math.random()*14) + 'px';
+      el.style.animationDelay = (Math.random()*0.6) + 's';
+      el.style.animationDuration = (1.6 + Math.random()*0.9) + 's';
       l.appendChild(el);
-      setTimeout(() => el.remove(), 2200);
+      setTimeout(() => el.remove(), 2800);
     }
   }
 
@@ -965,7 +970,7 @@ const FX = (() => {
     setTimeout(() => el.remove(), 700);
   }
 
-  return { confettiBurst, coinRain, screenFlash };
+  return { goldCoinShower, coinRain, screenFlash };
 })();
 
 // ── Фразы диктора ───────────────────────────────────────────────────────
@@ -1031,7 +1036,7 @@ EventBus.on('GIFT_RECEIVED', (d) => {
 
   const big = coins >= CONFIG.BIG_GIFT_COINS;
   VoiceManager.say(tpl(rnd(big ? PHRASES.giftBig : PHRASES.gift), nick, coins), big ? 'A' : 'B', nick);
-  if (big){ HostManager.pulseExcited(); FX.confettiBurst(); FX.screenFlash(); }
+  if (big){ HostManager.pulseExcited(); FX.goldCoinShower(); FX.screenFlash(); }
   else { FX.coinRain(); }
 });
 
