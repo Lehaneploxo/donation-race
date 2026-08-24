@@ -97,7 +97,7 @@
     -webkit-backdrop-filter: blur(8px);
   }
   .host-avatar{
-    position:relative; width:104px; height:104px;
+    position:relative; width:112px; height:112px;
     animation: hostBob 4.2s ease-in-out infinite;
   }
   /* #host сам является .host-avatar (id и class на одном узле) — переопределяем
@@ -117,74 +117,13 @@
     position:absolute; inset:-12px; border-radius:50%;
     background: radial-gradient(circle, rgba(255,214,158,0.30), rgba(255,214,158,0) 68%);
   }
-  /* плечи/жакет — снизу, под волосами */
-  .hf-shoulders{
-    position:absolute; left:11px; top:82px; width:82px; height:24px;
-    border-radius: 38px 38px 0 0;
-    background: linear-gradient(165deg,#453a63,#241c38);
-  }
-  .hf-hairBack{
-    position:absolute; left:2px; top:9px; width:100px; height:92px;
-    border-radius: 50% 50% 42% 42%;
-    background: linear-gradient(165deg,#4d3f72,#241c38);
-  }
-  .hf-head{
-    position:absolute; left:14px; top:16px; width:76px; height:76px;
-    border-radius:50%;
-    background: radial-gradient(circle at 34% 28%, #ffe4c9, #ecb98d 68%, #d99f75 100%);
-    box-shadow: inset 0 -8px 14px rgba(0,0,0,0.14), inset 5px 7px 9px rgba(255,255,255,0.25);
-  }
-  .hf-hairFront{
-    position:absolute; left:8px; top:4px; width:88px; height:40px;
-    border-radius: 55% 45% 40% 55% / 65% 60% 25% 30%;
-    background: linear-gradient(150deg,#5c4c82,#241c38);
-    transform: rotate(-2deg);
-  }
-  .hf-hairSide{
-    position:absolute; top:36px; width:15px; height:52px;
-    border-radius: 50% 50% 60% 40%;
-    background: linear-gradient(180deg,#4d3f72,#2a2140);
-  }
-  .hf-hairSide.l{ left:3px; transform:rotate(-8deg); }
-  .hf-hairSide.r{ right:3px; transform:rotate(8deg) scaleX(-1); }
-  .hf-earring{
-    position:absolute; top:46px; width:5px; height:5px; border-radius:50%;
-    background: radial-gradient(circle at 35% 30%, #fff2c9, #d9a83a);
-    box-shadow:0 3px 3px rgba(0,0,0,0.25);
-  }
-  .hf-earring.l{ left:-1px; } .hf-earring.r{ right:-1px; }
-  .hf-brow{ position:absolute; top:33px; width:13px; height:2.8px; border-radius:2px; background:#6b4a35; }
-  .hf-brow.l{ left:21px; transform:rotate(-7deg); }
-  .hf-brow.r{ left:45px; transform:rotate(7deg); }
-  .hf-eye{ position:absolute; top:40px; width:12px; height:11px; overflow:hidden; }
-  .hf-eye.l{ left:20px; } .hf-eye.r{ left:44px; }
-  .hf-eye::before{
-    content:''; position:absolute; inset:0; margin:auto; width:8px; height:8px; border-radius:50%;
-    background:#2c2333;
-  }
-  .hf-eye::after{
-    content:''; position:absolute; top:-2px; width:1.6px; height:5px; background:#2c2333; border-radius:1px;
-  }
-  .hf-eye.l::after{ left:0; transform:rotate(32deg); }
-  .hf-eye.r::after{ right:0; transform:rotate(-32deg); }
-  .hf-lid{
-    position:absolute; left:-1px; right:-1px; top:-1px; height:13px;
-    background: linear-gradient(180deg,#ecb98d,#ecb98d);
-    transform: scaleY(0); transform-origin: top;
-    transition: transform 0.09s ease;
-  }
-  .hf-lid.blink{ transform: scaleY(1); }
-  .hf-blush{ position:absolute; top:50px; width:11px; height:6px; border-radius:50%; background:rgba(255,120,130,0.28); }
-  .hf-blush.l{ left:14px; } .hf-blush.r{ left:51px; }
-  .hf-mouth{
-    position:absolute; left:50%; top:58px; transform:translateX(-50%);
-    width:19px; height:6px; border-radius:10px;
-    background: linear-gradient(180deg,#d9636a,#b5424a);
-    transition: width .09s ease, height .09s ease, border-radius .09s ease, background .2s ease;
-  }
-  .hf-mouth.st-small{ width:15px; height:11px; border-radius:50%; }
-  .hf-mouth.st-open{ width:14px; height:17px; border-radius:48%; background: linear-gradient(180deg,#7a2e33,#5c2226); }
-  #host[data-state="excited"] .hf-mouth{ background: linear-gradient(180deg,#f0757c,#d8544f); }
+  /* Лицо — готовая иллюстрация (DiceBear/Avataaars, Pablo Stanley, свободная
+     для коммерческого использования), несколько состояний рта/глаз лежат
+     друг на друге и переключаются прозрачностью — простой, но надёжный
+     "flip-book" лип-синк без честного разбора по фонемам */
+  .hf-layer{ position:absolute; inset:0; opacity:0; transition:opacity .07s linear; }
+  .hf-layer.on{ opacity:1; }
+  .hf-layer svg{ width:100%; height:100%; display:block; }
   .host-tag{
     font-size:9.5px; font-weight:700; letter-spacing:1px; color: var(--text-dim);
     display:flex; align-items:center; gap:4px; text-transform:uppercase;
@@ -319,21 +258,17 @@
 
     <div class="hostRow">
       <div class="hostCard">
+        <!-- Лицо ведущей: "Avataaars" (Pablo Stanley) через DiceBear —
+             свободная лицензия для коммерческого использования
+             (https://avataaars.com/). 5 состояний рта/глаз наложены друг на
+             друга, видимое переключается прозрачностью (см. HostManager). -->
         <div class="host-avatar" id="host" data-state="waiting">
           <div class="hf-halo"></div>
-          <div class="hf-shoulders"></div>
-          <div class="hf-hairBack"></div>
-          <div class="hf-head">
-            <div class="hf-earring l"></div><div class="hf-earring r"></div>
-            <div class="hf-blush l"></div><div class="hf-blush r"></div>
-            <div class="hf-brow l"></div><div class="hf-brow r"></div>
-            <div class="hf-eye l"><div class="hf-lid" id="lidL"></div></div>
-            <div class="hf-eye r"><div class="hf-lid" id="lidR"></div></div>
-            <div class="hf-mouth st-idle" id="hfMouth"></div>
-          </div>
-          <div class="hf-hairFront"></div>
-          <div class="hf-hairSide l"></div>
-          <div class="hf-hairSide r"></div>
+          <div class="hf-layer on" id="hfIdle"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 280 280" fill="none" shape-rendering="auto"><mask id="vzHostMask-idle"><rect width="280" height="280" x="0" y="0" fill="#fff"/></mask><g mask="url(#vzHostMask-idle)"><g transform="translate(8)"><path d="M132 36a56 56 0 0 0-56 56v6.17A12 12 0 0 0 66 110v14a12 12 0 0 0 10.3 11.88 56.04 56.04 0 0 0 31.7 44.73v18.4h-4a72 72 0 0 0-72 72v9h200v-9a72 72 0 0 0-72-72h-4v-18.39a56.04 56.04 0 0 0 31.7-44.73A12 12 0 0 0 198 124v-14a12 12 0 0 0-10-11.83V92a56 56 0 0 0-56-56Z" fill="#f8d25c"/><path d="M108 180.61v8a55.79 55.79 0 0 0 24 5.39c8.59 0 16.73-1.93 24-5.39v-8a55.79 55.79 0 0 1-24 5.39 55.79 55.79 0 0 1-24-5.39Z" fill="#000" fill-opacity=".1"/><g transform="translate(0 170)"><path d="M132.5 51.83c18.5 0 33.5-9.62 33.5-21.48 0-.36-.01-.7-.04-1.06A72 72 0 0 1 232 101.04V110H32v-8.95a72 72 0 0 1 67.05-71.83c-.03.37-.05.75-.05 1.13 0 11.86 15 21.48 33.5 21.48Z" fill="#E6E6E6"/><path d="M132.5 58.76c21.89 0 39.63-12.05 39.63-26.91 0-.6-.02-1.2-.08-1.8-2-.33-4.03-.59-6.1-.76.04.35.05.7.05 1.06 0 11.86-15 21.48-33.5 21.48S99 42.2 99 30.35c0-.38.02-.76.05-1.13-2.06.14-4.08.36-6.08.67-.07.65-.1 1.3-.1 1.96 0 14.86 17.74 26.91 39.63 26.91Z" fill="#000" fill-opacity=".16"/><path d="M100.78 29.12 101 28c-2.96.05-6 1-6 1l-.42.66A72.01 72.01 0 0 0 32 101.06V110h74s-10.7-51.56-5.24-80.8l.02-.08ZM158 110s11-53 5-82c2.96.05 6 1 6 1l.42.66a72.01 72.01 0 0 1 62.58 71.4V110h-74Z" fill="#ff488e"/><path d="M101 28c-6 29 5 82 5 82H90L76 74l6-9-6-6 19-30s3.04-.95 6-1ZM163 28c6 29-5 82-5 82h16l14-36-6-9 6-6-19-30s-3.04-.95-6-1Z" fill-rule="evenodd" clip-rule="evenodd" fill="#000" fill-opacity=".15"/><path d="m183.42 85.77.87-2.24 6.27-4.7a4 4 0 0 1 4.85.05l6.6 5.12-18.59 1.77Z" fill="#E6E6E6"/></g><g transform="translate(78 134)"><path fill-rule="evenodd" clip-rule="evenodd" d="M35.12 15.13a19 19 0 0 0 37.77-.09c.08-.77-.77-2.04-1.85-2.04H37.1C36 13 35 14.18 35.12 15.13Z" fill="#000" fill-opacity=".7"/><path d="M70 13H39a5 5 0 0 0 5 5h21a5 5 0 0 0 5-5Z" fill="#fff"/><path d="M66.7 27.14A10.96 10.96 0 0 0 54 25.2a10.95 10.95 0 0 0-12.7 1.94A18.93 18.93 0 0 0 54 32c4.88 0 9.33-1.84 12.7-4.86Z" fill="#FF4F6D"/></g><g transform="translate(104 122)"><path fill-rule="evenodd" clip-rule="evenodd" d="M16 8c0 4.42 5.37 8 12 8s12-3.58 12-8" fill="#000" fill-opacity=".16"/></g><g transform="translate(76 90)"><path d="M36 22a6 6 0 1 1-12 0 6 6 0 0 1 12 0ZM88 22a6 6 0 1 1-12 0 6 6 0 0 1 12 0Z" fill="#000" fill-opacity=".6"/></g><g transform="translate(76 82)"><path d="M26.55 6.15c-5.8.27-15.2 4.49-14.96 10.34.01.18.3.27.43.12 2.76-2.96 22.32-5.95 29.2-4.36.64.14 1.12-.48.72-.93-3.43-3.85-10.2-5.43-15.4-5.18ZM86.45 6.15c5.8.27 15.2 4.49 14.96 10.34-.01.18-.3.27-.43.12-2.76-2.96-22.32-5.95-29.2-4.36-.64.14-1.12-.48-.72-.93 3.43-3.85 10.2-5.43 15.4-5.18Z" fill-rule="evenodd" clip-rule="evenodd" fill="#000" fill-opacity=".6"/></g><g transform="translate(-1)"><path d="M40 145c-.62-30.84 28.32-95.2 39-108 7.92-9.5 29.7-17.45 54-17 24.3.45 46.86 5.81 55 16 12.32 15.43 37.87 74.08 38 109 .1 24.8-9.54 49.66-23 51-7.6.76-17.26-.23-28.86-1.4-5.3-.55-11.02-1.13-17.14-1.6V180.6A56 56 0 0 0 189 130v-28.44a130.34 130.34 0 0 1-26.9-19.88c3.35 6.24 7.19 11.9 11.51 16.2-30.57-8.59-51.71-26.16-64.38-39.94C103.39 69.02 92.96 85.23 77 97.57V130a56 56 0 0 0 32 50.61v13.14c-6.95.95-13.41 2.16-19.36 3.27-10.85 2.02-19.98 3.73-27.26 2.98-14.22-1.47-21.88-30.2-22.38-55Z" fill="#f59797"/></g></g></g></svg></div>
+          <div class="hf-layer" id="hfSmall"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 280 280" fill="none" shape-rendering="auto"><mask id="vzHostMask-small"><rect width="280" height="280" x="0" y="0" fill="#fff"/></mask><g mask="url(#vzHostMask-small)"><g transform="translate(8)"><path d="M132 36a56 56 0 0 0-56 56v6.17A12 12 0 0 0 66 110v14a12 12 0 0 0 10.3 11.88 56.04 56.04 0 0 0 31.7 44.73v18.4h-4a72 72 0 0 0-72 72v9h200v-9a72 72 0 0 0-72-72h-4v-18.39a56.04 56.04 0 0 0 31.7-44.73A12 12 0 0 0 198 124v-14a12 12 0 0 0-10-11.83V92a56 56 0 0 0-56-56Z" fill="#f8d25c"/><path d="M108 180.61v8a55.79 55.79 0 0 0 24 5.39c8.59 0 16.73-1.93 24-5.39v-8a55.79 55.79 0 0 1-24 5.39 55.79 55.79 0 0 1-24-5.39Z" fill="#000" fill-opacity=".1"/><g transform="translate(0 170)"><path d="M132.5 51.83c18.5 0 33.5-9.62 33.5-21.48 0-.36-.01-.7-.04-1.06A72 72 0 0 1 232 101.04V110H32v-8.95a72 72 0 0 1 67.05-71.83c-.03.37-.05.75-.05 1.13 0 11.86 15 21.48 33.5 21.48Z" fill="#E6E6E6"/><path d="M132.5 58.76c21.89 0 39.63-12.05 39.63-26.91 0-.6-.02-1.2-.08-1.8-2-.33-4.03-.59-6.1-.76.04.35.05.7.05 1.06 0 11.86-15 21.48-33.5 21.48S99 42.2 99 30.35c0-.38.02-.76.05-1.13-2.06.14-4.08.36-6.08.67-.07.65-.1 1.3-.1 1.96 0 14.86 17.74 26.91 39.63 26.91Z" fill="#000" fill-opacity=".16"/><path d="M100.78 29.12 101 28c-2.96.05-6 1-6 1l-.42.66A72.01 72.01 0 0 0 32 101.06V110h74s-10.7-51.56-5.24-80.8l.02-.08ZM158 110s11-53 5-82c2.96.05 6 1 6 1l.42.66a72.01 72.01 0 0 1 62.58 71.4V110h-74Z" fill="#ff488e"/><path d="M101 28c-6 29 5 82 5 82H90L76 74l6-9-6-6 19-30s3.04-.95 6-1ZM163 28c6 29-5 82-5 82h16l14-36-6-9 6-6-19-30s-3.04-.95-6-1Z" fill-rule="evenodd" clip-rule="evenodd" fill="#000" fill-opacity=".15"/><path d="m183.42 85.77.87-2.24 6.27-4.7a4 4 0 0 1 4.85.05l6.6 5.12-18.59 1.77Z" fill="#E6E6E6"/></g><g transform="translate(78 134)"><path fill-rule="evenodd" clip-rule="evenodd" d="M40 15a14 14 0 1 0 28 0" fill="#000" fill-opacity=".7"/></g><g transform="translate(104 122)"><path fill-rule="evenodd" clip-rule="evenodd" d="M16 8c0 4.42 5.37 8 12 8s12-3.58 12-8" fill="#000" fill-opacity=".16"/></g><g transform="translate(76 90)"><path d="M36 22a6 6 0 1 1-12 0 6 6 0 0 1 12 0ZM88 22a6 6 0 1 1-12 0 6 6 0 0 1 12 0Z" fill="#000" fill-opacity=".6"/></g><g transform="translate(76 82)"><path d="M26.55 6.15c-5.8.27-15.2 4.49-14.96 10.34.01.18.3.27.43.12 2.76-2.96 22.32-5.95 29.2-4.36.64.14 1.12-.48.72-.93-3.43-3.85-10.2-5.43-15.4-5.18ZM86.45 6.15c5.8.27 15.2 4.49 14.96 10.34-.01.18-.3.27-.43.12-2.76-2.96-22.32-5.95-29.2-4.36-.64.14-1.12-.48-.72-.93 3.43-3.85 10.2-5.43 15.4-5.18Z" fill-rule="evenodd" clip-rule="evenodd" fill="#000" fill-opacity=".6"/></g><g transform="translate(-1)"><path d="M40 145c-.62-30.84 28.32-95.2 39-108 7.92-9.5 29.7-17.45 54-17 24.3.45 46.86 5.81 55 16 12.32 15.43 37.87 74.08 38 109 .1 24.8-9.54 49.66-23 51-7.6.76-17.26-.23-28.86-1.4-5.3-.55-11.02-1.13-17.14-1.6V180.6A56 56 0 0 0 189 130v-28.44a130.34 130.34 0 0 1-26.9-19.88c3.35 6.24 7.19 11.9 11.51 16.2-30.57-8.59-51.71-26.16-64.38-39.94C103.39 69.02 92.96 85.23 77 97.57V130a56 56 0 0 0 32 50.61v13.14c-6.95.95-13.41 2.16-19.36 3.27-10.85 2.02-19.98 3.73-27.26 2.98-14.22-1.47-21.88-30.2-22.38-55Z" fill="#f59797"/></g></g></g></svg></div>
+          <div class="hf-layer" id="hfOpen"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 280 280" fill="none" shape-rendering="auto"><mask id="vzHostMask-open"><rect width="280" height="280" x="0" y="0" fill="#fff"/></mask><g mask="url(#vzHostMask-open)"><g transform="translate(8)"><path d="M132 36a56 56 0 0 0-56 56v6.17A12 12 0 0 0 66 110v14a12 12 0 0 0 10.3 11.88 56.04 56.04 0 0 0 31.7 44.73v18.4h-4a72 72 0 0 0-72 72v9h200v-9a72 72 0 0 0-72-72h-4v-18.39a56.04 56.04 0 0 0 31.7-44.73A12 12 0 0 0 198 124v-14a12 12 0 0 0-10-11.83V92a56 56 0 0 0-56-56Z" fill="#f8d25c"/><path d="M108 180.61v8a55.79 55.79 0 0 0 24 5.39c8.59 0 16.73-1.93 24-5.39v-8a55.79 55.79 0 0 1-24 5.39 55.79 55.79 0 0 1-24-5.39Z" fill="#000" fill-opacity=".1"/><g transform="translate(0 170)"><path d="M132.5 51.83c18.5 0 33.5-9.62 33.5-21.48 0-.36-.01-.7-.04-1.06A72 72 0 0 1 232 101.04V110H32v-8.95a72 72 0 0 1 67.05-71.83c-.03.37-.05.75-.05 1.13 0 11.86 15 21.48 33.5 21.48Z" fill="#E6E6E6"/><path d="M132.5 58.76c21.89 0 39.63-12.05 39.63-26.91 0-.6-.02-1.2-.08-1.8-2-.33-4.03-.59-6.1-.76.04.35.05.7.05 1.06 0 11.86-15 21.48-33.5 21.48S99 42.2 99 30.35c0-.38.02-.76.05-1.13-2.06.14-4.08.36-6.08.67-.07.65-.1 1.3-.1 1.96 0 14.86 17.74 26.91 39.63 26.91Z" fill="#000" fill-opacity=".16"/><path d="M100.78 29.12 101 28c-2.96.05-6 1-6 1l-.42.66A72.01 72.01 0 0 0 32 101.06V110h74s-10.7-51.56-5.24-80.8l.02-.08ZM158 110s11-53 5-82c2.96.05 6 1 6 1l.42.66a72.01 72.01 0 0 1 62.58 71.4V110h-74Z" fill="#ff488e"/><path d="M101 28c-6 29 5 82 5 82H90L76 74l6-9-6-6 19-30s3.04-.95 6-1ZM163 28c6 29-5 82-5 82h16l14-36-6-9 6-6-19-30s-3.04-.95-6-1Z" fill-rule="evenodd" clip-rule="evenodd" fill="#000" fill-opacity=".15"/><path d="m183.42 85.77.87-2.24 6.27-4.7a4 4 0 0 1 4.85.05l6.6 5.12-18.59 1.77Z" fill="#E6E6E6"/></g><g transform="translate(78 134)"><path fill-rule="evenodd" clip-rule="evenodd" d="M34 38.86C35.14 24.88 38.24 13.01 54 13c15.76 0 18.92 11.94 20 26 .08 1.12-.83 2-1.96 2-6.69 0-9.37-2-18.05-2-8.7 0-13.24 2-17.9 2-1.15 0-2.2-.74-2.1-2.14Z" fill="#000" fill-opacity=".7"/><path d="M67.02 17.57c-.61.28-1.3.43-2.02.43H44c-.98 0-1.9-.28-2.67-.77C44.23 14.57 48.28 13 54 13c5.95 0 10.1 1.7 13.02 4.57Z" fill="#fff"/><path d="M69.8 40.92a44.2 44.2 0 0 1-5.54-.82c-2.73-.53-5.65-1.1-10.27-1.1-5.02 0-8.66.66-11.74 1.23-1.45.26-2.77.5-4.06.65A11 11 0 0 1 54 33.2a11 11 0 0 1 15.8 7.72Z" fill="#FF4F6D"/></g><g transform="translate(104 122)"><path fill-rule="evenodd" clip-rule="evenodd" d="M16 8c0 4.42 5.37 8 12 8s12-3.58 12-8" fill="#000" fill-opacity=".16"/></g><g transform="translate(76 90)"><path d="M36 22a6 6 0 1 1-12 0 6 6 0 0 1 12 0ZM88 22a6 6 0 1 1-12 0 6 6 0 0 1 12 0Z" fill="#000" fill-opacity=".6"/></g><g transform="translate(76 82)"><path d="M26.55 6.15c-5.8.27-15.2 4.49-14.96 10.34.01.18.3.27.43.12 2.76-2.96 22.32-5.95 29.2-4.36.64.14 1.12-.48.72-.93-3.43-3.85-10.2-5.43-15.4-5.18ZM86.45 6.15c5.8.27 15.2 4.49 14.96 10.34-.01.18-.3.27-.43.12-2.76-2.96-22.32-5.95-29.2-4.36-.64.14-1.12-.48-.72-.93 3.43-3.85 10.2-5.43 15.4-5.18Z" fill-rule="evenodd" clip-rule="evenodd" fill="#000" fill-opacity=".6"/></g><g transform="translate(-1)"><path d="M40 145c-.62-30.84 28.32-95.2 39-108 7.92-9.5 29.7-17.45 54-17 24.3.45 46.86 5.81 55 16 12.32 15.43 37.87 74.08 38 109 .1 24.8-9.54 49.66-23 51-7.6.76-17.26-.23-28.86-1.4-5.3-.55-11.02-1.13-17.14-1.6V180.6A56 56 0 0 0 189 130v-28.44a130.34 130.34 0 0 1-26.9-19.88c3.35 6.24 7.19 11.9 11.51 16.2-30.57-8.59-51.71-26.16-64.38-39.94C103.39 69.02 92.96 85.23 77 97.57V130a56 56 0 0 0 32 50.61v13.14c-6.95.95-13.41 2.16-19.36 3.27-10.85 2.02-19.98 3.73-27.26 2.98-14.22-1.47-21.88-30.2-22.38-55Z" fill="#f59797"/></g></g></g></svg></div>
+          <div class="hf-layer" id="hfExcited"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 280 280" fill="none" shape-rendering="auto"><mask id="vzHostMask-excited"><rect width="280" height="280" x="0" y="0" fill="#fff"/></mask><g mask="url(#vzHostMask-excited)"><g transform="translate(8)"><path d="M132 36a56 56 0 0 0-56 56v6.17A12 12 0 0 0 66 110v14a12 12 0 0 0 10.3 11.88 56.04 56.04 0 0 0 31.7 44.73v18.4h-4a72 72 0 0 0-72 72v9h200v-9a72 72 0 0 0-72-72h-4v-18.39a56.04 56.04 0 0 0 31.7-44.73A12 12 0 0 0 198 124v-14a12 12 0 0 0-10-11.83V92a56 56 0 0 0-56-56Z" fill="#f8d25c"/><path d="M108 180.61v8a55.79 55.79 0 0 0 24 5.39c8.59 0 16.73-1.93 24-5.39v-8a55.79 55.79 0 0 1-24 5.39 55.79 55.79 0 0 1-24-5.39Z" fill="#000" fill-opacity=".1"/><g transform="translate(0 170)"><path d="M132.5 51.83c18.5 0 33.5-9.62 33.5-21.48 0-.36-.01-.7-.04-1.06A72 72 0 0 1 232 101.04V110H32v-8.95a72 72 0 0 1 67.05-71.83c-.03.37-.05.75-.05 1.13 0 11.86 15 21.48 33.5 21.48Z" fill="#E6E6E6"/><path d="M132.5 58.76c21.89 0 39.63-12.05 39.63-26.91 0-.6-.02-1.2-.08-1.8-2-.33-4.03-.59-6.1-.76.04.35.05.7.05 1.06 0 11.86-15 21.48-33.5 21.48S99 42.2 99 30.35c0-.38.02-.76.05-1.13-2.06.14-4.08.36-6.08.67-.07.65-.1 1.3-.1 1.96 0 14.86 17.74 26.91 39.63 26.91Z" fill="#000" fill-opacity=".16"/><path d="M100.78 29.12 101 28c-2.96.05-6 1-6 1l-.42.66A72.01 72.01 0 0 0 32 101.06V110h74s-10.7-51.56-5.24-80.8l.02-.08ZM158 110s11-53 5-82c2.96.05 6 1 6 1l.42.66a72.01 72.01 0 0 1 62.58 71.4V110h-74Z" fill="#ff488e"/><path d="M101 28c-6 29 5 82 5 82H90L76 74l6-9-6-6 19-30s3.04-.95 6-1ZM163 28c6 29-5 82-5 82h16l14-36-6-9 6-6-19-30s-3.04-.95-6-1Z" fill-rule="evenodd" clip-rule="evenodd" fill="#000" fill-opacity=".15"/><path d="m183.42 85.77.87-2.24 6.27-4.7a4 4 0 0 1 4.85.05l6.6 5.12-18.59 1.77Z" fill="#E6E6E6"/></g><g transform="translate(78 134)"><path d="M40 16c0 5.37 6.16 9 14 9s14-3.63 14-9c0-1.1-.95-2-2-2-1.3 0-1.87.9-2 2-1.24 2.94-4.32 4.72-10 5-5.68-.28-8.76-2.06-10-5-.13-1.1-.7-2-2-2-1.05 0-2 .9-2 2Z" fill="#000" fill-opacity=".6"/></g><g transform="translate(104 122)"><path fill-rule="evenodd" clip-rule="evenodd" d="M16 8c0 4.42 5.37 8 12 8s12-3.58 12-8" fill="#000" fill-opacity=".16"/></g><g transform="translate(76 90)"><path d="M36 22a6 6 0 1 1-12 0 6 6 0 0 1 12 0ZM88 22a6 6 0 1 1-12 0 6 6 0 0 1 12 0Z" fill="#000" fill-opacity=".6"/></g><g transform="translate(76 82)"><path d="M26.55 6.15c-5.8.27-15.2 4.49-14.96 10.34.01.18.3.27.43.12 2.76-2.96 22.32-5.95 29.2-4.36.64.14 1.12-.48.72-.93-3.43-3.85-10.2-5.43-15.4-5.18ZM86.45 6.15c5.8.27 15.2 4.49 14.96 10.34-.01.18-.3.27-.43.12-2.76-2.96-22.32-5.95-29.2-4.36-.64.14-1.12-.48-.72-.93 3.43-3.85 10.2-5.43 15.4-5.18Z" fill-rule="evenodd" clip-rule="evenodd" fill="#000" fill-opacity=".6"/></g><g transform="translate(-1)"><path d="M40 145c-.62-30.84 28.32-95.2 39-108 7.92-9.5 29.7-17.45 54-17 24.3.45 46.86 5.81 55 16 12.32 15.43 37.87 74.08 38 109 .1 24.8-9.54 49.66-23 51-7.6.76-17.26-.23-28.86-1.4-5.3-.55-11.02-1.13-17.14-1.6V180.6A56 56 0 0 0 189 130v-28.44a130.34 130.34 0 0 1-26.9-19.88c3.35 6.24 7.19 11.9 11.51 16.2-30.57-8.59-51.71-26.16-64.38-39.94C103.39 69.02 92.96 85.23 77 97.57V130a56 56 0 0 0 32 50.61v13.14c-6.95.95-13.41 2.16-19.36 3.27-10.85 2.02-19.98 3.73-27.26 2.98-14.22-1.47-21.88-30.2-22.38-55Z" fill="#f59797"/></g></g></g></svg></div>
+          <div class="hf-layer" id="hfBlink"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 280 280" fill="none" shape-rendering="auto"><mask id="vzHostMask-blink"><rect width="280" height="280" x="0" y="0" fill="#fff"/></mask><g mask="url(#vzHostMask-blink)"><g transform="translate(8)"><path d="M132 36a56 56 0 0 0-56 56v6.17A12 12 0 0 0 66 110v14a12 12 0 0 0 10.3 11.88 56.04 56.04 0 0 0 31.7 44.73v18.4h-4a72 72 0 0 0-72 72v9h200v-9a72 72 0 0 0-72-72h-4v-18.39a56.04 56.04 0 0 0 31.7-44.73A12 12 0 0 0 198 124v-14a12 12 0 0 0-10-11.83V92a56 56 0 0 0-56-56Z" fill="#f8d25c"/><path d="M108 180.61v8a55.79 55.79 0 0 0 24 5.39c8.59 0 16.73-1.93 24-5.39v-8a55.79 55.79 0 0 1-24 5.39 55.79 55.79 0 0 1-24-5.39Z" fill="#000" fill-opacity=".1"/><g transform="translate(0 170)"><path d="M132.5 51.83c18.5 0 33.5-9.62 33.5-21.48 0-.36-.01-.7-.04-1.06A72 72 0 0 1 232 101.04V110H32v-8.95a72 72 0 0 1 67.05-71.83c-.03.37-.05.75-.05 1.13 0 11.86 15 21.48 33.5 21.48Z" fill="#E6E6E6"/><path d="M132.5 58.76c21.89 0 39.63-12.05 39.63-26.91 0-.6-.02-1.2-.08-1.8-2-.33-4.03-.59-6.1-.76.04.35.05.7.05 1.06 0 11.86-15 21.48-33.5 21.48S99 42.2 99 30.35c0-.38.02-.76.05-1.13-2.06.14-4.08.36-6.08.67-.07.65-.1 1.3-.1 1.96 0 14.86 17.74 26.91 39.63 26.91Z" fill="#000" fill-opacity=".16"/><path d="M100.78 29.12 101 28c-2.96.05-6 1-6 1l-.42.66A72.01 72.01 0 0 0 32 101.06V110h74s-10.7-51.56-5.24-80.8l.02-.08ZM158 110s11-53 5-82c2.96.05 6 1 6 1l.42.66a72.01 72.01 0 0 1 62.58 71.4V110h-74Z" fill="#ff488e"/><path d="M101 28c-6 29 5 82 5 82H90L76 74l6-9-6-6 19-30s3.04-.95 6-1ZM163 28c6 29-5 82-5 82h16l14-36-6-9 6-6-19-30s-3.04-.95-6-1Z" fill-rule="evenodd" clip-rule="evenodd" fill="#000" fill-opacity=".15"/><path d="m183.42 85.77.87-2.24 6.27-4.7a4 4 0 0 1 4.85.05l6.6 5.12-18.59 1.77Z" fill="#E6E6E6"/></g><g transform="translate(78 134)"><path fill-rule="evenodd" clip-rule="evenodd" d="M35.12 15.13a19 19 0 0 0 37.77-.09c.08-.77-.77-2.04-1.85-2.04H37.1C36 13 35 14.18 35.12 15.13Z" fill="#000" fill-opacity=".7"/><path d="M70 13H39a5 5 0 0 0 5 5h21a5 5 0 0 0 5-5Z" fill="#fff"/><path d="M66.7 27.14A10.96 10.96 0 0 0 54 25.2a10.95 10.95 0 0 0-12.7 1.94A18.93 18.93 0 0 0 54 32c4.88 0 9.33-1.84 12.7-4.86Z" fill="#FF4F6D"/></g><g transform="translate(104 122)"><path fill-rule="evenodd" clip-rule="evenodd" d="M16 8c0 4.42 5.37 8 12 8s12-3.58 12-8" fill="#000" fill-opacity=".16"/></g><g transform="translate(76 90)"><path d="M16.16 27.55c1.85 3.8 6 6.45 10.84 6.45 4.81 0 8.96-2.63 10.82-6.4.55-1.13-.24-2.05-1.03-1.37a15.05 15.05 0 0 1-9.8 3.43c-3.73 0-7.12-1.24-9.55-3.23-.9-.73-1.82.01-1.28 1.12ZM74.16 27.55c1.85 3.8 6 6.45 10.84 6.45 4.81 0 8.96-2.63 10.82-6.4.55-1.13-.24-2.05-1.03-1.37a15.05 15.05 0 0 1-9.8 3.43c-3.74 0-7.13-1.24-9.56-3.23-.9-.73-1.82.01-1.28 1.12Z" fill-rule="evenodd" clip-rule="evenodd" fill="#000" fill-opacity=".6"/></g><g transform="translate(76 82)"><path d="M26.55 6.15c-5.8.27-15.2 4.49-14.96 10.34.01.18.3.27.43.12 2.76-2.96 22.32-5.95 29.2-4.36.64.14 1.12-.48.72-.93-3.43-3.85-10.2-5.43-15.4-5.18ZM86.45 6.15c5.8.27 15.2 4.49 14.96 10.34-.01.18-.3.27-.43.12-2.76-2.96-22.32-5.95-29.2-4.36-.64.14-1.12-.48-.72-.93 3.43-3.85 10.2-5.43 15.4-5.18Z" fill-rule="evenodd" clip-rule="evenodd" fill="#000" fill-opacity=".6"/></g><g transform="translate(-1)"><path d="M40 145c-.62-30.84 28.32-95.2 39-108 7.92-9.5 29.7-17.45 54-17 24.3.45 46.86 5.81 55 16 12.32 15.43 37.87 74.08 38 109 .1 24.8-9.54 49.66-23 51-7.6.76-17.26-.23-28.86-1.4-5.3-.55-11.02-1.13-17.14-1.6V180.6A56 56 0 0 0 189 130v-28.44a130.34 130.34 0 0 1-26.9-19.88c3.35 6.24 7.19 11.9 11.51 16.2-30.57-8.59-51.71-26.16-64.38-39.94C103.39 69.02 92.96 85.23 77 97.57V130a56 56 0 0 0 32 50.61v13.14c-6.95.95-13.41 2.16-19.36 3.27-10.85 2.02-19.98 3.73-27.26 2.98-14.22-1.47-21.88-30.2-22.38-55Z" fill="#f59797"/></g></g></g></svg></div>
         </div>
         <div class="host-tag"><span class="hdot"></span>ВЕДУЩАЯ</div>
       </div>
@@ -537,26 +472,30 @@ const RankingEngine = (() => {
 })();
 
 // ── HostManager — состояния виртуальной ведущей (IDLE/SPEAKING/EXCITED/WAITING) ──
+// Лицо — 5 готовых SVG-слоёв (idle/small/open/excited/blink), друг на друге,
+// видимым делается только нужный (см. .hf-layer.on в CSS).
 const HostManager = (() => {
-  let hostEl, mouthEl, lidL, lidR;
+  const LAYER_IDS = ['hfIdle','hfSmall','hfOpen','hfExcited','hfBlink'];
+  let hostEl, layers = {};
   let state = 'waiting';
   let mouthLoopId = null, mouthToggle = false;
   let excitedTimer = null, waitTimer = null, blinkTimer = null;
 
   function init(){
     hostEl = document.getElementById('host');
-    mouthEl = document.getElementById('hfMouth');
-    lidL = document.getElementById('lidL');
-    lidR = document.getElementById('lidR');
+    LAYER_IDS.forEach(id => { layers[id] = document.getElementById(id); });
     scheduleBlink();
   }
   function setState(s){
     state = s;
     if (hostEl) hostEl.setAttribute('data-state', s);
   }
+  function setLayer(id){
+    LAYER_IDS.forEach(k => { if (layers[k]) layers[k].classList.toggle('on', k === id); });
+  }
   function mouthTick(){
     mouthToggle = !mouthToggle;
-    if (mouthEl) mouthEl.className = 'hf-mouth ' + (mouthToggle ? 'st-open' : 'st-small');
+    setLayer(mouthToggle ? 'hfOpen' : 'hfSmall');
   }
   function startMouthLoop(){
     stopMouthLoop();
@@ -564,7 +503,7 @@ const HostManager = (() => {
   }
   function stopMouthLoop(){
     if (mouthLoopId){ clearInterval(mouthLoopId); mouthLoopId = null; }
-    if (mouthEl) mouthEl.className = 'hf-mouth st-idle';
+    setLayer(state === 'excited' ? 'hfExcited' : 'hfIdle');
   }
   function setSpeaking(isSpeaking){
     if (isSpeaking){
@@ -579,15 +518,21 @@ const HostManager = (() => {
   }
   function pulseExcited(){
     setState('excited');
+    if (!mouthLoopId) setLayer('hfExcited');
     clearTimeout(excitedTimer);
-    excitedTimer = setTimeout(() => setState(mouthLoopId ? 'speaking' : 'idle'), 2200);
+    excitedTimer = setTimeout(() => {
+      setState(mouthLoopId ? 'speaking' : 'idle');
+      if (!mouthLoopId) setLayer('hfIdle');
+    }, 2200);
   }
   function scheduleBlink(){
     const delay = 2600 + Math.random()*3200;
     blinkTimer = setTimeout(() => {
-      if (lidL && lidR){
-        lidL.classList.add('blink'); lidR.classList.add('blink');
-        setTimeout(() => { lidL.classList.remove('blink'); lidR.classList.remove('blink'); }, 120);
+      // моргание только когда не говорит — иначе на кадр перебило бы рот
+      // обратно на "улыбку" посреди фразы
+      if (!mouthLoopId && state !== 'excited'){
+        setLayer('hfBlink');
+        setTimeout(() => { if (!mouthLoopId) setLayer('hfIdle'); }, 120);
       }
       scheduleBlink();
     }, delay);
