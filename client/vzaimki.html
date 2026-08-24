@@ -87,7 +87,7 @@
   }
 
   .hostCard{
-    flex: 0 0 108px;
+    flex: 0 0 124px;
     background: var(--panel);
     border: 1px solid var(--border);
     border-radius: var(--radius);
@@ -97,7 +97,7 @@
     -webkit-backdrop-filter: blur(8px);
   }
   .host-avatar{
-    position:relative; width:82px; height:82px;
+    position:relative; width:104px; height:104px;
     animation: hostBob 4.2s ease-in-out infinite;
   }
   /* #host сам является .host-avatar (id и class на одном узле) — переопределяем
@@ -112,48 +112,79 @@
     0%,100%{ transform: translateY(0) rotate(-2deg) scale(1.03); }
     50%{ transform: translateY(-4px) rotate(2deg) scale(1.06); }
   }
+  /* тёплое мягкое свечение позади — премиальный акцент без неона */
+  .hf-halo{
+    position:absolute; inset:-12px; border-radius:50%;
+    background: radial-gradient(circle, rgba(255,214,158,0.30), rgba(255,214,158,0) 68%);
+  }
+  /* плечи/жакет — снизу, под волосами */
+  .hf-shoulders{
+    position:absolute; left:11px; top:82px; width:82px; height:24px;
+    border-radius: 38px 38px 0 0;
+    background: linear-gradient(165deg,#453a63,#241c38);
+  }
   .hf-hairBack{
-    position:absolute; left:2px; top:6px; width:78px; height:78px;
-    border-radius: 50% 50% 46% 46%;
-    background: linear-gradient(160deg,#3b2f52,#241c38);
+    position:absolute; left:2px; top:9px; width:100px; height:92px;
+    border-radius: 50% 50% 42% 42%;
+    background: linear-gradient(165deg,#4d3f72,#241c38);
   }
   .hf-head{
-    position:absolute; left:9px; top:12px; width:64px; height:64px;
+    position:absolute; left:14px; top:16px; width:76px; height:76px;
     border-radius:50%;
-    background: radial-gradient(circle at 35% 30%, #ffe0c2, #eab98d 70%, #d9a172 100%);
-    box-shadow: inset 0 -6px 10px rgba(0,0,0,0.12);
+    background: radial-gradient(circle at 34% 28%, #ffe4c9, #ecb98d 68%, #d99f75 100%);
+    box-shadow: inset 0 -8px 14px rgba(0,0,0,0.14), inset 5px 7px 9px rgba(255,255,255,0.25);
   }
   .hf-hairFront{
-    position:absolute; left:6px; top:5px; width:70px; height:30px;
-    border-radius: 50% 50% 40% 40% / 60% 60% 20% 20%;
-    background: linear-gradient(160deg,#4a3b68,#241c38);
+    position:absolute; left:8px; top:4px; width:88px; height:40px;
+    border-radius: 55% 45% 40% 55% / 65% 60% 25% 30%;
+    background: linear-gradient(150deg,#5c4c82,#241c38);
+    transform: rotate(-2deg);
   }
-  .hf-brow{ position:absolute; top:29px; width:11px; height:2.4px; border-radius:2px; background:#5b3e2c; }
-  .hf-brow.l{ left:18px; transform:rotate(-6deg); }
-  .hf-brow.r{ left:38px; transform:rotate(6deg); }
-  .hf-eye{ position:absolute; top:34px; width:10px; height:9px; overflow:hidden; }
-  .hf-eye.l{ left:17px; } .hf-eye.r{ left:37px; }
+  .hf-hairSide{
+    position:absolute; top:36px; width:15px; height:52px;
+    border-radius: 50% 50% 60% 40%;
+    background: linear-gradient(180deg,#4d3f72,#2a2140);
+  }
+  .hf-hairSide.l{ left:3px; transform:rotate(-8deg); }
+  .hf-hairSide.r{ right:3px; transform:rotate(8deg) scaleX(-1); }
+  .hf-earring{
+    position:absolute; top:46px; width:5px; height:5px; border-radius:50%;
+    background: radial-gradient(circle at 35% 30%, #fff2c9, #d9a83a);
+    box-shadow:0 3px 3px rgba(0,0,0,0.25);
+  }
+  .hf-earring.l{ left:-1px; } .hf-earring.r{ right:-1px; }
+  .hf-brow{ position:absolute; top:33px; width:13px; height:2.8px; border-radius:2px; background:#6b4a35; }
+  .hf-brow.l{ left:21px; transform:rotate(-7deg); }
+  .hf-brow.r{ left:45px; transform:rotate(7deg); }
+  .hf-eye{ position:absolute; top:40px; width:12px; height:11px; overflow:hidden; }
+  .hf-eye.l{ left:20px; } .hf-eye.r{ left:44px; }
   .hf-eye::before{
-    content:''; position:absolute; inset:0; margin:auto; width:7px; height:7px; border-radius:50%;
+    content:''; position:absolute; inset:0; margin:auto; width:8px; height:8px; border-radius:50%;
     background:#2c2333;
   }
+  .hf-eye::after{
+    content:''; position:absolute; top:-2px; width:1.6px; height:5px; background:#2c2333; border-radius:1px;
+  }
+  .hf-eye.l::after{ left:0; transform:rotate(32deg); }
+  .hf-eye.r::after{ right:0; transform:rotate(-32deg); }
   .hf-lid{
-    position:absolute; left:-1px; right:-1px; top:-1px; height:11px;
-    background: linear-gradient(180deg,#eab98d,#eab98d);
+    position:absolute; left:-1px; right:-1px; top:-1px; height:13px;
+    background: linear-gradient(180deg,#ecb98d,#ecb98d);
     transform: scaleY(0); transform-origin: top;
     transition: transform 0.09s ease;
   }
   .hf-lid.blink{ transform: scaleY(1); }
-  .hf-blush{ position:absolute; top:42px; width:9px; height:5px; border-radius:50%; background:rgba(255,120,130,0.28); }
-  .hf-blush.l{ left:12px; } .hf-blush.r{ left:43px; }
+  .hf-blush{ position:absolute; top:50px; width:11px; height:6px; border-radius:50%; background:rgba(255,120,130,0.28); }
+  .hf-blush.l{ left:14px; } .hf-blush.r{ left:51px; }
   .hf-mouth{
-    position:absolute; left:50%; top:49px; transform:translateX(-50%);
-    width:16px; height:5px; border-radius:9px; background:#b5544f;
+    position:absolute; left:50%; top:58px; transform:translateX(-50%);
+    width:19px; height:6px; border-radius:10px;
+    background: linear-gradient(180deg,#d9636a,#b5424a);
     transition: width .09s ease, height .09s ease, border-radius .09s ease, background .2s ease;
   }
-  .hf-mouth.st-small{ width:13px; height:9px; border-radius:50%; }
-  .hf-mouth.st-open{ width:12px; height:14px; border-radius:48%; background:#933c3a; }
-  #host[data-state="excited"] .hf-mouth{ background:#d8544f; }
+  .hf-mouth.st-small{ width:15px; height:11px; border-radius:50%; }
+  .hf-mouth.st-open{ width:14px; height:17px; border-radius:48%; background: linear-gradient(180deg,#7a2e33,#5c2226); }
+  #host[data-state="excited"] .hf-mouth{ background: linear-gradient(180deg,#f0757c,#d8544f); }
   .host-tag{
     font-size:9.5px; font-weight:700; letter-spacing:1px; color: var(--text-dim);
     display:flex; align-items:center; gap:4px; text-transform:uppercase;
@@ -289,8 +320,11 @@
     <div class="hostRow">
       <div class="hostCard">
         <div class="host-avatar" id="host" data-state="waiting">
+          <div class="hf-halo"></div>
+          <div class="hf-shoulders"></div>
           <div class="hf-hairBack"></div>
           <div class="hf-head">
+            <div class="hf-earring l"></div><div class="hf-earring r"></div>
             <div class="hf-blush l"></div><div class="hf-blush r"></div>
             <div class="hf-brow l"></div><div class="hf-brow r"></div>
             <div class="hf-eye l"><div class="hf-lid" id="lidL"></div></div>
@@ -298,6 +332,8 @@
             <div class="hf-mouth st-idle" id="hfMouth"></div>
           </div>
           <div class="hf-hairFront"></div>
+          <div class="hf-hairSide l"></div>
+          <div class="hf-hairSide r"></div>
         </div>
         <div class="host-tag"><span class="hdot"></span>ВЕДУЩАЯ</div>
       </div>
@@ -658,11 +694,37 @@ const VoiceManager = (() => {
   // iOS/некоторые браузеры усыпляют speechSynthesis без событий — периодически будим
   setInterval(() => { try { if (synth && synth.paused) synth.resume(); } catch(e){} }, 4000);
 
+  // Многие браузеры молча блокируют первый speak() без жеста пользователя
+  // (нет ни onerror, ни onend) — если это произошло, очередь "зависает" до
+  // первого клика/нажатия клавиши на странице. На реальном стриме (OBS) это
+  // не проблема — там автоплей обычно разрешён; но при обычном открытии
+  // вкладки в браузере диктор может молчать, пока по странице не кликнут.
+  let _interacted = false;
+  function armInteractionUnlock(){
+    const onFirstInteract = () => {
+      if (_interacted) return;
+      _interacted = true;
+      unlock();
+      if (!speaking) next();
+    };
+    document.addEventListener('pointerdown', onFirstInteract, { once:true });
+    document.addEventListener('keydown', onFirstInteract, { once:true });
+  }
+
+  const GREETING = [
+    'Всем привет! Начинаем взаимки — подписывайтесь друг на друга!',
+    'Эфир начинается! Ищите друг друга в топе и участвуйте во взаимках!',
+    'Взаимки стартуют! Подписывайтесь на участников и растите топ вместе!',
+  ];
+
   function start(){
     if (started) return; started = true;
     unlock();
+    armInteractionUnlock();
     if (synth) synth.onvoiceschanged = () => { cachedVoice = null; pickVoice(); };
-    scheduleFiller();
+    // приветствие сразу, не дожидаясь случайной паузы обычного филлера —
+    // иначе создаётся впечатление, что диктор молчит
+    say(rnd(GREETING), 'B');
   }
 
   return { say, start };
