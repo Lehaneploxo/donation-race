@@ -142,10 +142,10 @@
   }
   #hostCanvas{ position:absolute; inset:0; width:100%; height:100%; display:block; }
 
-  /* Живые субтитры — плавающий пузырь над головой с текущей фразой диктора */
+  /* Живые субтитры — плавающий пузырь под головой с текущей фразой диктора */
   .host-caption{
-    position:absolute; left:50%; bottom:100%; margin-bottom:10px;
-    transform: translateX(-50%) translateY(6px) scale(0.96);
+    position:absolute; left:50%; top:100%; margin-top:34px;
+    transform: translateX(-50%) translateY(-6px) scale(0.96);
     max-width:230px; width:max-content;
     font-size:12.5px; font-weight:700; line-height:1.35; text-align:center;
     color: var(--text); background: var(--panel); border:1px solid var(--border);
@@ -157,8 +157,8 @@
   }
   .host-caption.show{ opacity:1; transform: translateX(-50%) translateY(0) scale(1); }
   .host-caption::after{
-    content:''; position:absolute; top:100%; left:50%; transform:translateX(-50%);
-    border:6px solid transparent; border-top-color: var(--panel);
+    content:''; position:absolute; bottom:100%; left:50%; transform:translateX(-50%);
+    border:6px solid transparent; border-bottom-color: var(--panel);
   }
 
   .host-tag{
