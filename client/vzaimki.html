@@ -709,10 +709,6 @@ const VoiceManager = (() => {
       'Лидеры не рождаются — они дарят, лайкают и подписываются!',
       'Ваше место в топе почти свободно — успейте занять!',
     ],
-    telegram: [
-      'Заходите в наш телеграм канал — все игры и новости там!',
-      'В телеграм-канале анонсы и другие игры — залетайте!',
-    ],
   };
   const CTA_ORDER = ['gifts','mutual','chest','likes','followHost','share','climb','top'];
   let ctaIdx = -1, ctaCycles = 0;
@@ -782,7 +778,6 @@ const VoiceManager = (() => {
 
   function nextFiller(){
     ctaCycles++;
-    if (ctaCycles % 5 === 0) return tplHost(rnd(CTA.telegram));
     ctaIdx = (ctaIdx + 1) % CTA_ORDER.length;
     return tplHost(rnd(CTA[CTA_ORDER[ctaIdx]]));
   }
