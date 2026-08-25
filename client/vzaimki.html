@@ -469,7 +469,19 @@ function fmt(n){ return Math.round(Number(n)||0).toLocaleString('ru-RU'); }
 function escHtml(s){
   return String(s==null?'':s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
-function filterNick(n){ return (n||'').replace(/[^a-zA-Zа-яА-ЯёЁ0-9_.]/g,'').trim(); }
+// Ники в TikTok — это отображаемое имя (не @хэндл), там может быть что угодно:
+// пробелы, эмодзи, любой язык (укр./кит./араб./вьетнамский с диакритикой и т.п.).
+// Раньше тут был белый список "латиница+рус.кириллица+цифры+_.", который резал
+// такие ники в пустую строку — а дальше событие с пустым ником целиком
+// дропалось на входе, поэтому часть зрителей была "невидимой" и не попадала
+// в топы. Теперь вырезаем только реально небезопасные для вёрстки символы
+// (управляющие/невидимые/bidi-override), всё остальное — оставляем как есть.
+function filterNick(n){
+  return String(n||'')
+    .replace(/[\u0000-\u001F\u007F\u200B-\u200F\u202A-\u202E\u2060-\u206F]/g, '')
+    .trim()
+    .slice(0, 40);
+}
 function rnd(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
 function tpl(s, nick, val){ return s.replace(/\[НИК\]/g, nick).replace(/\[COINS\]/g, val!=null?fmt(val):''); }
 let HOST_USERNAME = '';
@@ -1099,9 +1111,9 @@ const PHRASES = {
 let _lastFollowSpokenAt = 0;
 
 EventBus.on('GIFT_RECEIVED', (d) => {
-  const nick = filterNick(d.username);
+  const nick = filterNick(d.username) || 'Зритель';
   const uid = String(d.userId||'');
-  if (!nick || !uid) return;
+  if (!uid) return;
   const coins = Math.max(0, Math.floor(Number(d.coins)||0));
   if (coins <= 0) return;
 
@@ -1118,18 +1130,18 @@ EventBus.on('GIFT_RECEIVED', (d) => {
 });
 
 EventBus.on('LIKE_RECEIVED', (d) => {
-  const nick = filterNick(d.username);
+  const nick = filterNick(d.username) || 'Зритель';
   const uid = String(d.userId||'');
-  if (!nick || !uid) return;
+  if (!uid) return;
   const likes = Math.max(1, Math.floor(Number(d.likes)||1));
   RankingEngine.updateLikes(uid, nick, d.avatarUrl, likes);
   UI.scheduleRender('likes');
 });
 
 EventBus.on('FOLLOW_RECEIVED', (d) => {
-  const nick = filterNick(d.username);
+  const nick = filterNick(d.username) || 'Зритель';
   const uid = String(d.userId||'');
-  if (!nick || !uid) return;
+  if (!uid) return;
   RankingEngine.updateFollowing(uid, nick, d.avatarUrl, 1);
   UI.showEvent('🤝', '<b>'+escHtml(nick)+'</b> подписался! Новая взаимка.', { username: nick, userId: uid, avatarUrl: d.avatarUrl });
   UI.scheduleRender('following');
@@ -1142,8 +1154,7 @@ EventBus.on('FOLLOW_RECEIVED', (d) => {
 });
 
 EventBus.on('TOP1_CHANGED', (d) => {
-  const nick = filterNick(d.user.username);
-  if (!nick) return;
+  const nick = filterNick(d.user.username) || 'Зритель';
   VoiceManager.say(tpl(rnd(PHRASES.becameTop1), nick), 'A', nick);
   FX.screenFlash();
 });
@@ -1153,7 +1164,7 @@ EventBus.on('TOP3_CHANGED', (d) => {
   (d.entered||[]).forEach(id => {
     if (id === d.top1Id) return; // уже озвучено через TOP1_CHANGED — не дублируем
     const p = RankingEngine.get(id);
-    const nick = p ? filterNick(p.username) : '';
+    const nick = p ? (filterNick(p.username) || 'Зритель') : '';
     if (nick) VoiceManager.say(tpl(rnd(PHRASES.enteredTop3), nick), 'A');
   });
 });
