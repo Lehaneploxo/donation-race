@@ -146,10 +146,10 @@
   .host-caption{
     position:absolute; left:50%; top:100%; margin-top:8px; z-index:5;
     transform: translateX(-50%) translateY(-6px) scale(0.96);
-    max-width:230px; width:max-content;
-    font-size:12.5px; font-weight:700; line-height:1.35; text-align:center;
+    max-width:540px; width:max-content;
+    font-size:25px; font-weight:700; line-height:1.35; text-align:center;
     color: var(--text); background: var(--panel); border:1px solid var(--border);
-    border-radius:14px; padding:7px 12px;
+    border-radius:20px; padding:14px 24px;
     backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
     box-shadow: 0 6px 18px rgba(0,0,0,0.35);
     opacity:0; pointer-events:none;
@@ -158,7 +158,7 @@
   .host-caption.show{ opacity:1; transform: translateX(-50%) translateY(0) scale(1); }
   .host-caption::after{
     content:''; position:absolute; bottom:100%; left:50%; transform:translateX(-50%);
-    border:6px solid transparent; border-bottom-color: var(--panel);
+    border:12px solid transparent; border-bottom-color: var(--panel);
   }
 
   .host-tag{
