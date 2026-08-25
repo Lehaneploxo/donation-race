@@ -145,24 +145,21 @@
   }
   #hostCanvas{ position:absolute; inset:0; width:100%; height:100%; display:block; }
 
-  .host-tag{
-    font-size:22px; font-weight:700; letter-spacing:1px; color: var(--text-dim);
-    display:flex; align-items:center; gap:6px; text-transform:uppercase;
+  /* Мини-эквалайзер прямо на лице, справа ото рта — виден только когда
+     ведущая говорит (не занимает место, когда молчит). */
+  .host-eq{
+    position:absolute; left:58%; top:65%; transform:translateY(-50%);
+    display:flex; align-items:flex-end; gap:2px; height:10px; z-index:3;
+    opacity:0; transition: opacity .2s ease;
   }
-  /* Мини-эквалайзер — оживает вместе с голосом, а не просто зелёная точка */
-  .host-eq{ display:flex; align-items:flex-end; gap:2px; height:10px; }
-  .host-eq span{
-    width:3px; height:4px; border-radius:2px; background: var(--accent2);
-    opacity:.55; transition: opacity .3s ease;
-  }
-  .hostCard:has(#host[data-state="speaking"]) .host-eq span,
-  .hostCard:has(#host[data-state="excited"]) .host-eq span{
-    animation: eqBounce .5s ease-in-out infinite; opacity:1;
-  }
+  #host[data-state="speaking"] .host-eq,
+  #host[data-state="excited"] .host-eq{ opacity:1; }
+  .host-eq span{ width:3px; height:4px; border-radius:2px; background: var(--accent2); }
+  #host[data-state="speaking"] .host-eq span,
+  #host[data-state="excited"] .host-eq span{ animation: eqBounce .5s ease-in-out infinite; }
   .host-eq span:nth-child(2){ animation-delay:.12s; }
   .host-eq span:nth-child(3){ animation-delay:.24s; }
   @keyframes eqBounce{ 0%,100%{ height:4px; } 50%{ height:12px; } }
-  .host-tag .hdot{ width:6px; height:6px; border-radius:50%; background: var(--green); }
 
   .t3card{
     flex:1; background: var(--panel); border:1px solid var(--border);
@@ -352,8 +349,8 @@
         <div class="host-avatar" id="host" data-state="waiting">
           <div class="hf-halo"></div>
           <canvas id="hostCanvas"></canvas>
+          <div class="host-eq"><span></span><span></span><span></span></div>
         </div>
-        <div class="host-tag"><span class="hdot"></span>ВЕДУЩАЯ<span class="host-eq"><span></span><span></span><span></span></span></div>
       </div>
 
       <div class="top3" id="top3">
@@ -606,7 +603,9 @@ const HostManager = (() => {
         model.anchor.set(0.5, 0.5);
         const scale = Math.min(app.screen.width / model.width, app.screen.height / model.height) * 1.65;
         model.scale.set(scale);
-        model.x = app.screen.width / 2;
+        // Артборд модели Kei не идеально центрирован по лицу (сама модель визуально
+        // смещена влево от центра своего bounding box) — компенсируем сдвигом вправо.
+        model.x = app.screen.width / 2 + app.screen.width * 0.09;
         model.y = app.screen.height * 0.58;
         app.stage.addChild(model);
       })
