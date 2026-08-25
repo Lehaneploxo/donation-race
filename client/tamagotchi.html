@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Тамагочи</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --panel: rgba(14,17,26,0.72);
+    --border: rgba(255,255,255,0.10);
+    --text: #f3f5fb;
+    --text-dim: rgba(243,245,251,0.62);
+    --accent: #ff8fb3;
+  }
+  *{ box-sizing:border-box; }
+  html,body{
+    margin:0; padding:0; width:100%; height:100%;
+    background:#0b0c14;
+    font-family:'Manrope','Segoe UI',system-ui,sans-serif;
+    color: var(--text);
+    overflow:hidden;
+    -webkit-tap-highlight-color: transparent;
+    user-select:none;
+  }
+
+  #stageWrap{ position:fixed; inset:0; }
+  #stage{
+    position:absolute; top:50%; left:50%;
+    width:600px; height:1000px;
+    transform-origin:center center;
+  }
+
+  /* ── Комната (фон) ─────────────────────────────────────────────── */
+  #room{ position:absolute; inset:0; overflow:hidden; border-radius:0; }
+  #room svg{ width:100%; height:100%; display:block; }
+
+  /* ── Топ-бар ────────────────────────────────────────────────────── */
+  .topbar{
+    position:absolute; top:0; left:0; right:0; z-index:20;
+    display:flex; align-items:center; justify-content:space-between;
+    padding:14px 16px;
+  }
+  .iconBtn{
+    width:38px; height:38px; border-radius:12px;
+    background:var(--panel); border:1px solid var(--border);
+    display:flex; align-items:center; justify-content:center;
+    font-size:18px; cursor:pointer; color:var(--text);
+  }
+  #connBadge{
+    padding:6px 12px; border-radius:999px; background:var(--panel);
+    border:1px solid var(--border); font-size:12px; font-weight:700;
+    color: var(--text-dim);
+  }
+
+  /* ── HUD показателей ───────────────────────────────────────────── */
+  #hud{
+    position:absolute; top:64px; left:14px; right:14px; z-index:15;
+    display:flex; flex-direction:column; gap:6px;
+    background:var(--panel); border:1px solid var(--border);
+    border-radius:16px; padding:10px 14px;
+    backdrop-filter: blur(6px);
+  }
+  .statRow{ display:flex; align-items:center; gap:8px; font-size:13px; font-weight:700; }
+  .statRow .ico{ width:20px; text-align:center; }
+  .statRow .track{
+    flex:1; height:8px; border-radius:999px; background:rgba(255,255,255,0.10);
+    overflow:hidden;
+  }
+  .statRow .fill{ height:100%; border-radius:999px; transition: width .4s ease; }
+  .fill.hunger{ background:linear-gradient(90deg,#ffb35c,#ff7a45); }
+  .fill.mood{ background:linear-gradient(90deg,#7bd4ff,#57d9a3); }
+  .fill.weight{ background:linear-gradient(90deg,#c98fff,#ff8fb3); }
+  .statRow .val{ width:34px; text-align:right; font-variant-numeric:tabular-nums; color:var(--text-dim); }
+  #activityLabel{
+    text-align:center; font-size:13px; font-weight:800; letter-spacing:.06em;
+    color:var(--accent); min-height:16px; text-transform:uppercase;
+  }
+
+  /* ── Девушка ────────────────────────────────────────────────────── */
+  #girlWrap{
+    position:absolute; left:50%; bottom:60px;
+    width:340px; height:600px;
+    transform:translateX(-50%);
+    z-index:10;
+  }
+  #girlSvg{ width:100%; height:100%; overflow:visible; display:block; }
+  .part{ transform-box: fill-box; transform-origin: center; }
+
+  @keyframes idleBob{
+    0%,100%{ transform: translateY(0); }
+    50%{ transform: translateY(-6px); }
+  }
+  @keyframes eatNod{
+    0%,100%{ transform: rotate(0deg); }
+    50%{ transform: rotate(-6deg); }
+  }
+  @keyframes trainSquat{
+    0%,100%{ transform: translateY(0) scaleY(1); }
+    50%{ transform: translateY(14px) scaleY(0.92); }
+  }
+  @keyframes happyJump{
+    0%,100%{ transform: translateY(0) rotate(0deg); }
+    30%{ transform: translateY(-26px) rotate(-4deg); }
+    60%{ transform: translateY(0) rotate(4deg); }
+  }
+  @keyframes dressSpin{
+    0%{ transform: scale(1) rotate(0deg); }
+    50%{ transform: scale(1.06) rotate(6deg); }
+    100%{ transform: scale(1) rotate(0deg); }
+  }
+  #girlBody.act-idle{ animation: idleBob 2.6s ease-in-out infinite; }
+  #girlBody.act-eating{ animation: eatNod 0.55s ease-in-out infinite; }
+  #girlBody.act-training{ animation: trainSquat 0.5s ease-in-out infinite; }
+  #girlBody.act-happy{ animation: happyJump 0.6s ease-in-out infinite; }
+  #girlBody.act-dressing{ animation: dressSpin 0.5s ease-in-out infinite; }
+
+  /* ── Частицы (сердечки/искры/пот) ──────────────────────────────── */
+  .particle{
+    position:absolute; font-size:26px; pointer-events:none;
+    animation: floatUp 1.1s ease-out forwards;
+  }
+  @keyframes floatUp{
+    0%{ opacity:0; transform: translateY(0) scale(.6); }
+    15%{ opacity:1; transform: translateY(-10px) scale(1); }
+    100%{ opacity:0; transform: translateY(-90px) scale(1.1); }
+  }
+
+  /* ── Дебаг-панель (не видна зрителям, ?debug=1) ───────────────────── */
+  #debugPanel{
+    position:absolute; left:10px; right:10px; bottom:10px; z-index:30;
+    display:flex; flex-wrap:wrap; gap:6px;
+    background:rgba(0,0,0,0.6); border:1px solid var(--border);
+    border-radius:12px; padding:8px;
+  }
+  #debugPanel button{
+    font-size:12px; font-weight:700; padding:6px 10px; border-radius:8px;
+    border:1px solid var(--border); background:var(--panel); color:var(--text);
+    cursor:pointer;
+  }
+</style>
+</head>
+<body>
+
+<div id="stageWrap"><div id="stage">
+
+  <div id="room"></div>
+
+  <div class="topbar">
+    <div class="iconBtn" id="backBtn">←</div>
+    <div id="connBadge">⏳ подключение</div>
+  </div>
+
+  <div id="hud">
+    <div class="statRow">
+      <span class="ico">🍔</span>
+      <div class="track"><div class="fill hunger" id="hungerFill" style="width:30%"></div></div>
+      <span class="val" id="hungerVal">30%</span>
+    </div>
+    <div class="statRow">
+      <span class="ico">⚖️</span>
+      <div class="track"><div class="fill weight" id="weightFill" style="width:40%"></div></div>
+      <span class="val" id="weightVal">норм</span>
+    </div>
+    <div class="statRow">
+      <span class="ico">😊</span>
+      <div class="track"><div class="fill mood" id="moodFill" style="width:70%"></div></div>
+      <span class="val" id="moodVal">70%</span>
+    </div>
+    <div id="activityLabel"></div>
+  </div>
+
+  <div id="girlWrap">
+    <svg id="girlSvg" viewBox="0 0 300 560">
+      <g id="girlBody" class="act-idle">
+        <ellipse cx="150" cy="520" rx="70" ry="14" fill="#000" opacity="0.28"/>
+
+        <!-- ноги -->
+        <g id="legs">
+          <rect id="legL" class="part" x="118" y="330" width="26" height="150" rx="13" fill="#f2c9a0"/>
+          <rect id="legR" class="part" x="156" y="330" width="26" height="150" rx="13" fill="#f2c9a0"/>
+        </g>
+        <g id="shoes" style="display:none">
+          <ellipse cx="131" cy="482" rx="18" ry="10" fill="#3a3a4a"/>
+          <ellipse cx="169" cy="482" rx="18" ry="10" fill="#3a3a4a"/>
+        </g>
+
+        <!-- руки -->
+        <g id="arms">
+          <rect id="armL" class="part" x="90" y="205" width="22" height="120" rx="11" fill="#f2c9a0" style="transform-origin: 101px 210px;"/>
+          <rect id="armR" class="part" x="188" y="205" width="22" height="120" rx="11" fill="#f2c9a0" style="transform-origin: 199px 210px;"/>
+        </g>
+
+        <!-- корпус -->
+        <ellipse id="hips" class="part" cx="150" cy="300" rx="54" ry="62" fill="#f2c9a0"/>
+        <ellipse id="torso" class="part" cx="150" cy="215" rx="48" ry="58" fill="#f2c9a0"/>
+
+        <!-- одежда: низ -->
+        <g id="clothLower" style="display:none">
+          <path id="clothLowerShape" d="M96,265 C96,340 96,400 118,478 L144,478 C138,400 138,340 138,265 Z M162,265 C162,340 162,400 156,478 L182,478 C204,400 204,340 204,265 Z" fill="#3d5a9a"/>
+        </g>
+        <!-- одежда: платье (перекрывает верх+низ) -->
+        <g id="clothDress" style="display:none">
+          <path id="clothDressShape" d="M100,165 C90,220 90,300 108,420 L192,420 C210,300 210,220 200,165 C185,150 115,150 100,165 Z" fill="#c9558a"/>
+        </g>
+        <!-- одежда: верх -->
+        <g id="clothUpper" style="display:none">
+          <path id="clothUpperShape" d="M100,165 C90,210 90,255 100,280 L200,280 C210,255 210,210 200,165 C185,150 115,150 100,165 Z" fill="#57a7d9"/>
+        </g>
+
+        <!-- шея + голова -->
+        <rect x="136" y="120" width="28" height="34" rx="10" fill="#f2c9a0"/>
+        <g id="head">
+          <ellipse cx="150" cy="95" rx="46" ry="50" fill="#f2c9a0"/>
+
+          <!-- волосы (сзади) -->
+          <path d="M104,95 C100,40 200,40 196,95 C196,60 104,60 104,95 Z" fill="#5a3a2a"/>
+
+          <!-- лицо -->
+          <g id="face">
+            <ellipse id="browL" class="part" cx="130" cy="82" rx="10" ry="3" fill="#4a3020"/>
+            <ellipse id="browR" class="part" cx="170" cy="82" rx="10" ry="3" fill="#4a3020"/>
+            <circle cx="130" cy="96" r="6.5" fill="#3a2a20"/>
+            <circle cx="170" cy="96" r="6.5" fill="#3a2a20"/>
+            <rect id="blinkL" x="122" y="86" width="16" height="0" fill="#f2c9a0"/>
+            <rect id="blinkR" x="162" y="86" width="16" height="0" fill="#f2c9a0"/>
+            <circle cx="118" cy="108" r="6" fill="#ff9fb0" opacity="0.55"/>
+            <circle cx="182" cy="108" r="6" fill="#ff9fb0" opacity="0.55"/>
+            <path id="mouth" d="M136,120 Q150,124 164,120" stroke="#a04a4a" stroke-width="4" fill="none" stroke-linecap="round"/>
+          </g>
+
+          <!-- чёлка -->
+          <path d="M100,78 C110,50 190,50 200,78 C185,62 115,62 100,78 Z" fill="#5a3a2a"/>
+
+          <!-- аксессуар -->
+          <g id="accessory" style="display:none">
+            <path d="M175,58 L192,50 L188,64 L200,68 L184,74 L188,86 L172,76 Z" fill="#ff5c8a"/>
+            <circle cx="182" cy="66" r="5" fill="#ffd166"/>
+          </g>
+        </g>
+
+        <!-- еда рядом со ртом (появляется во время eating) -->
+        <text id="foodProp" x="150" y="118" font-size="30" text-anchor="middle" style="display:none">🍩</text>
+      </g>
+    </svg>
+  </div>
+
+  <div id="debugPanel" hidden>
+    <button data-act="food">🍩 Еда</button>
+    <button data-act="train">🏋️ Тренировка</button>
+    <button data-act="mood">🌹 Настроение</button>
+    <button data-act="upper">👕 Футболка</button>
+    <button data-act="lower">👖 Джинсы</button>
+    <button data-act="dress">👗 Платье</button>
+    <button data-act="shoes">👟 Обувь</button>
+    <button data-act="accessory">🎀 Бант</button>
+  </div>
+
+</div></div>
+
+<script>
+// ── Комната (фон) ────────────────────────────────────────────────────────
+document.getElementById('room').innerHTML = `
+<svg viewBox="0 0 600 1000" preserveAspectRatio="xMidYMax slice">
+  <defs>
+    <linearGradient id="wall" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#3a2f52"/>
+      <stop offset="100%" stop-color="#241c36"/>
+    </linearGradient>
+    <linearGradient id="floor" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#5a4433"/>
+      <stop offset="100%" stop-color="#3c2c22"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="0" width="600" height="760" fill="url(#wall)"/>
+  <rect x="0" y="760" width="600" height="240" fill="url(#floor)"/>
+  <rect x="60" y="90" width="180" height="220" rx="10" fill="#241c36" stroke="#5a4a78" stroke-width="8"/>
+  <rect x="70" y="100" width="160" height="200" fill="#8fd6ff" opacity="0.28"/>
+  <line x1="150" y1="100" x2="150" y2="300" stroke="#5a4a78" stroke-width="6"/>
+  <line x1="70" y1="200" x2="230" y2="200" stroke="#5a4a78" stroke-width="6"/>
+  <ellipse cx="520" cy="150" rx="70" ry="70" fill="#ffe8a3" opacity="0.18"/>
+  <rect x="470" y="600" width="16" height="220" rx="8" fill="#3a6b4a"/>
+  <ellipse cx="478" cy="580" rx="60" ry="70" fill="#4a8f5c"/>
+  <ellipse cx="440" cy="610" rx="40" ry="50" fill="#3f7d50"/>
+  <ellipse cx="520" cy="610" rx="40" ry="50" fill="#3f7d50"/>
+  <rect x="0" y="960" width="600" height="40" fill="#241c36"/>
+  <ellipse cx="300" cy="980" rx="260" ry="26" fill="#6a4a8a" opacity="0.5"/>
+</svg>`;
+
+// ── Клиппинг для моргания ───────────────────────────────────────────────
+(function(){
+  const svg = document.getElementById('girlSvg');
+  const ns = 'http://www.w3.org/2000/svg';
+  const cl1 = document.createElementNS(ns,'clipPath'); cl1.setAttribute('id','eyeClipL');
+  const r1 = document.createElementNS(ns,'circle'); r1.setAttribute('cx','130'); r1.setAttribute('cy','96'); r1.setAttribute('r','6.5');
+  cl1.appendChild(r1);
+  const cl2 = document.createElementNS(ns,'clipPath'); cl2.setAttribute('id','eyeClipR');
+  const r2 = document.createElementNS(ns,'circle'); r2.setAttribute('cx','170'); r2.setAttribute('cy','96'); r2.setAttribute('r','6.5');
+  cl2.appendChild(r2);
+  const defs = document.createElementNS(ns,'defs'); defs.appendChild(cl1); defs.appendChild(cl2);
+  svg.prepend(defs);
+  document.getElementById('blinkL').setAttribute('clip-path','url(#eyeClipL)');
+  document.getElementById('blinkR').setAttribute('clip-path','url(#eyeClipR)');
+})();
+
+// ── Визуальное состояние (плавно догоняет target через rAF) ─────────────
+const visual = { hunger: 30, weight: 0.4, mood: 70 };
+const target = { hunger: 30, weight: 0.4, mood: 70 };
+let clothing = { upper: 'tshirt', lower: 'jeans', shoes: null, accessory: null, dress: null };
+let blinkTimer = 0, nextBlinkAt = 2 + Math.random()*3;
+let lastFrameTs = performance.now();
+
+function lerp(a,b,t){ return a + (b-a)*t; }
+
+function renderClothing(){
+  const showDress = !!clothing.dress;
+  document.getElementById('clothDress').style.display = showDress ? '' : 'none';
+  document.getElementById('clothUpper').style.display = (!showDress && clothing.upper) ? '' : 'none';
+  document.getElementById('clothLower').style.display = (!showDress && clothing.lower) ? '' : 'none';
+  document.getElementById('shoes').style.display = clothing.shoes ? '' : 'none';
+  document.getElementById('accessory').style.display = clothing.accessory ? '' : 'none';
+}
+
+function renderVisual(){
+  const w = Math.max(0, Math.min(1, visual.weight));
+
+  const hipsSx = lerp(0.82, 1.32, w), hipsSy = lerp(0.94, 1.10, w);
+  const torsoSx = lerp(0.88, 1.20, w);
+  const legSx = lerp(0.85, 1.22, w);
+  const armSx = lerp(0.88, 1.18, w);
+  const faceSx = lerp(0.96, 1.10, w);
+
+  document.getElementById('hips').style.transform = `scale(${hipsSx}, ${hipsSy})`;
+  document.getElementById('torso').style.transform = `scale(${torsoSx}, 1)`;
+  document.getElementById('legL').style.transform = `scaleX(${legSx})`;
+  document.getElementById('legR').style.transform = `scaleX(${legSx})`;
+  document.getElementById('armL').style.transform = `scaleX(${armSx})`;
+  document.getElementById('armR').style.transform = `scaleX(${armSx})`;
+  document.getElementById('head').style.transform = `scale(${faceSx})`;
+  document.getElementById('head').style.transformOrigin = '150px 95px';
+  document.getElementById('head').style.transformBox = 'fill-box';
+
+  const moodT = Math.max(0, Math.min(100, visual.mood)) / 100;
+  const curveY = lerp(134, 108, moodT); // грустная дуга вниз → улыбка вверх
+  document.getElementById('mouth').setAttribute('d', `M136,120 Q150,${curveY.toFixed(1)} 164,120`);
+  const browRot = lerp(10, -6, moodT);
+  document.getElementById('browL').style.transform = `rotate(${(-browRot)}deg)`;
+  document.getElementById('browR').style.transform = `rotate(${browRot}deg)`;
+
+  document.getElementById('hungerFill').style.width = visual.hunger.toFixed(0) + '%';
+  document.getElementById('hungerVal').textContent = visual.hunger.toFixed(0) + '%';
+  document.getElementById('moodFill').style.width = visual.mood.toFixed(0) + '%';
+  document.getElementById('moodVal').textContent = visual.mood.toFixed(0) + '%';
+  document.getElementById('weightFill').style.width = (w*100).toFixed(0) + '%';
+  document.getElementById('weightVal').textContent = w < 0.33 ? 'стройная' : (w < 0.66 ? 'норм' : 'полная');
+}
+
+function tick(ts){
+  const dt = Math.min(0.1, (ts - lastFrameTs) / 1000);
+  lastFrameTs = ts;
+  const k = 1 - Math.pow(0.02, dt); // экспоненциальное сглаживание к target
+  visual.hunger = lerp(visual.hunger, target.hunger, k);
+  visual.weight = lerp(visual.weight, target.weight, k);
+  visual.mood   = lerp(visual.mood, target.mood, k);
+  renderVisual();
+
+  blinkTimer += dt;
+  if (blinkTimer >= nextBlinkAt){
+    blinkTimer = 0; nextBlinkAt = 2.5 + Math.random()*3;
+    playBlink();
+  }
+  requestAnimationFrame(tick);
+}
+requestAnimationFrame(tick);
+
+function playBlink(){
+  const l = document.getElementById('blinkL'), r = document.getElementById('blinkR');
+  l.setAttribute('height','13'); r.setAttribute('height','13');
+  l.setAttribute('y','89.5'); r.setAttribute('y','89.5');
+  setTimeout(() => { l.setAttribute('height','0'); r.setAttribute('height','0'); }, 120);
+}
+
+function setActivity(name){
+  document.getElementById('girlBody').className = 'act-' + name;
+  const labels = { idle:'', eating:'ЕСТ', training:'ТРЕНИРУЕТСЯ', happy:'РАДУЕТСЯ', dressing:'ПЕРЕОДЕВАЕТСЯ' };
+  document.getElementById('activityLabel').textContent = labels[name] || '';
+}
+
+function spawnParticle(emoji, xPct, yPct){
+  const el = document.createElement('div');
+  el.className = 'particle';
+  el.textContent = emoji;
+  el.style.left = xPct + '%';
+  el.style.top = yPct + '%';
+  document.getElementById('girlWrap').appendChild(el);
+  el.addEventListener('animationend', () => el.remove());
+}
+
+function applyState(s){
+  target.hunger = Number(s.hunger) || 0;
+  target.weight = Number(s.weight);
+  target.mood = Number(s.mood) || 0;
+  if (s.clothing) clothing = s.clothing;
+  renderClothing();
+  setActivity(s.activity || 'idle');
+}
+
+const ACTIVITY_NAME = { eat: 'eating', train: 'training', happy: 'happy', dress: 'dressing' };
+let _actionToken = 0;
+
+function applyAction(a){
+  const name = ACTIVITY_NAME[a.action];
+  if (!name) return;
+  const token = ++_actionToken;
+  setActivity(name);
+
+  if (a.action === 'eat'){
+    const el = document.getElementById('foodProp');
+    el.style.display = '';
+    setTimeout(() => { el.style.display = 'none'; }, 4000);
+    spawnParticle('✨', 46, 30);
+  } else if (a.action === 'train'){
+    spawnParticle('💦', 30, 45);
+    spawnParticle('💦', 65, 42);
+  } else if (a.action === 'happy'){
+    spawnParticle('💖', 40, 20);
+    spawnParticle('✨', 58, 25);
+  } else if (a.action === 'dress'){
+    spawnParticle('✨', 48, 40);
+  }
+  // сервер и сам пришлёт activity:'idle' следующим тиком (раз в 5с) — этот
+  // таймаут просто не даёт анимации "залипнуть" в паузах между тиками
+  setTimeout(() => { if (token === _actionToken) setActivity('idle'); }, 4200);
+}
+
+// ── WS ────────────────────────────────────────────────────────────────
+let _ws = null;
+function wsConnect(username){
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  _ws = new WebSocket(proto+'//'+location.host+'?username='+encodeURIComponent(username));
+  _ws.onopen = () => { _ws.send(JSON.stringify({type:'tamagotchi_state_request'})); };
+  _ws.onmessage = (e) => {
+    let d; try { d = JSON.parse(e.data); } catch(err){ return; }
+    if (d.type === 'status' || d.type === 'init'){
+      const mode = d.tiktokMode || d.mode || 'connecting';
+      document.getElementById('connBadge').textContent = mode === 'tiktok' ? '🔴 LIVE' : (mode === 'demo' ? '🟡 демо/ожидание' : '⏳ подключение');
+    } else if (d.type === 'tamagotchi_state' || d.type === 'tamagotchi_state_restore'){
+      applyState(d);
+    } else if (d.type === 'tamagotchi_action'){
+      applyAction(d);
+    }
+  };
+  _ws.onclose = () => { setTimeout(() => wsConnect(username), 3000); };
+  _ws.onerror = () => {};
+}
+
+// ── Дебаг-панель (?debug=1) — локальная симуляция без сервера ──────────
+function debugFire(act){
+  if (act === 'food'){
+    target.hunger = target.hunger > 0 ? 0 : target.hunger;
+    if (target.hunger === 0) target.weight = Math.min(1, target.weight + 0.03);
+    applyAction({action:'eat'});
+  } else if (act === 'train'){
+    target.weight = Math.max(0, target.weight - 0.03);
+    applyAction({action:'train'});
+  } else if (act === 'mood'){
+    target.mood = Math.min(100, target.mood + 15);
+    applyAction({action:'happy'});
+  } else {
+    const slot = act === 'dress' ? 'dress' : act;
+    clothing = Object.assign({}, clothing, { [slot]: act });
+    renderClothing();
+    applyAction({action:'dress', slot, item:act});
+  }
+}
+
+// ── Bootstrap ────────────────────────────────────────────────────────────
+(function init(){
+  function fitStage(){
+    const stage = document.getElementById('stage');
+    const scale = Math.min(window.innerWidth/600, window.innerHeight/1000, 1.6);
+    stage.style.transform = 'translate(-50%,-50%) scale('+scale+')';
+  }
+  fitStage();
+  window.addEventListener('resize', fitStage);
+
+  renderClothing();
+  renderVisual();
+
+  document.getElementById('backBtn').addEventListener('click', () => { window.location.href = '/'; });
+
+  const p = new URLSearchParams(location.search);
+  if (p.get('debug') === '1'){
+    const panel = document.getElementById('debugPanel');
+    panel.hidden = false;
+    panel.addEventListener('click', (e) => {
+      const btn = e.target.closest('button[data-act]');
+      if (btn) debugFire(btn.dataset.act);
+    });
+  }
+
+  const u = (p.get('username')||'').replace(/^@/,'').trim();
+  if (u) wsConnect(u);
+})();
+</script>
+
+</body>
+</html>

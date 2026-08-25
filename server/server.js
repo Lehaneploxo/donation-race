@@ -6,6 +6,7 @@ const url       = require('url');
 
 const { connectToTikTok } = require('./tiktokConnector');
 const db                  = require('./db');
+const tamagotchiConfig    = require('./tamagotchiConfig');
 
 const PORT     = process.env.PORT || 3000;
 const DEFAULT_USERNAME = (process.argv[2] || process.env.TIKTOK_USERNAME || 'demo')
@@ -71,6 +72,7 @@ app.get('/fantasyarena-db',  serveHtml('fantasy_arena_db.html'));
 app.get('/fishing',    serveHtml('fishing.html'));
 app.get('/fishing-db', serveHtml('fishing_db.html'));
 app.get('/vzaimki',    serveHtml('vzaimki.html'));
+app.get('/tamagotchi', serveHtml('tamagotchi.html'));
 
 // Локальный no-op сервис подписи — возвращает URL без изменений
 // Библиотека tiktok-live-connector использует его вместо eulerstream
@@ -609,6 +611,27 @@ const STATE_RESTORE_TYPE = {
   fantasyarena: 'fantasyarena_state_restore',
 };
 
+// ─── Тамагочи-девушка ───────────────────────────────────────────────────────
+// см. девушкатамагочи.txt (ТЗ) — единое непрерывное состояние на комнату,
+// тикает раз в TAMAGOTCHI_TICK_MS, персистится в game_state_snapshots
+// (game='tamagotchi'). Все константы ниже — единственное место, где крутить
+// скорость процессов (п.9 ТЗ).
+const TAMAGOTCHI_TICK_MS               = 5000;
+const TAMAGOTCHI_MAX_OFFLINE_MS        = 6 * 60 * 60 * 1000; // не досчитывать голод/настроение дальше чем на 6ч простоя
+const TAMAGOTCHI_HUNGER_PER_MIN        = 0.5;   // голод: 0→100% примерно за 3.3 часа без еды
+const TAMAGOTCHI_MOOD_DECAY_PER_MIN    = 0.3;   // настроение: 100→0% примерно за 5.5 часов без внимания
+const TAMAGOTCHI_WEIGHT_BASELINE       = 0.4;   // вес, к которому тело плавно дрейфует само по себе
+const TAMAGOTCHI_WEIGHT_TRAIN_STEP     = 0.03;  // похудение за один тик (5с) активной тренировки
+const TAMAGOTCHI_WEIGHT_IDLE_STEP      = 0.003; // лёгкий естественный дрейф веса к baseline за тик
+const TAMAGOTCHI_OVERFEED_WEIGHT_STEP  = 0.03;  // прирост веса за лишний подарок-еду, когда уже сыта
+const TAMAGOTCHI_MOOD_GIFT_AMOUNT      = 15;
+const TAMAGOTCHI_TRAIN_DURATION_MS     = 20000; // сколько длится "тренируется" после подарка-тренировки
+const TAMAGOTCHI_ACTION_DURATION_MS    = 4000;  // сколько длится одноразовая анимация (ест/радуется/переодевается)
+const TAMAGOTCHI_STATE_DB_SAVE_MIN_INTERVAL_MS = 60 * 1000;
+
+function clamp(min, max, v) { return Math.min(max, Math.max(min, v)); }
+function clamp01(v) { return clamp(0, 1, v); }
+
 class Room {
   constructor(username) {
     this.username   = username;
@@ -625,7 +648,163 @@ class Room {
     // см. _stateDbSavedAt/saveStateSnapshot ниже.
     this._stateSnapshots = {};
     this._stateDbSavedAt = {};
+    // Тамагочи-девушка: null пока не загрузилась из БД (см. _loadTamagotchi).
+    this._tamagotchi           = null;
+    this._tamagotchiLoading    = false;
+    this._tamagotchiDbSavedAt  = 0;
+    this._tamagotchiTickIv     = null;
+    this._loadTamagotchi();
     this._connect();
+  }
+
+  _defaultTamagotchiState(now) {
+    return {
+      hunger: 30,
+      weight: TAMAGOTCHI_WEIGHT_BASELINE,
+      mood: 70,
+      activity: 'idle',
+      activityUntil: 0,
+      clothing: { upper: 'tshirt', lower: 'jeans', shoes: 'sneakers', accessory: null, dress: null },
+      updatedAt: now,
+    };
+  }
+
+  // Досчитать пассивный дрейф (голод/настроение) за время, что комната была
+  // без сервера (рестарт/redeploy) — capped, чтобы многодневный простой не
+  // давал абсурдных значений. Вес за оффлайн-время не трогаем — он меняется
+  // только от реальных подарков (еда/тренировка), а не сам по себе.
+  _applyTamagotchiOfflineDrift(state, elapsedMs) {
+    const minutes = Math.max(0, elapsedMs) / 60000;
+    const s = { ...state, clothing: { ...(state.clothing || {}) } };
+    s.hunger = clamp(0, 100, (typeof s.hunger === 'number' ? s.hunger : 30) + TAMAGOTCHI_HUNGER_PER_MIN * minutes);
+    s.mood   = clamp(0, 100, (typeof s.mood === 'number' ? s.mood : 70) - TAMAGOTCHI_MOOD_DECAY_PER_MIN * minutes);
+    if (typeof s.weight !== 'number') s.weight = TAMAGOTCHI_WEIGHT_BASELINE;
+    s.activity = 'idle';
+    s.activityUntil = 0;
+    return s;
+  }
+
+  async _loadTamagotchi() {
+    if (this._tamagotchi || this._tamagotchiLoading) return;
+    this._tamagotchiLoading = true;
+    let stored = null;
+    try {
+      stored = await db.getGameStateSnapshot('tamagotchi', this.username);
+    } catch (e) {
+      console.error('[DB] tamagotchi load error:', e.message);
+    }
+    const now = Date.now();
+    let state;
+    if (stored && typeof stored === 'object' && !Array.isArray(stored)) {
+      const elapsedMs = Math.min(now - (stored.updatedAt || now), TAMAGOTCHI_MAX_OFFLINE_MS);
+      state = this._applyTamagotchiOfflineDrift(stored, elapsedMs);
+    } else {
+      state = this._defaultTamagotchiState(now);
+    }
+    state.updatedAt = now;
+    this._tamagotchi = state;
+    this._tamagotchiLoading = false;
+    this._tamagotchiTickIv = setInterval(() => this._tickTamagotchi(), TAMAGOTCHI_TICK_MS);
+    this.broadcast({ type: 'tamagotchi_state', ...state });
+  }
+
+  _tickTamagotchi() {
+    const s = this._tamagotchi;
+    if (!s) return;
+    const now = Date.now();
+    const minutes = TAMAGOTCHI_TICK_MS / 60000;
+
+    s.hunger = clamp(0, 100, s.hunger + TAMAGOTCHI_HUNGER_PER_MIN * minutes);
+    s.mood   = clamp(0, 100, s.mood - TAMAGOTCHI_MOOD_DECAY_PER_MIN * minutes);
+
+    const isTraining = s.activity === 'training' && now < s.activityUntil;
+    if (isTraining) {
+      s.weight = clamp01(s.weight - TAMAGOTCHI_WEIGHT_TRAIN_STEP);
+    } else if (s.weight > TAMAGOTCHI_WEIGHT_BASELINE) {
+      s.weight = clamp01(s.weight - TAMAGOTCHI_WEIGHT_IDLE_STEP);
+    }
+
+    if (s.activity !== 'idle' && s.activityUntil && now >= s.activityUntil) {
+      s.activity = 'idle';
+      s.activityUntil = 0;
+    }
+
+    s.updatedAt = now;
+    this.broadcast({ type: 'tamagotchi_state', ...s });
+    this.saveTamagotchiState();
+  }
+
+  // Подарок TikTok → действие девушки, по server/tamagotchiConfig.js.
+  // Реагирует и на demo-режим (см. вызов в onGift выше) — так фичу можно
+  // проверить локально без реального TikTok-аккаунта.
+  handleTamagotchiGift(giftName, username) {
+    if (!this._tamagotchi) { this._loadTamagotchi(); return; }
+    const nameLower = (giftName || '').trim().toLowerCase();
+    if (!nameLower) return;
+    const s = this._tamagotchi;
+    const now = Date.now();
+
+    const isFood     = tamagotchiConfig.FOOD.some(g => g.toLowerCase() === nameLower);
+    const isTraining = tamagotchiConfig.TRAINING.some(g => g.toLowerCase() === nameLower);
+    const isMood     = tamagotchiConfig.MOOD.some(g => g.toLowerCase() === nameLower);
+    const clothingKey = Object.keys(tamagotchiConfig.CLOTHING)
+      .find(g => g.toLowerCase() === nameLower);
+
+    if (isFood) {
+      // ЕДА → сначала убирает ГОЛОД → после полного насыщения доп. еда идёт в ВЕС
+      if (s.hunger > 0) {
+        s.hunger = 0;
+      } else {
+        s.weight = clamp01(s.weight + TAMAGOTCHI_OVERFEED_WEIGHT_STEP);
+      }
+      s.activity = 'eating';
+      s.activityUntil = now + TAMAGOTCHI_ACTION_DURATION_MS;
+      this.broadcast({ type: 'tamagotchi_action', action: 'eat', username: username || '' });
+    } else if (isTraining) {
+      s.activity = 'training';
+      s.activityUntil = now + TAMAGOTCHI_TRAIN_DURATION_MS;
+      this.broadcast({ type: 'tamagotchi_action', action: 'train', username: username || '' });
+    } else if (isMood) {
+      s.mood = clamp(0, 100, s.mood + TAMAGOTCHI_MOOD_GIFT_AMOUNT);
+      s.activity = 'happy';
+      s.activityUntil = now + TAMAGOTCHI_ACTION_DURATION_MS;
+      this.broadcast({ type: 'tamagotchi_action', action: 'happy', username: username || '' });
+    } else if (clothingKey) {
+      const { slot, item } = tamagotchiConfig.CLOTHING[clothingKey];
+      s.clothing = { ...s.clothing, [slot]: item };
+      s.activity = 'dressing';
+      s.activityUntil = now + TAMAGOTCHI_ACTION_DURATION_MS;
+      this.broadcast({ type: 'tamagotchi_action', action: 'dress', slot, item, username: username || '' });
+    } else {
+      return; // подарок не сматчился ни на одно действие — игнор
+    }
+
+    s.updatedAt = now;
+    this.broadcast({ type: 'tamagotchi_state', ...s });
+    this.saveTamagotchiState();
+  }
+
+  saveTamagotchiState() {
+    if (!this._tamagotchi) return;
+    const now = Date.now();
+    if (now - this._tamagotchiDbSavedAt < TAMAGOTCHI_STATE_DB_SAVE_MIN_INTERVAL_MS) return;
+    this._tamagotchiDbSavedAt = now;
+    db.saveGameStateSnapshot('tamagotchi', this.username, this._tamagotchi)
+      .catch(e => console.error('[DB] tamagotchi_state save error:', e.message));
+  }
+
+  sendTamagotchiState(ws) {
+    if (this._tamagotchi) {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'tamagotchi_state_restore', ...this._tamagotchi }));
+      }
+      return;
+    }
+    this._loadTamagotchi().then(() => {
+      if (this._tamagotchi && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'tamagotchi_state_restore', ...this._tamagotchi }));
+      }
+    });
   }
 
   _connect() {
@@ -691,6 +870,11 @@ class Room {
             .then(top => { if (top) this.broadcast({ type: 'update', topDonations: top }); })
             .catch(() => {});
         }
+
+        // Тамагочи-девушка: реагирует на все подарки, включая demo-режим
+        // (нужно, чтобы фичу можно было тестировать локально без реального
+        // TikTok-аккаунта — так же, как arena_gift выше)
+        this.handleTamagotchiGift(data.giftName, data.username);
       },
       // onStatus — состояние подключения
       (status) => this.broadcast({ type: 'status', ...status }),
@@ -980,6 +1164,11 @@ class Room {
       const players = this._stateSnapshots[game];
       if (players) db.saveGameStateSnapshot(game, this.username, players).catch(() => {});
     }
+
+    clearInterval(this._tamagotchiTickIv);
+    if (this._tamagotchi) {
+      db.saveGameStateSnapshot('tamagotchi', this.username, this._tamagotchi).catch(() => {});
+    }
   }
 
   // сохранить снапшот энергии/силы реальных бойцов конкретной игры — в
@@ -1201,6 +1390,9 @@ wss.on('connection', (ws, req) => {
       }
       if (msg.type === 'fantasyarena_state_request') {
         room.sendStateSnapshot(ws, 'fantasyarena');
+      }
+      if (msg.type === 'tamagotchi_state_request') {
+        room.sendTamagotchiState(ws);
       }
       if (msg.type === 'fishing_catch' && msg.username && msg.fish) {
         db.addFishingCatch(msg.username, msg.fish)
