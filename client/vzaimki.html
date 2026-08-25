@@ -57,7 +57,7 @@
     padding: 6px 4px;
   }
   .brand{
-    font-weight:800; font-size:22px; letter-spacing:0.5px;
+    font-weight:800; font-size:44px; letter-spacing:0.5px;
     display:flex; align-items:center; gap:8px;
     color:#fff; text-shadow: 0 1px 6px rgba(0,0,0,0.5);
   }
@@ -75,16 +75,16 @@
   /* ── Кнопки справа (домой/музыка/полный экран) — как в остальных играх:
      фиксированы к вьюпорту, не масштабируются вместе со сценой ────────── */
   .ui-btn{
-    position:fixed; z-index:99999; width:26px; height:26px; font-size:12px;
+    position:fixed; z-index:99999; width:52px; height:52px; font-size:24px;
     background:rgba(0,0,0,0.55); color:rgba(255,255,255,0.55);
     border:1px solid rgba(255,255,255,0.2); border-radius:6px; cursor:pointer;
     display:flex; align-items:center; justify-content:center;
   }
-  #backBtn{ top: calc(50% - 49px); right:10px; }
+  #backBtn{ top: calc(50% - 98px); right:10px; }
   #musicBtn{ top: calc(50%); right:10px; }
-  #fsBtn{ top: calc(50% + 49px); right:10px; }
+  #fsBtn{ top: calc(50% + 98px); right:10px; }
   .connBadge{
-    font-size:11px; padding:3px 9px; border-radius:8px;
+    font-size:22px; padding:3px 9px; border-radius:8px;
     background: rgba(255,255,255,0.08); color: var(--text-dim);
     font-weight:600;
   }
@@ -146,7 +146,7 @@
   #hostCanvas{ position:absolute; inset:0; width:100%; height:100%; display:block; }
 
   .host-tag{
-    font-size:11px; font-weight:700; letter-spacing:1px; color: var(--text-dim);
+    font-size:22px; font-weight:700; letter-spacing:1px; color: var(--text-dim);
     display:flex; align-items:center; gap:6px; text-transform:uppercase;
   }
   /* Мини-эквалайзер — оживает вместе с голосом, а не просто зелёная точка */
@@ -184,8 +184,8 @@
     0%{ box-shadow:0 0 0 0 rgba(255,207,107,0.7); }
     100%{ box-shadow:0 0 0 14px rgba(255,207,107,0); }
   }
-  .t3medal{ font-size:18px; line-height:1; }
-  .t3card.t3-1 .t3medal{ font-size:23px; }
+  .t3medal{ font-size:36px; line-height:1; }
+  .t3card.t3-1 .t3medal{ font-size:46px; }
   .t3avatar{
     width:48px; height:48px; border-radius:50%; overflow:hidden; flex:none;
     border:2px solid var(--border);
@@ -194,8 +194,8 @@
   .t3card.t3-2 .t3avatar{ border-color: var(--silver); }
   .t3card.t3-3 .t3avatar{ border-color: var(--bronze); }
   .t3avatar img, .t3avatar .avfallback{ width:100%; height:100%; object-fit:cover; display:block; }
-  .t3name{ font-size:14px; font-weight:700; color:#fff; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .t3coins{ font-size:13.5px; font-weight:800; color: var(--gold); }
+  .t3name{ font-size:28px; font-weight:700; color:#fff; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .t3coins{ font-size:27px; font-weight:800; color: var(--gold); }
   .t3card.t3-2 .t3coins{ color: var(--silver); }
   .t3card.t3-3 .t3coins{ color: var(--bronze); }
 
@@ -217,11 +217,11 @@
   .eventbanner.pop{ animation: ebpop .35s ease; }
   @keyframes ebpop{ 0%{ transform:scale(0.985); } 60%{ transform:scale(1.005); } 100%{ transform:scale(1); } }
   .eb-avwrap{ position:relative; flex:none; }
-  .eb-icon{ font-size:36px; }
+  .eb-icon{ font-size:72px; }
   .eb-icon.badge{
-    position:absolute; right:-4px; bottom:-4px; font-size:16px; line-height:1;
+    position:absolute; right:-8px; bottom:-8px; font-size:32px; line-height:1;
     background: var(--panel); border:1px solid var(--border); border-radius:50%;
-    width:24px; height:24px; display:flex; align-items:center; justify-content:center;
+    width:44px; height:44px; display:flex; align-items:center; justify-content:center;
   }
   .eb-avatar{
     width:54px; height:54px; border-radius:50%; overflow:hidden; flex:none;
@@ -229,10 +229,10 @@
   }
   .eb-avatar img, .eb-avatar .avfallback{ width:100%; height:100%; object-fit:cover; font-size:1.3em; }
   .eb-body{ flex:1; min-width:0; }
-  .eb-text{ font-size:21px; line-height:1.32; color: var(--text); }
+  .eb-text{ font-size:42px; line-height:1.32; color: var(--text); }
   .eb-text b{ color:#fff; }
   .eb-next{
-    margin-top:5px; font-size:13.5px; color: var(--text-dim);
+    margin-top:5px; font-size:27px; color: var(--text-dim);
     overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
   }
   .eb-next b{ color: var(--gold); }
@@ -251,7 +251,7 @@
   .lbcol.following{ border-top-color: var(--accent2); }
   .lbcol.likes{ border-top-color: var(--pink); }
   .lbhead{
-    font-size:13px; font-weight:800; letter-spacing:0.3px;
+    font-size:26px; font-weight:800; letter-spacing:0.3px;
     display:flex; align-items:center; gap:4px; margin-bottom:5px; flex:none;
   }
   .lbhead.coins{ color: var(--gold); }
@@ -263,13 +263,13 @@
   }
   .lbrow.flash{ animation: rowflash 1s ease; }
   @keyframes rowflash{ 0%{ background:rgba(255,255,255,0.18); } 100%{ background:rgba(255,255,255,0); } }
-  .lbrank{ flex:none; width:18px; font-size:14px; font-weight:800; color:var(--text-faint); text-align:center; }
+  .lbrank{ flex:none; width:32px; font-size:28px; font-weight:800; color:var(--text-faint); text-align:center; }
   .lbrank.r1{ color:var(--gold); } .lbrank.r2{ color:var(--silver); } .lbrank.r3{ color:var(--bronze); }
-  .lbav{ flex:none; width:24px; height:24px; border-radius:50%; overflow:hidden; background:rgba(255,255,255,0.08); }
-  .lbav img, .lbav .avfallback{ width:100%; height:100%; object-fit:cover; font-size:11px; }
-  .lbname{ flex:1; font-size:15px; font-weight:600; color:var(--text-dim); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; }
-  .lbval{ flex:none; font-size:15px; font-weight:800; color:#fff; }
-  .lbempty{ font-size:12.5px; color:var(--text-faint); padding:8px 2px; line-height:1.4; }
+  .lbav{ flex:none; width:36px; height:36px; border-radius:50%; overflow:hidden; background:rgba(255,255,255,0.08); }
+  .lbav img, .lbav .avfallback{ width:100%; height:100%; object-fit:cover; font-size:22px; }
+  .lbname{ flex:1; font-size:30px; font-weight:600; color:var(--text-dim); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; }
+  .lbval{ flex:none; font-size:30px; font-weight:800; color:#fff; }
+  .lbempty{ font-size:25px; color:var(--text-faint); padding:8px 2px; line-height:1.4; }
 
   /* ── CTA bar ───────────────────────────────────────────── */
   .ctabar{
@@ -279,18 +279,18 @@
     padding: 10px 14px; text-align:center; flex:none;
     backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
   }
-  .ctabar span{ font-size:15.5px; font-weight:700; color:#fff; }
+  .ctabar span{ font-size:31px; font-weight:700; color:#fff; }
 
   .footer{
     order:6;
-    text-align:center; font-size:11.5px; color: var(--text-faint); padding: 2px 0 0; flex:none;
+    text-align:center; font-size:23px; color: var(--text-faint); padding: 2px 0 0; flex:none;
     letter-spacing:0.3px;
   }
 
   /* ── Визуальные эффекты (золотой дождь монет/вспышка на крупный донат) ── */
   #fxLayer{ position:absolute; inset:0; pointer-events:none; overflow:hidden; z-index:50; }
   .fx-coin{
-    position:absolute; top:-24px; font-size:20px;
+    position:absolute; top:-24px; font-size:40px;
     animation: fxCoinFall 1.3s ease-in forwards;
   }
   @keyframes fxCoinFall{
