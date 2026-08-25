@@ -117,16 +117,67 @@
     0%,100%{ transform: translateY(0) rotate(-2deg) scale(1.03); }
     50%{ transform: translateY(-4px) rotate(2deg) scale(1.06); }
   }
-  /* тёплое мягкое свечение позади — премиальный акцент без неона */
+  /* Свечение позади реагирует на состояние ведущей — держим её визуально
+     привязанной к остальному HUD (те же зелёный/акцентный/золотой, что и
+     у бейджей рейтингов), а не просто статичным тёплым пятном. */
   .hf-halo{
     position:absolute; inset:-28px; border-radius:50%;
     background: radial-gradient(circle, rgba(255,214,158,0.30), rgba(255,214,158,0) 68%);
+    transition: background .5s ease;
+  }
+  #host[data-state="waiting"] .hf-halo, #host[data-state="idle"] .hf-halo{
+    background: radial-gradient(circle, rgba(87,217,163,0.28), rgba(87,217,163,0) 68%);
+  }
+  #host[data-state="speaking"] .hf-halo{
+    background: radial-gradient(circle, rgba(143,123,255,0.40), rgba(143,123,255,0) 68%);
+    animation: haloPulse 1s ease-in-out infinite;
+  }
+  #host[data-state="excited"] .hf-halo{
+    background: radial-gradient(circle, rgba(255,207,107,0.50), rgba(255,207,107,0) 70%);
+    animation: haloPulse .45s ease-in-out infinite;
+  }
+  @keyframes haloPulse{
+    0%,100%{ transform: scale(1); opacity:1; }
+    50%{ transform: scale(1.1); opacity:.8; }
   }
   #hostCanvas{ position:absolute; inset:0; width:100%; height:100%; display:block; }
+
+  /* Живые субтитры — плавающий пузырь над головой с текущей фразой диктора */
+  .host-caption{
+    position:absolute; left:50%; bottom:100%; margin-bottom:10px;
+    transform: translateX(-50%) translateY(6px) scale(0.96);
+    max-width:230px; width:max-content;
+    font-size:12.5px; font-weight:700; line-height:1.35; text-align:center;
+    color: var(--text); background: var(--panel); border:1px solid var(--border);
+    border-radius:14px; padding:7px 12px;
+    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+    box-shadow: 0 6px 18px rgba(0,0,0,0.35);
+    opacity:0; pointer-events:none;
+    transition: opacity .25s ease, transform .25s ease;
+  }
+  .host-caption.show{ opacity:1; transform: translateX(-50%) translateY(0) scale(1); }
+  .host-caption::after{
+    content:''; position:absolute; top:100%; left:50%; transform:translateX(-50%);
+    border:6px solid transparent; border-top-color: var(--panel);
+  }
+
   .host-tag{
     font-size:11px; font-weight:700; letter-spacing:1px; color: var(--text-dim);
-    display:flex; align-items:center; gap:4px; text-transform:uppercase;
+    display:flex; align-items:center; gap:6px; text-transform:uppercase;
   }
+  /* Мини-эквалайзер — оживает вместе с голосом, а не просто зелёная точка */
+  .host-eq{ display:flex; align-items:flex-end; gap:2px; height:10px; }
+  .host-eq span{
+    width:3px; height:4px; border-radius:2px; background: var(--accent2);
+    opacity:.55; transition: opacity .3s ease;
+  }
+  .hostCard:has(#host[data-state="speaking"]) .host-eq span,
+  .hostCard:has(#host[data-state="excited"]) .host-eq span{
+    animation: eqBounce .5s ease-in-out infinite; opacity:1;
+  }
+  .host-eq span:nth-child(2){ animation-delay:.12s; }
+  .host-eq span:nth-child(3){ animation-delay:.24s; }
+  @keyframes eqBounce{ 0%,100%{ height:4px; } 50%{ height:12px; } }
   .host-tag .hdot{ width:6px; height:6px; border-radius:50%; background: var(--green); }
 
   .t3card{
@@ -327,10 +378,11 @@
              границах слов, что и раньше, просто через Live2D это выглядит
              плавнее и живее (плюс бесплатно идут моргание и физика волос). -->
         <div class="host-avatar" id="host" data-state="waiting">
+          <div class="host-caption" id="hostCaption"></div>
           <div class="hf-halo"></div>
           <canvas id="hostCanvas"></canvas>
         </div>
-        <div class="host-tag"><span class="hdot"></span>ВЕДУЩАЯ</div>
+        <div class="host-tag"><span class="hdot"></span>ВЕДУЩАЯ<span class="host-eq"><span></span><span></span><span></span></span></div>
       </div>
 
       <div class="top3" id="top3">
@@ -552,7 +604,7 @@ const RankingEngine = (() => {
 // Лицо — 5 готовых SVG-слоёв (idle/small/open/excited/blink), друг на друге,
 // видимым делается только нужный (см. .hf-layer.on в CSS).
 const HostManager = (() => {
-  let hostEl, app, model = null;
+  let hostEl, captionEl, app, model = null;
   let state = 'waiting';
   let mouthLoopId = null;
   let mouthTarget = 0, eyeTarget = 1;
@@ -561,6 +613,7 @@ const HostManager = (() => {
 
   function init(){
     hostEl = document.getElementById('host');
+    captionEl = document.getElementById('hostCaption');
     const canvas = document.getElementById('hostCanvas');
     const box = hostEl.getBoundingClientRect();
     app = new PIXI.Application({
@@ -635,7 +688,16 @@ const HostManager = (() => {
       scheduleBlink();
     }, delay);
   }
-  return { init, setState, setSpeaking, mouthTick, pulseExcited };
+  function setCaption(text){
+    if (!captionEl) return;
+    if (text){
+      captionEl.textContent = text;
+      captionEl.classList.add('show');
+    } else {
+      captionEl.classList.remove('show');
+    }
+  }
+  return { init, setState, setSpeaking, mouthTick, pulseExcited, setCaption };
 })();
 
 // ── VoiceManager — очередь фраз с приоритетами, TTS через speechSynthesis ──
@@ -754,8 +816,8 @@ const VoiceManager = (() => {
     u.volume = CONFIG.VOICE_ENABLED ? 1 : 0;
     const v = pickVoice(); if (v) u.voice = v;
     let doneCalled = false;
-    const finish = () => { if (doneCalled) return; doneCalled = true; HostManager.setSpeaking(false); done(); };
-    u.onstart = () => HostManager.setSpeaking(true);
+    const finish = () => { if (doneCalled) return; doneCalled = true; HostManager.setSpeaking(false); HostManager.setCaption(''); done(); };
+    u.onstart = () => { HostManager.setSpeaking(true); HostManager.setCaption(text); };
     u.onboundary = () => HostManager.mouthTick();
     u.onend = finish; u.onerror = finish;
     setTimeout(finish, 9000);
