@@ -29,7 +29,10 @@
   *{ box-sizing:border-box; }
   html,body{
     margin:0; padding:0; width:100%; height:100%;
-    background: transparent;
+    background:
+      radial-gradient(circle at 25% 12%, rgba(143,123,255,0.30), transparent 55%),
+      radial-gradient(circle at 85% 88%, rgba(106,139,255,0.24), transparent 50%),
+      linear-gradient(165deg, rgba(12,13,22,0.88) 0%, rgba(9,10,17,0.92) 55%, rgba(6,7,12,0.95) 100%);
     font-family:'Manrope','Segoe UI',system-ui,sans-serif;
     color: var(--text);
     overflow: hidden;
@@ -1215,13 +1218,19 @@ function wsConnect(username){
   _ws.onerror = () => {};
 }
 
+let _sessionStarted = false;
 function onConnStatus(mode){
   Debug.setStatus(mode);
   const badge = document.getElementById('connBadge');
   if (badge) badge.textContent = mode === 'tiktok' ? '🔴 LIVE' : (mode === 'demo' ? '🟡 демо/ожидание' : '⏳ подключение');
-  if (mode === 'tiktok' && _mode !== 'tiktok'){
-    // новый реальный LIVE — по ТЗ п.27 каждый эфир это отдельная сессия,
-    // участники и рейтинги прошлого эфира не переносятся
+  // Сбрасываем рейтинг только один раз за открытие страницы — на первое
+  // реальное подключение к эфиру (по ТЗ п.27 каждый эфир — отдельная сессия).
+  // Раньше проверяли просто "_mode !== 'tiktok'", из-за чего обычный
+  // кратковременный реконнект TikTok (demo -> tiktok посреди того же эфира)
+  // тоже ловил это условие и стирал все накопленные донаты/лайки/подписки —
+  // баг: "во время эфира сбились данные".
+  if (mode === 'tiktok' && !_sessionStarted){
+    _sessionStarted = true;
     RankingEngine.reset();
     UI.resetAll();
     _lastFollowSpokenAt = 0;
