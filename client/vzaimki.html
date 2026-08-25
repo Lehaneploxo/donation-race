@@ -874,7 +874,7 @@ const UI = (() => {
       const rankCls = i<3 ? ' r'+(i+1) : '';
       return '<div class="lbrow"><span class="lbrank'+rankCls+'">'+(i+1)+'</span>'
         + '<span class="lbav">'+avatarNode(p)+'</span>'
-        + '<span class="lbname">@'+escHtml(p.username)+'</span>'
+        + '<span class="lbname">'+escHtml(p.username)+'</span>'
         + '<span class="lbval">'+fmt(p[cfg.key])+'</span></div>';
     }).join('');
   }
@@ -897,7 +897,7 @@ const UI = (() => {
       }
       const wasUid = card.dataset.uid;
       card.classList.remove('empty');
-      card.querySelector('.t3name').textContent = '@'+p.username;
+      card.querySelector('.t3name').textContent = p.username;
       card.querySelector('.t3coins').textContent = fmt(p.coins)+' coins';
       card.querySelector('.t3avatar').innerHTML = avatarNode(p);
       if (wasUid !== p.userId){
@@ -933,7 +933,7 @@ const UI = (() => {
   function setNextUp(nick){
     const el = document.getElementById('ebNext');
     if (!nick){ el.hidden = true; return; }
-    el.innerHTML = 'Далее: <b>@'+escHtml(nick)+'</b>';
+    el.innerHTML = 'Далее: <b>'+escHtml(nick)+'</b>';
     el.hidden = false;
   }
 
@@ -1053,7 +1053,7 @@ EventBus.on('GIFT_RECEIVED', (d) => {
   if (coins <= 0) return;
 
   RankingEngine.updateCoins(uid, nick, d.avatarUrl, coins);
-  UI.showEvent('🎁', '<b>@'+escHtml(nick)+'</b> отправил'
+  UI.showEvent('🎁', '<b>'+escHtml(nick)+'</b> отправил'
     + (d.giftName ? ' «'+escHtml(d.giftName)+'»' : ' подарок')
     + ' — <b>'+fmt(coins)+' coins</b>!', { username: nick, userId: uid, avatarUrl: d.avatarUrl });
   UI.scheduleRender('coins'); UI.scheduleRender('top3');
@@ -1078,7 +1078,7 @@ EventBus.on('FOLLOW_RECEIVED', (d) => {
   const uid = String(d.userId||'');
   if (!nick || !uid) return;
   RankingEngine.updateFollowing(uid, nick, d.avatarUrl, 1);
-  UI.showEvent('🤝', '<b>@'+escHtml(nick)+'</b> подписался! Новая взаимка.', { username: nick, userId: uid, avatarUrl: d.avatarUrl });
+  UI.showEvent('🤝', '<b>'+escHtml(nick)+'</b> подписался! Новая взаимка.', { username: nick, userId: uid, avatarUrl: d.avatarUrl });
   UI.scheduleRender('following');
 
   const now = Date.now();
