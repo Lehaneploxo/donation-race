@@ -239,23 +239,21 @@
 
   /* ── Leaderboards ──────────────────────────────────────── */
   .leaderboards{
-    order:3; flex:none; display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px;
+    order:3; flex:none; display:grid; grid-template-columns:1fr 1fr; gap:8px;
   }
   .lbcol{
     background: var(--panel); border:1px solid var(--border); border-top-width:2px;
     border-radius:14px;
-    padding:8px 7px; display:flex; flex-direction:column; min-height:0;
+    padding:8px 7px; display:flex; flex-direction:column; min-height:0; min-width:0;
     backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
   }
   .lbcol.coins{ border-top-color: var(--gold); }
-  .lbcol.following{ border-top-color: var(--accent2); }
   .lbcol.likes{ border-top-color: var(--pink); }
   .lbhead{
     font-size:26px; font-weight:800; letter-spacing:0.3px;
     display:flex; align-items:center; gap:4px; margin-bottom:5px; flex:none;
   }
   .lbhead.coins{ color: var(--gold); }
-  .lbhead.following{ color: var(--accent2); }
   .lbhead.likes{ color: var(--pink); }
   .lblist{ display:flex; flex-direction:column; gap:5px; overflow:hidden; }
   .lbrow{
@@ -270,16 +268,6 @@
   .lbname{ flex:1; font-size:30px; font-weight:600; color:var(--text-dim); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; }
   .lbval{ flex:none; font-size:30px; font-weight:800; color:#fff; }
   .lbempty{ font-size:25px; color:var(--text-faint); padding:8px 2px; line-height:1.4; }
-
-  /* ── CTA bar ───────────────────────────────────────────── */
-  .ctabar{
-    order:5;
-    background: linear-gradient(90deg, rgba(255,207,107,0.16), rgba(143,123,255,0.16));
-    border:1px solid var(--border); border-radius: var(--radius);
-    padding: 10px 14px; text-align:center; flex:none;
-    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
-  }
-  .ctabar span{ font-size:31px; font-weight:700; color:#fff; }
 
   .footer{
     order:6;
@@ -405,17 +393,11 @@
         <div class="lbhead coins">💰 TOP COINS</div>
         <div class="lblist" id="lbCoins"><div class="lbempty">Пока пусто</div></div>
       </div>
-      <div class="lbcol following">
-        <div class="lbhead following">🤝 TOP ВЗАИМКИ</div>
-        <div class="lblist" id="lbFollowing"><div class="lbempty">Пока пусто</div></div>
-      </div>
       <div class="lbcol likes">
         <div class="lbhead likes">❤️ TOP LIKES</div>
         <div class="lblist" id="lbLikes"><div class="lbempty">Пока пусто</div></div>
       </div>
     </div>
-
-    <div class="ctabar"><span id="ctaText">Подписывайтесь друг на друга — участвуйте во взаимках!</span></div>
 
     <div class="footer">📱 tiktokgames777</div>
 
@@ -857,7 +839,6 @@ const VoiceManager = (() => {
     idleTimer = setTimeout(() => {
       if (speaking || queueA.length || queueB.length) return;
       const text = nextFiller();
-      UI.setCta(text);
       speaking = true;
       speakText(text, () => { speaking = false; scheduleFiller(); });
     }, delay);
@@ -912,7 +893,7 @@ const VoiceManager = (() => {
 
 // ── UI — рендер, троттлится через requestAnimationFrame ────────────────────
 const UI = (() => {
-  const dirty = { coins:false, following:false, likes:false, top3:false };
+  const dirty = { coins:false, likes:false, top3:false };
   let rafScheduled = false;
   let top3Cards = null;
 
@@ -925,11 +906,10 @@ const UI = (() => {
   function flush(){
     if (dirty.top3){ renderTop3(RankingEngine.getTop3Coins()); dirty.top3=false; }
     if (dirty.coins){ renderLb('coins', RankingEngine.getTopCoins(CONFIG.MAX_LEADERBOARD_USERS)); dirty.coins=false; }
-    if (dirty.following){ renderLb('following', RankingEngine.getTopFollowing(CONFIG.MAX_LEADERBOARD_USERS)); dirty.following=false; }
     if (dirty.likes){ renderLb('likes', RankingEngine.getTopLikes(CONFIG.MAX_LEADERBOARD_USERS)); dirty.likes=false; }
   }
 
-  const LB_MAP = { coins:{el:'lbCoins', key:'coins'}, following:{el:'lbFollowing', key:'follows'}, likes:{el:'lbLikes', key:'likes'} };
+  const LB_MAP = { coins:{el:'lbCoins', key:'coins'}, likes:{el:'lbLikes', key:'likes'} };
   function renderLb(field, list){
     const cfg = LB_MAP[field];
     const el = document.getElementById(cfg.el);
@@ -989,10 +969,6 @@ const UI = (() => {
     b.classList.remove('pop'); void b.offsetWidth; b.classList.add('pop');
   }
 
-  function setCta(text){
-    document.getElementById('ctaText').textContent = text;
-  }
-
   // "Далее в озвучке" — чтобы задонативший видел, что его точно заметят,
   // даже пока диктор ещё договаривает фразу про кого-то другого.
   function setNextUp(nick){
@@ -1005,13 +981,12 @@ const UI = (() => {
   function resetAll(){
     renderTop3([]);
     renderLb('coins', []);
-    renderLb('following', []);
     renderLb('likes', []);
     showEvent('🤝', 'Новый эфир — ждём первые события…');
     setNextUp(null);
   }
 
-  return { scheduleRender, showEvent, setCta, setNextUp, resetAll, renderTop3, renderLb };
+  return { scheduleRender, showEvent, setNextUp, resetAll, renderTop3, renderLb };
 })();
 
 // ── FX — визуальные эффекты на донаты (золотой дождь/монеты/вспышка) ────
@@ -1144,7 +1119,6 @@ EventBus.on('FOLLOW_RECEIVED', (d) => {
   if (!uid) return;
   RankingEngine.updateFollowing(uid, nick, d.avatarUrl, 1);
   UI.showEvent('🤝', '<b>'+escHtml(nick)+'</b> подписался! Новая взаимка.', { username: nick, userId: uid, avatarUrl: d.avatarUrl });
-  UI.scheduleRender('following');
 
   const now = Date.now();
   if (now - _lastFollowSpokenAt >= CONFIG.FOLLOW_ANNOUNCEMENT_COOLDOWN_MS){
