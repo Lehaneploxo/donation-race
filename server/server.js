@@ -73,6 +73,7 @@ app.get('/fishing',    serveHtml('fishing.html'));
 app.get('/fishing-db', serveHtml('fishing_db.html'));
 app.get('/vzaimki',    serveHtml('vzaimki.html'));
 app.get('/tamagotchi', serveHtml('tamagotchi.html'));
+app.get('/avatarwar',  serveHtml('avatar_war.html'));
 
 // Локальный no-op сервис подписи — возвращает URL без изменений
 // Библиотека tiktok-live-connector использует его вместо eulerstream
@@ -840,6 +841,10 @@ class Room {
           this.broadcast({ type: 'war_gift', team: warTeam, unitType: warUnit, username: data.username });
         }
 
+        // Avatar War: любой донат — юнит-аватарка донатера (команда/сумма
+        // считаются на клиенте, тут просто пробрасываем сырое событие)
+        this.broadcast({ type: 'avatarwar_gift', userId: data.userId, username: data.username, avatarUrl: data.avatarUrl, coins: data.coins });
+
         // Arena game: any gift spawns/upgrades warrior with coin value
         this._giftCount++;
         this._lastGift = { username: data.username, coins: data.coins, gift: data.giftName, t: new Date().toISOString() };
@@ -898,6 +903,9 @@ class Room {
         // War game: broadcast raw like count regardless of race state
         this.broadcast({ type: 'war_like', likes: data.likes || 0, username: data.username });
         this.broadcast({ type: 'arena_like', likes: data.likes || 0, username: data.username });
+        // Avatar War: лайк разгоняет скорость команды лайкнувшего (если он
+        // уже выбрал команду — считается на клиенте по userId)
+        this.broadcast({ type: 'avatarwar_like', userId: data.userId, username: data.username, likes: data.likes || 1 });
         this.broadcast({ type: 'arena_member', username: data.username });
 
         // Race game: 1 лайк = 1 метр пробега (в рейтинг очков не идёт)
@@ -924,6 +932,12 @@ class Room {
         // War game: broadcast team command to all clients
         if (msg === 'blue' || msg === 'red') {
           this.broadcast({ type: 'war_chat', team: msg, username: data.username });
+        }
+
+        // Avatar War: "1"/"2" в чате — разовый выбор команды (залипает на
+        // клиенте по userId, повторные цифры от того же зрителя игнорируются)
+        if (msg === '1' || msg === '2') {
+          this.broadcast({ type: 'avatarwar_chat', userId: data.userId, username: data.username, team: msg });
         }
 
         // Arena game: any chat → try spawn if not on arena
@@ -1385,6 +1399,26 @@ wss.on('connection', (ws, req) => {
             room.broadcast({ type: 'fantasyarena_tier_info', username: msg.username, lifetimeStolen: 0, chosenSkin: null });
           });
       }
+      if (msg.type === 'avatarwar_stolen' && msg.username && msg.amount) {
+        db.addAvatarWarStolen(msg.username, msg.amount)
+          .then(() => db.getTopAvatarWarStolen(5))
+          .then(top => {
+            room.broadcast({ type: 'top_avatarwar', data: top });
+          })
+          .catch(e => console.error('[DB] avatarwar_stolen error:', e.message));
+      }
+      if (msg.type === 'avatarwar_ko' && msg.username) {
+        db.addAvatarWarKO(msg.username).catch(e => console.error('[DB] avatarwar_ko error:', e.message));
+      }
+      if (msg.type === 'avatarwar_tier_request' && msg.username) {
+        db.getUserAvatarWarRank(msg.username)
+          .then(rank => {
+            room.broadcast({ type: 'avatarwar_tier_info', username: msg.username, lifetimeStolen: rank ? rank.lifetime_stolen : 0 });
+          })
+          .catch(() => {
+            room.broadcast({ type: 'avatarwar_tier_info', username: msg.username, lifetimeStolen: 0 });
+          });
+      }
       if (msg.type === 'fantasyarena_state_save') {
         room.saveStateSnapshot('fantasyarena', msg.players);
       }
@@ -1531,6 +1565,26 @@ async function checkFantasyArenaWeeklyReset() {
 }
 setInterval(() => { checkFantasyArenaWeeklyReset().catch(e => console.error('[FANTASYARENA] weekly-check error:', e.message)); }, 10*60*1000);
 setTimeout(() => { checkFantasyArenaWeeklyReset().catch(e => console.error('[FANTASYARENA] weekly-check (startup) error:', e.message)); }, 15*1000);
+
+// ─── Avatar War: ЕЖЕДНЕВНЫЙ сброс рейтинга (полночь по Киеву) ─────
+// 1-в-1 паттерн Street Fighter/Fantasy Arena выше (см. комментарий там).
+async function checkAvatarWarWeeklyReset() {
+  const result = await db.performAvatarWarWeeklyResetIfNeeded();
+  if (result) {
+    console.log('[AVATARWAR] Рассылаю обновлённый топ и нового командира дня во все активные комнаты после сброса');
+    for (const room of rooms.values()) {
+      db.getTopAvatarWarStolen(5)
+        .then(top => room.broadcast({ type: 'top_avatarwar', data: top }))
+        .catch(e => console.error('[AVATARWAR] Ошибка рассылки топа после сброса:', e.message));
+      db.getLastAvatarWarWeeklyChampion()
+        .then(champion => room.broadcast({ type: 'avatarwar_weekly_champion', champion }))
+        .catch(e => console.error('[AVATARWAR] Ошибка рассылки чемпиона после сброса:', e.message));
+    }
+  }
+  return result;
+}
+setInterval(() => { checkAvatarWarWeeklyReset().catch(e => console.error('[AVATARWAR] weekly-check error:', e.message)); }, 10*60*1000);
+setTimeout(() => { checkAvatarWarWeeklyReset().catch(e => console.error('[AVATARWAR] weekly-check (startup) error:', e.message)); }, 15*1000);
 
 // ─── Рыбалка: ежедневный сброс "ТОП ЗА СЕГОДНЯ" (полночь по Киеву) ─────
 async function checkFishingDailyReset() {

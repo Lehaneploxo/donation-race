@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>⚔️ Avatar War</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html, body { width:100vw; height:100vh; background:#0a0a14; overflow:hidden; font-family:'Arial Black',Arial,sans-serif; }
+  #wrap { position:absolute; left:0; top:0; width:600px; height:1000px; transform-origin:0 0; }
+  canvas { display:block; background:#0a0a14; }
+
+  .ui-btn { position:fixed; z-index:99999; width:26px; height:26px; font-size:12px; background:rgba(0,0,0,0.55); color:rgba(255,255,255,0.55); border:1px solid rgba(255,255,255,0.2); border-radius:6px; cursor:pointer; display:flex; align-items:center; justify-content:center; }
+  #backBtn  { top: calc(50% - 62px); right:10px; }
+  #soundBtn { top: calc(50% - 13px); right:10px; }
+  #fsBtn    { top: calc(50% + 36px); right:10px; }
+
+  #statusBadge { position:fixed; bottom:10px; left:50%; transform:translateX(-50%); font-size:12px; padding:4px 12px; border-radius:8px; border:2px solid #555; background:rgba(0,0,0,0.78); color:#AAA; white-space:nowrap; z-index:99999; display:none; }
+  #statusBadge.live  { color:#00FF88; border-color:#00FF88; }
+  #statusBadge.demo  { color:#FF9900; border-color:#FF9900; }
+  #statusBadge.error { color:#FF4444; border-color:#FF4444; }
+
+  #debugPanel{ position:fixed; right:8px; bottom:8px; z-index:99998; background:rgba(0,0,0,0.86); border:1px solid rgba(255,255,255,0.2); border-radius:12px; padding:8px; width:210px; font-family:Arial,sans-serif; }
+  #debugPanel[hidden]{ display:none; }
+  #debugPanel .dbg-row{ margin-bottom:6px; color:#fff; font-size:11px; }
+  #debugPanel .dbg-btns{ display:grid; grid-template-columns:1fr 1fr; gap:5px; }
+  #debugPanel button{ font-size:10px; padding:6px 3px; border-radius:6px; border:1px solid rgba(255,255,255,0.25); background:#1a1f2e; color:#fff; cursor:pointer; }
+  #debugPanel button:active{ background:#2a3145; }
+</style>
+</head>
+<body>
+
+<button id="backBtn"  class="ui-btn" title="Главное меню">⌂</button>
+<button id="soundBtn" class="ui-btn" title="Звук">🔊</button>
+<button id="fsBtn"    class="ui-btn" title="На весь экран">⛶</button>
+<div id="statusBadge"></div>
+
+<div id="wrap"><canvas id="c" width="600" height="1000"></canvas></div>
+
+<div id="debugPanel" hidden>
+  <div class="dbg-row"><b>DEBUG</b> — <span id="dbgStatus">—</span></div>
+  <div class="dbg-btns">
+    <button data-t="gift1">GIFT → T1</button>
+    <button data-t="gift2">GIFT → T2</button>
+    <button data-t="biggift1">BIG GIFT T1</button>
+    <button data-t="biggift2">BIG GIFT T2</button>
+    <button data-t="like1">LIKE ×10 T1</button>
+    <button data-t="like2">LIKE ×10 T2</button>
+    <button data-t="join1">JOIN T1 (chat)</button>
+    <button data-t="join2">JOIN T2 (chat)</button>
+    <button data-t="mass">MASS EVENTS</button>
+    <button data-t="reset" style="grid-column:1/3">RESET ROUND</button>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════════
+// Avatar War — захват территории по клеткам (вдохновлено "Territory War" с
+// keepmy.live): поле 10×13 клеток, команда 1 стартует слева, команда 2
+// справа. Донат = персональный юнит-аватарка зрителя, который красит
+// клетки под цвет своей команды, продвигаясь к вражескому краю поля.
+// Лайки разгоняют скорость покраски команды, донаты — скорость лично
+// своего юнита. Победа — 70% поля закрашено одним цветом. Рендер аватарок
+// на canvas — новый (прецедента в проекте не было, только DOM-версия в
+// vzaimki.html avatarNode()).
+// ═══════════════════════════════════════════════════════════════════════
+
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const wrap = document.getElementById('wrap');
+const CW = canvas.width, CH = canvas.height;
+
+function applyScale(){
+  const vw = document.documentElement.clientWidth || window.innerWidth;
+  const vh = document.documentElement.clientHeight || window.innerHeight;
+  const s = Math.min(vw/600, vh/1000);
+  const x = (vw - 600*s)/2, y = (vh - 1000*s)/2;
+  wrap.style.transform = `translate(${x}px,${y}px) scale(${s})`;
+}
+window.addEventListener('resize', applyScale);
+applyScale();
+
+// ── Константы сетки/захвата — поле как в Territory War (keepmy.live):
+// клетки красятся под цвет команды, кто донатит/лайкает. Никакого боя
+// юнит-на-юнит и баз с HP — только гонка за территорию. ────────────────
+const COLS = 10, ROWS = 13, CELL = 58;
+const GRID_X = 10, GRID_Y = 105;
+const GRID_W = COLS*CELL, GRID_H = ROWS*CELL; // 580 × 754
+const UNIT_R = 15;
+const UNIT_SPEED_BASE = 50; // px/сек, одна клетка ≈ 1.2с в базовом темпе
+const DONOR_SPEED_CAP = 2.5; // потолок ускорения от суммы донатов одного зрителя
+const LIKES_PER_SPEED_STEP = 10, SPEED_STEP_MULT = 0.12, MAX_SPEED_MULT = 3;
+const WIN_THRESHOLD = 0.7; // доля клеток поля для мгновенной победы
+const VICTORY_MS = 6000;
+const TEAM_COLOR = { 1:'#4fa8ff', 2:'#ff5566' };
+const TEAM_FILL  = { 1:'rgba(79,168,255,0.55)', 2:'rgba(255,85,102,0.55)' };
+const TEAM_NAME  = { 1:'КОМАНДА 1', 2:'КОМАНДА 2' };
+
+// ── Уровни 1-100 — перенесено 1-в-1 из boxing_arena.html (общая шкала
+// проекта: Boxing Arena/Street Fighter/Fantasy Arena) — кормится от
+// lifetime-очков "нанесённый урон" (avatarwar_stats.lifetime_stolen).
+const LEVEL_THRESHOLDS = [
+  0,30,250,1000,2500,5000,10000,16000,25000,35000,
+  55000,70000,95000,125000,150000,200000,250000,300000,375000,450000,
+  525000,600000,700000,825000,950000,1100000,1200000,1400000,1600000,1800000,
+  2000000,2200000,2500000,2700000,3000000,3300000,3600000,4000000,4300000,4700000,
+  5100000,5600000,6000000,6500000,7000000,7600000,8100000,8700000,9300000,10000000,
+  10600000,11100000,11800000,12400000,13100000,13800000,14600000,15400000,16300000,17200000,
+  18250000,19250000,20250000,21250000,22500000,23750000,25000000,26500000,28000000,29500000,
+  31250000,33000000,34750000,36750000,38750000,41000000,43000000,45500000,48000000,51000000,
+  53500000,56500000,59500000,63000000,66500000,70500000,74000000,78500000,82500000,87500000,
+  92000000,97000000,103000000,108000000,114000000,121000000,128000000,135000000,142000000,150000000,
+];
+function levelOf(total){
+  total = total || 0;
+  let lvl = 1;
+  for (let i=0;i<LEVEL_THRESHOLDS.length;i++){ if (total>=LEVEL_THRESHOLDS[i]) lvl=i+1; else break; }
+  return lvl;
+}
+
+function rnd(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
+function hashHue(str){ let h=0; str=String(str||'x'); for(let i=0;i<str.length;i++) h=(h*31+str.charCodeAt(i))>>>0; return h%360; }
+function fmt(n){ return Math.round(Number(n)||0).toLocaleString('ru-RU'); }
+
+// ═══════════════════════════════════════════════════════════════════════
+// SOUND — процедурный Web Audio (4 звука перенесены из client/war.html:
+// playAttack/playBaseHit/playDeath/playVictory, без изменений в синтезе).
+// ═══════════════════════════════════════════════════════════════════════
+let _actx = null, soundOn = true;
+const _cd = {};
+function getACtx(){ if (!_actx) _actx = new (window.AudioContext||window.webkitAudioContext)(); if (_actx.state==='suspended') _actx.resume(); return _actx; }
+function _cdOk(name, ms){ const now=Date.now(); if ((now-(_cd[name]||0))<ms) return false; _cd[name]=now; return true; }
+function _noise(ctx, dur){ const n=Math.floor(ctx.sampleRate*dur); const b=ctx.createBuffer(1,n,ctx.sampleRate); const d=b.getChannelData(0); for(let i=0;i<n;i++) d[i]=Math.random()*2-1; return b; }
+// Короткий мягкий "тик" — клетка закрашена
+function playPaint(){
+  if (!soundOn || !_cdOk('paint',90)) return;
+  try{
+    const ctx=getACtx(), t=ctx.currentTime;
+    const o=ctx.createOscillator(), g=ctx.createGain();
+    o.type='triangle'; o.frequency.setValueAtTime(700+Math.random()*300,t);
+    g.gain.setValueAtTime(0.0001,t); g.gain.linearRampToValueAtTime(0.16,t+0.02);
+    g.gain.exponentialRampToValueAtTime(0.001,t+0.12);
+    o.connect(g); g.connect(ctx.destination); o.start(t); o.stop(t+0.14);
+  }catch(e){}
+}
+function playVictory(){
+  if (!soundOn) return;
+  try{
+    const ctx=getACtx();
+    [261.63,329.63,392.00,523.25].forEach((freq,i)=>{
+      const t=ctx.currentTime+i*0.18;
+      const o=ctx.createOscillator(), g=ctx.createGain();
+      o.connect(g); g.connect(ctx.destination);
+      o.type='triangle'; o.frequency.value=freq;
+      g.gain.setValueAtTime(0,t); g.gain.linearRampToValueAtTime(0.32,t+0.04);
+      g.gain.exponentialRampToValueAtTime(0.001,t+0.42); o.start(t); o.stop(t+0.46);
+    });
+  }catch(e){}
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// АВАТАРКИ — реальное фото профиля зрителя, кружком, на canvas. Фолбэк —
+// закрашенный кружок цветом от hashHue(userId) + первая буква ника, как
+// в avatarNode()/vzAvatarFallback из vzaimki.html, только через ctx-вызовы.
+// ═══════════════════════════════════════════════════════════════════════
+function loadAvatarImage(p){
+  if (!p.avatarUrl){ p.imgFailed = true; return; }
+  const img = new Image();
+  img.onload  = () => { p.imgReady = true; };
+  img.onerror = () => { p.imgFailed = true; };
+  img.src = p.avatarUrl;
+  p.img = img;
+}
+function drawAvatarCircle(unit, x, y, r){
+  const p = unit.player;
+  const ok = p.imgReady && p.img;
+  ctx.save();
+  ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.closePath(); ctx.clip();
+  if (ok){
+    ctx.drawImage(p.img, x-r, y-r, r*2, r*2);
+  } else {
+    ctx.fillStyle = 'hsl('+hashHue(p.userId)+',55%,42%)';
+    ctx.fillRect(x-r, y-r, r*2, r*2);
+  }
+  ctx.restore();
+  if (!ok){
+    ctx.fillStyle = '#fff'; ctx.font = 'bold '+Math.floor(r*1.05)+'px Arial';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText((p.username||'?').trim().charAt(0).toUpperCase()||'?', x, y+1);
+  }
+  ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2);
+  ctx.lineWidth = unit.flashTimer>0 ? 4 : 2.5;
+  ctx.strokeStyle = unit.flashTimer>0 ? '#fff' : TEAM_COLOR[unit.team];
+  ctx.stroke();
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════════════════════
+const players = new Map();  // userId -> { userId, username, avatarUrl, coinsTotal, unit, img, imgReady, imgFailed, lifetimeStolen }
+const teamOf  = new Map();  // userId -> 1|2 (разово, залипает на всю сессию)
+let units = [];   // юниты-"художники", красят клетки под собой
+let grid = [];     // grid[row][col] = { owner:0|1|2, flash }
+let likesTotal = { 1:0, 2:0 };
+let roundWins  = { 1:0, 2:0 };
+let phase = 'playing', victoryTeam = null, victoryTimer = 0;
+
+function initGrid(){
+  grid = [];
+  for (let r=0;r<ROWS;r++){
+    const row = [];
+    for (let c=0;c<COLS;c++){
+      let owner = 0;
+      if (c===0) owner=1;             // левый край поля — стартовая территория команды 1
+      else if (c===COLS-1) owner=2;   // правый край — команды 2
+      row.push({ owner, flash:0 });
+    }
+    grid.push(row);
+  }
+}
+initGrid();
+
+function teamSpeedMult(team){
+  const steps = Math.floor(likesTotal[team]/LIKES_PER_SPEED_STEP);
+  return Math.min(MAX_SPEED_MULT, 1 + steps*SPEED_STEP_MULT);
+}
+function countUnits(team){ return units.filter(u=>u.team===team).length; }
+function teamCellCounts(){
+  let c1=0, c2=0;
+  for (const row of grid) for (const cell of row){ if (cell.owner===1) c1++; else if (cell.owner===2) c2++; }
+  return { c1, c2, total: COLS*ROWS };
+}
+
+function resolveTeam(userId){
+  if (teamOf.has(userId)) return teamOf.get(userId);
+  const t = countUnits(1) <= countUnits(2) ? 1 : 2;
+  teamOf.set(userId, t);
+  return t;
+}
+
+function getOrCreatePlayer(userId, username, avatarUrl){
+  let p = players.get(userId);
+  if (!p){
+    p = { userId, username: username||userId, avatarUrl: avatarUrl||'', coinsTotal:0, unit:null, img:null, imgReady:false, imgFailed:false, lifetimeStolen:0 };
+    players.set(userId, p);
+    loadAvatarImage(p);
+    requestTier(userId);
+  } else {
+    if (username) p.username = username;
+    if (avatarUrl && !p.avatarUrl){ p.avatarUrl = avatarUrl; loadAvatarImage(p); }
+  }
+  return p;
+}
+
+// Ищет ближайшую ещё не "свою" клетку в своём ряду по направлению
+// движения команды; если весь ряд уже закрашен — переключается на
+// случайный другой ряд, стартуя заново от своего края поля.
+function pickNextTarget(team, fromCol, fromRow){
+  const dir = team===1 ? 1 : -1;
+  for (let step=1; step<=COLS; step++){
+    const c = fromCol + dir*step;
+    if (c<0 || c>=COLS) break;
+    if (grid[fromRow][c].owner !== team) return { col:c, row:fromRow };
+  }
+  const homeCol = team===1 ? 0 : COLS-1;
+  const row = Math.floor(Math.random()*ROWS);
+  for (let step=0; step<=COLS; step++){
+    const c = homeCol + dir*step;
+    if (c<0 || c>=COLS) break;
+    if (grid[row][c].owner !== team) return { col:c, row };
+  }
+  return { col:homeCol, row }; // весь ряд свой — просто постоять на краю
+}
+
+function spawnOrGrowPainter(p, team){
+  if (p.unit){ p.unit.flashTimer = 220; return; } // уже красит поле — просто "бодрим" (вспышка)
+  const homeCol = team===1 ? 0 : COLS-1;
+  const row = Math.floor(Math.random()*ROWS);
+  const x = GRID_X + homeCol*CELL + CELL/2, y = GRID_Y + row*CELL + CELL/2;
+  const tgt = pickNextTarget(team, homeCol, row);
+  const unit = {
+    userId: p.userId, player: p, team,
+    x, y, col:homeCol, row,
+    tCol: tgt.col, tRow: tgt.row,
+    flashTimer: 220,
+  };
+  p.unit = unit;
+  units.push(unit);
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// СОБЫТИЯ ИЗ ЧАТА/ДОНАТОВ
+// ═══════════════════════════════════════════════════════════════════════
+function onGift(userId, username, avatarUrl, coins){
+  if (phase !== 'playing') return;
+  if (!userId) return;
+  coins = Math.max(1, Math.floor(Number(coins)||1));
+  const p = getOrCreatePlayer(userId, username, avatarUrl);
+  p.coinsTotal += coins;
+  const team = resolveTeam(userId);
+  spawnOrGrowPainter(p, team);
+}
+
+function onLike(userId, count){
+  const team = teamOf.get(userId);
+  if (!team) return; // лайк без выбранной команды никуда не привязать
+  likesTotal[team] += Math.max(1, Math.floor(Number(count)||1));
+}
+
+function onChatTeamPick(userId, msg){
+  if (msg !== '1' && msg !== '2') return;
+  if (teamOf.has(userId)) return; // разовый выбор, залипает
+  teamOf.set(userId, msg === '1' ? 1 : 2);
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// ДВИЖЕНИЕ / ЗАХВАТ КЛЕТОК
+// ═══════════════════════════════════════════════════════════════════════
+function paintCell(u){
+  const cell = grid[u.tRow][u.tCol];
+  if (cell.owner !== u.team){
+    cell.owner = u.team;
+    cell.flash = 300;
+    reportStolen(u.userId, 1); // "захват" = 1 очко в рейтинг (батчится ниже)
+    playPaint();
+  }
+  u.col = u.tCol; u.row = u.tRow;
+  const nxt = pickNextTarget(u.team, u.col, u.row);
+  u.tCol = nxt.col; u.tRow = nxt.row;
+}
+
+function updatePainters(dt){
+  for (const u of units){
+    u.flashTimer = Math.max(0, u.flashTimer - dt);
+    const lvlBonus = levelOf(u.player.lifetimeStolen||0) * 0.004; // до +40% на макс. уровне 100
+    const donorMult = Math.min(DONOR_SPEED_CAP, 1 + (u.player.coinsTotal-1)*0.05 + lvlBonus);
+    const speed = UNIT_SPEED_BASE * donorMult * teamSpeedMult(u.team);
+    const tx = GRID_X + u.tCol*CELL + CELL/2, ty = GRID_Y + u.tRow*CELL + CELL/2;
+    const dx = tx-u.x, dy = ty-u.y, dist = Math.hypot(dx,dy);
+    const step = speed*dt/1000;
+    if (dist <= step){ u.x=tx; u.y=ty; paintCell(u); }
+    else { u.x += dx/dist*step; u.y += dy/dist*step; }
+  }
+  for (const row of grid) for (const cell of row){ if (cell.flash>0) cell.flash -= dt; }
+}
+
+// ── Победа / раунд ────────────────────────────────────────────────────
+function checkVictory(){
+  if (phase !== 'playing') return;
+  const { c1, c2, total } = teamCellCounts();
+  if (c1/total >= WIN_THRESHOLD) triggerVictory(1);
+  else if (c2/total >= WIN_THRESHOLD) triggerVictory(2);
+}
+function triggerVictory(team){
+  if (phase !== 'playing') return;
+  phase='victory'; victoryTeam=team; victoryTimer=VICTORY_MS;
+  roundWins[team]++;
+  playVictory();
+}
+function resetRound(){
+  units.forEach(u=>{ if (u.player) u.player.unit=null; });
+  units = [];
+  initGrid();
+  likesTotal = { 1:0, 2:0 };
+  phase='playing'; victoryTeam=null; victoryTimer=0;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// DRAW
+// ═══════════════════════════════════════════════════════════════════════
+function drawGrid(){
+  for (let r=0;r<ROWS;r++){
+    for (let c=0;c<COLS;c++){
+      const cell = grid[r][c];
+      const x = GRID_X + c*CELL, y = GRID_Y + r*CELL;
+      ctx.fillStyle = cell.owner ? TEAM_FILL[cell.owner] : 'rgba(255,255,255,0.05)';
+      ctx.fillRect(x, y, CELL-2, CELL-2);
+      if (cell.flash > 0){
+        ctx.fillStyle = 'rgba(255,255,255,'+Math.max(0,cell.flash/300*0.6)+')';
+        ctx.fillRect(x, y, CELL-2, CELL-2);
+      }
+      ctx.strokeStyle = 'rgba(255,255,255,0.08)'; ctx.lineWidth = 1;
+      ctx.strokeRect(x, y, CELL-2, CELL-2);
+    }
+  }
+}
+function drawHud(){
+  const { c1, c2, total } = teamCellCounts();
+  const pct1 = Math.round(c1/total*100), pct2 = Math.round(c2/total*100);
+
+  ctx.textAlign='center'; ctx.textBaseline='alphabetic';
+  ctx.fillStyle='#fff'; ctx.font='bold 26px Arial Black, Arial';
+  ctx.fillText('⚔️ AVATAR WAR', CW/2, 34);
+
+  // Полоса территории — как "перетягивание каната" по всей ширине поля
+  const barW = GRID_W, barX = GRID_X, barY = 50, barH = 18;
+  ctx.fillStyle = 'rgba(255,255,255,0.08)'; ctx.fillRect(barX,barY,barW,barH);
+  const w1 = barW*(c1/total), w2 = barW*(c2/total);
+  ctx.fillStyle = TEAM_COLOR[1]; ctx.fillRect(barX, barY, w1, barH);
+  ctx.fillStyle = TEAM_COLOR[2]; ctx.fillRect(barX+barW-w2, barY, w2, barH);
+  ctx.strokeStyle = 'rgba(255,255,255,0.25)'; ctx.lineWidth=1; ctx.strokeRect(barX,barY,barW,barH);
+
+  ctx.font='bold 13px Arial'; ctx.fillStyle='#fff';
+  ctx.textAlign='left';  ctx.fillText(TEAM_NAME[1]+'  '+pct1+'%', barX, 78);
+  ctx.textAlign='right'; ctx.fillText(pct2+'%  '+TEAM_NAME[2], barX+barW, 78);
+
+  ctx.textAlign='center'; ctx.font='bold 16px Arial';
+  ctx.fillStyle=TEAM_COLOR[1]; ctx.fillText(roundWins[1], CW/2-18, 96);
+  ctx.fillStyle='#888'; ctx.fillText('—', CW/2, 96);
+  ctx.fillStyle=TEAM_COLOR[2]; ctx.fillText(roundWins[2], CW/2+18, 96);
+
+  ctx.font='11px Arial';
+  ctx.fillStyle=TEAM_COLOR[1]; ctx.textAlign='left';  ctx.fillText('⚡ x'+teamSpeedMult(1).toFixed(2), barX, 92);
+  ctx.fillStyle=TEAM_COLOR[2]; ctx.textAlign='right'; ctx.fillText('⚡ x'+teamSpeedMult(2).toFixed(2), barX+barW, 92);
+
+  ctx.font='13px Arial'; ctx.fillStyle='rgba(255,255,255,0.55)'; ctx.textAlign='center';
+  ctx.fillText('Напиши 1 или 2 в чат — выбери команду. Донать — твой аватар красит клетки поля!', CW/2, CH-20);
+
+  if (phase==='victory' && victoryTeam){
+    ctx.save();
+    ctx.fillStyle='rgba(0,0,0,0.55)'; ctx.fillRect(0, CH/2-70, CW, 140);
+    ctx.fillStyle = TEAM_COLOR[victoryTeam];
+    ctx.font='bold 36px Arial Black, Arial'; ctx.textAlign='center';
+    ctx.fillText(TEAM_NAME[victoryTeam]+' ЗАХВАТИЛА ПОЛЕ!', CW/2, CH/2+14);
+    ctx.restore();
+  }
+}
+function draw(){
+  ctx.clearRect(0,0,CW,CH);
+  drawGrid();
+  for (const u of units){
+    drawAvatarCircle(u, u.x, u.y, UNIT_R);
+  }
+  drawHud();
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// GAME LOOP — 30fps-кап (перенесено из streetfighter_arena.html, разумный
+// баланс для телефона; здесь нагрузка легче — нет спрайт-анимации).
+// ═══════════════════════════════════════════════════════════════════════
+const FRAME_INTERVAL = 1000/30;
+let lastT = 0, accum = 0;
+function loop(now){
+  requestAnimationFrame(loop);
+  const dt = Math.min(now-(lastT||now), 100);
+  lastT = now;
+  accum += dt;
+  if (accum < FRAME_INTERVAL) return;
+  accum = 0;
+
+  if (phase==='playing'){ updatePainters(dt); checkVictory(); }
+  if (phase==='victory'){
+    victoryTimer -= dt;
+    if (victoryTimer <= 0) resetRound();
+  }
+  draw();
+}
+requestAnimationFrame(loop);
+
+// ═══════════════════════════════════════════════════════════════════════
+// РЕЙТИНГ — батч захваченных клеток раз в 4с (та же логика, что
+// reportStolen в boxing_arena.html — не грузим БД на каждую клетку).
+// ═══════════════════════════════════════════════════════════════════════
+let _pendingStolen = {};
+function reportStolen(userId, amount){
+  if (!userId || !amount) return;
+  _pendingStolen[userId] = (_pendingStolen[userId]||0) + amount;
+}
+setInterval(()=>{
+  if (!_ws || _ws.readyState!==1) return;
+  for (const uid in _pendingStolen){
+    const amount = _pendingStolen[uid];
+    const p = players.get(uid);
+    if (amount>0 && p) _ws.send(JSON.stringify({ type:'avatarwar_stolen', username:p.username, amount }));
+  }
+  _pendingStolen = {};
+}, 4000);
+function requestTier(userId){
+  const p = players.get(userId);
+  if (p && _ws && _ws.readyState===1) _ws.send(JSON.stringify({ type:'avatarwar_tier_request', username:p.username, userId }));
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// WEBSOCKET
+// ═══════════════════════════════════════════════════════════════════════
+let _ws=null, _wsUser='', _sessionStarted=false;
+
+function wsConnect(username){
+  _wsUser = username;
+  if (_ws && _ws.readyState<2){ _ws.onclose=null; _ws.close(); }
+  const proto = location.protocol==='https:' ? 'wss:' : 'ws:';
+  _ws = new WebSocket(proto+'//'+location.host+'?username='+encodeURIComponent(username));
+  _ws.onopen = () => setStatus('connecting', '⏳ @'+username+'…');
+  _ws.onmessage = (e) => {
+    let d; try{ d = JSON.parse(e.data); }catch(err){ return; }
+    try{
+      if (d.type==='status' || d.type==='init'){
+        onConnStatus(d.tiktokMode || d.mode || 'connecting', username);
+      } else if (d.type==='avatarwar_gift'){
+        onGift(String(d.userId||''), d.username, d.avatarUrl, d.coins);
+      } else if (d.type==='avatarwar_like'){
+        onLike(String(d.userId||''), d.likes);
+      } else if (d.type==='avatarwar_chat'){
+        onChatTeamPick(String(d.userId||''), d.team);
+      } else if (d.type==='avatarwar_tier_info' && d.username){
+        for (const p of players.values()){
+          if (p.username===d.username) p.lifetimeStolen = d.lifetimeStolen||0;
+        }
+      }
+    }catch(err){ console.error('[AvatarWar ws]', err); }
+  };
+  _ws.onclose = () => { setStatus('error','❌ разрыв, переподключение…'); setTimeout(()=>wsConnect(_wsUser),3000); };
+  _ws.onerror = () => {};
+}
+
+function onConnStatus(mode){
+  const el = document.getElementById('statusBadge');
+  el.style.display='block';
+  el.className = mode==='tiktok' ? 'live' : (mode==='demo' ? 'demo' : '');
+  el.textContent = mode==='tiktok' ? '🔴 LIVE' : (mode==='demo' ? '🟡 демо/ожидание' : '⏳ подключение');
+  Debug.setStatus(mode);
+  // Сбрасываем только один раз за открытие страницы, на первое реальное
+  // подключение — та же защита от бага "demo→tiktok реконнект стирает
+  // накопленные данные", что и во vzaimki.html onConnStatus.
+  if (mode==='tiktok' && !_sessionStarted){
+    _sessionStarted = true;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// DEBUG MODE — ручная генерация событий без реального TikTok LIVE
+// ═══════════════════════════════════════════════════════════════════════
+const Debug = (() => {
+  const NAMES = ['Alex','Lana_777','Vika_fire','Sergey_','Maximka','DoBro','Smile_21','NightWolf','Katya_M','Angel_Kiss'];
+  let idCounter = 1000;
+  function rndUser(){ return { userId:'test'+(idCounter++), username:NAMES[Math.floor(Math.random()*NAMES.length)]+Math.floor(Math.random()*99), avatarUrl:'' }; }
+  function setStatus(m){ const el=document.getElementById('dbgStatus'); if (el) el.textContent=m; }
+  function fireGift(team, big){
+    const u = rndUser();
+    teamOf.set(u.userId, team);
+    onGift(u.userId, u.username, u.avatarUrl, big ? (300+Math.floor(Math.random()*700)) : (1+Math.floor(Math.random()*15)));
+  }
+  function fireLike(team){
+    const u = rndUser();
+    teamOf.set(u.userId, team);
+    onLike(u.userId, 10);
+  }
+  function fireJoin(team){
+    const u = rndUser();
+    onChatTeamPick(u.userId, String(team));
+  }
+  function fireMass(){
+    for (let i=0;i<12;i++) setTimeout(()=>fireGift(Math.random()<0.5?1:2,false), i*120);
+  }
+  function wire(){
+    document.querySelectorAll('#debugPanel button[data-t]').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        const t = btn.dataset.t;
+        if (t==='gift1') fireGift(1,false);
+        else if (t==='gift2') fireGift(2,false);
+        else if (t==='biggift1') fireGift(1,true);
+        else if (t==='biggift2') fireGift(2,true);
+        else if (t==='like1') fireLike(1);
+        else if (t==='like2') fireLike(2);
+        else if (t==='join1') fireJoin(1);
+        else if (t==='join2') fireJoin(2);
+        else if (t==='mass') fireMass();
+        else if (t==='reset') resetRound();
+      });
+    });
+  }
+  return { setStatus, wire };
+})();
+
+// ═══════════════════════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════════════════════
+function setStatus(cls, text){
+  const el = document.getElementById('statusBadge');
+  if (!el) return;
+  el.style.display='block'; el.className=cls; el.textContent=text;
+}
+
+(function init(){
+  const p = new URLSearchParams(location.search);
+  const debug = p.get('debug') === '1';
+  if (debug){
+    document.getElementById('debugPanel').hidden = false;
+    Debug.wire();
+  }
+
+  document.getElementById('backBtn').addEventListener('click', ()=>{ location.href='/'; });
+  document.getElementById('fsBtn').addEventListener('click', ()=>{
+    if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(()=>{});
+    else document.exitFullscreen().catch(()=>{});
+  });
+  const soundBtn = document.getElementById('soundBtn');
+  soundBtn.addEventListener('click', ()=>{
+    soundOn = !soundOn;
+    soundBtn.textContent = soundOn ? '🔊' : '🔇';
+  });
+  document.addEventListener('pointerdown', ()=>{ try{ getACtx(); }catch(e){} }, { once:true });
+
+  const u = (p.get('username')||'').replace(/^@/,'').trim();
+  if (u) wsConnect(u);
+})();
+</script>
+</body>
+</html>

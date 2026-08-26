@@ -171,6 +171,38 @@ async function init() {
     )
   `);
 
+  // ── Avatar War (2026-08-26) — 1-в-1 схема Fantasy Arena выше (см.
+  // комментарии там), своя таблица/архив/метка сброса. total_stolen тут по
+  // смыслу "нанесённый урон" (юнит-донатер бьёт врагов/вражескую базу).
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS avatarwar_stolen (
+      username TEXT PRIMARY KEY,
+      total_stolen INTEGER NOT NULL DEFAULT 0
+    )
+  `);
+  await pool.query(`ALTER TABLE avatarwar_stolen ADD COLUMN IF NOT EXISTS total_kos INTEGER NOT NULL DEFAULT 0`);
+  await pool.query(`ALTER TABLE avatarwar_stolen ADD COLUMN IF NOT EXISTS belt_seconds INTEGER NOT NULL DEFAULT 0`);
+  await pool.query(`ALTER TABLE avatarwar_stolen ADD COLUMN IF NOT EXISTS lifetime_stolen INTEGER NOT NULL DEFAULT 0`);
+  await pool.query(`UPDATE avatarwar_stolen SET lifetime_stolen = total_stolen WHERE lifetime_stolen = 0 AND total_stolen > 0`);
+  await pool.query(`ALTER TABLE avatarwar_stolen ADD COLUMN IF NOT EXISTS weekly_belt_seconds INTEGER NOT NULL DEFAULT 0`);
+  await pool.query(`ALTER TABLE avatarwar_stolen ADD COLUMN IF NOT EXISTS weekly_king_wins INTEGER NOT NULL DEFAULT 0`);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS avatarwar_weekly_kings (
+      id SERIAL PRIMARY KEY,
+      week_start TIMESTAMPTZ NOT NULL,
+      username TEXT NOT NULL,
+      weekly_belt_seconds INTEGER NOT NULL,
+      weekly_points INTEGER NOT NULL DEFAULT 0,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS avatarwar_weekly_meta (
+      id INTEGER PRIMARY KEY DEFAULT 1,
+      last_reset_at TIMESTAMPTZ NOT NULL
+    )
+  `);
+
   // ── Рыбалка (2026-08-10) — рейтинг строится на количестве "рыбок", не
   // донатов: 1 монета/100 лайков = 1 рыбка, total_fish копится вечно (по
   // нему db-страница), daily_fish — ЕЖЕДНЕВНЫЙ (обнуляется в полночь по
@@ -825,6 +857,120 @@ async function getFantasyArenaWeeklyHistory() {
   }));
 }
 
+// ── Avatar War: 1-в-1 логика Fantasy Arena выше (см. комментарии там),
+// своя таблица/архив/метка сброса. Нет выбора героя (chosen_skin) — команда
+// (1/2) выбирается только на клиенте по чат-цифре и не персистится в БД. ──
+const avatarWar = makeBoxingApi('avatarwar_stolen');
+const getTopAvatarWarStolen = avatarWar.getTop;
+const addAvatarWarKO = avatarWar.addKO;
+const resetAvatarWarRating = avatarWar.reset;
+const setAvatarWarStolen = avatarWar.setStolen;
+const deleteAvatarWarUser = avatarWar.deleteUser;
+const setAvatarWarWeeklyKingWins = avatarWar.setWeeklyKingWins;
+
+async function addAvatarWarStolen(username, amount) {
+  if (!pool || !username || !amount) return;
+  await pool.query(`
+    INSERT INTO avatarwar_stolen (username, total_stolen, lifetime_stolen)
+    VALUES ($1, $2, $2)
+    ON CONFLICT (username)
+    DO UPDATE SET total_stolen = avatarwar_stolen.total_stolen + $2,
+                  lifetime_stolen = avatarwar_stolen.lifetime_stolen + $2
+  `, [username, Math.floor(amount)]);
+}
+
+async function getUserAvatarWarRank(username) {
+  if (!pool || !username) return null;
+  const res = await pool.query(`
+    SELECT username, total_stolen, total_kos, belt_seconds, lifetime_stolen, weekly_king_wins, weekly_belt_seconds,
+           RANK() OVER (ORDER BY total_stolen DESC) AS rank
+    FROM avatarwar_stolen
+  `);
+  const row = res.rows.find(r => r.username.toLowerCase() === username.toLowerCase());
+  return row ? {
+    rank: Number(row.rank),
+    total_stolen: Number(row.total_stolen),
+    total_kos: Number(row.total_kos),
+    belt_seconds: Number(row.belt_seconds),
+    lifetime_stolen: Number(row.lifetime_stolen),
+    weekly_king_wins: Number(row.weekly_king_wins),
+    weekly_belt_seconds: Number(row.weekly_belt_seconds),
+  } : null;
+}
+
+async function getAllAvatarWarStolen() {
+  if (!pool) return [];
+  const res = await pool.query(`
+    SELECT username, total_stolen, total_kos, belt_seconds, lifetime_stolen, weekly_king_wins, weekly_belt_seconds,
+           ROW_NUMBER() OVER (ORDER BY total_stolen DESC, username ASC) AS rank
+    FROM avatarwar_stolen
+    ORDER BY total_stolen DESC, username ASC
+  `);
+  return res.rows.map(r => ({
+    rank: Number(r.rank),
+    username: r.username,
+    total_stolen: Number(r.total_stolen),
+    total_kos: Number(r.total_kos),
+    belt_seconds: Number(r.belt_seconds),
+    lifetime_stolen: Number(r.lifetime_stolen),
+    weekly_king_wins: Number(r.weekly_king_wins),
+    weekly_belt_seconds: Number(r.weekly_belt_seconds),
+  }));
+}
+
+async function performAvatarWarWeeklyResetIfNeeded() {
+  if (!pool) return null;
+  const boundaryMs = mostRecentMidnightKyivMs(Date.now());
+  const boundary = new Date(boundaryMs);
+
+  const metaRes = await pool.query(`SELECT last_reset_at FROM avatarwar_weekly_meta WHERE id=1`);
+  if (metaRes.rows.length === 0) {
+    await pool.query(`INSERT INTO avatarwar_weekly_meta (id, last_reset_at) VALUES (1, $1)`, [boundary]);
+    return null;
+  }
+
+  const lastReset = metaRes.rows[0].last_reset_at;
+  if (boundary <= lastReset) return null;
+
+  const winnerRes = await pool.query(`
+    SELECT username, total_stolen, weekly_belt_seconds FROM avatarwar_stolen
+    WHERE total_stolen > 0
+    ORDER BY total_stolen DESC LIMIT 1
+  `);
+  let winner = null;
+  if (winnerRes.rows.length) {
+    winner = winnerRes.rows[0];
+    await pool.query(`
+      INSERT INTO avatarwar_weekly_kings (week_start, username, weekly_belt_seconds, weekly_points)
+      VALUES ($1, $2, $3, $4)
+    `, [lastReset, winner.username, winner.weekly_belt_seconds, winner.total_stolen]);
+    await pool.query(`
+      UPDATE avatarwar_stolen SET weekly_king_wins = weekly_king_wins + 1
+      WHERE LOWER(username) = LOWER($1)
+    `, [winner.username]);
+  }
+
+  await pool.query(`UPDATE avatarwar_stolen SET total_stolen = 0, weekly_belt_seconds = 0`);
+  await pool.query(`UPDATE avatarwar_weekly_meta SET last_reset_at = $1 WHERE id=1`, [boundary]);
+
+  console.log(`[AVATARWAR] Дневной сброс выполнен, граница=${boundary.toISOString()}, командир дня: ${winner ? winner.username + ' (' + winner.total_stolen + ' очков)' : 'нет (очков никто не набрал)'}`);
+
+  return { winner: winner ? winner.username : null, weekStart: lastReset.toISOString() };
+}
+
+async function getLastAvatarWarWeeklyChampion() {
+  if (!pool) return null;
+  const res = await pool.query(`
+    SELECT username, weekly_points, week_start FROM avatarwar_weekly_kings
+    ORDER BY week_start DESC LIMIT 1
+  `);
+  return res.rows.length ? {
+    username: res.rows[0].username,
+    weeklyPoints: Number(res.rows[0].weekly_points),
+    weekStart: res.rows[0].week_start,
+  } : null;
+}
+
 // ── Boxing Arena RU: тот же еженедельный "Пояс чемпиона" (2026-08-08) ──
 // 1-в-1 логика Street Fighter выше, только своя таблица/архив/метка сброса.
 // EN-версия бокса НЕ трогается — остаётся на старой all-time схеме (фабрика
@@ -1120,6 +1266,11 @@ module.exports = {
   setFantasyArenaSkin, getFantasyArenaSkin,
   performFantasyArenaWeeklyResetIfNeeded, getLastFantasyArenaWeeklyChampion,
   setFantasyArenaWeeklyKingWins, getFantasyArenaWeeklyHistory,
+  addAvatarWarStolen, getTopAvatarWarStolen, getUserAvatarWarRank,
+  addAvatarWarKO, resetAvatarWarRating, setAvatarWarStolen,
+  deleteAvatarWarUser, getAllAvatarWarStolen,
+  performAvatarWarWeeklyResetIfNeeded, getLastAvatarWarWeeklyChampion,
+  setAvatarWarWeeklyKingWins,
   addFishingCatch, getTopFishingDaily, getAllFishing, getUserFishingRank,
   resetFishingRating, setFishingTotal, deleteFishingUser,
   performFishingDailyResetIfNeeded, getYesterdayTopFishing,
