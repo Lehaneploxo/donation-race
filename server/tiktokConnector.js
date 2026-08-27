@@ -35,6 +35,12 @@ function connectToTikTok(username, onGift, onStatus, onMember, onLike, onChat, o
 
   let connection = null;
   let retryTimer = null;
+  // Счётчик подряд идущих обрывов живого соединения — растягиваем паузу перед
+  // retry экспоненциально, если рвётся раз за разом (флаппинг), чтобы не
+  // долбить eulerstream/TikTok на каждую попытку и не словить rate_limit.
+  // Сбрасывается, если соединение продержалось стабильно минуту.
+  let disconnectStreak = 0;
+  let stableTimer = null;
 
   function scheduleRetry(delayMs) {
     if (retryTimer) clearTimeout(retryTimer);
@@ -44,6 +50,7 @@ function connectToTikTok(username, onGift, onStatus, onMember, onLike, onChat, o
   handle.stop = function() {
     handle._stopped = true;
     if (retryTimer) { clearTimeout(retryTimer); retryTimer = null; }
+    if (stableTimer) { clearTimeout(stableTimer); stableTimer = null; }
     if (connection) { try { connection.disconnect(); } catch(e) {} connection = null; }
     handle._tiktokMode = 'demo';
     console.log(`[TikTok][${username}] ⏸ Пауза (нет зрителей)`);
@@ -148,7 +155,16 @@ function connectToTikTok(username, onGift, onStatus, onMember, onLike, onChat, o
       // диагностика: код/причина закрытия WebSocket помогают понять, кто
       // рвёт соединение — TikTok (код с их стороны) или сеть/таймаут
       const code = info && info.code, reason = info && info.reason;
-      console.log(`[TikTok][${username}] Отключился (code=${code}, reason=${reason||'—'}) — retry через 30с`);
+      // Это разрыв УЖЕ ЖИВОГО соединения (стрим шёл, зрители могли донатить
+      // в любой момент) — раньше ждали 30с до retry, и любой донат, отправленный
+      // в это окно, терялся навсегда (TikTok не повторяет пропущенные события).
+      // Библиотека уже переподключается быстро (WS + heartbeat), так что держим
+      // паузу перед retry минимальной — но растягиваем её экспоненциально при
+      // повторных обрывах подряд (флаппинг), чтобы не долбить eulerstream/TikTok.
+      if (stableTimer) { clearTimeout(stableTimer); stableTimer = null; }
+      disconnectStreak++;
+      const retryDelay = Math.min(3000 * Math.pow(2, disconnectStreak - 1), 60000);
+      console.log(`[TikTok][${username}] Отключился (code=${code}, reason=${reason||'—'}) — retry через ${Math.round(retryDelay/1000)}с (обрыв #${disconnectStreak} подряд)`);
       connection = null;
       handle._tiktokMode = 'demo';
       notify({ connected: false, mode: 'demo', message: `@${username} вышел из эфира` });
@@ -156,7 +172,7 @@ function connectToTikTok(username, onGift, onStatus, onMember, onLike, onChat, o
         handle._demoStarted = true;
         _startDemo(onGift, handle, onLike, onChat, onMember);
       }
-      if (!handle._stopped) scheduleRetry(30000);
+      if (!handle._stopped) scheduleRetry(retryDelay);
     });
 
     connection.on('error', (err) => {
@@ -170,6 +186,10 @@ function connectToTikTok(username, onGift, onStatus, onMember, onLike, onChat, o
         handle._tiktokMode = 'tiktok';
         _stopDemo(handle);
         notify({ connected: true, mode: 'tiktok', message: `Подключён к @${username}` });
+        // продержались минуту без обрыва — считаем флаппинг закончившимся,
+        // следующий одиночный обрыв снова получит быстрый retry (3с)
+        if (stableTimer) clearTimeout(stableTimer);
+        stableTimer = setTimeout(() => { disconnectStreak = 0; }, 60000);
       })
       .catch((err) => {
         const errMsg = err.message || String(err);
