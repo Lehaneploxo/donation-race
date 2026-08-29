@@ -2475,7 +2475,7 @@ function drawVsCard(){
   if (performance.now() >= vsCardUntil) return;
   const remain = vsCardUntil - performance.now();
   const alpha = Math.min(1, remain/350);
-  const y = WALL_TOP + 121;
+  const y = WALL_TOP + 40; // поднято в зону ночного неба (SKY_H ~94px от WALL_TOP), было +121 — ниже стены
   ctx.save();
   ctx.globalAlpha = alpha;
   ctx.textAlign = 'center';
