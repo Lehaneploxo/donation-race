@@ -1988,19 +1988,20 @@ const PORTAL_BOSS_POWER_MIN = 50, PORTAL_BOSS_POWER_MAX = 200;
 // одного пака) — единой на все константы не будет.
 // targetH — целевая ВИДИМАЯ высота этого героя (по просьбе пользователя,
 // 29.08.2026: некромант/evil_wizard уже нормального размера — не трогаем,
-// остальных троих уменьшили до +10-15% от уличного бойца ~138px, не
-// больше, а не единая для всех высота, как было раньше — при одинаковой
+// остальных троих сначала уменьшили до +10-15% (155/150), потом ещё раз
+// уменьшили — теперь они примерно ТОГО ЖЕ роста, что уличные бойцы,
+// ~138px, а не единая для всех высота, как было раньше — при одинаковой
 // цели по факту получались бы разные "на вид" размеры, у некроманта
 // компактный силуэт, у рыцаря/самурая/охотницы визуально шире/раскидистее)
 const PORTAL_BOSS_ROSTER = {
-  hero_knight:  { frame:180, footFrac:114/180, sizeFrac:51/180, targetH:155,
-    anims:{ idle:{file:'Idle.png',count:11}, attack:{file:'Attack1.png',count:7}, hit:{file:'Take Hit.png',count:4}, death:{file:'Death.png',count:11} } },
-  martial_hero: { frame:200, footFrac:122/200, sizeFrac:52/200, targetH:155,
-    anims:{ idle:{file:'Idle.png',count:8}, attack:{file:'Attack1.png',count:6}, hit:{file:'Take Hit.png',count:4}, death:{file:'Death.png',count:6} } },
+  hero_knight:  { frame:180, footFrac:114/180, sizeFrac:51/180, targetH:138,
+    anims:{ idle:{file:'Idle.png',count:11}, move:{file:'Run.png',count:8}, attack:{file:'Attack1.png',count:7}, hit:{file:'Take Hit.png',count:4}, death:{file:'Death.png',count:11} } },
+  martial_hero: { frame:200, footFrac:122/200, sizeFrac:52/200, targetH:138,
+    anims:{ idle:{file:'Idle.png',count:8}, move:{file:'Run.png',count:8}, attack:{file:'Attack1.png',count:6}, hit:{file:'Take Hit.png',count:4}, death:{file:'Death.png',count:6} } },
   evil_wizard:  { frame:150, footFrac:100/150, sizeFrac:55/150, targetH:175,
-    anims:{ idle:{file:'Idle.png',count:8}, attack:{file:'Attack.png',count:8}, hit:{file:'Take Hit.png',count:4}, death:{file:'Death.png',count:5} } },
-  huntress:     { frame:150, footFrac:97/150,  sizeFrac:42/150, targetH:150,
-    anims:{ idle:{file:'Idle.png',count:8}, attack:{file:'Attack1.png',count:5}, hit:{file:'Take hit.png',count:3}, death:{file:'Death.png',count:8} } },
+    anims:{ idle:{file:'Idle.png',count:8}, move:{file:'Move.png',count:8}, attack:{file:'Attack.png',count:8}, hit:{file:'Take Hit.png',count:4}, death:{file:'Death.png',count:5} } },
+  huntress:     { frame:150, footFrac:97/150,  sizeFrac:42/150, targetH:138,
+    anims:{ idle:{file:'Idle.png',count:8}, move:{file:'Run.png',count:8}, attack:{file:'Attack1.png',count:5}, hit:{file:'Take hit.png',count:3}, death:{file:'Death.png',count:8} } },
 };
 function portalBossDrawH(def){ return def.targetH / def.sizeFrac; }
 const portalBossImgCache = {};
@@ -2051,16 +2052,21 @@ function drawPortalBoss(v){
   // выбор анимации по состоянию — attack (огонь/удар оружием у мага/рыцаря
   // и т.п. это часть самих кадров спрайта, отдельный эффект не нужен),
   // hit при попадании, death при нокауте, idle по умолчанию
-  const key = v.state==='punch' ? 'attack' : v.state==='hurt' ? 'hit' : v.state==='ko' ? 'death' : 'idle';
+  // 'walk' — тоже видно из общей wander-логики (см. update()), раньше не
+  // было отдельной ветки, поэтому босс "скользил" стоячей idle-позой при
+  // ходьбе, как в Fantasy Arena бегущий кадр (Run.png/Move.png)
+  const key = v.state==='punch' ? 'attack' : v.state==='hurt' ? 'hit' : v.state==='ko' ? 'death' : v.state==='walk' ? 'move' : 'idle';
   const anim = def.anims[key];
   const img = portalGetBossImg(v.bossDir, anim.file);
   if (v._bfKey !== key){ v._bfKey = key; v._bf = 0; v._bfT = now; }
-  const fps = key==='idle' ? 8 : 16;
+  const looping = key==='idle' || key==='move';
+  const fps = key==='idle' ? 8 : key==='move' ? 10 : 16;
   if (now - v._bfT > 1000/fps){
     v._bfT = now;
-    // idle зациклен, разовые анимации (attack/hit/death) доигрывают до
-    // последнего кадра и застывают на нём, а не начинают сначала
-    if (key==='idle') v._bf = (v._bf+1) % anim.count;
+    // idle/move зациклены (бежит, пока идёт), разовые анимации
+    // (attack/hit/death) доигрывают до последнего кадра и застывают на
+    // нём, а не начинают сначала
+    if (looping) v._bf = (v._bf+1) % anim.count;
     else if (v._bf < anim.count-1) v._bf++;
   }
 
