@@ -1919,6 +1919,33 @@ let portalScrollX = 0;
 // на одной фиксированной линии (только x меняется), а не бродят по всей
 // площадке ринга, как в обычном Street Fighters
 const PORTAL_LINE_Y = (RING.yMin + RING.yMax) / 2;
+
+// всплывающие числа урона (потерянной энергии) в портале — 1:1 как
+// spawnDamageNumber/updateDrawDamageNumbers в fantasy_arena.html. Только
+// в портале, по просьбе пользователя — на обычных картах Street Fighters
+// урон числами не показывается (там своя механика без такого эффекта)
+let portalDamageNumbers = [];
+function spawnPortalDamageNumber(x, y, dmg){
+  portalDamageNumbers.push({ x: x+(Math.random()*30-15), y, text:'-'+dmg, vy:-55, born:performance.now() });
+}
+function updateDrawPortalDamageNumbers(now, dt){
+  for (let i=portalDamageNumbers.length-1; i>=0; i--){
+    const d = portalDamageNumbers[i];
+    const age = now - d.born;
+    if (age > 900){ portalDamageNumbers.splice(i,1); continue; }
+    d.y += d.vy*dt;
+    const alpha = 1 - age/900;
+    ctx.save();
+    ctx.globalAlpha = Math.max(0,alpha);
+    ctx.font = 'bold 22px Arial Black'; ctx.textAlign = 'center';
+    ctx.strokeStyle = 'rgba(0,0,0,0.85)'; ctx.lineWidth = 3.5;
+    ctx.strokeText(d.text, d.x, d.y);
+    ctx.fillStyle = '#fff2a0';
+    ctx.fillText(d.text, d.x, d.y);
+    ctx.restore();
+  }
+}
+
 function snapFightersToPortalLine(){
   for (const v of VARIANTS){ v.y = PORTAL_LINE_Y; v.ty = PORTAL_LINE_Y; }
 }
@@ -2764,6 +2791,7 @@ function throwPunch(attacker, defender){
   defender.power = Math.max(1, defender.power - Math.max(1, Math.floor(dmg*0.3)));
   defender.lastAttacker = attacker;
   playPunchSound();
+  if (portalActive) spawnPortalDamageNumber(defender.x, defender.y-150, dmg);
 
   // очки рейтинга — за каждый удар, сразу и безусловно (не только победителю
   // финального нокаута): отнял энергию — она сразу твоя, в любом случае
@@ -2984,6 +3012,7 @@ function loop(t) {
   const sorted = [...VARIANTS].sort((a,b)=>a.y-b.y);
   for (const v of sorted) drawFighter(v);
 
+  updateDrawPortalDamageNumbers(t, dt/1000);
   drawPortalTransition();
 
   drawHUD();
