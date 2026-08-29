@@ -1325,7 +1325,7 @@ function initDebugPanel(){
     randgift: ()=> onGift(randName(), 1+Math.floor(Math.random()*10)),
     // мгновенный запуск портала — не ждать 5 минут при тесте. Если портал
     // уже идёт, кнопка просто продлевает его ещё на минуту (это ок для теста)
-    portal: ()=> { portalActive = true; portalTimer = PORTAL_DURATION_MS; portalMapIdx = (portalMapIdx + 1) % PORTAL_MAPS.length; portalScrollX = 0; snapFightersToPortalLine(); },
+    portal: ()=> { portalActive = true; portalTimer = PORTAL_DURATION_MS; portalMapIdx = (portalMapIdx + 1) % PORTAL_MAPS.length; portalScrollX = 0; snapFightersToPortalLine(); pushEvent(pick(PORTAL_OPEN_LINES), true); startPortalTransition(); },
   };
   document.querySelectorAll('#debugPanel button[data-t]').forEach(btn=>{
     btn.addEventListener('click', ()=>{ const fn = actions[btn.dataset.t]; if (fn) fn(); });
@@ -2104,6 +2104,32 @@ function drawPortalBackground(){
   ctx.imageSmoothingEnabled = true; // остальной рендер (бойцы, HUD) этого файла рассчитан на сглаживание
 }
 
+// плавный переход портал↔улица — фиолетовая вспышка-вихрь на пол-секунды
+// вместо резкой смены фона, накрывает только зону боя (не HUD-плашку)
+const PORTAL_TRANSITION_MS = 500;
+let portalTransitionUntil = 0;
+function startPortalTransition(){ portalTransitionUntil = performance.now() + PORTAL_TRANSITION_MS; }
+function drawPortalTransition(){
+  const now = performance.now();
+  if (now >= portalTransitionUntil) return;
+  const remain = portalTransitionUntil - now;
+  const t = 1 - remain/PORTAL_TRANSITION_MS; // 0 в начале .. 1 в конце
+  const alpha = t < 0.5 ? (t/0.5) : (1-t)/0.5; // нарастает к середине, гаснет к концу
+  const areaH = PORTAL_CH - WALL_TOP;
+  ctx.save();
+  ctx.globalAlpha = Math.min(1, alpha);
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, WALL_TOP, CW, areaH);
+  const cx = CW/2, cy = WALL_TOP + areaH/2, r = 280;
+  const grad = ctx.createRadialGradient(cx,cy,0,cx,cy,r);
+  grad.addColorStop(0, 'rgba(190,100,255,0.9)');
+  grad.addColorStop(1, 'rgba(190,100,255,0)');
+  ctx.globalAlpha = Math.min(1, alpha)*0.85;
+  ctx.fillStyle = grad;
+  ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2); ctx.fill();
+  ctx.restore();
+}
+
 function drawPortalCountdown(){
   const secs = Math.max(0, Math.ceil(portalTimer/1000));
   const mm = Math.floor(secs/60), ss = String(secs%60).padStart(2,'0');
@@ -2113,14 +2139,18 @@ function drawPortalCountdown(){
   // портала остаётся 20px
   const fontPx = portalActive ? 20 : 28;
   const boxH = portalActive ? 32 : 42;
-  const baselineOffset = portalActive ? 27 : 35;
+  // поднято вплотную к плашке правил (WALL_TOP уже включает свой отступ
+  // от неё — 10px, см. `const WALL_TOP = PANEL_TOP + PANEL_H + 10`), но не
+  // внахлёст — было +8/+27../+35, подняли на 6px
+  const topOffset = 2;
+  const baselineOffset = (portalActive ? 27 : 35) - 6;
   ctx.save();
   ctx.textAlign = 'center';
   ctx.font = `bold ${fontPx}px Arial Black`;
   const w = ctx.measureText(label).width;
   const maxW = CW-16;
   ctx.fillStyle = portalActive ? 'rgba(120,40,180,0.75)' : 'rgba(0,0,0,0.55)';
-  ctx.fillRect(CW/2-Math.min(w,maxW)/2-14, WALL_TOP+8, Math.min(w,maxW)+28, boxH);
+  ctx.fillRect(CW/2-Math.min(w,maxW)/2-14, WALL_TOP+topOffset, Math.min(w,maxW)+28, boxH);
   ctx.strokeStyle = 'rgba(0,0,0,0.85)'; ctx.lineWidth = 3;
   ctx.strokeText(label, CW/2, WALL_TOP+baselineOffset, maxW);
   ctx.fillStyle = portalActive ? '#e0b0ff' : '#ffd76b';
@@ -2589,6 +2619,17 @@ const TIRED_LINES = [
   l=>`🫠 ${l} закончился раньше боя!`,
 ];
 
+const PORTAL_OPEN_LINES = [
+  '🌀 Портал открывается! Бойцы переносятся в мир Fantasy Arena!',
+  '🌀 Улицы исчезают — начинается бой в фэнтези-мире!',
+  '🌀 Портал забирает бойцов в другое измерение!',
+];
+const PORTAL_CLOSE_LINES = [
+  '🌀 Портал закрывается — возвращаемся на улицы!',
+  '🌀 Фэнтези-мир исчезает, бой продолжается на привычных улицах!',
+  '🌀 Портал закрыт, бойцы снова дома!',
+];
+
 function collapse(loser, winner){
   if (!loser.alive) return;
   loser.alive = false;
@@ -2875,13 +2916,19 @@ function update(dt){
   portalTimer -= dt;
   if (portalActive){
     portalScrollX += PORTAL_SCROLL_SPEED*(dt/1000);
-    if (portalTimer <= 0){ portalActive = false; portalTimer = PORTAL_CYCLE_MS; }
+    if (portalTimer <= 0){
+      portalActive = false; portalTimer = PORTAL_CYCLE_MS;
+      pushEvent(pick(PORTAL_CLOSE_LINES), true);
+      startPortalTransition();
+    }
   } else if (portalTimer <= 0){
     portalActive = true;
     portalTimer = PORTAL_DURATION_MS;
     portalMapIdx = (portalMapIdx + 1) % PORTAL_MAPS.length;
     portalScrollX = 0;
     snapFightersToPortalLine();
+    pushEvent(pick(PORTAL_OPEN_LINES), true);
+    startPortalTransition();
   }
 
   // смена комнаты (фон/реквизит) каждые ROOM_SWITCH_MS — бой и бойцы не
@@ -2933,6 +2980,8 @@ function loop(t) {
 
   const sorted = [...VARIANTS].sort((a,b)=>a.y-b.y);
   for (const v of sorted) drawFighter(v);
+
+  drawPortalTransition();
 
   drawHUD();
   drawVsCard();
