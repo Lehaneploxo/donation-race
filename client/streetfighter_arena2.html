@@ -2411,7 +2411,48 @@ function collapse(loser, winner){
 let activeExchanges = [];
 const PUNCH_TICK_MS = 240; // пауза между отдельными ударами внутри серии
 
+// VS-карточка (фишка из Fantasy Arena, 29.08.2026) — когда сталкиваются
+// двое САМЫХ СИЛЬНЫХ реальных зрителей (не ботов) прямо сейчас на ринге,
+// по центру экрана на пару секунд всплывает баннер с именами
+let vsCardA = '', vsCardB = '', vsCardUntil = 0;
+function maybeTriggerVsCard(a, b){
+  if (a.isBot || b.isBot) return;
+  const topTwo = VARIANTS
+    .filter(v=>!v.isBot && v.alive && !v.eliminated)
+    .sort((x,y)=>(y.power||0)-(x.power||0))
+    .slice(0,2);
+  if (topTwo.length<2) return;
+  const topNames = new Set([topTwo[0].name, topTwo[1].name]);
+  if (topNames.has(a.name) && topNames.has(b.name)){
+    vsCardA = a.name; vsCardB = b.name;
+    vsCardUntil = performance.now() + 2200;
+  }
+}
+function drawVsCard(){
+  if (performance.now() >= vsCardUntil) return;
+  const remain = vsCardUntil - performance.now();
+  const alpha = Math.min(1, remain/350);
+  const y = WALL_TOP + 121;
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.textAlign = 'center';
+  ctx.font = '900 30px Arial Black';
+  ctx.strokeStyle = 'rgba(0,0,0,0.75)'; ctx.lineWidth = 5;
+  const line = `${vsCardA}  ⚔️  ${vsCardB}`;
+  ctx.strokeText(line, CW/2, y, CW-20);
+  ctx.shadowColor = '#ff2020'; ctx.shadowBlur = 10;
+  ctx.fillStyle = '#ff2020';
+  ctx.fillText(line, CW/2, y, CW-20);
+  ctx.shadowBlur = 0;
+  ctx.font = 'bold 14px Arial Black';
+  ctx.strokeText('серьёзная схватка!', CW/2, y+20);
+  ctx.fillStyle = 'rgba(255,255,255,0.75)';
+  ctx.fillText('серьёзная схватка!', CW/2, y+20);
+  ctx.restore();
+}
+
 function startExchange(a, b){
+  maybeTriggerVsCard(a, b);
   a.punchCooldown = 999999; b.punchCooldown = 999999;
   a.inExchange = true; b.inExchange = true;
   a.facing = b.x>=a.x ? -1 : 1;
@@ -2646,6 +2687,7 @@ function loop(t) {
   for (const v of sorted) drawFighter(v);
 
   drawHUD();
+  drawVsCard();
 
   updateDrawCoinRain(dt); // дождь монет крупного доната — поверх всего, на весь экран
   drawGiftBanner();
