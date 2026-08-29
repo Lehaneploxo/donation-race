@@ -2741,7 +2741,9 @@ function drawVsCard(){
   // в портале — 1:1 как в fantasy_arena.html (тот же y=405 относительно
   // WALL_TOP, тот же цвет #ff5566 без свечения); вне портала — свой стиль
   // с красным свечением, поднятый в зону ночного неба Street Fighters
-  const y = portalActive ? WALL_TOP + 121 : WALL_TOP + 40;
+  // в портале WALL_TOP+121 наезжал на бейдж "короля дня" (тот занимает
+  // WALL_TOP+80..+112, см. drawWeeklyChampionBadge) — опустили ниже
+  const y = portalActive ? WALL_TOP + 150 : WALL_TOP + 40;
   ctx.save();
   ctx.globalAlpha = alpha;
   ctx.textAlign = 'center';
