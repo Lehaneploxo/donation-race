@@ -2635,6 +2635,9 @@ const PUNCH_TICK_MS = 240; // пауза между отдельными уда�
 // по центру экрана на пару секунд всплывает баннер с именами
 let vsCardA = '', vsCardB = '', vsCardUntil = 0;
 function maybeTriggerVsCard(a, b){
+  // только в портале (карты Fantasy Arena) — на обычных картах Street
+  // Fighters VS-карточка убрана по просьбе пользователя (29.08.2026)
+  if (!portalActive) return;
   if (a.isBot || b.isBot) return;
   const topTwo = VARIANTS
     .filter(v=>!v.isBot && v.alive && !v.eliminated)
