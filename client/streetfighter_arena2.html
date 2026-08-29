@@ -1973,7 +1973,10 @@ function snapFightersToPortalLine(){
 // в служебное 'brawler_girl' (существующий валидный скин) — они нигде не
 // рисуются, нужны только чтобы initFighterRuntime/CHAR_ATTACKS не упали
 // на несуществующем ключе.
-const PORTAL_BOSS_ENERGY = 1500, PORTAL_BOSS_POWER = 20;
+// разброс характеристик, по просьбе пользователя (29.08.2026) — каждый
+// новый босс рандомный внутри диапазона, а не всегда одинаковый
+const PORTAL_BOSS_ENERGY_MIN = 1500, PORTAL_BOSS_ENERGY_MAX = 5000;
+const PORTAL_BOSS_POWER_MIN = 50, PORTAL_BOSS_POWER_MAX = 200;
 const PORTAL_BOSS_ROSTER = {
   hero_knight:  { idleFile:'Idle.png', idleCount:11, frame:180 },
   martial_hero: { idleFile:'Idle.png', idleCount:8,  frame:200 },
@@ -2008,8 +2011,10 @@ function spawnPortalBoss(){
     name: def.label, bossCharKey: def.charKey, bossDir: def.dir,
     stolenEnergy:0, powerDecayAcc:0, kos:0, allTimeStolen:0,
   };
-  v.energyMax = PORTAL_BOSS_ENERGY; v.energy = PORTAL_BOSS_ENERGY;
-  v.powerMax = PORTAL_BOSS_POWER; v.power = PORTAL_BOSS_POWER;
+  const bossEnergy = Math.round(PORTAL_BOSS_ENERGY_MIN + Math.random()*(PORTAL_BOSS_ENERGY_MAX-PORTAL_BOSS_ENERGY_MIN));
+  const bossPower = Math.round(PORTAL_BOSS_POWER_MIN + Math.random()*(PORTAL_BOSS_POWER_MAX-PORTAL_BOSS_POWER_MIN));
+  v.energyMax = bossEnergy; v.energy = bossEnergy;
+  v.powerMax = bossPower; v.power = bossPower;
   initFighterRuntime(v, CW/2, PORTAL_LINE_Y);
   VARIANTS.push(v);
 }
@@ -2039,11 +2044,17 @@ function drawPortalBoss(v){
   ctx.save();
   ctx.globalAlpha = 0.3;
   ctx.fillStyle = '#000';
-  ctx.beginPath(); ctx.ellipse(cx, floorY, 46, 12, 0, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(cx, floorY, 60, 14, 0, 0, Math.PI*2); ctx.fill();
   ctx.restore();
 
   if (img.complete && img.naturalWidth){
-    const drawH = 260*scale, drawW = 260*scale;
+    // 380 — тот же размер отрисовки, что в fantasy_arena.html для ОБЫЧНЫХ
+    // (не увеличенных) бойцов: у этих спрайтов много прозрачных полей
+    // внутри кадра (замах оружием и т.п.), поэтому персонаж внутри рамки
+    // визуально мельче, чем кажется по числу пикселей кадра — 260
+    // получался МЕЛЬЧЕ уличных бойцов, хотя должен быть крупнее (по
+    // просьбе пользователя, 29.08.2026)
+    const drawH = 380*scale, drawW = 380*scale;
     ctx.save();
     ctx.globalAlpha = alpha;
     ctx.translate(cx, floorY);
@@ -2053,7 +2064,10 @@ function drawPortalBoss(v){
     // смотрят вправо — поэтому флип наоборот
     if (v.facing >= 0) ctx.scale(-1,1);
     const sx = v._bf*size;
-    ctx.drawImage(img, sx, 0, size, size, -drawW/2, -drawH+10, drawW, drawH);
+    // сдвиг +100 (не +10) — у этих спрайтов много прозрачного поля СНИЗУ
+    // кадра (под ногами), иначе визуальные ноги персонажа зависают выше
+    // общей линии боя, а не стоят на ней (см. живой тест 29.08.2026)
+    ctx.drawImage(img, sx, 0, size, size, -drawW/2, -drawH+100, drawW, drawH);
     ctx.restore();
   }
 
@@ -2061,14 +2075,18 @@ function drawPortalBoss(v){
   ctx.textAlign = 'center';
   ctx.font = 'bold 16px Arial Black';
   ctx.strokeStyle = 'rgba(0,0,0,0.9)'; ctx.lineWidth = 3.5;
-  ctx.strokeText(v.name, cx, floorY-278, 260);
+  // подпись ПОД боссом (не над головой) — у fantasy-спрайтов много
+  // прозрачных полей внутри кадра, реальную высоту "головы" не угадать
+  // без разбора альфа-канала, а сверху рядом маячит бейдж "короля дня"
+  // (WALL_TOP+80..+112) — снизу гарантированно ничем не перекроется
+  ctx.strokeText(v.name, cx, floorY+42, 300);
   ctx.fillStyle = '#ff5566';
-  ctx.fillText(v.name, cx, floorY-278, 260);
+  ctx.fillText(v.name, cx, floorY+42, 300);
   ctx.font = 'bold 13px Arial Black';
   const hpTxt = `❤️ ${Math.max(0,Math.ceil(v.energy))}`;
-  ctx.strokeText(hpTxt, cx, floorY-258, 260);
+  ctx.strokeText(hpTxt, cx, floorY+60, 300);
   ctx.fillStyle = '#8fffb0';
-  ctx.fillText(hpTxt, cx, floorY-258, 260);
+  ctx.fillText(hpTxt, cx, floorY+60, 300);
   ctx.restore();
 }
 const PORTAL_CH = canvas.height;
