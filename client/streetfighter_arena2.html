@@ -17,6 +17,12 @@
   #statusBadge.live  { color: #00FF88; border-color: #00FF88; }
   #statusBadge.demo  { color: #FF9900; border-color: #FF9900; }
   #statusBadge.error { color: #FF4444; border-color: #FF4444; }
+  #debugPanel{ position:fixed; left:8px; bottom:8px; z-index:99998; background:rgba(0,0,0,0.86); border:1px solid rgba(255,255,255,0.2); border-radius:12px; padding:8px; width:190px; font-family:Arial,sans-serif; }
+  #debugPanel[hidden]{ display:none; }
+  #debugPanel .dbg-row{ margin-bottom:6px; color:#fff; font-size:11px; }
+  #debugPanel .dbg-btns{ display:grid; grid-template-columns:1fr 1fr; gap:5px; }
+  #debugPanel button{ font-size:10px; padding:6px 3px; border-radius:6px; border:1px solid rgba(255,255,255,0.25); background:#1a1f2e; color:#fff; cursor:pointer; }
+  #debugPanel button:active{ background:#2a3145; }
 </style>
 </head>
 <body>
@@ -28,6 +34,19 @@
 <div id="ratingOverlay" style="position:fixed;top:27%;left:50%;transform:translateX(-50%);z-index:200;pointer-events:none;display:none;background:rgba(0,0,0,0.88);border:1.5px solid rgba(255,80,80,0.5);border-radius:8px;padding:6px 12px 7px;font-family:Arial,sans-serif;min-width:150px;text-align:center;line-height:1.25;white-space:nowrap;"></div>
 <audio id="bgMusic" src="audio/streetfighter_theme.mp3" loop preload="auto"></audio>
 <div id="wrap"><canvas id="c" width="600" height="1000"></canvas></div>
+<div id="debugPanel" hidden>
+  <div class="dbg-row"><b>DEBUG</b> — тестовые "реальные" зрители</div>
+  <div class="dbg-btns">
+    <button data-t="like1">👍 Лайк P1</button>
+    <button data-t="like2">👍 Лайк P2</button>
+    <button data-t="gift1">🎁 Донат P1</button>
+    <button data-t="gift2">🎁 Донат P2</button>
+    <button data-t="biggift1">💎 БОЛЬШОЙ P1</button>
+    <button data-t="biggift2">💎 БОЛЬШОЙ P2</button>
+    <button data-t="randlike">🎲 Лайк случайный</button>
+    <button data-t="randgift">🎲 Донат случайный</button>
+  </div>
+</div>
 <script>
 const canvas = document.getElementById('c');
 const ctx = canvas.getContext('2d');
@@ -1341,7 +1360,31 @@ setInterval(fetchStreetFighterWeeklyChampion, 30000);
   const p = new URLSearchParams(location.search);
   const u = (p.get('username')||'').replace(/^@/,'').trim();
   if (u) wsConnect(u);
+  if (p.get('debug')==='1') initDebugPanel();
 })();
+
+// DEBUG (?debug=1) — ручное добавление "реальных" зрителей без TikTok LIVE.
+// P1/P2 — фиксированные тестовые ники: удобно накачать именно их двоих
+// сильнее всех остальных, чтобы гарантированно проверить VS-карточку
+// (она всплывает, только когда дерутся двое САМЫХ СИЛЬНЫХ реальных бойцов).
+function initDebugPanel(){
+  document.getElementById('debugPanel').hidden = false;
+  const RAND_NAMES = ['TestAlex','TestLana','TestVika','TestMax','TestKatya','TestNight'];
+  function randName(){ return RAND_NAMES[Math.floor(Math.random()*RAND_NAMES.length)]; }
+  const actions = {
+    like1: ()=> onLike('TestPlayer1'),
+    like2: ()=> onLike('TestPlayer2'),
+    gift1: ()=> onGift('TestPlayer1', 1+Math.floor(Math.random()*10)),
+    gift2: ()=> onGift('TestPlayer2', 1+Math.floor(Math.random()*10)),
+    biggift1: ()=> onGift('TestPlayer1', 300+Math.floor(Math.random()*400)),
+    biggift2: ()=> onGift('TestPlayer2', 300+Math.floor(Math.random()*400)),
+    randlike: ()=> onLike(randName()),
+    randgift: ()=> onGift(randName(), 1+Math.floor(Math.random()*10)),
+  };
+  document.querySelectorAll('#debugPanel button[data-t]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{ const fn = actions[btn.dataset.t]; if (fn) fn(); });
+  });
+}
 
 
 // ── Единый масштаб для ВСЕХ пиксель-арт ассетов пака (персонажи и фон —
