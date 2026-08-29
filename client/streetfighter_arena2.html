@@ -488,7 +488,9 @@ function initFighterRuntime(v, x, y){
 function spawnRingPos(){
   return {
     x: RING.xMin + Math.random()*(RING.xMax-RING.xMin),
-    y: RING.yMin + Math.random()*(RING.yMax-RING.yMin),
+    // в портале (Fantasy Arena) — сразу на общую линию боя, а не куда
+    // попало по всей площадке ринга (см. PORTAL_LINE_Y)
+    y: portalActive ? PORTAL_LINE_Y : (RING.yMin + Math.random()*(RING.yMax-RING.yMin)),
   };
 }
 
@@ -1323,7 +1325,7 @@ function initDebugPanel(){
     randgift: ()=> onGift(randName(), 1+Math.floor(Math.random()*10)),
     // мгновенный запуск портала — не ждать 5 минут при тесте. Если портал
     // уже идёт, кнопка просто продлевает его ещё на минуту (это ок для теста)
-    portal: ()=> { portalActive = true; portalTimer = PORTAL_DURATION_MS; portalMapIdx = (portalMapIdx + 1) % PORTAL_MAPS.length; portalScrollX = 0; },
+    portal: ()=> { portalActive = true; portalTimer = PORTAL_DURATION_MS; portalMapIdx = (portalMapIdx + 1) % PORTAL_MAPS.length; portalScrollX = 0; snapFightersToPortalLine(); },
   };
   document.querySelectorAll('#debugPanel button[data-t]').forEach(btn=>{
     btn.addEventListener('click', ()=>{ const fn = actions[btn.dataset.t]; if (fn) fn(); });
@@ -1913,6 +1915,13 @@ let portalActive = false;
 let portalTimer = PORTAL_CYCLE_MS;
 let portalMapIdx = 0;
 let portalScrollX = 0;
+// линия боя в портале — как в fantasy_arena.html, где все бойцы дерутся
+// на одной фиксированной линии (только x меняется), а не бродят по всей
+// площадке ринга, как в обычном Street Fighters
+const PORTAL_LINE_Y = (RING.yMin + RING.yMax) / 2;
+function snapFightersToPortalLine(){
+  for (const v of VARIANTS){ v.y = PORTAL_LINE_Y; v.ty = PORTAL_LINE_Y; }
+}
 const PORTAL_CH = canvas.height;
 const PORTAL_TILE = 16, PORTAL_TS = 3, PORTAL_FLOOR_ROWS = 6;
 const PORTAL_SCROLL_SPEED = 42;
@@ -2636,7 +2645,10 @@ function drawVsCard(){
   if (performance.now() >= vsCardUntil) return;
   const remain = vsCardUntil - performance.now();
   const alpha = Math.min(1, remain/350);
-  const y = WALL_TOP + 40; // поднято в зону ночного неба (SKY_H ~94px от WALL_TOP), было +121 — ниже стены
+  // в портале — 1:1 как в fantasy_arena.html (тот же y=405 относительно
+  // WALL_TOP, тот же цвет #ff5566 без свечения); вне портала — свой стиль
+  // с красным свечением, поднятый в зону ночного неба Street Fighters
+  const y = portalActive ? WALL_TOP + 121 : WALL_TOP + 40;
   ctx.save();
   ctx.globalAlpha = alpha;
   ctx.textAlign = 'center';
@@ -2644,8 +2656,12 @@ function drawVsCard(){
   ctx.strokeStyle = 'rgba(0,0,0,0.75)'; ctx.lineWidth = 5;
   const line = `${vsCardA}  ⚔️  ${vsCardB}`;
   ctx.strokeText(line, CW/2, y, CW-20);
-  ctx.shadowColor = '#ff2020'; ctx.shadowBlur = 10;
-  ctx.fillStyle = '#ff2020';
+  if (portalActive){
+    ctx.fillStyle = '#ff5566';
+  } else {
+    ctx.shadowColor = '#ff2020'; ctx.shadowBlur = 10;
+    ctx.fillStyle = '#ff2020';
+  }
   ctx.fillText(line, CW/2, y, CW-20);
   ctx.shadowBlur = 0;
   ctx.font = 'bold 14px Arial Black';
@@ -2794,7 +2810,9 @@ function update(dt){
     const dx=v.tx-v.x, dy=v.ty-v.y, dist=Math.hypot(dx,dy);
     if (dist<6 && v.wanderPause<=0){
       v.tx = RING.xMin + Math.random()*(RING.xMax-RING.xMin);
-      v.ty = RING.yMin + Math.random()*(RING.yMax-RING.yMin);
+      // в портале (Fantasy Arena) бойцы дерутся линейно на одной линии,
+      // как там — см. PORTAL_LINE_Y ниже, а не бродят по всей площадке ринга
+      v.ty = portalActive ? PORTAL_LINE_Y : (RING.yMin + Math.random()*(RING.yMax-RING.yMin));
       v.wanderPause = 500 + Math.random()*1400;
     }
     if (dist>6){
@@ -2854,6 +2872,7 @@ function update(dt){
     portalTimer = PORTAL_DURATION_MS;
     portalMapIdx = (portalMapIdx + 1) % PORTAL_MAPS.length;
     portalScrollX = 0;
+    snapFightersToPortalLine();
   }
 
   // смена комнаты (фон/реквизит) каждые ROOM_SWITCH_MS — бой и бойцы не
