@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>🥋 Street Fighters</title>
+<title>🥋 Street Fighters II</title>
 <style>
   html, body { width:100vw; height:100vh; margin:0; background:#000; overflow:hidden; font-family:Arial,sans-serif; }
   #wrap { position:absolute; left:0; top:0; width:600px; height:1000px; transform-origin:0 0; }
@@ -82,7 +82,7 @@ const LIKE_POWER_CAP = 500;
 
 // боец без лайков/донатов 15 минут подряд — Сила начинает капать (-1/сек,
 // не ниже 1); любой новый лайк/донат сбрасывает таймер (см. applyGrowth)
-const INACTIVITY_MS = 15*60*1000;
+const INACTIVITY_MS = 5*60*1000;
 const POWER_DECAY_INTERVAL_MS = 1000;
 
 // stolenEnergy — очки из ОТДЕЛЬНОЙ БД (all-time): сколько энергии боец
@@ -1921,10 +1921,10 @@ function drawHUD() {
 
   ctx.font = 'bold 24px Arial Black'; ctx.textAlign = 'center';
   ctx.strokeStyle = 'rgba(0,0,0,0.9)'; ctx.lineWidth = 4;
-  ctx.strokeText('STREET FIGHTERS', CW/2, T+34, CW-20);
+  ctx.strokeText('STREET FIGHTERS II', CW/2, T+34, CW-20);
   ctx.save();
   ctx.shadowColor = '#ff2020'; ctx.shadowBlur = 10;
-  ctx.fillStyle = '#ff2020'; ctx.fillText('STREET FIGHTERS', CW/2, T+34, CW-20);
+  ctx.fillStyle = '#ff2020'; ctx.fillText('STREET FIGHTERS II', CW/2, T+34, CW-20);
   ctx.restore();
 
   const hg = ctx.createLinearGradient(0,0,CW,0);
