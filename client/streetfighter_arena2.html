@@ -31,7 +31,7 @@
 <button id="musicBtn" class="ui-btn" title="Музыка">🎵</button>
 <button id="fsBtn"    class="ui-btn" title="На весь экран">⛶</button>
 <div id="statusBadge"></div>
-<div id="ratingOverlay" style="position:fixed;top:40%;left:50%;transform:translateX(-50%);z-index:200;pointer-events:none;display:none;background:rgba(0,0,0,0.88);border:1.5px solid rgba(255,80,80,0.5);border-radius:8px;padding:6px 12px 7px;font-family:Arial,sans-serif;min-width:150px;text-align:center;line-height:1.25;white-space:nowrap;"></div>
+<div id="ratingOverlay" style="position:fixed;top:27%;left:50%;transform:translateX(-50%);z-index:200;pointer-events:none;display:none;background:rgba(0,0,0,0.88);border:1.5px solid rgba(255,80,80,0.5);border-radius:8px;padding:6px 12px 7px;font-family:Arial,sans-serif;min-width:150px;text-align:center;line-height:1.25;white-space:nowrap;"></div>
 <audio id="bgMusic" src="audio/streetfighter_theme.mp3" loop preload="auto"></audio>
 <div id="wrap"><canvas id="c" width="600" height="1000"></canvas></div>
 <div id="debugPanel" hidden>
@@ -1296,9 +1296,10 @@ function wsConnect(username){
 
 // отдельное всплывающее окошко под ответ на "rating" из чата (как в
 // arena2/arena3) — не смешивается с общей очередью событий боя/диктора,
-// поэтому не теряется среди фраз. Возвращено 29.08.2026 — раньше убрали
-// целиком из-за конфликта с VS-карточкой, но по факту нужно было только
-// увести плашку ниже (top:40% вместо 27%), а не выпиливать команду
+// поэтому не теряется среди фраз. Возвращено 29.08.2026 (сначала убрали
+// целиком из-за конфликта с VS-карточкой, потом вернули команду с
+// позицией пониже, потом пользователь попросил вернуть на исходное
+// место — top:27%, как было изначально)
 let _ratingHideTimer = null;
 function _showRating(html){
   const el = document.getElementById('ratingOverlay');
