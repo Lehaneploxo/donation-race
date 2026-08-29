@@ -1977,12 +1977,27 @@ function snapFightersToPortalLine(){
 // новый босс рандомный внутри диапазона, а не всегда одинаковый
 const PORTAL_BOSS_ENERGY_MIN = 1500, PORTAL_BOSS_ENERGY_MAX = 5000;
 const PORTAL_BOSS_POWER_MIN = 50, PORTAL_BOSS_POWER_MAX = 200;
+// footFrac/sizeFrac измерены живьём (29.08.2026, через canvas
+// getImageData по альфа-каналу idle-кадра каждого героя) — у этих
+// спрайтов НАПОЛОВИНУ пустое прозрачное поле вокруг персонажа (замах
+// оружием/посохом и т.п.), поэтому "нарисовать во весь кадр" даёт то
+// боец парит над линией (пусто снизу), то выглядит мельче уличных
+// бойцов (пусто по бокам/сверху). footFrac — на какой доле высоты кадра
+// заканчиваются ступни, sizeFrac — какую долю высоты кадра занимает
+// видимая фигура целиком. Обе доли РАЗНЫЕ у каждого героя (не роботы из
+// одного пака) — единой на все константы не будет.
+const PORTAL_BOSS_TARGET_VISIBLE_H = 175; // чуть больше уличного бойца (~138px), по просьбе пользователя — "не меньше, даже побольше"
 const PORTAL_BOSS_ROSTER = {
-  hero_knight:  { idleFile:'Idle.png', idleCount:11, frame:180 },
-  martial_hero: { idleFile:'Idle.png', idleCount:8,  frame:200 },
-  evil_wizard:  { idleFile:'Idle.png', idleCount:8,  frame:150 },
-  huntress:     { idleFile:'Idle.png', idleCount:8,  frame:150 },
+  hero_knight:  { frame:180, footFrac:114/180, sizeFrac:51/180,
+    anims:{ idle:{file:'Idle.png',count:11}, attack:{file:'Attack1.png',count:7}, hit:{file:'Take Hit.png',count:4}, death:{file:'Death.png',count:11} } },
+  martial_hero: { frame:200, footFrac:122/200, sizeFrac:52/200,
+    anims:{ idle:{file:'Idle.png',count:8}, attack:{file:'Attack1.png',count:6}, hit:{file:'Take Hit.png',count:4}, death:{file:'Death.png',count:6} } },
+  evil_wizard:  { frame:150, footFrac:100/150, sizeFrac:55/150,
+    anims:{ idle:{file:'Idle.png',count:8}, attack:{file:'Attack.png',count:8}, hit:{file:'Take Hit.png',count:4}, death:{file:'Death.png',count:5} } },
+  huntress:     { frame:150, footFrac:97/150,  sizeFrac:42/150,
+    anims:{ idle:{file:'Idle.png',count:8}, attack:{file:'Attack1.png',count:5}, hit:{file:'Take hit.png',count:3}, death:{file:'Death.png',count:8} } },
 };
+function portalBossDrawH(def){ return PORTAL_BOSS_TARGET_VISIBLE_H / def.sizeFrac; }
 const portalBossImgCache = {};
 function portalGetBossImg(dir, file){
   const key = dir+'/'+file;
@@ -2001,7 +2016,8 @@ const PORTAL_BOSSES = [
   { charKey:'huntress',     dir:'huntress_v3_green',            label:'🏹 Лесная охотница-босс' },
   { charKey:'martial_hero', dir:'martial_hero_v2_yellowgreen',  label:'🥋 Осенний мастер' },
 ];
-PORTAL_BOSSES.forEach(b => portalGetBossImg(b.dir, PORTAL_BOSS_ROSTER[b.charKey].idleFile));
+PORTAL_BOSSES.forEach(b => Object.values(PORTAL_BOSS_ROSTER[b.charKey].anims)
+  .forEach(a => portalGetBossImg(b.dir, a.file)));
 
 function spawnPortalBoss(){
   const def = PORTAL_BOSSES[portalMapIdx];
@@ -2025,15 +2041,25 @@ function removePortalBosses(){
 function drawPortalBoss(v){
   const now = performance.now();
   const def = PORTAL_BOSS_ROSTER[v.bossCharKey];
-  const img = portalGetBossImg(v.bossDir, def.idleFile);
   const size = def.frame;
-  if (v._bf == null){ v._bf = 0; v._bfT = now; }
-  if (now - v._bfT > 125){ v._bfT = now; v._bf = (v._bf+1) % def.idleCount; }
+
+  // выбор анимации по состоянию — attack (огонь/удар оружием у мага/рыцаря
+  // и т.п. это часть самих кадров спрайта, отдельный эффект не нужен),
+  // hit при попадании, death при нокауте, idle по умолчанию
+  const key = v.state==='punch' ? 'attack' : v.state==='hurt' ? 'hit' : v.state==='ko' ? 'death' : 'idle';
+  const anim = def.anims[key];
+  const img = portalGetBossImg(v.bossDir, anim.file);
+  if (v._bfKey !== key){ v._bfKey = key; v._bf = 0; v._bfT = now; }
+  const fps = key==='idle' ? 8 : 16;
+  if (now - v._bfT > 1000/fps){
+    v._bfT = now;
+    // idle зациклен, разовые анимации (attack/hit/death) доигрывают до
+    // последнего кадра и застывают на нём, а не начинают сначала
+    if (key==='idle') v._bf = (v._bf+1) % anim.count;
+    else if (v._bf < anim.count-1) v._bf++;
+  }
 
   const cx = v.x, floorY = v.y;
-  let scale = 1;
-  if (v.state === 'punch') scale = 1.1;
-  if (v.state === 'hurt') scale = 1.15;
   let alpha = 1, rot = 0;
   if (v.state === 'ko'){
     const p = Math.min(1, (KO_FALL_MS - v.koTimer) / KO_FALL_MS);
@@ -2047,14 +2073,17 @@ function drawPortalBoss(v){
   ctx.beginPath(); ctx.ellipse(cx, floorY, 60, 14, 0, 0, Math.PI*2); ctx.fill();
   ctx.restore();
 
+  // drawH калибруется так, чтобы ВИДИМАЯ (не прозрачная) высота фигуры
+  // была ровно PORTAL_BOSS_TARGET_VISIBLE_H у ЛЮБОГО героя — измерено
+  // живьём по альфа-каналу (см. footFrac/sizeFrac выше), иначе каждый
+  // герой на глаз получался разного размера и не совпадал по росту с
+  // уличными бойцами. footOffset — доля кадра НИЖЕ ступней (прозрачный
+  // запас под ногами) — сдвигает картинку так, чтобы ступни легли ровно
+  // на floorY, а не парили над линией боя.
+  const drawH = portalBossDrawH(def), drawW = drawH;
+  const footOffset = drawH * (1 - def.footFrac);
+
   if (img.complete && img.naturalWidth){
-    // 380 — тот же размер отрисовки, что в fantasy_arena.html для ОБЫЧНЫХ
-    // (не увеличенных) бойцов: у этих спрайтов много прозрачных полей
-    // внутри кадра (замах оружием и т.п.), поэтому персонаж внутри рамки
-    // визуально мельче, чем кажется по числу пикселей кадра — 260
-    // получался МЕЛЬЧЕ уличных бойцов, хотя должен быть крупнее (по
-    // просьбе пользователя, 29.08.2026)
-    const drawH = 380*scale, drawW = 380*scale;
     ctx.save();
     ctx.globalAlpha = alpha;
     ctx.translate(cx, floorY);
@@ -2063,30 +2092,28 @@ function drawPortalBoss(v){
     // вправо" (спрайт по умолчанию влево), у fantasy-спрайтов по умолчанию
     // смотрят вправо — поэтому флип наоборот
     if (v.facing >= 0) ctx.scale(-1,1);
-    const sx = v._bf*size;
-    // сдвиг +100 (не +10) — у этих спрайтов много прозрачного поля СНИЗУ
-    // кадра (под ногами), иначе визуальные ноги персонажа зависают выше
-    // общей линии боя, а не стоят на ней (см. живой тест 29.08.2026)
-    ctx.drawImage(img, sx, 0, size, size, -drawW/2, -drawH+100, drawW, drawH);
+    const sx = Math.min(v._bf, anim.count-1)*size;
+    ctx.drawImage(img, sx, 0, size, size, -drawW/2, -drawH+footOffset, drawW, drawH);
     ctx.restore();
   }
 
+  // подпись НАД боссом — headTop у любого героя ровно на
+  // PORTAL_BOSS_TARGET_VISIBLE_H выше floorY (так посчитан drawH выше),
+  // так что константа общая на всех, а не подбирается на глаз для каждого
   ctx.save();
   ctx.textAlign = 'center';
+  const nameY = floorY - PORTAL_BOSS_TARGET_VISIBLE_H - 34;
+  const hpY = floorY - PORTAL_BOSS_TARGET_VISIBLE_H - 14;
   ctx.font = 'bold 16px Arial Black';
   ctx.strokeStyle = 'rgba(0,0,0,0.9)'; ctx.lineWidth = 3.5;
-  // подпись ПОД боссом (не над головой) — у fantasy-спрайтов много
-  // прозрачных полей внутри кадра, реальную высоту "головы" не угадать
-  // без разбора альфа-канала, а сверху рядом маячит бейдж "короля дня"
-  // (WALL_TOP+80..+112) — снизу гарантированно ничем не перекроется
-  ctx.strokeText(v.name, cx, floorY+42, 300);
+  ctx.strokeText(v.name, cx, nameY, 300);
   ctx.fillStyle = '#ff5566';
-  ctx.fillText(v.name, cx, floorY+42, 300);
+  ctx.fillText(v.name, cx, nameY, 300);
   ctx.font = 'bold 13px Arial Black';
   const hpTxt = `❤️ ${Math.max(0,Math.ceil(v.energy))}`;
-  ctx.strokeText(hpTxt, cx, floorY+60, 300);
+  ctx.strokeText(hpTxt, cx, hpY, 300);
   ctx.fillStyle = '#8fffb0';
-  ctx.fillText(hpTxt, cx, floorY+60, 300);
+  ctx.fillText(hpTxt, cx, hpY, 300);
   ctx.restore();
 }
 const PORTAL_CH = canvas.height;
