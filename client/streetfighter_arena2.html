@@ -2108,12 +2108,12 @@ function drawPortalCountdown(){
   const secs = Math.max(0, Math.ceil(portalTimer/1000));
   const mm = Math.floor(secs/60), ss = String(secs%60).padStart(2,'0');
   const label = portalActive ? `🌀 ПОРТАЛ FANTASY ARENA: 0:${ss}` : `🌀 Портал через ${mm}:${ss}`;
-  // оба состояния — 20px (было 39px активному, уменьшено вдвое по
-  // повторной просьбе пользователя — большой баннер мешал и во время
-  // портала тоже)
-  const fontPx = 20;
-  const boxH = 32;
-  const baselineOffset = 27;
+  // "Портал через X:XX" на обычной карте — покрупнее (28px), по повторной
+  // просьбе пользователя (20px оказалось слишком мелко); активный баннер
+  // портала остаётся 20px
+  const fontPx = portalActive ? 20 : 28;
+  const boxH = portalActive ? 32 : 42;
+  const baselineOffset = portalActive ? 27 : 35;
   ctx.save();
   ctx.textAlign = 'center';
   ctx.font = `bold ${fontPx}px Arial Black`;
