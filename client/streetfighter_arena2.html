@@ -1338,7 +1338,7 @@ function initDebugPanel(){
     randgift: ()=> onGift(randName(), 1+Math.floor(Math.random()*10)),
     // мгновенный запуск портала — не ждать 5 минут при тесте. Если портал
     // уже идёт, кнопка просто продлевает его ещё на минуту (это ок для теста)
-    portal: ()=> { portalActive = true; portalTimer = PORTAL_DURATION_MS; portalMapIdx = (portalMapIdx + 1) % PORTAL_MAPS.length; portalScrollX = 0; snapFightersToPortalLine(); pushEvent(pick(PORTAL_OPEN_LINES), true); startPortalTransition(); setPortalMusic(true); },
+    portal: ()=> { removePortalBosses(); portalActive = true; portalTimer = PORTAL_DURATION_MS; portalMapIdx = (portalMapIdx + 1) % PORTAL_MAPS.length; portalScrollX = 0; snapFightersToPortalLine(); pushEvent(pick(PORTAL_OPEN_LINES), true); startPortalTransition(); setPortalMusic(true); spawnPortalBoss(); },
   };
   document.querySelectorAll('#debugPanel button[data-t]').forEach(btn=>{
     btn.addEventListener('click', ()=>{ const fn = actions[btn.dataset.t]; if (fn) fn(); });
@@ -1962,6 +1962,115 @@ function updateDrawPortalDamageNumbers(now, dt){
 function snapFightersToPortalLine(){
   for (const v of VARIANTS){ v.y = PORTAL_LINE_Y; v.ty = PORTAL_LINE_Y; }
 }
+
+// БОСС ПОРТАЛА (29.08.2026) — по одному боссу на каждую из 8 карт портала,
+// по очереди с PORTAL_MAPS, настоящие спрайты Fantasy Arena. Там кадры
+// анимации — один лист на всю анимацию (не папка PNG на кадр, как у
+// уличных бойцов), поэтому рисуется отдельной функцией drawPortalBoss, а
+// не через общий drawFighter/loadFrames. Вся боевая механика (обмен
+// ударами, урон, нокаут) — ОБЩАЯ с обычными бойцами через VARIANTS/
+// startExchange/throwPunch/collapse, поэтому boss.baseType/dir выставлены
+// в служебное 'brawler_girl' (существующий валидный скин) — они нигде не
+// рисуются, нужны только чтобы initFighterRuntime/CHAR_ATTACKS не упали
+// на несуществующем ключе.
+const PORTAL_BOSS_ENERGY = 1500, PORTAL_BOSS_POWER = 20;
+const PORTAL_BOSS_ROSTER = {
+  hero_knight:  { idleFile:'Idle.png', idleCount:11, frame:180 },
+  martial_hero: { idleFile:'Idle.png', idleCount:8,  frame:200 },
+  evil_wizard:  { idleFile:'Idle.png', idleCount:8,  frame:150 },
+  huntress:     { idleFile:'Idle.png', idleCount:8,  frame:150 },
+};
+const portalBossImgCache = {};
+function portalGetBossImg(dir, file){
+  const key = dir+'/'+file;
+  if (!portalBossImgCache[key]){ const im = new Image(); im.src = `sprites/fantasy_arena/${dir}/${file}`; portalBossImgCache[key] = im; }
+  return portalBossImgCache[key];
+}
+// один босс на комнату, в том же порядке, что PORTAL_MAPS ниже (corridor,
+// cemetery, swamp, church, town, illusion, tallforest, autumn)
+const PORTAL_BOSSES = [
+  { charKey:'evil_wizard',  dir:'evil_wizard',                 label:'🧙 Тёмный маг коридоров' },
+  { charKey:'evil_wizard',  dir:'evil_wizard_v6_purple',        label:'💀 Некромант кладбища' },
+  { charKey:'evil_wizard',  dir:'evil_wizard_v3_green',         label:'🐸 Болотный колдун' },
+  { charKey:'hero_knight',  dir:'hero_knight_v6_purple',        label:'⚔️ Падший рыцарь' },
+  { charKey:'martial_hero', dir:'martial_hero',                 label:'🥋 Главарь городских бойцов' },
+  { charKey:'huntress',     dir:'huntress_v5_blue',             label:'🏹 Охотница иллюзий' },
+  { charKey:'huntress',     dir:'huntress_v3_green',            label:'🏹 Лесная охотница-босс' },
+  { charKey:'martial_hero', dir:'martial_hero_v2_yellowgreen',  label:'🥋 Осенний мастер' },
+];
+PORTAL_BOSSES.forEach(b => portalGetBossImg(b.dir, PORTAL_BOSS_ROSTER[b.charKey].idleFile));
+
+function spawnPortalBoss(){
+  const def = PORTAL_BOSSES[portalMapIdx];
+  const v = {
+    baseType:'brawler_girl', dir:'brawler_girl', color:'#ffffff', // служебное, не рисуется — см. комментарий выше
+    isBot:true, isBoss:true, isChamp:false, skinChosen:false, knownRankIdx:0,
+    name: def.label, bossCharKey: def.charKey, bossDir: def.dir,
+    stolenEnergy:0, powerDecayAcc:0, kos:0, allTimeStolen:0,
+  };
+  v.energyMax = PORTAL_BOSS_ENERGY; v.energy = PORTAL_BOSS_ENERGY;
+  v.powerMax = PORTAL_BOSS_POWER; v.power = PORTAL_BOSS_POWER;
+  initFighterRuntime(v, CW/2, PORTAL_LINE_Y);
+  VARIANTS.push(v);
+}
+function removePortalBosses(){
+  for (let i=VARIANTS.length-1; i>=0; i--){ if (VARIANTS[i].isBoss) VARIANTS.splice(i,1); }
+}
+
+function drawPortalBoss(v){
+  const now = performance.now();
+  const def = PORTAL_BOSS_ROSTER[v.bossCharKey];
+  const img = portalGetBossImg(v.bossDir, def.idleFile);
+  const size = def.frame;
+  if (v._bf == null){ v._bf = 0; v._bfT = now; }
+  if (now - v._bfT > 125){ v._bfT = now; v._bf = (v._bf+1) % def.idleCount; }
+
+  const cx = v.x, floorY = v.y;
+  let scale = 1;
+  if (v.state === 'punch') scale = 1.1;
+  if (v.state === 'hurt') scale = 1.15;
+  let alpha = 1, rot = 0;
+  if (v.state === 'ko'){
+    const p = Math.min(1, (KO_FALL_MS - v.koTimer) / KO_FALL_MS);
+    rot = p * Math.PI/2;
+    alpha = 1 - p*0.7;
+  }
+
+  ctx.save();
+  ctx.globalAlpha = 0.3;
+  ctx.fillStyle = '#000';
+  ctx.beginPath(); ctx.ellipse(cx, floorY, 46, 12, 0, 0, Math.PI*2); ctx.fill();
+  ctx.restore();
+
+  if (img.complete && img.naturalWidth){
+    const drawH = 260*scale, drawW = 260*scale;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.translate(cx, floorY);
+    ctx.rotate(rot);
+    // конвертация направления: у обычных бойцов facing<0 значит "смотрит
+    // вправо" (спрайт по умолчанию влево), у fantasy-спрайтов по умолчанию
+    // смотрят вправо — поэтому флип наоборот
+    if (v.facing >= 0) ctx.scale(-1,1);
+    const sx = v._bf*size;
+    ctx.drawImage(img, sx, 0, size, size, -drawW/2, -drawH+10, drawW, drawH);
+    ctx.restore();
+  }
+
+  ctx.save();
+  ctx.textAlign = 'center';
+  ctx.font = 'bold 16px Arial Black';
+  ctx.strokeStyle = 'rgba(0,0,0,0.9)'; ctx.lineWidth = 3.5;
+  ctx.strokeText(v.name, cx, floorY-278, 260);
+  ctx.fillStyle = '#ff5566';
+  ctx.fillText(v.name, cx, floorY-278, 260);
+  ctx.font = 'bold 13px Arial Black';
+  const hpTxt = `❤️ ${Math.max(0,Math.ceil(v.energy))}`;
+  ctx.strokeText(hpTxt, cx, floorY-258, 260);
+  ctx.fillStyle = '#8fffb0';
+  ctx.fillText(hpTxt, cx, floorY-258, 260);
+  ctx.restore();
+}
 const PORTAL_CH = canvas.height;
 const PORTAL_TILE = 16, PORTAL_TS = 3, PORTAL_FLOOR_ROWS = 6;
 const PORTAL_SCROLL_SPEED = 42;
@@ -2506,6 +2615,7 @@ function tintGold(img){
 
 function drawFighter(v) {
   if (v.eliminated) return; // насовсем исчез с ринга
+  if (v.isBoss) { drawPortalBoss(v); return; }
 
   const s = FIGHTER_SCALE;
   const cx = v.x, floorY = v.y;
@@ -2967,6 +3077,7 @@ function update(dt){
       pushEvent(pick(PORTAL_CLOSE_LINES), true);
       startPortalTransition();
       setPortalMusic(false);
+      removePortalBosses();
     }
   } else if (portalTimer <= 0){
     portalActive = true;
@@ -2977,6 +3088,7 @@ function update(dt){
     pushEvent(pick(PORTAL_OPEN_LINES), true);
     startPortalTransition();
     setPortalMusic(true);
+    spawnPortalBoss();
   }
 
   // смена комнаты (фон/реквизит) каждые ROOM_SWITCH_MS — бой и бойцы не
