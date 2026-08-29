@@ -2145,8 +2145,8 @@ function drawPortalCountdown(){
   // почти под самым краем плашки правил (её рамка заканчивается на
   // PANEL_TOP+PANEL_H=264, WALL_TOP=274 — уходим в этот технический
   // зазор, оставляя всего пару пикселей)
-  const topOffset = -8;
-  const baselineOffset = (portalActive ? 27 : 35) - 16;
+  const topOffset = -14;
+  const baselineOffset = (portalActive ? 27 : 35) - 22;
   ctx.save();
   ctx.textAlign = 'center';
   ctx.font = `bold ${fontPx}px Arial Black`;
