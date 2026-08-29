@@ -1986,18 +1986,23 @@ const PORTAL_BOSS_POWER_MIN = 50, PORTAL_BOSS_POWER_MAX = 200;
 // заканчиваются ступни, sizeFrac — какую долю высоты кадра занимает
 // видимая фигура целиком. Обе доли РАЗНЫЕ у каждого героя (не роботы из
 // одного пака) — единой на все константы не будет.
-const PORTAL_BOSS_TARGET_VISIBLE_H = 175; // чуть больше уличного бойца (~138px), по просьбе пользователя — "не меньше, даже побольше"
+// targetH — целевая ВИДИМАЯ высота этого героя (по просьбе пользователя,
+// 29.08.2026: некромант/evil_wizard уже нормального размера — не трогаем,
+// остальных троих уменьшили до +10-15% от уличного бойца ~138px, не
+// больше, а не единая для всех высота, как было раньше — при одинаковой
+// цели по факту получались бы разные "на вид" размеры, у некроманта
+// компактный силуэт, у рыцаря/самурая/охотницы визуально шире/раскидистее)
 const PORTAL_BOSS_ROSTER = {
-  hero_knight:  { frame:180, footFrac:114/180, sizeFrac:51/180,
+  hero_knight:  { frame:180, footFrac:114/180, sizeFrac:51/180, targetH:155,
     anims:{ idle:{file:'Idle.png',count:11}, attack:{file:'Attack1.png',count:7}, hit:{file:'Take Hit.png',count:4}, death:{file:'Death.png',count:11} } },
-  martial_hero: { frame:200, footFrac:122/200, sizeFrac:52/200,
+  martial_hero: { frame:200, footFrac:122/200, sizeFrac:52/200, targetH:155,
     anims:{ idle:{file:'Idle.png',count:8}, attack:{file:'Attack1.png',count:6}, hit:{file:'Take Hit.png',count:4}, death:{file:'Death.png',count:6} } },
-  evil_wizard:  { frame:150, footFrac:100/150, sizeFrac:55/150,
+  evil_wizard:  { frame:150, footFrac:100/150, sizeFrac:55/150, targetH:175,
     anims:{ idle:{file:'Idle.png',count:8}, attack:{file:'Attack.png',count:8}, hit:{file:'Take Hit.png',count:4}, death:{file:'Death.png',count:5} } },
-  huntress:     { frame:150, footFrac:97/150,  sizeFrac:42/150,
+  huntress:     { frame:150, footFrac:97/150,  sizeFrac:42/150, targetH:150,
     anims:{ idle:{file:'Idle.png',count:8}, attack:{file:'Attack1.png',count:5}, hit:{file:'Take hit.png',count:3}, death:{file:'Death.png',count:8} } },
 };
-function portalBossDrawH(def){ return PORTAL_BOSS_TARGET_VISIBLE_H / def.sizeFrac; }
+function portalBossDrawH(def){ return def.targetH / def.sizeFrac; }
 const portalBossImgCache = {};
 function portalGetBossImg(dir, file){
   const key = dir+'/'+file;
@@ -2074,10 +2079,9 @@ function drawPortalBoss(v){
   ctx.restore();
 
   // drawH калибруется так, чтобы ВИДИМАЯ (не прозрачная) высота фигуры
-  // была ровно PORTAL_BOSS_TARGET_VISIBLE_H у ЛЮБОГО героя — измерено
-  // живьём по альфа-каналу (см. footFrac/sizeFrac выше), иначе каждый
-  // герой на глаз получался разного размера и не совпадал по росту с
-  // уличными бойцами. footOffset — доля кадра НИЖЕ ступней (прозрачный
+  // была ровно def.targetH (свой на каждого героя, см. комментарий у
+  // PORTAL_BOSS_ROSTER) — измерено живьём по альфа-каналу (footFrac/
+  // sizeFrac выше). footOffset — доля кадра НИЖЕ ступней (прозрачный
   // запас под ногами) — сдвигает картинку так, чтобы ступни легли ровно
   // на floorY, а не парили над линией боя.
   const drawH = portalBossDrawH(def), drawW = drawH;
@@ -2097,13 +2101,13 @@ function drawPortalBoss(v){
     ctx.restore();
   }
 
-  // подпись НАД боссом — headTop у любого героя ровно на
-  // PORTAL_BOSS_TARGET_VISIBLE_H выше floorY (так посчитан drawH выше),
-  // так что константа общая на всех, а не подбирается на глаз для каждого
+  // подпись НАД боссом — headTop у КАЖДОГО героя ровно на его собственном
+  // def.targetH выше floorY (так посчитан drawH выше), поэтому берём
+  // targetH конкретного героя, а не общую константу
   ctx.save();
   ctx.textAlign = 'center';
-  const nameY = floorY - PORTAL_BOSS_TARGET_VISIBLE_H - 34;
-  const hpY = floorY - PORTAL_BOSS_TARGET_VISIBLE_H - 14;
+  const nameY = floorY - def.targetH - 34;
+  const hpY = floorY - def.targetH - 14;
   ctx.font = 'bold 16px Arial Black';
   ctx.strokeStyle = 'rgba(0,0,0,0.9)'; ctx.lineWidth = 3.5;
   ctx.strokeText(v.name, cx, nameY, 300);
