@@ -31,7 +31,6 @@
 <button id="musicBtn" class="ui-btn" title="Музыка">🎵</button>
 <button id="fsBtn"    class="ui-btn" title="На весь экран">⛶</button>
 <div id="statusBadge"></div>
-<div id="ratingOverlay" style="position:fixed;top:27%;left:50%;transform:translateX(-50%);z-index:200;pointer-events:none;display:none;background:rgba(0,0,0,0.88);border:1.5px solid rgba(255,80,80,0.5);border-radius:8px;padding:6px 12px 7px;font-family:Arial,sans-serif;min-width:150px;text-align:center;line-height:1.25;white-space:nowrap;"></div>
 <audio id="bgMusic" src="audio/streetfighter_theme.mp3" loop preload="auto"></audio>
 <div id="wrap"><canvas id="c" width="600" height="1000"></canvas></div>
 <div id="debugPanel" hidden>
@@ -1224,74 +1223,15 @@ function wsConnect(username){
         const v = findRealFighter(d.username);
         if (v) applyChosenSkin(v, d.skinIndex);
       }
-      if (d.type==='arena_streetfighter_rating'){
-        if (d.rank){
-          // Порядок карточки — по явной просьбе пользователя: ник → уровень
-          // (это ГЛАВНОЕ в игре, сразу после ника) → нокауты → недельные
-          // очки/место → сколько раз был Королём недели → сколько держит
-          // корону прямо сейчас на этой неделе.
-          let html = `<span style="color:#FF6688;font-size:16px;font-weight:bold;">📊 @${d.username}</span><br>`;
-
-          // уровень + название ранга + полоска прогресса — считается от
-          // lifetimeStolen (ВЕЧНЫЙ счётчик, не обнуляется по понедельникам
-          // вместе с недельными очками ниже — иначе уровень бы сгорал)
-          const lifetimeTotal = Number(d.lifetimeStolen||0);
-          const prog = levelProgress(lifetimeTotal);
-          const rank = rankOfLevel(prog.level);
-          html += `<span style="color:#7fd3ff;font-size:15px;font-weight:700;">🎖️ ${prog.level} уровень — ${rank.name}</span>`;
-          if (prog.next != null){
-            const pct = Math.round(prog.frac*100);
-            const need = (prog.next - lifetimeTotal).toLocaleString('ru-RU');
-            html += `<div style="margin-top:2px;background:rgba(255,255,255,0.12);border-radius:5px;height:6px;overflow:hidden;">`
-              + `<div style="width:${pct}%;height:100%;background:${rank.color};"></div></div>`
-              + `<div style="margin-top:1px;color:#aaa;font-size:11px;">ещё ${need}⚡ до ${prog.level+1} уровня</div>`;
-          } else {
-            html += `<div style="margin-top:1px;color:#ffd75e;font-size:11px;">Максимальный уровень!</div>`;
-          }
-
-          // нокауты, затем дневные очки/место (d.stolen/d.rank — сами
-          // обнуляются каждую полночь, двигают корону текущего дня)
-          const stolenTotal = Number(d.stolen||0);
-          const pts = stolenTotal.toLocaleString('ru-RU');
-          // каждое значение — на своей строке, ничего не склеиваем через "·"
-          html += `<div style="margin-top:3px;padding-top:3px;border-top:1px dashed rgba(255,255,255,0.18);">`
-            + `<span style="color:#ffb4c4;font-size:13.5px;">🥊 Нокаутов: ${d.kos||0}</span><br>`
-            + `<span style="color:#FFD700;font-size:14.5px;">#${d.rank} место за день</span><br>`
-            + `<span style="color:#FFD700;font-size:14.5px;">⚡${pts} очков за день</span>`
-            + `</div>`;
-
-          // Король дня: сколько раз выигрывал (вечный счётчик, имя поля
-          // weeklyKingWins историческое — осталось с недельной версии). Строку
-          // "⏱ На короне уже: Xч Yм" убрали 2026-08-08 — с новыми правилами
-          // (побеждает по очкам, не по времени с короной) она уже ничего не
-          // решает и только сбивала бы зрителя с толку.
-          if (d.weeklyKingWins > 0){
-            html += `<div style="margin-top:3px;padding-top:3px;border-top:1px dashed rgba(255,215,0,0.25);color:#fff2b0;">`
-              + `<div style="display:flex;align-items:center;justify-content:center;gap:6px;font-size:14px;font-weight:700;">👑<span>Король дня ×${d.weeklyKingWins}</span></div>`
-              + `</div>`;
-          }
-          _showRating(html);
-        } else {
-          _showRating(`<span style="color:#AAA;font-size:15px;">📊 @${d.username}<br>пока не в рейтинге</span>`);
-        }
-      }
+      // плашка с личным рейтингом по команде "rating" убрана из этой копии
+      // (29.08.2026, по просьбе пользователя) — перекрывала VS-карточку в
+      // небе, в demo-режиме фейковый чат шлёт "rating" достаточно часто,
+      // чтобы плашка казалась висящей постоянно. В оригинале /streetfighter
+      // не трогали — там d.type==='arena_streetfighter_rating' обрабатывается
     } catch(err){ console.error('[streetfighter ws]', err); }
   };
   _ws.onclose = ()=>{ setStatus('error', '❌ Disconnected…'); setTimeout(()=>wsConnect(_wsUser), 3000); };
   _ws.onerror = ()=>{};
-}
-
-// отдельное всплывающее окошко под ответ на "rating" из чата (как в
-// arena2/arena3) — не смешивается с общей очередью событий боя/диктора,
-// поэтому не теряется среди фраз
-let _ratingHideTimer = null;
-function _showRating(html){
-  const el = document.getElementById('ratingOverlay');
-  if (!el) return;
-  el.innerHTML = html;
-  el.style.display = 'block';
-  if (_ratingHideTimer) clearTimeout(_ratingHideTimer);
-  _ratingHideTimer = setTimeout(()=>{ el.style.display = 'none'; }, 6000);
 }
 
 // очки за удары сыплются часто (каждый попавший удар) — вместо мгновенной
