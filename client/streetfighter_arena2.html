@@ -2827,6 +2827,21 @@ const TIRED_LINES = [
   l=>`🫠 ${l} закончился раньше боя!`,
 ];
 
+// босс портала повержен/побеждает — отдельные реплики (29.08.2026), а не
+// общие KO_LINES/TIRED_LINES, чтобы падение босса выделялось на фоне
+// обычных нокаутов ботов
+const PORTAL_BOSS_DEFEAT_LINES = [
+  (w,b)=>`👑 ${w} ПОВЕРГ БОССА ${b}!`,
+  (w,b)=>`🔥 ${b} пал от руки ${w}!`,
+  (w,b)=>`⚡ ${w} снёс босса ${b} одним натиском!`,
+  (w,b)=>`🏆 Босс ${b} побеждён — слава ${w}!`,
+];
+const PORTAL_BOSS_WIN_LINES = [
+  l=>`💀 ${l} не выдержал удара босса!`,
+  l=>`☠️ Босс размазал ${l} по мостовой!`,
+  l=>`🩸 ${l} пал жертвой босса портала!`,
+];
+
 const PORTAL_OPEN_LINES = [
   '🌀 Портал открывается! Бойцы переносятся в мир Fantasy Arena!',
   '🌀 Улицы исчезают — начинается бой в фэнтези-мире!',
@@ -2862,8 +2877,17 @@ function collapse(loser, winner){
       winner.kos = (winner.kos||0) + 1;
       reportKO(winner.name);
     }
-    // диктор объявляет только реальных победителей — бот-победитель молчит
-    if (!winner.isBot) pushEvent(pick(KO_LINES)(cleanNickForSpeech(winner.name), cleanNickForSpeech(loser.name)), true);
+    // диктор объявляет только реальных победителей — бот-победитель молчит.
+    // Падение босса портала (loser.isBoss) — отдельная "жирная" реплика
+    // (protect=true, нельзя перебить), а не общий KO_LINES; если, наоборот,
+    // САМ босс победил реального зрителя — тоже отдельная реплика
+    if (loser.isBoss && !winner.isBot){
+      pushEvent(pick(PORTAL_BOSS_DEFEAT_LINES)(cleanNickForSpeech(winner.name), cleanNickForSpeech(loser.name)), true, true);
+    } else if (winner.isBoss && !loser.isBot){
+      pushEvent(pick(PORTAL_BOSS_WIN_LINES)(cleanNickForSpeech(loser.name)), true);
+    } else if (!winner.isBot) {
+      pushEvent(pick(KO_LINES)(cleanNickForSpeech(winner.name), cleanNickForSpeech(loser.name)), true);
+    }
   } else if (!loser.isBot) {
     pushEvent(pick(TIRED_LINES)(cleanNickForSpeech(loser.name)), true);
   }
