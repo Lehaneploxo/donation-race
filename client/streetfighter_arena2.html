@@ -1159,6 +1159,19 @@ function unduckBgMusic(){
   _duckTimer = setTimeout(()=>{ bgMusic.volume = BG_MUSIC_VOLUME; }, 250);
 }
 
+// на время портала — та же мелодия, что играет в fantasy_arena.html
+// (29.08.2026, по просьбе пользователя), возврат на тему Street Fighters
+// после портала. Громкость/muted не трогаем — только сам трек.
+const STREETFIGHTER_MUSIC_SRC = 'audio/streetfighter_theme.mp3';
+const PORTAL_MUSIC_SRC = 'audio/fantasy_arena_theme.mp3';
+function setPortalMusic(active){
+  const src = active ? PORTAL_MUSIC_SRC : STREETFIGHTER_MUSIC_SRC;
+  if (bgMusic.src.endsWith(src)) return;
+  bgMusic.src = src;
+  bgMusic.load();
+  bgMusic.play().catch(()=>{});
+}
+
 // ── Живое подключение к TikTok-чату (как в arena2/arena3) ──
 // Сервер шлёт общие "arena_*" события на весь стрим — тут выбираем только
 // нужные и растим/спавним реальных бойцов. Синтетические demo-события
@@ -1325,7 +1338,7 @@ function initDebugPanel(){
     randgift: ()=> onGift(randName(), 1+Math.floor(Math.random()*10)),
     // мгновенный запуск портала — не ждать 5 минут при тесте. Если портал
     // уже идёт, кнопка просто продлевает его ещё на минуту (это ок для теста)
-    portal: ()=> { portalActive = true; portalTimer = PORTAL_DURATION_MS; portalMapIdx = (portalMapIdx + 1) % PORTAL_MAPS.length; portalScrollX = 0; snapFightersToPortalLine(); pushEvent(pick(PORTAL_OPEN_LINES), true); startPortalTransition(); },
+    portal: ()=> { portalActive = true; portalTimer = PORTAL_DURATION_MS; portalMapIdx = (portalMapIdx + 1) % PORTAL_MAPS.length; portalScrollX = 0; snapFightersToPortalLine(); pushEvent(pick(PORTAL_OPEN_LINES), true); startPortalTransition(); setPortalMusic(true); },
   };
   document.querySelectorAll('#debugPanel button[data-t]').forEach(btn=>{
     btn.addEventListener('click', ()=>{ const fn = actions[btn.dataset.t]; if (fn) fn(); });
@@ -2951,6 +2964,7 @@ function update(dt){
       portalActive = false; portalTimer = PORTAL_CYCLE_MS;
       pushEvent(pick(PORTAL_CLOSE_LINES), true);
       startPortalTransition();
+      setPortalMusic(false);
     }
   } else if (portalTimer <= 0){
     portalActive = true;
@@ -2960,6 +2974,7 @@ function update(dt){
     snapFightersToPortalLine();
     pushEvent(pick(PORTAL_OPEN_LINES), true);
     startPortalTransition();
+    setPortalMusic(true);
   }
 
   // смена комнаты (фон/реквизит) каждые ROOM_SWITCH_MS — бой и бойцы не
