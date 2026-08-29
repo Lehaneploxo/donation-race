@@ -44,6 +44,7 @@
     <button data-t="biggift2">💎 БОЛЬШОЙ P2</button>
     <button data-t="randlike">🎲 Лайк случайный</button>
     <button data-t="randgift">🎲 Донат случайный</button>
+    <button data-t="portal" style="grid-column:1/3">🌀 ПОРТАЛ СЕЙЧАС</button>
   </div>
 </div>
 <script>
@@ -1320,6 +1321,9 @@ function initDebugPanel(){
     biggift2: ()=> onGift('TestPlayer2', 300+Math.floor(Math.random()*400)),
     randlike: ()=> onLike(randName()),
     randgift: ()=> onGift(randName(), 1+Math.floor(Math.random()*10)),
+    // мгновенный запуск портала — не ждать 5 минут при тесте. Если портал
+    // уже идёт, кнопка просто продлевает его ещё на минуту (это ок для теста)
+    portal: ()=> { portalActive = true; portalTimer = PORTAL_DURATION_MS; portalMapIdx = (portalMapIdx + 1) % PORTAL_MAPS.length; portalScrollX = 0; },
   };
   document.querySelectorAll('#debugPanel button[data-t]').forEach(btn=>{
     btn.addEventListener('click', ()=>{ const fn = actions[btn.dataset.t]; if (fn) fn(); });
@@ -1890,6 +1894,223 @@ function drawBackground(t) {
 
   // реквизит текущей комнаты (автомат/бак/вход в клуб/граффити и т.п.)
   if (room.extra) room.extra(t);
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// ПОРТАЛ В FANTASY ARENA (29.08.2026, по просьбе пользователя) — каждые
+// PORTAL_CYCLE_MS (5 мин) бой на минуту (PORTAL_DURATION_MS) переносится
+// на фон одной из 8 карт Fantasy Arena (карты идут по очереди), бойцы и
+// вся боевая логика не меняются — только фон. Пока портал активен, обычная
+// смена комнат Street Fighters (roomSwitchTimer) на паузе — это и даёт
+// "возврат на ту же карту, где остановились" после портала. Фоны и их
+// ассеты — 1:1 портированы из fantasy_arena.html (drawParallaxLayer/
+// drawSeamAndVignette + 8 функций drawBGXxx), только под здешние
+// WALL_TOP/CW/CH (fantasy_arena.html хранит их в MAPS/drawBG).
+// ═══════════════════════════════════════════════════════════════════════
+const PORTAL_CYCLE_MS = 5*60*1000;
+const PORTAL_DURATION_MS = 60*1000;
+let portalActive = false;
+let portalTimer = PORTAL_CYCLE_MS;
+let portalMapIdx = 0;
+let portalScrollX = 0;
+const PORTAL_CH = canvas.height;
+const PORTAL_TILE = 16, PORTAL_TS = 3, PORTAL_FLOOR_ROWS = 6;
+const PORTAL_SCROLL_SPEED = 42;
+
+function portalDrawParallaxLayer(img, scale, bottomY, speedFactor){
+  if (!img.complete || img.naturalWidth===0) return;
+  const dw = img.naturalWidth*scale, dh = img.naturalHeight*scale;
+  const y = bottomY - dh;
+  const off = Math.round(((portalScrollX*speedFactor % dw) + dw) % dw);
+  for (let x=-off; x<CW; x+=dw){
+    ctx.drawImage(img, x, y, dw, dh);
+  }
+}
+function portalDrawSeamAndVignette(seamY, areaH){
+  const seam = ctx.createLinearGradient(0,seamY-24,0,seamY+10);
+  seam.addColorStop(0,'rgba(0,0,0,0)'); seam.addColorStop(1,'rgba(0,0,0,0.55)');
+  ctx.fillStyle=seam; ctx.fillRect(0,seamY-24,CW,34);
+  const vgrad = ctx.createLinearGradient(0,0,CW,0);
+  vgrad.addColorStop(0,'rgba(0,0,0,0.5)'); vgrad.addColorStop(0.12,'rgba(0,0,0,0)');
+  vgrad.addColorStop(0.88,'rgba(0,0,0,0)'); vgrad.addColorStop(1,'rgba(0,0,0,0.5)');
+  ctx.fillStyle=vgrad; ctx.fillRect(0,WALL_TOP,CW,areaH);
+}
+
+const PORTAL_CORRIDOR_DIR = "sprites/fantasy_arena/stage5_corridor/Cold Corridors Files/Assets/Layers";
+const portalCorridorLayerNames = ['back','far','middle','near','foreground'];
+const portalCorridorLayers = portalCorridorLayerNames.map(n => { const im = new Image(); im.src = `${PORTAL_CORRIDOR_DIR}/${n}.png`; return im; });
+const portalCorridorTileset = new Image(); portalCorridorTileset.src = `${PORTAL_CORRIDOR_DIR}/tileset.png`;
+const PORTAL_CORRIDOR_SCALE = 2;
+const PORTAL_CORRIDOR_SKY_COLOR = '#1a0f52';
+const PORTAL_CORRIDOR_FLOOR_COLOR = '#6b4a8f';
+const PORTAL_CORRIDOR_SPEEDS = [0.03, 0.08, 0.18, 0.4, 0.7];
+function drawPortalBGCorridor(){
+  const areaH = PORTAL_CH-WALL_TOP, floorH = PORTAL_FLOOR_ROWS*PORTAL_TILE*PORTAL_TS, wallH = areaH-floorH, seamY = WALL_TOP+wallH;
+  ctx.fillStyle = PORTAL_CORRIDOR_SKY_COLOR; ctx.fillRect(0, WALL_TOP, CW, wallH);
+  ctx.imageSmoothingEnabled = false;
+  portalCorridorLayers.forEach((img,i) => portalDrawParallaxLayer(img, PORTAL_CORRIDOR_SCALE, seamY, PORTAL_CORRIDOR_SPEEDS[i]));
+  ctx.fillStyle = PORTAL_CORRIDOR_FLOOR_COLOR; ctx.fillRect(0, seamY, CW, floorH);
+  if (portalCorridorTileset.complete && portalCorridorTileset.naturalWidth>0){
+    const tw = portalCorridorTileset.naturalWidth*PORTAL_CORRIDOR_SCALE, th = portalCorridorTileset.naturalHeight*PORTAL_CORRIDOR_SCALE;
+    const off = Math.round(((portalScrollX*0.4 % tw) + tw) % tw);
+    for (let x=-off; x<CW; x+=tw){
+      ctx.drawImage(portalCorridorTileset, 0,0, portalCorridorTileset.naturalWidth, portalCorridorTileset.naturalHeight, x, seamY, tw, th);
+    }
+  }
+  portalDrawSeamAndVignette(seamY, areaH);
+}
+
+const PORTAL_CEMETERY_DIR = "sprites/fantasy_arena/stage6_cemetery";
+const portalCemeteryBg = new Image(); portalCemeteryBg.src = `${PORTAL_CEMETERY_DIR}/background.png`;
+const portalCemeteryMountains = new Image(); portalCemeteryMountains.src = `${PORTAL_CEMETERY_DIR}/mountains.png`;
+const portalCemeteryGraveyard = new Image(); portalCemeteryGraveyard.src = `${PORTAL_CEMETERY_DIR}/graveyard.png`;
+const PORTAL_CEMETERY_SCALE = 2;
+const PORTAL_CEMETERY_SKY_COLOR = '#170a1f';
+const PORTAL_CEMETERY_FLOOR_COLOR = '#0a0510';
+function drawPortalBGCemetery(){
+  const areaH = PORTAL_CH-WALL_TOP, floorH = PORTAL_FLOOR_ROWS*PORTAL_TILE*PORTAL_TS, wallH = areaH-floorH, seamY = WALL_TOP+wallH;
+  ctx.fillStyle = PORTAL_CEMETERY_SKY_COLOR; ctx.fillRect(0, WALL_TOP, CW, wallH);
+  ctx.imageSmoothingEnabled = false;
+  portalDrawParallaxLayer(portalCemeteryBg, PORTAL_CEMETERY_SCALE, seamY, 0.05);
+  portalDrawParallaxLayer(portalCemeteryMountains, PORTAL_CEMETERY_SCALE, seamY, 0.2);
+  portalDrawParallaxLayer(portalCemeteryGraveyard, PORTAL_CEMETERY_SCALE, seamY, 0.5);
+  ctx.fillStyle = PORTAL_CEMETERY_FLOOR_COLOR; ctx.fillRect(0, seamY, CW, floorH);
+  portalDrawSeamAndVignette(seamY, areaH);
+}
+
+const PORTAL_SWAMP_DIR = "sprites/fantasy_arena/stage7_swamp";
+const portalSwampBg = new Image(); portalSwampBg.src = `${PORTAL_SWAMP_DIR}/background.png`;
+const portalSwampMid = new Image(); portalSwampMid.src = `${PORTAL_SWAMP_DIR}/mid-layer-01.png`;
+const PORTAL_SWAMP_SCALE = 2;
+const PORTAL_SWAMP_SKY_COLOR = '#0d2416';
+const PORTAL_SWAMP_FLOOR_COLOR = '#040d07';
+function drawPortalBGSwamp(){
+  const areaH = PORTAL_CH-WALL_TOP, floorH = PORTAL_FLOOR_ROWS*PORTAL_TILE*PORTAL_TS, wallH = areaH-floorH, seamY = WALL_TOP+wallH;
+  ctx.fillStyle = PORTAL_SWAMP_SKY_COLOR; ctx.fillRect(0, WALL_TOP, CW, wallH);
+  ctx.imageSmoothingEnabled = false;
+  portalDrawParallaxLayer(portalSwampBg, PORTAL_SWAMP_SCALE, seamY, 0.05);
+  portalDrawParallaxLayer(portalSwampMid, PORTAL_SWAMP_SCALE, seamY, 0.4);
+  ctx.fillStyle = PORTAL_SWAMP_FLOOR_COLOR; ctx.fillRect(0, seamY, CW, floorH);
+  portalDrawSeamAndVignette(seamY, areaH);
+}
+
+const PORTAL_CHURCH_DIR = "sprites/fantasy_arena/stage8_church";
+const portalChurchBg = new Image(); portalChurchBg.src = `${PORTAL_CHURCH_DIR}/backgrounds.png`;
+const portalChurchColumn = new Image(); portalChurchColumn.src = `${PORTAL_CHURCH_DIR}/column.png`;
+const PORTAL_CHURCH_SCALE = 2;
+const PORTAL_CHURCH_SKY_COLOR = '#100a24';
+const PORTAL_CHURCH_FLOOR_COLOR = '#241a3a';
+function drawPortalBGChurch(){
+  const areaH = PORTAL_CH-WALL_TOP, floorH = PORTAL_FLOOR_ROWS*PORTAL_TILE*PORTAL_TS, wallH = areaH-floorH, seamY = WALL_TOP+wallH;
+  ctx.fillStyle = PORTAL_CHURCH_SKY_COLOR; ctx.fillRect(0, WALL_TOP, CW, wallH);
+  ctx.imageSmoothingEnabled = false;
+  portalDrawParallaxLayer(portalChurchBg, PORTAL_CHURCH_SCALE, seamY, 0.15);
+  portalDrawParallaxLayer(portalChurchColumn, PORTAL_CHURCH_SCALE, seamY, 0.5);
+  ctx.fillStyle = PORTAL_CHURCH_FLOOR_COLOR; ctx.fillRect(0, seamY, CW, floorH);
+  portalDrawSeamAndVignette(seamY, areaH);
+}
+
+const PORTAL_TOWN_DIR = "sprites/fantasy_arena/stage9_town";
+const portalTownBg = new Image(); portalTownBg.src = `${PORTAL_TOWN_DIR}/background.png`;
+const portalTownMid = new Image(); portalTownMid.src = `${PORTAL_TOWN_DIR}/middleground.png`;
+const portalTownGround = new Image(); portalTownGround.src = `${PORTAL_TOWN_DIR}/ground.png`;
+const PORTAL_TOWN_SCALE = 2;
+const PORTAL_TOWN_SKY_COLOR = '#4a2f42';
+const PORTAL_TOWN_FLOOR_COLOR = '#241220';
+function drawPortalBGTown(){
+  const areaH = PORTAL_CH-WALL_TOP, floorH = PORTAL_FLOOR_ROWS*PORTAL_TILE*PORTAL_TS, wallH = areaH-floorH, seamY = WALL_TOP+wallH;
+  ctx.fillStyle = PORTAL_TOWN_SKY_COLOR; ctx.fillRect(0, WALL_TOP, CW, wallH);
+  ctx.imageSmoothingEnabled = false;
+  portalDrawParallaxLayer(portalTownBg, PORTAL_TOWN_SCALE, seamY, 0.08);
+  portalDrawParallaxLayer(portalTownMid, PORTAL_TOWN_SCALE, seamY, 0.25);
+  ctx.fillStyle = PORTAL_TOWN_FLOOR_COLOR; ctx.fillRect(0, seamY, CW, floorH);
+  if (portalTownGround.complete && portalTownGround.naturalWidth>0){
+    const tw = portalTownGround.naturalWidth*PORTAL_TS, th = portalTownGround.naturalHeight*PORTAL_TS;
+    const off = Math.round(((portalScrollX % tw) + tw) % tw);
+    for (let x=-off; x<CW; x+=tw){
+      ctx.drawImage(portalTownGround, 0,0, portalTownGround.naturalWidth, portalTownGround.naturalHeight, x, seamY, tw, th);
+    }
+  }
+  portalDrawSeamAndVignette(seamY, areaH);
+}
+
+const PORTAL_ILLUSION_DIR = "sprites/fantasy_arena/stage10_illusion";
+const portalIllusionBack = new Image(); portalIllusionBack.src = `${PORTAL_ILLUSION_DIR}/back.png`;
+const portalIllusionMiddle = new Image(); portalIllusionMiddle.src = `${PORTAL_ILLUSION_DIR}/middle.png`;
+const PORTAL_ILLUSION_SCALE = 2;
+const PORTAL_ILLUSION_SKY_COLOR = '#aee8ff';
+const PORTAL_ILLUSION_FLOOR_COLOR = '#3f7a3a';
+function drawPortalBGIllusion(){
+  const areaH = PORTAL_CH-WALL_TOP, floorH = PORTAL_FLOOR_ROWS*PORTAL_TILE*PORTAL_TS, wallH = areaH-floorH, seamY = WALL_TOP+wallH;
+  ctx.fillStyle = PORTAL_ILLUSION_SKY_COLOR; ctx.fillRect(0, WALL_TOP, CW, wallH);
+  ctx.imageSmoothingEnabled = false;
+  portalDrawParallaxLayer(portalIllusionBack, PORTAL_ILLUSION_SCALE, seamY, 0.1);
+  portalDrawParallaxLayer(portalIllusionMiddle, PORTAL_ILLUSION_SCALE, seamY, 0.35);
+  ctx.fillStyle = PORTAL_ILLUSION_FLOOR_COLOR; ctx.fillRect(0, seamY, CW, floorH);
+  portalDrawSeamAndVignette(seamY, areaH);
+}
+
+const PORTAL_TALLFOREST_DIR = "sprites/fantasy_arena/stage11_tallforest";
+const portalTallforestBack = new Image(); portalTallforestBack.src = `${PORTAL_TALLFOREST_DIR}/back.png`;
+const portalTallforestFar = new Image(); portalTallforestFar.src = `${PORTAL_TALLFOREST_DIR}/far.png`;
+const portalTallforestMiddle = new Image(); portalTallforestMiddle.src = `${PORTAL_TALLFOREST_DIR}/middle.png`;
+const PORTAL_TALLFOREST_SCALE = 2;
+const PORTAL_TALLFOREST_SKY_COLOR = '#bdeeff';
+const PORTAL_TALLFOREST_FLOOR_COLOR = '#2f6b34';
+function drawPortalBGTallforest(){
+  const areaH = PORTAL_CH-WALL_TOP, floorH = PORTAL_FLOOR_ROWS*PORTAL_TILE*PORTAL_TS, wallH = areaH-floorH, seamY = WALL_TOP+wallH;
+  ctx.fillStyle = PORTAL_TALLFOREST_SKY_COLOR; ctx.fillRect(0, WALL_TOP, CW, wallH);
+  ctx.imageSmoothingEnabled = false;
+  portalDrawParallaxLayer(portalTallforestBack, PORTAL_TALLFOREST_SCALE, seamY, 0.08);
+  portalDrawParallaxLayer(portalTallforestFar, PORTAL_TALLFOREST_SCALE, seamY, 0.2);
+  portalDrawParallaxLayer(portalTallforestMiddle, PORTAL_TALLFOREST_SCALE, seamY, 0.45);
+  ctx.fillStyle = PORTAL_TALLFOREST_FLOOR_COLOR; ctx.fillRect(0, seamY, CW, floorH);
+  portalDrawSeamAndVignette(seamY, areaH);
+}
+
+const PORTAL_AUTUMN_DIR = "sprites/fantasy_arena/stage12_parallaxforest";
+const portalAutumnBack = new Image(); portalAutumnBack.src = `${PORTAL_AUTUMN_DIR}/back.png`;
+const portalAutumnMiddle = new Image(); portalAutumnMiddle.src = `${PORTAL_AUTUMN_DIR}/middle.png`;
+const portalAutumnFront = new Image(); portalAutumnFront.src = `${PORTAL_AUTUMN_DIR}/front.png`;
+const PORTAL_AUTUMN_SCALE = 3;
+const PORTAL_AUTUMN_SKY_COLOR = '#f3c26b';
+const PORTAL_AUTUMN_FLOOR_COLOR = '#4a2f18';
+function drawPortalBGAutumn(){
+  const areaH = PORTAL_CH-WALL_TOP, floorH = PORTAL_FLOOR_ROWS*PORTAL_TILE*PORTAL_TS, wallH = areaH-floorH, seamY = WALL_TOP+wallH;
+  ctx.fillStyle = PORTAL_AUTUMN_SKY_COLOR; ctx.fillRect(0, WALL_TOP, CW, wallH);
+  ctx.imageSmoothingEnabled = false;
+  portalDrawParallaxLayer(portalAutumnBack, PORTAL_AUTUMN_SCALE, seamY, 0.08);
+  portalDrawParallaxLayer(portalAutumnMiddle, PORTAL_AUTUMN_SCALE, seamY, 0.25);
+  portalDrawParallaxLayer(portalAutumnFront, PORTAL_AUTUMN_SCALE, seamY, 0.5);
+  ctx.fillStyle = PORTAL_AUTUMN_FLOOR_COLOR; ctx.fillRect(0, seamY, CW, floorH);
+  portalDrawSeamAndVignette(seamY, areaH);
+}
+
+const PORTAL_MAPS = [
+  drawPortalBGCorridor, drawPortalBGCemetery, drawPortalBGSwamp, drawPortalBGChurch,
+  drawPortalBGTown, drawPortalBGIllusion, drawPortalBGTallforest, drawPortalBGAutumn,
+];
+function drawPortalBackground(){
+  PORTAL_MAPS[portalMapIdx]();
+  ctx.imageSmoothingEnabled = true; // остальной рендер (бойцы, HUD) этого файла рассчитан на сглаживание
+}
+
+function drawPortalCountdown(){
+  const secs = Math.max(0, Math.ceil(portalTimer/1000));
+  const mm = Math.floor(secs/60), ss = String(secs%60).padStart(2,'0');
+  const label = portalActive ? `🌀 ПОРТАЛ FANTASY ARENA: 0:${ss}` : `🌀 Портал через ${mm}:${ss}`;
+  ctx.save();
+  ctx.textAlign = 'center';
+  ctx.font = 'bold 39px Arial Black'; // ×3 от исходных 13px, по просьбе пользователя (шрифт и иконка вместе, т.к. эмодзи в той же строке)
+  const w = ctx.measureText(label).width;
+  const maxW = CW-16;
+  ctx.fillStyle = portalActive ? 'rgba(120,40,180,0.75)' : 'rgba(0,0,0,0.55)';
+  ctx.fillRect(CW/2-Math.min(w,maxW)/2-14, WALL_TOP+8, Math.min(w,maxW)+28, 60);
+  ctx.strokeStyle = 'rgba(0,0,0,0.85)'; ctx.lineWidth = 5;
+  ctx.strokeText(label, CW/2, WALL_TOP+52, maxW);
+  ctx.fillStyle = portalActive ? '#e0b0ff' : '#ffd76b';
+  ctx.fillText(label, CW/2, WALL_TOP+52, maxW);
+  ctx.restore();
 }
 
 // ── ПЛАШКА (как в arena2.html): правила слева, топ справа ──
@@ -2621,12 +2842,28 @@ function update(dt){
   updateExchanges(dt);
   updateBotSpawns(dt);
 
+  // портал в Fantasy Arena — см. блок ПОРТАЛ выше. Пока портал активен,
+  // roomSwitchTimer НЕ тикает (см. ниже) — комната Street Fighters
+  // застывает на месте и возобновляется с того же момента после портала.
+  portalTimer -= dt;
+  if (portalActive){
+    portalScrollX += PORTAL_SCROLL_SPEED*(dt/1000);
+    if (portalTimer <= 0){ portalActive = false; portalTimer = PORTAL_CYCLE_MS; }
+  } else if (portalTimer <= 0){
+    portalActive = true;
+    portalTimer = PORTAL_DURATION_MS;
+    portalMapIdx = (portalMapIdx + 1) % PORTAL_MAPS.length;
+    portalScrollX = 0;
+  }
+
   // смена комнаты (фон/реквизит) каждые ROOM_SWITCH_MS — бой и бойцы не
-  // сбрасываются, меняется только декорация
-  roomSwitchTimer -= dt;
-  if (roomSwitchTimer <= 0){
-    roomIdx = (roomIdx + 1) % ROOMS.length;
-    roomSwitchTimer = ROOM_SWITCH_MS;
+  // сбрасываются, меняется только декорация. На паузе, пока идёт портал.
+  if (!portalActive){
+    roomSwitchTimer -= dt;
+    if (roomSwitchTimer <= 0){
+      roomIdx = (roomIdx + 1) % ROOMS.length;
+      roomSwitchTimer = ROOM_SWITCH_MS;
+    }
   }
 
   // удаляем выбывших бойцов из активного списка (см. комментарий у
@@ -2664,13 +2901,14 @@ function loop(t) {
   update(dt);
 
   ctx.clearRect(0,0,canvas.width,canvas.height);
-  drawBackground(t);
+  if (portalActive) drawPortalBackground(); else drawBackground(t);
 
   const sorted = [...VARIANTS].sort((a,b)=>a.y-b.y);
   for (const v of sorted) drawFighter(v);
 
   drawHUD();
   drawVsCard();
+  drawPortalCountdown();
 
   updateDrawCoinRain(dt); // дождь монет крупного доната — поверх всего, на весь экран
   drawGiftBanner();
