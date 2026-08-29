@@ -1,0 +1,2660 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>🥋 Street Fighters</title>
+<style>
+  html, body { width:100vw; height:100vh; margin:0; background:#000; overflow:hidden; font-family:Arial,sans-serif; }
+  #wrap { position:absolute; left:0; top:0; width:600px; height:1000px; transform-origin:0 0; }
+  canvas { display:block; background:#000; }
+  .ui-btn { position: fixed; z-index: 99999; width: 26px; height: 26px; font-size: 12px; background: rgba(0,0,0,0.55); color: rgba(255,255,255,0.55); border: 1px solid rgba(255,255,255,0.2); border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+  #backBtn  { top: calc(50% - 74px); right: 10px; }
+  #voiceBtn { top: calc(50% - 25px); right: 10px; }
+  #musicBtn { top: calc(50% + 24px); right: 10px; }
+  #fsBtn    { top: calc(50% + 73px); right: 10px; }
+  #statusBadge { position: fixed; bottom: 10px; left: 50%; transform: translateX(-50%); font-size: 12px; padding: 4px 12px; border-radius: 8px; border: 2px solid #555; background: rgba(0,0,0,0.78); color: #AAA; white-space: nowrap; z-index: 99999; display: none; }
+  #statusBadge.live  { color: #00FF88; border-color: #00FF88; }
+  #statusBadge.demo  { color: #FF9900; border-color: #FF9900; }
+  #statusBadge.error { color: #FF4444; border-color: #FF4444; }
+</style>
+</head>
+<body>
+<button id="backBtn"  class="ui-btn" title="Главное меню">⌂</button>
+<button id="voiceBtn" class="ui-btn" title="Озвучка">🔇</button>
+<button id="musicBtn" class="ui-btn" title="Музыка">🎵</button>
+<button id="fsBtn"    class="ui-btn" title="На весь экран">⛶</button>
+<div id="statusBadge"></div>
+<div id="ratingOverlay" style="position:fixed;top:27%;left:50%;transform:translateX(-50%);z-index:200;pointer-events:none;display:none;background:rgba(0,0,0,0.88);border:1.5px solid rgba(255,80,80,0.5);border-radius:8px;padding:6px 12px 7px;font-family:Arial,sans-serif;min-width:150px;text-align:center;line-height:1.25;white-space:nowrap;"></div>
+<audio id="bgMusic" src="audio/streetfighter_theme.mp3" loop preload="auto"></audio>
+<div id="wrap"><canvas id="c" width="600" height="1000"></canvas></div>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+// Adaptive perf mode — на слабых телефонах shadowBlur (свечения) самая
+// дорогая операция Canvas 2D. Меряем, сколько реально занимает update+отрисовка
+// кадра первые ~2-3 сек; если телефон не тянет — на весь остаток сессии
+// свечения отключаются. Перехватываем сеттер shadowBlur на самом объекте ctx,
+// чтобы не переписывать каждое из мест в коде отрисовки, где он используется.
+let _lowPerfMode = false, _perfSamples = 0, _perfSlowFrames = 0, _perfChecked = false;
+(function(){
+  let proto = ctx, desc;
+  while (proto && !desc) { desc = Object.getOwnPropertyDescriptor(proto, 'shadowBlur'); proto = Object.getPrototypeOf(proto); }
+  if (desc && desc.set) {
+    Object.defineProperty(ctx, 'shadowBlur', {
+      get(){ return desc.get.call(this); },
+      set(v){ desc.set.call(this, _lowPerfMode ? 0 : v); },
+      configurable: true
+    });
+  }
+})();
+function trackPerf(workMs){
+  if (_perfChecked) return;
+  _perfSamples++;
+  if (workMs > 18) _perfSlowFrames++; // дольше 18мс из бюджета ~33мс (30fps) = телефон не тянет
+  if (_perfSamples >= 90){ // ~2-3 секунды наблюдения при 30fps
+    _perfChecked = true;
+    if (_perfSlowFrames / _perfSamples > 0.35) _lowPerfMode = true;
+  }
+}
+
+const wrap = document.getElementById('wrap');
+const CW = canvas.width;
+
+function applyScale(){
+  const vw = document.documentElement.clientWidth || window.innerWidth;
+  const vh = document.documentElement.clientHeight || window.innerHeight;
+  const s = Math.min(vw/600, vh/1000);
+  const x = (vw - 600*s)/2, y = (vh - 1000*s)/2;
+  wrap.style.transform = `translate(${x}px,${y}px) scale(${s})`;
+}
+window.addEventListener('resize', applyScale);
+applyScale();
+
+// ── Бойцы: ТОЛЬКО два показателя — Энергия (жизнь/выносливость) и Сила (урон) ──
+// Сердечки убраны — Энергия теперь одновременно и здоровье, и ресурс на удар.
+// Донаты — ВСЕГДА без ограничений, толкают и Энергию, и Силу.
+// Лайки — Энергию растят ВСЕГДА, без потолка (как донат). Силу растят только
+// пока текущая Сила бойца (какой бы она ни стала — хоть от донатов) ещё не
+// достигла потолка LIKE_POWER_CAP; выше потолка лайк Силу уже не трогает.
+const LIKE_POWER_CAP = 500;
+
+// боец без лайков/донатов 15 минут подряд — Сила начинает капать (-1/сек,
+// не ниже 1); любой новый лайк/донат сбрасывает таймер (см. applyGrowth)
+const INACTIVITY_MS = 15*60*1000;
+const POWER_DECAY_INTERVAL_MS = 1000;
+
+// stolenEnergy — очки из ОТДЕЛЬНОЙ БД (all-time): сколько энергии боец
+// отнял у противников за все бои (начисляется когда противник падает).
+// Это метрика для ТОП-листа, отдельная от текущей энергии/силы в бою.
+
+// 7 перекрасок КАЖДОГО силуэта (Brawler Girl и Enemy Punk) — 14 скинов в
+// одном общем пуле. baseType определяет набор анимаций/атак (CHAR_ANIMS/
+// CHAR_ATTACKS ниже), dir — конкретную (перекрашенную) папку спрайтов.
+// Пул общий и для реальных игроков (applyGrowth), и для ботов (spawnBot) —
+// оба силуэта могут быть и тем, и другим, как попросил пользователь.
+// Перекраски сделаны HSL hue-rotation по неймно найденным зонам "волосы/
+// одежда/обувь" (см. историю чата) — кожа и золотые акценты не трогались.
+const SKIN_VARIANTS = [
+  { baseType:'brawler_girl', dir:'brawler_girl',              color:'#ff5566' },
+  { baseType:'brawler_girl', dir:'brawler_girl_v2_yellowgreen',color:'#c6e05a' },
+  { baseType:'brawler_girl', dir:'brawler_girl_v3_green',      color:'#5fe36a' },
+  { baseType:'brawler_girl', dir:'brawler_girl_v4_teal',       color:'#4fe3d0' },
+  { baseType:'brawler_girl', dir:'brawler_girl_v5_blue',       color:'#4fa8ff' },
+  { baseType:'brawler_girl', dir:'brawler_girl_v6_purple',     color:'#8a6bff' },
+  { baseType:'brawler_girl', dir:'brawler_girl_v7_pink',       color:'#e06bff' },
+  { baseType:'enemy_punk',   dir:'enemy_punk',                 color:'#ff5566' },
+  { baseType:'enemy_punk',   dir:'enemy_punk_v2_yellowgreen',  color:'#c6e05a' },
+  { baseType:'enemy_punk',   dir:'enemy_punk_v3_green',        color:'#5fe36a' },
+  { baseType:'enemy_punk',   dir:'enemy_punk_v4_teal',         color:'#4fe3d0' },
+  { baseType:'enemy_punk',   dir:'enemy_punk_v5_blue',         color:'#4fa8ff' },
+  { baseType:'enemy_punk',   dir:'enemy_punk_v6_purple',       color:'#8a6bff' },
+  { baseType:'enemy_punk',   dir:'enemy_punk_v7_pink',         color:'#e06bff' },
+  // ещё три силуэта — тот же пак Urban Brawlers (Oonquil, itch.io),
+  // бесплатные версии; перекраски сгенерированы скриптом
+  // scripts/recolor_urban_brawlers.js (HSL hue-rotation, кожа не трогается)
+  { baseType:'batting_girl', dir:'batting_girl',               color:'#ff8f4f' },
+  { baseType:'batting_girl', dir:'batting_girl_v2_yellowgreen', color:'#c6e05a' },
+  { baseType:'batting_girl', dir:'batting_girl_v3_green',       color:'#5fe36a' },
+  { baseType:'batting_girl', dir:'batting_girl_v4_teal',        color:'#4fe3d0' },
+  { baseType:'batting_girl', dir:'batting_girl_v5_blue',        color:'#4fa8ff' },
+  { baseType:'batting_girl', dir:'batting_girl_v6_purple',      color:'#8a6bff' },
+  { baseType:'batting_girl', dir:'batting_girl_v7_pink',        color:'#e06bff' },
+  { baseType:'brute_arms',   dir:'brute_arms',                  color:'#8fd94f' },
+  { baseType:'brute_arms',   dir:'brute_arms_v2_yellowgreen',   color:'#c6e05a' },
+  { baseType:'brute_arms',   dir:'brute_arms_v3_green',         color:'#5fe36a' },
+  { baseType:'brute_arms',   dir:'brute_arms_v4_teal',          color:'#4fe3d0' },
+  { baseType:'brute_arms',   dir:'brute_arms_v5_blue',          color:'#4fa8ff' },
+  { baseType:'brute_arms',   dir:'brute_arms_v6_purple',        color:'#8a6bff' },
+  { baseType:'brute_arms',   dir:'brute_arms_v7_pink',          color:'#e06bff' },
+  { baseType:'bancho',       dir:'bancho',                      color:'#4fc3ff' },
+  { baseType:'bancho',       dir:'bancho_v2_yellowgreen',       color:'#c6e05a' },
+  { baseType:'bancho',       dir:'bancho_v3_green',             color:'#5fe36a' },
+  { baseType:'bancho',       dir:'bancho_v4_teal',              color:'#4fe3d0' },
+  { baseType:'bancho',       dir:'bancho_v5_blue',              color:'#4fa8ff' },
+  { baseType:'bancho',       dir:'bancho_v6_purple',            color:'#8a6bff' },
+  { baseType:'bancho',       dir:'bancho_v7_pink',              color:'#e06bff' },
+];
+function randomSkin(){ return SKIN_VARIANTS[Math.floor(Math.random()*SKIN_VARIANTS.length)]; }
+
+// команда "skin1".."skin5" в чате — фиксирует НАВСЕГДА только силуэт
+// (какой герой), закрепляется за ником через БД (chosen_skin в
+// server.js/db.js). Цвет внутри этого силуэта всё равно каждый раз
+// выбирается заново случайно (см. applyChosenSkin/revival в applyGrowth) —
+// закреплён только герой, не конкретная перекраска.
+const SKIN_BASE_TYPES = {
+  1: 'brawler_girl',
+  2: 'enemy_punk',
+  3: 'batting_girl',
+  4: 'brute_arms',
+  5: 'bancho',
+};
+function randomVariantForBaseType(baseType){
+  const pool = SKIN_VARIANTS.filter(v => v.baseType === baseType);
+  return pool[Math.floor(Math.random()*pool.length)];
+}
+function applyChosenSkin(v, skinIndex){
+  const baseType = SKIN_BASE_TYPES[skinIndex];
+  if (!baseType || !v) return;
+  const skin = randomVariantForBaseType(baseType);
+  v.dir = skin.dir; v.baseType = skin.baseType; v.color = skin.color;
+  v.baseDir = skin.dir; v.baseColor = skin.color;
+  v.frames = loadFrames(v.dir, v.baseType); // перегружаем кадры под новый силуэт/цвет
+  v.skinChosen = true; // герой закреплён навсегда — при возрождении меняется только цвет
+}
+
+// ── Уровень зрителя (бейдж у ника) — по all-time ⚡ отнятой энергии,
+// независимо от короны чемпиона (можно носить и то, и другое одновременно).
+// Только для реальных бойцов — у ботов нет истории в БД.
+// 50 уровней, сгруппированы в 10 рангов по 5 подуровней. Пороги — плавная
+// кривая от 0 до 100 000 000 (50-й уровень — почти недостижимый максимум,
+// по требованию: должен ощущаться как многомесячная цель, не как быстрый
+// фарм — отсюда резкий рост во второй половине шкалы).
+// пересчитано 2026-08-04: 50-й уровень был 100 000 000 ("почти
+// недостижимый максимум" по прежнему требованию), пользователь решил что
+// это слишком много — вся шкала пересчитана ровно в 10 раз меньше (та же
+// форма кривой, просто общий масштаб /10), топ теперь 10 000 000
+const LEVEL_THRESHOLDS = [
+  0,30,250,1000,2500,5000,10000,16000,25000,35000,
+  55000,70000,95000,125000,150000,200000,250000,300000,375000,450000,
+  525000,600000,700000,825000,950000,1100000,1200000,1400000,1600000,1800000,
+  2000000,2200000,2500000,2700000,3000000,3300000,3600000,4000000,4300000,4700000,
+  5100000,5600000,6000000,6500000,7000000,7600000,8100000,8700000,9300000,10000000,
+  // уровни 51-100 добавлены 19.08.2026 "про запас" (по прямой просьбе) — та же
+  // кривая, что и 1-50, продолжена с замедляющимся приростом (~5.6%/уровень)
+  10600000,11100000,11800000,12400000,13100000,13800000,14600000,15400000,16300000,17200000,
+  18250000,19250000,20250000,21250000,22500000,23750000,25000000,26500000,28000000,29500000,
+  31250000,33000000,34750000,36750000,38750000,41000000,43000000,45500000,48000000,51000000,
+  53500000,56500000,59500000,63000000,66500000,70500000,74000000,78500000,82500000,87500000,
+  92000000,97000000,103000000,108000000,114000000,121000000,128000000,135000000,142000000,150000000,
+];
+// цветовая история "разогрева" (2026-08-04): тусклый металл (новичок) ->
+// холодные яркие цвета -> тёплые -> раскалённый красный -> золото
+// (легенда) — не случайный набор, а нарастающая интенсивность по рангу
+const LEVEL_RANKS = [
+  { name:'Новичок улиц',     from:1,  to:5,  color:'#9a9a9a' },
+  { name:'Дворовый боец',    from:6,  to:10, color:'#b8752e' },
+  { name:'Хулиган квартала', from:11, to:15, color:'#3fa9f5' },
+  { name:'Уличный боец',     from:16, to:20, color:'#2ecc71' },
+  { name:'Гроза района',     from:21, to:25, color:'#17c9b2' },
+  { name:'Ветеран улиц',     from:26, to:30, color:'#9b59f6' },
+  { name:'Мастер кулака',    from:31, to:35, color:'#ef4bb0' },
+  { name:'Гроза города',     from:36, to:40, color:'#ff8c1a' },
+  { name:'Чемпион района',   from:41, to:45, color:'#ff2e4d' },
+  { name:'Легенда улиц',     from:46, to:50, color:'#ffd700' },
+  { name:'Идол улиц',            from:51, to:55,  color:'#4f8cff' },
+  { name:'Гроза мегаполиса',     from:56, to:60,  color:'#6a5cff' },
+  { name:'Император улиц',       from:61, to:65,  color:'#e055ff' },
+  { name:'Несокрушимый боец',    from:66, to:70,  color:'#ff4d6d' },
+  { name:'Живая легенда',        from:71, to:75,  color:'#ffe066' },
+  { name:'Элита города',         from:76, to:80,  color:'#30e3ca' },
+  { name:'Титан улиц',           from:81, to:85,  color:'#ff9142' },
+  { name:'Бессмертный боец',     from:86, to:90,  color:'#7ef9ff' },
+  { name:'Властелин мегаполиса', from:91, to:95,  color:'#c76bff' },
+  { name:'Миф улиц',             from:96, to:100, color:'#ffffff' },
+];
+function levelOf(total){
+  total = total || 0;
+  let lvl = 1;
+  for (let i=0; i<LEVEL_THRESHOLDS.length; i++){
+    if (total >= LEVEL_THRESHOLDS[i]) lvl = i+1; else break;
+  }
+  return lvl;
+}
+function rankOfLevel(level){
+  return LEVEL_RANKS.find(r => level>=r.from && level<=r.to) || LEVEL_RANKS[0];
+}
+function rankIndexOfLevel(level){
+  const idx = LEVEL_RANKS.findIndex(r => level>=r.from && level<=r.to);
+  return idx>=0 ? idx : 0;
+}
+// прогресс до следующего уровня — для карточки рейтинга (текущие очки,
+// сколько нужно для следующего уровня, и доля 0..1 для полоски прогресса)
+function levelProgress(total){
+  total = total || 0;
+  const level = levelOf(total);
+  const cur = LEVEL_THRESHOLDS[level-1];
+  const next = LEVEL_THRESHOLDS[level] ?? null; // null на 50 уровне — дальше некуда
+  const frac = next==null ? 1 : Math.min(1, Math.max(0, (total-cur)/(next-cur)));
+  return { level, cur, next, frac };
+}
+// уровень зрителя — просто текст "ур.NN" слева от ника, цвет по рангу
+// (см. LEVEL_RANKS). Раньше был фигурный значок (круг/многоугольник/звезда,
+// см. историю в client/level_badge_preview.html) — заменили на 2026-08-08
+// по просьбе пользователя: фигуры на маленьком экране телефона были
+// нечитаемы, а простой текст компактнее и понятнее с одного взгляда.
+function drawLevelText(rightEdgeX, y, s, level){
+  const idx = LEVEL_RANKS.findIndex(rk => level>=rk.from && level<=rk.to);
+  const rank = idx>=0 ? LEVEL_RANKS[idx] : LEVEL_RANKS[0];
+  const txt = 'ур.' + level;
+  ctx.save();
+  ctx.font = `bold ${15*s}px Arial Black`;
+  const w = ctx.measureText(txt).width;
+  const x = rightEdgeX - w;
+  ctx.fillStyle = 'rgba(0,0,0,0.45)';
+  ctx.fillRect(x - 5*s, y - 12*s, w + 10*s, 16*s);
+  ctx.textAlign = 'left';
+  ctx.lineWidth = 3.5*s; ctx.strokeStyle = 'rgba(0,0,0,0.95)';
+  ctx.strokeText(txt, x, y);
+  ctx.fillStyle = rank.color;
+  ctx.fillText(txt, x, y);
+  ctx.restore();
+}
+
+// ── Чемпион улицы: победитель ПРОШЛОГО ДНЯ (см. _weeklyChampion ниже, имя
+// переменной историческое, сброс переведён с недельного на ежедневный
+// 2026-08-13) — получает золотой ник + золотой костюм на ринге, пока не
+// пройдёт следующий полуночный сброс. 2026-08-08: раньше это был "живой"
+// текущий #1 в рейтинге (менялся от каждого доната) — по просьбе
+// пользователя переключили на уже РЕШЁННОГО чемпиона прошлой недели,
+// того же, что показан в постоянном бейдже под правилами (drawHUD).
+// Заодно убрали репорт "секунд с поясом" (flushBeltTime/reportBelt) —
+// он был нужен только старому "живому" чемпиону, а для недельного
+// победителя (одна и та же неделя целиком) больше не имеет смысла.
+let _championName = null;
+
+function applyChampionSkin(v){
+  v.isChamp = true;
+}
+function revertChampionSkin(v){
+  v.isChamp = false;
+}
+// вызывается после каждого обновления _weeklyChampion (и сразу после
+// спавна нового бойца) — синхронизирует, кто именно сейчас должен носить золото
+function syncChampionStatus(){
+  const newName = (_weeklyChampion && _weeklyChampion.username) || null;
+  if (newName === _championName){
+    // чемпион не поменялся, но он мог только что заспавниться — на всякий
+    // случай убеждаемся, что золото на нём, если он уже на ринге
+    if (newName){ const v = findRealFighter(newName); if (v) applyChampionSkin(v); }
+    return;
+  }
+  if (_championName){
+    const old = findRealFighter(_championName);
+    if (old) revertChampionSkin(old);
+  }
+  _championName = newName;
+  if (_championName){
+    const now = findRealFighter(_championName);
+    if (now) applyChampionSkin(now);
+  }
+}
+
+// ростер бойцов стартует ПУСТЫМ — реальные бойцы появляются по первому
+// лайку/донату конкретного зрителя (см. applyGrowth ниже); пока их <2 на
+// ринге, слоты подсаживаются ботами (см. секцию ботов ниже).
+//
+// ВАЖНО (2026-08-05, фикс просадки производительности на телефоне
+// стримера): VARIANTS должен содержать только реально АКТИВНЫХ сейчас
+// бойцов — выбывшие (v.eliminated=true) физически удаляются из массива
+// в update() (см. ниже), а не просто помечаются и остаются навечно. Раньше
+// на длинном активном стриме массив рос без остановки (каждый уникальный
+// зритель, хоть раз лайкнувший, оставался в нём навсегда), и КАЖДЫЙ кадр
+// (сортировка+отрисовка) и КАЖДОЕ событие (поиск бойца в applyGrowth)
+// становились дороже пропорционально общему числу зрителей за весь стрим,
+// а не текущему рингу — на популярном стриме это реально грузило телефон,
+// который параллельно ещё и кодирует видео для эфира.
+const VARIANTS = [];
+// лёгкий кэш "уровень/закреплённый скин" для выбывших реальных бойцов —
+// заполняется перед удалением из VARIANTS (см. update()), читается в
+// applyGrowth при возврате того же зрителя, чтобы не ждать асинхронный
+// round-trip к серверу за уже известными данными
+const _fighterCache = new Map();
+
+// ── Геометрия экрана: плашка сверху, ринг ниже ──
+const PANEL_TOP = 14, PANEL_H = 250;
+const WALL_TOP = PANEL_TOP + PANEL_H + 10;
+const FLOOR_TOP = 480, FLOOR_BOT = 1000;
+
+// зона движения — пол ринга, с отступом от канатов/краёв
+const RING = { xMin:75, xMax:525, yMin:FLOOR_TOP+45, yMax:FLOOR_BOT-35 };
+const KO_FALL_MS = 1600;  // сколько играет анимация падения перед исчезновением
+const FIGHT_DIST = 68;
+// бой стартует только если бойцы ещё и близки по глубине (Y) — иначе при
+// диагональной близости (один дальше от камеры, другой ближе) они дерутся
+// "по диагонали", хотя визуально не стоят друг перед другом
+const FIGHT_Y_GAP = 30;
+
+// раунды убраны (были чисто декоративным таймером поверх непрерывного
+// боя) — бой идёт непрерывно. Нокаутированный боец пропадает с ринга
+// насовсем и НЕ оживает автоматически — возврат бойца на ринг приходит
+// от нового лайка/доната этого же зрителя (см. applyGrowth).
+
+// ── Анимации: у Brawler Girl (реальные игроки) и Enemy Punk (боты) —
+// РАЗНЫЕ наборы кадров (не просто перекраска одного пака, как в боксе).
+// Своей анимации нокаута/падения нет ни у кого (пак Streets of Fight её не
+// содержит) — вместо неё используется Hurt, застывающий на последнем кадре
+// (не идеально, но рабочая заглушка — см. память проекта).
+const CHAR_ANIMS = {
+  brawler_girl: {
+    idle:  { folder:'Idle',      prefix:'idle',      count:4,  fps:8,  loop:true  },
+    walk:  { folder:'Walk',      prefix:'walk',       count:10, fps:12, loop:true  },
+    jab:   { folder:'Jab',       prefix:'jab',        count:3,  fps:16, loop:false },
+    punch: { folder:'Punch',     prefix:'punch',      count:3,  fps:16, loop:false },
+    kick:  { folder:'Kick',      prefix:'kick',       count:5,  fps:16, loop:false },
+    hurt:  { folder:'Hurt',      prefix:'hurt',       count:2,  fps:12, loop:false },
+    ko:    { folder:'Hurt',      prefix:'hurt',       count:2,  fps:8,  loop:false },
+  },
+  enemy_punk: {
+    idle:  { folder:'Idle',  prefix:'idle',  count:4, fps:8,  loop:true  },
+    walk:  { folder:'Walk',  prefix:'walk',  count:4, fps:10, loop:true  },
+    jab:   { folder:'Punch', prefix:'punch', count:3, fps:16, loop:false }, // нет джеба/кика отдельно — переиспользуем punch
+    punch: { folder:'Punch', prefix:'punch', count:3, fps:16, loop:false },
+    kick:  { folder:'Punch', prefix:'punch', count:3, fps:16, loop:false },
+    hurt:  { folder:'Hurt',  prefix:'hurt',  count:4, fps:12, loop:false },
+    ko:    { folder:'Hurt',  prefix:'hurt',  count:4, fps:8,  loop:false },
+  },
+  // Batting Girl (Urban Brawlers, Oonquil) — кадры 100x100 (у атак 110x100),
+  // счётчики кадров сверены по факту через ширину спрайт-листов: Jab=5,
+  // Punch=8, Kick=11 (в конце пака есть один лишний кадр attack25 — не
+  // используется, картинки в паке шли одним списком 1..25 на все 3 удара)
+  batting_girl: {
+    idle:  { folder:'Idle',  prefix:'idle',  count:15, fps:10, loop:true  },
+    walk:  { folder:'Walk',  prefix:'walk',  count:6,  fps:12, loop:true  },
+    jab:   { folder:'Jab',   prefix:'jab',   count:5,  fps:18, loop:false },
+    punch: { folder:'Punch', prefix:'punch', count:8,  fps:18, loop:false },
+    kick:  { folder:'Kick',  prefix:'kick',  count:11, fps:20, loop:false },
+    hurt:  { folder:'Hurt',  prefix:'hurt',  count:4,  fps:12, loop:false },
+    ko:    { folder:'Hurt',  prefix:'hurt',  count:4,  fps:8,  loop:false },
+  },
+  // Brute Arms (Urban Brawlers, Oonquil) — кадры 100x101 (у атак/ударов
+  // шире из-за размаха рук), Jab/Punch/Kick сверены по ширине спрайт-листов
+  // (было 4 группы атак в паке — attack01:7,02:5,03:5,04:8 — среднюю
+  // группу (03) не используем, оставили самую длинную как "kick")
+  brute_arms: {
+    idle:  { folder:'Idle',  prefix:'idle',  count:8, fps:9,  loop:true  },
+    walk:  { folder:'Walk',  prefix:'walk',  count:6, fps:11, loop:true  },
+    jab:   { folder:'Jab',   prefix:'jab',   count:7, fps:14, loop:false },
+    punch: { folder:'Punch', prefix:'punch', count:5, fps:16, loop:false },
+    kick:  { folder:'Kick',  prefix:'kick',  count:8, fps:16, loop:false },
+    hurt:  { folder:'Hurt',  prefix:'hurt',  count:4, fps:12, loop:false },
+    ko:    { folder:'Hurt',  prefix:'hurt',  count:4, fps:8,  loop:false },
+  },
+  // Bancho (Urban Brawlers, Oonquil) — кадры 100x100. У этого пака нет
+  // отдельных кадров "Hurt" (только сшитый лист) — вместо них взяты первые
+  // 4 кадра из "Damages" (7 файлов в паке, по смыслу это и есть реакция на
+  // удар, несмотря на другое название)
+  bancho: {
+    idle:  { folder:'Idle',  prefix:'idle',  count:7, fps:9,  loop:true  },
+    walk:  { folder:'Walk',  prefix:'walk',  count:6, fps:12, loop:true  },
+    jab:   { folder:'Jab',   prefix:'jab',   count:9, fps:18, loop:false },
+    punch: { folder:'Punch', prefix:'punch', count:7, fps:18, loop:false },
+    kick:  { folder:'Kick',  prefix:'kick',  count:8, fps:18, loop:false },
+    hurt:  { folder:'Hurt',  prefix:'hurt',  count:4, fps:12, loop:false },
+    ko:    { folder:'Hurt',  prefix:'hurt',  count:4, fps:8,  loop:false },
+  },
+};
+// набор ударов, из которого случайно выбирается анимация атаки — у всех
+// силуэтов из Urban Brawlers и у Brawler Girl три разных (джеб/удар/пинок),
+// у Enemy Punk только один (punch)
+const CHAR_ATTACKS = {
+  brawler_girl: ['jab','punch','kick'],
+  enemy_punk:   ['punch'],
+  batting_girl: ['jab','punch','kick'],
+  brute_arms:   ['jab','punch','kick'],
+  bancho:       ['jab','punch','kick'],
+};
+// у каждого baseType свой корневой пак спрайтов (разные авторы/лицензии)
+const CHAR_BASE_PATH = {
+  brawler_girl: 'streets_of_fight',
+  enemy_punk:   'streets_of_fight',
+  batting_girl: 'urban_brawlers',
+  brute_arms:   'urban_brawlers',
+  bancho:       'urban_brawlers',
+};
+// dir — конкретная (возможно перекрашенная) папка спрайтов, baseType —
+// какой набор анимаций использовать (brawler_girl/enemy_punk структура
+// одинакова у всех перекрасок одного силуэта, меняются только пиксели)
+function loadFrames(dir, baseType){
+  const defs = CHAR_ANIMS[baseType];
+  const base = CHAR_BASE_PATH[baseType] || 'streets_of_fight';
+  const out = {};
+  for (const key in defs){
+    const a = defs[key];
+    out[key] = [];
+    for (let i=1;i<=a.count;i++){
+      const img = new Image();
+      img.src = `sprites/${base}/${dir}/${a.folder}/${a.prefix}${i}.png`;
+      out[key].push(img);
+    }
+  }
+  return out;
+}
+
+const clamp = (v,a,b) => Math.max(a, Math.min(b, v));
+
+// общая инициализация рантайм-полей бойца — используется и для стартовых
+// (демо-)игроков, и для ботов, добавляемых в ростер динамически
+function initFighterRuntime(v, x, y){
+  v.x = x; v.y = y;
+  v.tx = x; v.ty = y;
+  v.state = 'idle'; v.stateTimer = 0;
+  v.animName = 'idle'; v.frameIdx = 0; v.frameTimer = 0;
+  v.facing = 1;
+  v.lean = 0;
+  v.punchCooldown = Math.random()*600;
+  v.wanderPause = Math.random()*800;
+  v.inExchange = false;
+  v.koTimer = 0;
+  v.alive = true;
+  v.eliminated = false; // true = совсем убран с ринга (энергия кончилась)
+  v.lastAttacker = null;
+  v.frames = loadFrames(v.dir, v.baseType);
+}
+
+// ── Реальные игроки: создаются/растут по лайкам и донатам из живого чата ──
+// (см. WebSocket-секцию ниже). Если боец уже был нокаутирован и пропал с
+// ринга — новый лайк/донат от того же зрителя возвращает его в бой.
+function spawnRingPos(){
+  return {
+    x: RING.xMin + Math.random()*(RING.xMax-RING.xMin),
+    y: RING.yMin + Math.random()*(RING.yMax-RING.yMin),
+  };
+}
+
+function findRealFighter(username){
+  return VARIANTS.find(v=>!v.isBot && v.name===username);
+}
+
+// gain: { likeEnergy?, likePower?, giftEnergy?, giftPower? } — прибавка от
+// одного события. giftEnergy/giftPower (донат) и likeEnergy (лайк по Энергии)
+// всегда начисляются полностью, без ограничений. likePower (лайк по Силе)
+// начисляется, только если ТЕКУЩАЯ Сила бойца (какой бы она ни стала — хоть
+// от донатов) ещё не достигла потолка LIKE_POWER_CAP.
+// isGift — донат это или лайк (влияет на то, какой фразой диктор это
+// объявит; обычные лайки на уже живого бойца молчат — иначе диктор
+// захлёбывался бы каждым лайком).
+function applyGrowth(username, gain, isGift){
+  if (!username) return;
+  let v = findRealFighter(username);
+  const isNew = !v;
+  if (!v){
+    const skin = randomSkin();
+    const pos = spawnRingPos();
+    v = {
+      dir: skin.dir, baseType: skin.baseType, name: username, color: skin.color, isBot: false,
+      baseDir: skin.dir, baseColor: skin.color, isChamp: false,
+      stolenEnergy: 0, powerDecayAcc: 0, kos: 0, allTimeStolen: 0,
+      skinChosen: false, // true только после команды skinN — тогда скин закрепляется навсегда
+      knownRankIdx: 0, // текущий известный ранг (для объявления диктором смены звания)
+    };
+    v.energyMax = 0; v.energy = 0; v.powerMax = 0; v.power = 0;
+    // если этот зритель уже был на ринге в этом стриме и выбыл — вернём
+    // сразу его известный уровень/ранг и закреплённый скин из кэша, не
+    // дожидаясь ответа сервера (тот всё равно придёт следом и просто
+    // подтвердит/обновит те же данные, см. requestTier ниже)
+    const cached = _fighterCache.get(username);
+    if (cached){
+      v.allTimeStolen = cached.allTimeStolen;
+      v.knownRankIdx = cached.knownRankIdx;
+      if (cached.skinChosen){
+        v.skinChosen = true;
+        v.dir = cached.dir; v.baseType = cached.baseType; v.color = cached.color;
+        v.baseDir = cached.baseDir; v.baseColor = cached.baseColor;
+      }
+    }
+    initFighterRuntime(v, pos.x, pos.y);
+    VARIANTS.push(v);
+    requestTier(username); // подтягиваем all-time очки для медали (клиент знает только топ-5)
+  }
+  syncChampionStatus(); // если это чемпион только что заспавнился — сразу золото
+
+  // любой лайк/донат — признак активности зрителя, сбрасывает таймер
+  // бездействия (см. INACTIVITY_MS / decayInactivePower в update())
+  v.lastActiveAt = Date.now();
+
+  let gainedEnergy = gain.giftEnergy || 0;
+  let gainedPower  = gain.giftPower  || 0;
+  gainedEnergy += gain.likeEnergy || 0; // лайки растят Энергию без потолка, как донат
+  if (gain.likePower && v.power < LIKE_POWER_CAP) gainedPower += gain.likePower;
+
+  v.energyMax += gainedEnergy;
+  v.powerMax  += gainedPower;
+
+  const wasDown = !v.alive || v.eliminated;
+  if (wasDown){
+    // боец был выбит с ринга — новый лайк/донат возвращает его в бой,
+    // но со свежими показателями (старые уже обнулены в collapse())
+    const pos = spawnRingPos();
+    // цвет всегда новый случайный при каждом возрождении. Герой (силуэт)
+    // тоже случайный — если НЕ закреплён командой skinN; если закреплён
+    // (skinChosen=true) — силуэт остаётся тем же, рандомится только цвет
+    // внутри него.
+    if (v.skinChosen){
+      const skin = randomVariantForBaseType(v.baseType);
+      v.dir = skin.dir; v.color = skin.color;
+      v.baseDir = skin.dir; v.baseColor = skin.color;
+      v.frames = loadFrames(v.dir, v.baseType);
+    } else {
+      const skin = randomSkin();
+      v.dir = skin.dir; v.baseType = skin.baseType; v.color = skin.color;
+      v.baseDir = skin.dir; v.baseColor = skin.color;
+      v.frames = loadFrames(v.dir, v.baseType);
+    }
+    v.alive = true; v.eliminated = false;
+    v.energy = v.energyMax;
+    v.power = v.powerMax;
+    v.state = 'idle'; v.frameIdx = 0;
+    v.x = pos.x; v.y = pos.y; v.tx = pos.x; v.ty = pos.y;
+    pushEvent(v.isChamp ? pick(CHAMPION_ENTRANCE_LINES)(cleanNickForSpeech(v.name))
+                         : pick(REVIVE_LINES)(cleanNickForSpeech(v.name)), true, v.isChamp);
+  } else {
+    v.energy += gainedEnergy;
+    v.power  += gainedPower;
+  }
+
+  // бонус энергии за уровень (2026-08-05, по просьбе пользователя): при
+  // КАЖДОМ выходе на ринг (первый спавн ИЛИ возрождение после нокаута,
+  // но не при обычной подпитке уже дерущегося бойца) начисляется энергия
+  // = номер уровня (1 уровень -> +1, 21 уровень -> +21). Уровень уже
+  // максимум 50 (см. LEVEL_THRESHOLDS), а 1 лайк = 10 энергии, 1 донат =
+  // 100 энергии за коин — бонус всегда мелкий довесок, не меняет баланс.
+  if (isNew || wasDown){
+    const lvlBonus = levelOf(v.allTimeStolen||0);
+    v.energyMax += lvlBonus;
+    v.energy    += lvlBonus;
+  }
+
+  if (isNew && !wasDown) {
+    pushEvent(v.isChamp ? pick(CHAMPION_ENTRANCE_LINES)(cleanNickForSpeech(v.name))
+                         : pick(JOIN_LINES)(cleanNickForSpeech(v.name)), true, v.isChamp);
+  } else if (isGift && !wasDown) pushEvent(pick(GIFT_LINES)(cleanNickForSpeech(v.name)), true);
+  // обычный лайк на уже живого бойца — молча, диктор не озвучивает каждый лайк
+}
+
+// восстановление бойца из снапшота сервера (см. streetfighter_state_restore
+// в wsConnect) — при перезапуске стрима/переоткрытии страницы, бесшумно
+// (без реплики диктора, иначе он захлёбывался бы при массовом восстановлении).
+// Скин/уровень подтянутся сами следующим round-trip'ом requestTier — как и
+// при обычном спавне.
+function restoreFighter(entry){
+  if (!entry || !entry.username) return;
+  if (findRealFighter(entry.username)) return; // уже на ринге
+  const energy = Math.max(0, Number(entry.energy)||0);
+  if (energy <= 0) return; // нечего восстанавливать
+  const skin = randomSkin();
+  const pos = spawnRingPos();
+  const v = {
+    dir: skin.dir, baseType: skin.baseType, name: entry.username, color: skin.color, isBot: false,
+    baseDir: skin.dir, baseColor: skin.color, isChamp: false,
+    stolenEnergy: 0, powerDecayAcc: 0, kos: 0, allTimeStolen: 0,
+    skinChosen: false, knownRankIdx: 0,
+  };
+  v.energyMax = Math.max(0, Number(entry.energyMax)||0);
+  v.energy    = energy;
+  v.powerMax  = Math.max(0, Number(entry.powerMax)||0);
+  v.power     = Math.max(0, Number(entry.power)||0);
+  initFighterRuntime(v, pos.x, pos.y);
+  VARIANTS.push(v);
+  requestTier(entry.username);
+  syncChampionStatus();
+}
+
+function onLike(username){ applyGrowth(username, { likeEnergy:10, likePower:1 }, false); }
+
+// ── Команда "Team" в чате: тумблер красного флажка — пока боец жив, свои
+// с флажком друг друга не бьют. Флаг слетает автоматически при нокауте
+// (см. v.eliminated=true в update()). Боты в команду вступать не могут —
+// findRealFighter ищет только реальных.
+function toggleTeam(username){
+  const v = findRealFighter(username);
+  if (!v || !v.alive || v.eliminated) return;
+  v.team = !v.team;
+  pushEvent(pick(v.team ? TEAM_JOIN_LINES : TEAM_LEAVE_LINES)(cleanNickForSpeech(v.name)), true);
+}
+function onGift(username, coins){
+  coins = Math.max(1, Math.floor(Number(coins)||1));
+  applyGrowth(username, { giftEnergy:100*coins, giftPower:10*coins }, true);
+  if (coins >= BIG_GIFT_COINS) triggerBigGiftEffect(cleanNickForSpeech(username), coins);
+}
+
+// ── Эффект крупного доната (2026-08-05, по просьбе пользователя): дождь
+// золотых монет на весь экран + крупный баннер с ником донатера. Число
+// падающих монет РОВНО равно размеру доната (с потолком COIN_RAIN_CAP —
+// топовые подарки TikTok доходят до тысяч монет, столько кружков разом не
+// потянет телефон зрителя). Без ауры/огня на самом бойце — по просьбе
+// пользователя эффект чисто общеэкранный. Отработано на черновике
+// client/killstreak_bigdonation_preview.html перед переносом сюда.
+const BIG_GIFT_COINS = 50;
+const COIN_RAIN_CAP = 300;
+let giftBannerUntil = 0, giftBannerUsername = '', giftBannerCoins = 0;
+let coinRain = [];
+function triggerBigGiftEffect(username, coins){
+  giftBannerUsername = username;
+  giftBannerCoins = coins;
+  giftBannerUntil = Date.now() + 2500;
+  spawnCoinRain(Math.min(COIN_RAIN_CAP, coins));
+}
+function spawnCoinRain(count){
+  const spread = 250 + count*3; // высота "очереди" монет над экраном — чем больше донат, тем дольше идёт дождь
+  for (let i=0;i<count;i++) coinRain.push(makeCoin(spread));
+}
+function makeCoin(spread){
+  return {
+    x: Math.random()*CW,
+    y: -20 - Math.random()*spread,
+    vy: 3.5 + Math.random()*3.5,
+    rot: Math.random()*Math.PI,
+    rotSpeed: 0.15 + Math.random()*0.25,
+    size: 8 + Math.random()*5,
+    sway: Math.random()*Math.PI*2,
+  };
+}
+// градиент монеты создан ОДИН раз в единичном радиусе (не на каждый кадр
+// для каждой монеты, как было — до 300 монет × ~60 кадров/сек создавали
+// новый градиент каждый раз, ощутимая нагрузка именно в момент доната,
+// когда телефон стримера и так занят кодированием видео). Масштабируется
+// под размер/сплющивание конкретной монеты через ctx.scale перед заливкой.
+const COIN_GRADIENT = ctx.createRadialGradient(-0.3,-0.3,0.02, 0,0,1);
+COIN_GRADIENT.addColorStop(0, '#fff6c8');
+COIN_GRADIENT.addColorStop(0.55, '#ffd700');
+COIN_GRADIENT.addColorStop(1, '#b8860b');
+function updateDrawCoinRain(dt){
+  ctx.save();
+  for (let i=coinRain.length-1; i>=0; i--){
+    const c = coinRain[i];
+    c.y += c.vy * (dt/16.7);
+    c.x += Math.sin((c.y+c.sway*40)/28) * 0.8;
+    c.rot += c.rotSpeed;
+    if (c.y > canvas.height+20){ coinRain.splice(i,1); continue; }
+    const scaleX = Math.max(0.18, Math.abs(Math.cos(c.rot)));
+    ctx.save();
+    ctx.translate(c.x, c.y);
+    ctx.scale(scaleX*c.size, c.size);
+    ctx.fillStyle = COIN_GRADIENT;
+    ctx.beginPath(); ctx.arc(0,0,1,0,Math.PI*2); ctx.fill();
+    ctx.lineWidth = 1.4/c.size; ctx.strokeStyle = 'rgba(120,80,0,0.6)'; ctx.stroke();
+    ctx.restore();
+  }
+  ctx.restore();
+}
+// ник донатера — главный элемент (крупнее всего остального), сумма под
+// ним помельче. Рисуется в зазоре между HUD-плашкой правил (кончается на
+// PANEL_TOP+PANEL_H=264) и верхним краем зоны боя (FLOOR_TOP=480), чтобы
+// не перекрывать ни правила, ни бойцов.
+function drawGiftBanner(){
+  if (Date.now() >= giftBannerUntil) return;
+  const remain = giftBannerUntil - Date.now();
+  const alpha = Math.min(1, remain/400);
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.textAlign = 'center';
+  ctx.strokeStyle = 'rgba(0,0,0,0.65)';
+
+  ctx.font = '900 46px Arial Black';
+  ctx.lineWidth = 6;
+  ctx.fillStyle = '#ffe27a';
+  ctx.strokeText('@'+giftBannerUsername, CW/2, 340);
+  ctx.fillText('@'+giftBannerUsername, CW/2, 340);
+
+  ctx.font = '900 26px Arial Black';
+  ctx.lineWidth = 4;
+  ctx.fillStyle = '#ffb020';
+  ctx.strokeText(`💰 задонатил(а) ${giftBannerCoins}!`, CW/2, 378);
+  ctx.fillText(`💰 задонатил(а) ${giftBannerCoins}!`, CW/2, 378);
+  ctx.restore();
+}
+
+// ── Админ-буст (команды "power"/"super power"/"boost ник hp dmg" в чате,
+// доступны только создателю игры — проверка на сервере в server.js) ──
+// Приходит тем же сообщением arena_cheat, что и в arena2/arena3: hp → Энергия,
+// damage → Сила. Даём как донат (giftEnergy/giftPower — без потолка,
+// applyGrowth сам оживит бойца, если тот был в нокауте).
+function applyCheat(username, hp, damage){
+  if (!username) return;
+  hp = hp|0; damage = damage|0;
+  if (hp < 0 || damage < 0){
+    // Коррекция статов уже существующего бойца (может забирать, не только
+    // давать) — например если буст применился дважды из-за дубликата
+    // сообщения в TikTok-чате. В отличие от applyGrowth не создаёт нового
+    // бойца и не запускает анимацию оживления/возврата.
+    const v = findRealFighter(username);
+    if (!v) return;
+    v.energyMax = Math.max(0, v.energyMax + hp);
+    v.powerMax  = Math.max(0, v.powerMax + damage);
+    v.energy    = Math.max(0, v.energy + hp);
+    v.power     = Math.max(0, v.power + damage);
+    pushEvent(`⚡ КОРРЕКЦИЯ! @${cleanNickForSpeech(username)} ${hp}⚡ ${damage}💪`, true);
+    return;
+  }
+  applyGrowth(username, { giftEnergy: hp, giftPower: damage }, false);
+  pushEvent(`⚡ АДМИН-БУСТ! @${cleanNickForSpeech(username)} +${hp}⚡ +${damage}💪`, true);
+}
+
+// ── Боты (Enemy Punk): подсаживаются на улицу, только если реальных игроков < 2 ──
+const BOT_NAMES = ['street_thug','alley_rat','back_punk','corner_boy','night_prowler','rust_belt','fists_of_fury','junk_yard_joe','shadow_biker','no_name_kid','turf_bully','iron_fence'];
+const MAX_FIGHTERS = 10;
+const MAX_BOTS = 3; // на ринге одновременно не больше 3 ботов
+const BOT_CHECK_MS = 15000;
+const BOT_ENERGY = 100, BOT_POWER = 5;
+let botSpawnTimer = BOT_CHECK_MS;
+
+function getBotName(){
+  const used = new Set(VARIANTS.map(v=>v.name));
+  const available = BOT_NAMES.filter(n=>!used.has(n));
+  const pool = available.length ? available : BOT_NAMES;
+  return pool[Math.floor(Math.random()*pool.length)];
+}
+
+// force=true игнорирует лимиты MAX_FIGHTERS/MAX_BOTS (сейчас ничем не
+// вызывается — раньше это была тестовая кнопка botBtn, убрана из UI)
+function spawnBot(force){
+  if (!force && VARIANTS.filter(v=>!v.eliminated).length >= MAX_FIGHTERS) return;
+  if (!force && VARIANTS.filter(v=>v.isBot && !v.eliminated).length >= MAX_BOTS) return;
+  // боты берутся из ТОГО ЖЕ общего пула скинов, что и реальные игроки —
+  // и Brawler Girl, и Enemy Punk могут быть ботом (ник всё равно серый,
+  // чтобы отличать бота от реального зрителя)
+  const skin = randomSkin();
+  const v = {
+    dir: skin.dir,
+    baseType: skin.baseType,
+    name: getBotName(),
+    color: '#9aa0a6',
+    isBot: true,
+    energyMax: BOT_ENERGY, energy: BOT_ENERGY, power: BOT_POWER,
+    stolenEnergy: 0,
+  };
+  const pos = spawnRingPos();
+  initFighterRuntime(v, pos.x, pos.y);
+  VARIANTS.push(v);
+  // боты не объявляются диктором — тишина, только реальные бойцы на слуху
+}
+
+// каждые 15 сек: если реальных игроков на ринге < 2 — подсаживаем 1 или 2 бота
+function updateBotSpawns(dt){
+  botSpawnTimer -= dt;
+  if (botSpawnTimer > 0) return;
+  botSpawnTimer = BOT_CHECK_MS;
+  const realOnRing = VARIANTS.filter(v=>!v.isBot && v.alive && !v.eliminated).length;
+  if (realOnRing >= 2) return;
+  const count = Math.random()<0.5 ? 1 : 2;
+  for (let i=0; i<count; i++) spawnBot();
+}
+
+// ── События + озвучка — архитектура как в arena2.html: очередь фраз,
+// такт задаёт РЕАЛЬНОЕ окончание речи (не фиксированный таймер), в паузах
+// диктор сам рассказывает правила/шутки. Боты никогда не озвучиваются —
+// это фильтруется на месте вызова (см. collapse/spawnBot), а не здесь.
+let vQueue = [];       // очередь {text, protected} — то что реально будет сказано/показано
+let vSpeaking = false;
+let vProtected = false; // пока true — текущую фразу нельзя оборвать другим urgent-событием
+let vQuietPool = [];
+let vQuietTimer = null;
+
+// главное правило — звучит ГАРАНТИРОВАННО каждые 30 сек, целиком, вне
+// очереди (см. setInterval ниже и RULES_OTHER для остальных правил)
+const RULE_PRIMARY = 'Подпишись, ставь лайки, донать — и твой боец получит энергию и силу!';
+// объясняют новую механику уровней/дневной короны (2026-08-04, переведено с
+// недельного на ежедневный сброс 2026-08-13) — каждая на СВОЁМ отдельном
+// таймере раз в минуту, protected (как RULE_PRIMARY), не смешиваются с
+// круговым пулом RULES_OTHER ниже
+const RULE_LEVELS = 'Твой уровень растёт от каждого удара и никогда не обнуляется — дерись, качай ранг от новичка до легенды улиц!';
+const RULE_WEEKLY_KING = 'Каждую полночь корона улиц обнуляется — кто заработает больше всех очков за день, станет Королём дня!';
+// остальные правила — звучат по кругу раз в минуту, тоже приоритетнее шуток
+const RULES_OTHER = [
+  'Напиши в чате слово рейтинг — узнаешь своё место в топе!',
+  'Нокаутированный боец вернётся в бой, если его снова лайкнуть или задонатить!',
+  'Забыл про бойца на 15 минут? Его Сила начнёт слабеть — лайкни, чтобы не терять форму!',
+  'Заходите в наш телеграм канал — ссылка прямо на табло!',
+];
+let _ruleOtherIdx = 0;
+const FILLER = [
+  'Бой продолжается — не моргайте!',
+  'На улице как-то тихо... бойцы заскучали без лайков!',
+  'Зрители уже взяли попкорн — а бойцы всё ждут вас!',
+  'Боец без доната — как боец без кулаков. Помоги ему!',
+  'Тишина на районе просто от скуки — оживите бой лайком!',
+  'Чем больше донат — тем больнее удар. Инвестируй в боль!',
+  'Кто-то там точно метит в Короли улиц!',
+  'Разогрев продолжается — лайки решают исход боя!',
+  'Кто-то кричит из окна... неразборчиво, но громко!',
+  'Урна в углу скучает — бойцам бы такую мотивацию!',
+  'Один лайк — и твой боец на шаг ближе к победе!',
+  'Наш диктор питается лайками. Без них он грустнеет. Как сейчас, например.',
+  'Три секунды тишины. Четыре. Пять. Окей, это уже неловко.',
+  'Секретный способ стать легендой улиц: донатить. Больше секретов нет, всё просто.',
+];
+// правила теперь звучат по своему расписанию (см. setInterval ниже) —
+// в паузах диктор рассказывает только шутки-заполнители
+function nextQuietPhrase(){
+  if (vQuietPool.length===0) vQuietPool = [...FILLER].sort(()=>Math.random()-0.5);
+  return vQuietPool.shift();
+}
+
+// вход в бой (новый реальный боец), донат на уже живого бойца, возврат
+// после нокаута — три разных повода, три разных набора фраз (с шутками)
+const JOIN_LINES = [
+  n=>`Встречайте на районе — ${n}!`,
+  n=>`${n} выходит на улицу! Похлопаем!`,
+  n=>`Новый боец — ${n}! Готовься к драке!`,
+  n=>`${n} на районе! Разминка окончена, начинаем!`,
+  n=>`О! ${n} в деле! Добро пожаловать в самую безумную драку тиктока!`,
+];
+const GIFT_LINES = [
+  n=>`${n} не жалеет монет! Удар становится больнее!`,
+  n=>`${n} вложился в победу! Соперникам не позавидуешь!`,
+  n=>`${n} прокачался донатом! Берегитесь, соперники!`,
+  n=>`${n} только что купил себе лишние килограммы силы!`,
+  n=>`Касса района пополнилась! ${n} готовится к разрушению!`,
+  n=>`Экономисты плачут. ${n} смеётся. Его боец растёт!`,
+];
+const REVIVE_LINES = [
+  n=>`${n} возвращается в бой!`,
+  n=>`${n} поднялся с асфальта и снова на районе!`,
+  n=>`Нашатырь подействовал — ${n} снова в деле!`,
+  n=>`${n} не сдаётся! Возвращение на улицу!`,
+];
+const TEAM_JOIN_LINES = [
+  n=>`🚩 ${n} вступает в команду! Свои теперь не бьют своих!`,
+  n=>`🚩 ${n} поднимает красный флаг — теперь он в команде!`,
+];
+const TEAM_LEAVE_LINES = [
+  n=>`🚩 ${n} выходит из команды — снова сам за себя!`,
+  n=>`🚩 ${n} сорвал флаг — команда потеряла бойца!`,
+];
+// вход/возврат ТЕКУЩЕГО чемпиона улиц (#1 в all-time рейтинге отнятой
+// энергии) — вместо обычных JOIN/REVIVE фраз, звучит вне очереди (urgent)
+const CHAMPION_ENTRANCE_LINES = [
+  n=>`Чемпион улиц ${n} вышел на район! Бойтесь, бойцы!`,
+  n=>`На районе чемпион — ${n}! Никому не поздоровится!`,
+  n=>`Чемпион улиц ${n} здесь! Пощады не будет!`,
+  n=>`Внимание, район! Чемпион ${n} возвращается! Дрожите!`,
+  n=>`Сам чемпион улиц ${n} выходит на асфальт! Это будет разгром!`,
+  n=>`Тишина на районе! Чемпион улиц ${n} здесь!`,
+];
+
+// смена РАНГА (не каждого уровня — их 50, было бы слишком часто; ранг
+// меняется раз в 5 уровней) — звучит целиком, не перебивается (protect),
+// шуточный тон, как и остальные фразы диктора
+const RANK_UP_LINES = [
+  (n, rank)=>`Внимание, район! ${n} получает новое звание — ${rank}! Все встали и захлопали!`,
+  (n, rank)=>`Ого! ${n} дорос до звания «${rank}»! Соседи уже переходят на другую сторону улицы!`,
+  (n, rank)=>`Новый ранг на районе! ${n} теперь официально ${rank}!`,
+  (n, rank)=>`${n} прокачался до «${rank}»! Асфальт под ногами начинает потрескивать от гордости!`,
+  (n, rank)=>`Районная газета выйдет с заголовком: «${n} — теперь ${rank}»!`,
+  (n, rank)=>`Поздравляем! ${n} повышен до «${rank}»! Дальше только легенды!`,
+];
+
+// urgent=true — обычно обрывает текущую фразу и говорит сразу (как
+// donation-хайп в arena2); НО если сейчас играет protected-фраза (чемпион
+// ринга/главное правило) — её не обрываем, новая просто становится
+// следующей в очереди. protect=true — сама эта фраза, начав звучать,
+// тоже не может быть оборвана (используется для входа чемпиона и правил)
+function pushEvent(text, urgent, protect){
+  const item = { text, protected: !!protect, ts: Date.now() };
+  if (urgent){
+    if (!vProtected){
+      if (window.speechSynthesis) window.speechSynthesis.cancel();
+      vSpeaking = false;
+    }
+    vQueue.unshift(item);
+    if (vQueue.length>12) vQueue.length = 12;
+  } else {
+    vQueue.push(item);
+    if (vQueue.length>12) vQueue.shift();
+  }
+  vSpeakNext();
+}
+
+function estimateSpeechMs(text){
+  return Math.min(7000, Math.max(2200, text.length*75));
+}
+
+// событие, простоявшее в очереди дольше этого — уже не актуально (то, что
+// оно описывало, случилось секунд 10+ назад), озвучивать его не нужно,
+// просто выкидываем и берём следующее
+const SPEECH_STALE_MS = 10000;
+
+function vSpeakNext(){
+  if (vSpeaking) return;
+  while (vQueue.length && Date.now() - vQueue[0].ts > SPEECH_STALE_MS){
+    vQueue.shift();
+  }
+  if (vQueue.length===0){ vScheduleQuiet(); return; }
+  clearTimeout(vQuietTimer);
+  const item = vQueue.shift();
+  const text = item.text;
+  vSpeaking = true;
+  vProtected = item.protected;
+  const dur = estimateSpeechMs(text);
+  const onDone = ()=>{ vSpeaking=false; vProtected=false; setTimeout(vSpeakNext, 400); };
+  if (voiceEnabled && window.speechSynthesis){
+    speak(text, onDone);
+  } else {
+    setTimeout(onDone, dur);
+  }
+}
+
+// главное правило — гарантированно каждые 30 сек, целиком (protected)
+setInterval(()=>{ pushEvent(RULE_PRIMARY, true, true); }, 30000);
+// уровни/недельная корона — каждая гарантированно раз в минуту, целиком
+// (protected), на своём отдельном таймере, не смешиваются с RULES_OTHER
+setInterval(()=>{ pushEvent(RULE_LEVELS, true, true); }, 60000);
+setInterval(()=>{ pushEvent(RULE_WEEKLY_KING, true, true); }, 60000);
+// остальные правила — по кругу раз в минуту, тоже protected
+setInterval(()=>{
+  pushEvent(RULES_OTHER[_ruleOtherIdx % RULES_OTHER.length], true, true);
+  _ruleOtherIdx++;
+}, 60000);
+
+// в паузах (10 сек без событий) диктор сам рассказывает правила/шутки
+function vScheduleQuiet(){
+  clearTimeout(vQuietTimer);
+  vQuietTimer = setTimeout(()=>{
+    if (vSpeaking || vQueue.length>0) return;
+    pushEvent(nextQuietPhrase());
+  }, 10000);
+}
+
+// ── Озвучка (архитектура как в arena2.html) ──
+let voiceEnabled = false, _cachedVoice = null;
+
+function getRuVoice(){
+  if(_cachedVoice) return _cachedVoice;
+  const voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+  _cachedVoice = voices.find(v=>/pavel/i.test(v.name))
+    || voices.find(v=>/ru/i.test(v.lang) && /male/i.test(v.name))
+    || voices.find(v=>/ru[-_]/i.test(v.lang))
+    || voices.find(v=>/ru/i.test(v.lang))
+    || voices.find(v=>v.default)
+    || voices[0] || null;
+  return _cachedVoice;
+}
+// диктор должен читать только буквы никнейма — без "@" и без смайликов/
+// эмодзи (у ников бывают любые декоративные символы из TikTok)
+function speakClean(text){
+  return text
+    .replace(/[\u{1F1E6}-\u{1F1FF}\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{2190}-\u{21FF}\u{2300}-\u{23FF}\u{2B00}-\u{2BFF}\u{FE0F}\u{200D}]/gu, '')
+    .replace(/@/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+// ник в TikTok может содержать ЛЮБЫЕ декоративные символы (рамки, звёздочки,
+// зачёркнутые/жирные unicode-буквы, диакритику) — для озвучки оставляем
+// только буквы/цифры самого ника, остальное диктор не должен произносить.
+// NFKD раскладывает декоративные unicode-буквы (полноширинные, зачёркнутые,
+// в кружочках и т.п.) обратно в обычные буквы перед фильтрацией.
+function cleanNickForSpeech(name){
+  return String(name||'')
+    .normalize('NFKD')
+    .replace(/[_.\-]+/g, ' ')
+    .replace(/[^\p{L}\p{N} ]+/gu, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+// как speakText в arena2: onDone вызывается по РЕАЛЬНОМУ завершению речи
+// (или через 8с как страховка) — этим тактом живёт вся очередь vQueue
+function speak(text, onDone){
+  const done = onDone || (()=>{});
+  if(!voiceEnabled || !window.speechSynthesis){ done(); return; }
+  const clean = speakClean(text);
+  const u = new SpeechSynthesisUtterance(clean);
+  const v = getRuVoice();
+  if(v) u.voice = v;
+  u.lang = 'ru-RU'; u.rate = 1.08; u.volume = 1;
+  // приглушаем фоновую музыку на время фразы диктора, возвращаем как замолчал
+  duckBgMusic();
+  let finished = false;
+  const finish = ()=>{ if(finished) return; finished = true; unduckBgMusic(); done(); };
+  u.onend = u.onerror = finish;
+  // страховка на случай если браузер не пришлёт onend вовсе — с запасом
+  // под длинные фразы (правила уровней/короны), чтобы не обрывать протэкт
+  // раньше, чем реальная озвучка договорит фразу до конца (было фикс. 8000)
+  setTimeout(finish, Math.max(8000, clean.length*90 + 2500));
+  try{ window.speechSynthesis.speak(u); }catch(e){ finish(); }
+}
+if(window.speechSynthesis) window.speechSynthesis.onvoiceschanged = ()=>{ _cachedVoice = null; };
+
+pushEvent('🔔 Бой начался!');
+
+// ── Звуки боя (удары/нокаут) — синтезируются на лету, без файлов ──
+let audioCtx = null;
+function getAudioCtx(){
+  if (!audioCtx) audioCtx = new (window.AudioContext||window.webkitAudioContext)();
+  return audioCtx;
+}
+function playPunchSound(){
+  // звук удара — независим от диктора (voiceEnabled там же управляет
+  // только speechSynthesis, см. voiceBtn), поэтому проверки нет
+  const ac = getAudioCtx(); const now = ac.currentTime;
+
+  const osc = ac.createOscillator(), gain = ac.createGain();
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(150, now);
+  osc.frequency.exponentialRampToValueAtTime(55, now+0.09);
+  gain.gain.setValueAtTime(0.4, now);
+  gain.gain.exponentialRampToValueAtTime(0.001, now+0.13);
+  osc.connect(gain); gain.connect(ac.destination);
+  osc.start(now); osc.stop(now+0.14);
+
+  const bufSize = Math.floor(ac.sampleRate*0.06);
+  const buf = ac.createBuffer(1, bufSize, ac.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i=0;i<bufSize;i++) data[i] = (Math.random()*2-1)*(1-i/bufSize);
+  const noise = ac.createBufferSource(); noise.buffer = buf;
+  const noiseGain = ac.createGain();
+  noiseGain.gain.setValueAtTime(0.3, now);
+  noiseGain.gain.exponentialRampToValueAtTime(0.001, now+0.06);
+  noise.connect(noiseGain); noiseGain.connect(ac.destination);
+  noise.start(now);
+}
+function playKOSound(){
+  if (!voiceEnabled) return;
+  const ac = getAudioCtx(); const now = ac.currentTime;
+  const osc = ac.createOscillator(), gain = ac.createGain();
+  osc.type = 'sawtooth';
+  osc.frequency.setValueAtTime(200, now);
+  osc.frequency.exponentialRampToValueAtTime(38, now+0.5);
+  gain.gain.setValueAtTime(0.32, now);
+  gain.gain.exponentialRampToValueAtTime(0.001, now+0.55);
+  osc.connect(gain); gain.connect(ac.destination);
+  osc.start(now); osc.stop(now+0.6);
+}
+
+document.getElementById('voiceBtn').addEventListener('click', ()=>{
+  voiceEnabled = !voiceEnabled;
+  document.getElementById('voiceBtn').textContent = voiceEnabled ? '🔊' : '🔇';
+  if(voiceEnabled && window.speechSynthesis){
+    try{ const s=new SpeechSynthesisUtterance(''); s.volume=0; window.speechSynthesis.speak(s); }catch(e){}
+  }
+  try{ getAudioCtx().resume(); }catch(e){}
+});
+document.getElementById('backBtn').addEventListener('click', ()=>{ location.href='/'; });
+document.getElementById('fsBtn').addEventListener('click', ()=>{
+  if (document.fullscreenElement) { document.exitFullscreen && document.exitFullscreen(); }
+  else {
+    document.documentElement.requestFullscreen && document.documentElement.requestFullscreen().then(()=>{
+      if (screen.orientation && screen.orientation.lock) screen.orientation.lock('portrait').catch(()=>{});
+    }).catch(()=>{});
+  }
+});
+
+// звуки удара/нокаута идут через AudioContext, который браузер держит
+// "suspended" до первого жеста пользователя — раньше он разблокировался
+// только кликом по кнопке диктора (voiceBtn), из-за чего казалось, что
+// звук боя тоже управляется ею; теперь разблокируем при любом первом клике
+document.addEventListener('pointerdown', function unlockAudioOnce(){
+  try{ getAudioCtx().resume(); }catch(e){}
+  document.removeEventListener('pointerdown', unlockAudioOnce);
+}, { once: true });
+
+// ── Фоновая музыка (Final Punch, maxstack, CC BY-SA — см. audio/LICENSE_streetfighter_theme.txt) ──
+// тихая, не должна перебивать ни звук удара, ни тем более диктора: базовая
+// громкость низкая, а на время речи диктора приглушается ещё сильнее (duck)
+// и возвращается обратно, когда диктор замолчал.
+const BG_MUSIC_VOLUME = 0.14, BG_MUSIC_DUCK_VOLUME = 0.035;
+const bgMusic = document.getElementById('bgMusic');
+bgMusic.volume = BG_MUSIC_VOLUME;
+// разблокировка С ПОВТОРОМ — раньше была {once:true}: если самая первая
+// попытка play() почему-либо не удавалась (например, файл ещё не успел
+// подгрузиться в момент клика), слушатель снимался навсегда и музыка не
+// запускалась до конца сессии, сколько потом ни щёлкай. Теперь пробуем на
+// КАЖДОМ клике, пока реально не заиграет, и только тогда отписываемся.
+function tryUnlockMusic(){
+  bgMusic.play().then(()=>{
+    document.removeEventListener('pointerdown', tryUnlockMusic);
+  }).catch(()=>{});
+}
+document.addEventListener('pointerdown', tryUnlockMusic);
+
+// отдельная кнопка только для музыки — через .muted, не трогает .volume,
+// поэтому существующий duck/unduck (приглушение музыки на время фраз
+// диктора) продолжает работать как раньше, просто беззвучно, пока музыка
+// выключена этой кнопкой
+document.getElementById('musicBtn').addEventListener('click', ()=>{
+  bgMusic.muted = !bgMusic.muted;
+  document.getElementById('musicBtn').textContent = bgMusic.muted ? '🔇' : '🎵';
+});
+let _duckTimer = null;
+function duckBgMusic(){
+  if (_duckTimer) clearTimeout(_duckTimer);
+  bgMusic.volume = BG_MUSIC_DUCK_VOLUME;
+}
+function unduckBgMusic(){
+  // небольшая задержка перед возвратом громкости — чтобы не дёргалась
+  // между двумя фразами диктора подряд
+  if (_duckTimer) clearTimeout(_duckTimer);
+  _duckTimer = setTimeout(()=>{ bgMusic.volume = BG_MUSIC_VOLUME; }, 250);
+}
+
+// ── Живое подключение к TikTok-чату (как в arena2/arena3) ──
+// Сервер шлёт общие "arena_*" события на весь стрим — тут выбираем только
+// нужные и растим/спавним реальных бойцов. Синтетические demo-события
+// игнорируются (_gameMode!=='tiktok') — пока эфир не идёт, ринг держат боты.
+let _ws = null, _wsUser = '', _gameMode = 'connecting';
+
+function setStatus(cls, text){
+  const el = document.getElementById('statusBadge');
+  if (!el) return;
+  el.style.display = 'block';
+  el.className = cls;
+  el.textContent = text;
+}
+
+function wsConnect(username){
+  _wsUser = username;
+  if (_ws && _ws.readyState < 2){ _ws.onclose = null; _ws.close(); }
+  const proto = location.protocol==='https:' ? 'wss:' : 'ws:';
+  _ws = new WebSocket(`${proto}//${location.host}?username=${encodeURIComponent(username)}`);
+  _ws.onopen = ()=>{
+    setStatus('connecting', '⏳ @'+username+'…');
+    // Восстановление энергии/силы бойцов после перезапуска стрима (обновление
+    // /переоткрытие страницы игры) — сервер помнит последний снапшот боя
+    _ws.send(JSON.stringify({ type:'streetfighter_state_request' }));
+  };
+  _ws.onmessage = (e)=>{
+    try {
+      const d = JSON.parse(e.data);
+      if (d.type==='streetfighter_state_restore'){
+        (d.players||[]).forEach(restoreFighter);
+      }
+      if (d.type==='init' || d.type==='status'){
+        const m = d.tiktokMode || d.mode;
+        _gameMode = m || 'connecting';
+        if (m==='tiktok') setStatus('live', '🔴 LIVE @'+(d.username||username));
+        else if (m==='demo') setStatus('demo', '🟡 Ожидание эфира…');
+        else setStatus('connecting', '⏳ @'+username+'…');
+      }
+      if (d.type==='arena_like' && _gameMode==='tiktok') onLike(d.username);
+      if (d.type==='arena_boxing_chat' && _gameMode==='tiktok') onLike(d.username);
+      if (d.type==='arena_team' && _gameMode==='tiktok') toggleTeam(d.username);
+      if (d.type==='arena_gift' && _gameMode==='tiktok') onGift(d.username, d.coins);
+      if (d.type==='arena_cheat' && _gameMode==='tiktok') applyCheat(d.username, d.hp, d.damage);
+      if (d.type==='top_streetfighter') { _dbTop = (d.data||[]).map(p=>({ username:p.username, stolen:p.total_stolen })); }
+      if (d.type==='streetfighter_weekly_champion') { _weeklyChampion = d.champion || null; syncChampionStatus(); }
+      if (d.type==='streetfighter_tier_info'){
+        const v = findRealFighter(d.username);
+        if (v){
+          // lifetimeStolen — вечный счётчик (не total_stolen, тот теперь
+          // недельный и обнуляется по понедельникам) — от него уровень/бейдж
+          v.allTimeStolen = Number(d.lifetimeStolen)||0;
+          // синхронизируем известный ранг с реальным сразу, БЕЗ объявления
+          // диктором — это просто подгрузка уже существующего статуса
+          // зрителя, а не повышение, случившееся прямо сейчас на стриме
+          v.knownRankIdx = rankIndexOfLevel(levelOf(v.allTimeStolen));
+          // если у зрителя уже был закреплён герой командой skin1-5 в
+          // прошлый раз — применяем его сразу при спавне (round-trip тот
+          // же, что и за очками медали, отдельный запрос не нужен)
+          if (d.chosenSkin) applyChosenSkin(v, d.chosenSkin);
+        }
+      }
+      if (d.type==='streetfighter_skin_choice'){
+        // живая смена героя по команде skin1-5 прямо во время боя —
+        // применяется сразу, даже если боец уже дерётся на ринге
+        const v = findRealFighter(d.username);
+        if (v) applyChosenSkin(v, d.skinIndex);
+      }
+      if (d.type==='arena_streetfighter_rating'){
+        if (d.rank){
+          // Порядок карточки — по явной просьбе пользователя: ник → уровень
+          // (это ГЛАВНОЕ в игре, сразу после ника) → нокауты → недельные
+          // очки/место → сколько раз был Королём недели → сколько держит
+          // корону прямо сейчас на этой неделе.
+          let html = `<span style="color:#FF6688;font-size:16px;font-weight:bold;">📊 @${d.username}</span><br>`;
+
+          // уровень + название ранга + полоска прогресса — считается от
+          // lifetimeStolen (ВЕЧНЫЙ счётчик, не обнуляется по понедельникам
+          // вместе с недельными очками ниже — иначе уровень бы сгорал)
+          const lifetimeTotal = Number(d.lifetimeStolen||0);
+          const prog = levelProgress(lifetimeTotal);
+          const rank = rankOfLevel(prog.level);
+          html += `<span style="color:#7fd3ff;font-size:15px;font-weight:700;">🎖️ ${prog.level} уровень — ${rank.name}</span>`;
+          if (prog.next != null){
+            const pct = Math.round(prog.frac*100);
+            const need = (prog.next - lifetimeTotal).toLocaleString('ru-RU');
+            html += `<div style="margin-top:2px;background:rgba(255,255,255,0.12);border-radius:5px;height:6px;overflow:hidden;">`
+              + `<div style="width:${pct}%;height:100%;background:${rank.color};"></div></div>`
+              + `<div style="margin-top:1px;color:#aaa;font-size:11px;">ещё ${need}⚡ до ${prog.level+1} уровня</div>`;
+          } else {
+            html += `<div style="margin-top:1px;color:#ffd75e;font-size:11px;">Максимальный уровень!</div>`;
+          }
+
+          // нокауты, затем дневные очки/место (d.stolen/d.rank — сами
+          // обнуляются каждую полночь, двигают корону текущего дня)
+          const stolenTotal = Number(d.stolen||0);
+          const pts = stolenTotal.toLocaleString('ru-RU');
+          // каждое значение — на своей строке, ничего не склеиваем через "·"
+          html += `<div style="margin-top:3px;padding-top:3px;border-top:1px dashed rgba(255,255,255,0.18);">`
+            + `<span style="color:#ffb4c4;font-size:13.5px;">🥊 Нокаутов: ${d.kos||0}</span><br>`
+            + `<span style="color:#FFD700;font-size:14.5px;">#${d.rank} место за день</span><br>`
+            + `<span style="color:#FFD700;font-size:14.5px;">⚡${pts} очков за день</span>`
+            + `</div>`;
+
+          // Король дня: сколько раз выигрывал (вечный счётчик, имя поля
+          // weeklyKingWins историческое — осталось с недельной версии). Строку
+          // "⏱ На короне уже: Xч Yм" убрали 2026-08-08 — с новыми правилами
+          // (побеждает по очкам, не по времени с короной) она уже ничего не
+          // решает и только сбивала бы зрителя с толку.
+          if (d.weeklyKingWins > 0){
+            html += `<div style="margin-top:3px;padding-top:3px;border-top:1px dashed rgba(255,215,0,0.25);color:#fff2b0;">`
+              + `<div style="display:flex;align-items:center;justify-content:center;gap:6px;font-size:14px;font-weight:700;">👑<span>Король дня ×${d.weeklyKingWins}</span></div>`
+              + `</div>`;
+          }
+          _showRating(html);
+        } else {
+          _showRating(`<span style="color:#AAA;font-size:15px;">📊 @${d.username}<br>пока не в рейтинге</span>`);
+        }
+      }
+    } catch(err){ console.error('[streetfighter ws]', err); }
+  };
+  _ws.onclose = ()=>{ setStatus('error', '❌ Disconnected…'); setTimeout(()=>wsConnect(_wsUser), 3000); };
+  _ws.onerror = ()=>{};
+}
+
+// отдельное всплывающее окошко под ответ на "rating" из чата (как в
+// arena2/arena3) — не смешивается с общей очередью событий боя/диктора,
+// поэтому не теряется среди фраз
+let _ratingHideTimer = null;
+function _showRating(html){
+  const el = document.getElementById('ratingOverlay');
+  if (!el) return;
+  el.innerHTML = html;
+  el.style.display = 'block';
+  if (_ratingHideTimer) clearTimeout(_ratingHideTimer);
+  _ratingHideTimer = setTimeout(()=>{ el.style.display = 'none'; }, 6000);
+}
+
+// очки за удары сыплются часто (каждый попавший удар) — вместо мгновенной
+// отправки на каждый удар копим по нику и шлём одной пачкой раз в 4 сек,
+// чтобы не грузить БД лишними запросами. Локально (медаль/пояс) всё равно
+// считается мгновенно — задержка касается только записи в БД для топа.
+let _pendingStolen = {};
+function reportStolen(username, amount){
+  if (!username || !amount) return;
+  _pendingStolen[username] = (_pendingStolen[username]||0) + amount;
+}
+setInterval(()=>{
+  if (!_ws || _ws.readyState!==1) return;
+  for (const u in _pendingStolen){
+    const amount = _pendingStolen[u];
+    if (amount > 0) _ws.send(JSON.stringify({ type:'streetfighter_stolen', username:u, amount }));
+  }
+  _pendingStolen = {};
+}, 4000);
+
+function reportKO(username){
+  if (_ws && _ws.readyState===1) _ws.send(JSON.stringify({ type:'streetfighter_ko', username }));
+}
+function requestTier(username){
+  if (_ws && _ws.readyState===1) _ws.send(JSON.stringify({ type:'streetfighter_tier_request', username }));
+}
+
+// ── Автосейв энергии/силы боя (2026-08-11) — чтобы при перезапуске стрима
+// (переоткрытие страницы) реальные бойцы не начинали с нуля. Раз в 15 сек
+// + сразу при сворачивании/закрытии вкладки — совсем маленький payload
+// (только активные реальные бойцы), сервер сам решает как часто писать в БД.
+function saveStateSnapshot(){
+  if (!_ws || _ws.readyState!==1) return;
+  const players = VARIANTS
+    .filter(v=>!v.isBot && v.alive && !v.eliminated && v.energy>0)
+    .map(v=>({ username:v.name, energyMax:v.energyMax, energy:v.energy, powerMax:v.powerMax, power:v.power }));
+  _ws.send(JSON.stringify({ type:'streetfighter_state_save', players }));
+}
+setInterval(saveStateSnapshot, 15000);
+document.addEventListener('visibilitychange', ()=>{ if (document.hidden) saveStateSnapshot(); });
+window.addEventListener('pagehide', saveStateSnapshot);
+
+// ── ТОП-лист: дневной, из БД (обнуляется каждую полночь по Киеву) ──
+let _dbTop = []; // [{username, stolen}]
+function fetchStreetFighterTop(){
+  fetch('/top-streetfighter?limit=5').then(r=>r.json()).then(d=>{
+    if (d.ok && d.top) _dbTop = d.top.map(p=>({ username:p.username, stolen:p.total_stolen }));
+  }).catch(()=>{});
+}
+fetchStreetFighterTop();
+setInterval(fetchStreetFighterTop, 30000);
+
+// чемпион ПРОШЛОЙ недели — постоянный бейдж под плашкой правил (см. drawHUD),
+// живёт до следующего понедельника; null = сброса ещё ни разу не было
+// (самая первая неделя фичи) — тогда бейдж приглашает стать первым чемпионом
+let _weeklyChampion = null;
+function fetchStreetFighterWeeklyChampion(){
+  fetch('/streetfighter-weekly-champion').then(r=>r.json()).then(d=>{
+    if (d.ok) { _weeklyChampion = d.champion || null; syncChampionStatus(); }
+  }).catch(()=>{});
+}
+fetchStreetFighterWeeklyChampion();
+setInterval(fetchStreetFighterWeeklyChampion, 30000);
+
+(function initLive(){
+  const p = new URLSearchParams(location.search);
+  const u = (p.get('username')||'').replace(/^@/,'').trim();
+  if (u) wsConnect(u);
+})();
+
+
+// ── Единый масштаб для ВСЕХ пиксель-арт ассетов пака (персонажи и фон —
+// из одного пака Streets of Fight) — иначе дверь/стена не в пропорции с
+// бойцом. Кадры бойцов нативно 96×63, целимся в ту же высоту бойца, что и
+// FIGHTER_SCALE (130*0.85) — см. историю разработки streetfighter_arena_mockup.html
+const UNIT_SCALE = (130*0.85) / 63; // ≈1.754
+
+// геометрия фона строго та же, что PANEL_TOP/WALL_TOP/FLOOR_TOP/FLOOR_BOT
+// выше (один в один с boxing_arena.html) — небо+стена делят фиксированную
+// полосу WALL_TOP..FLOOR_TOP в пропорции нативных размеров тайлов (80:96),
+// сама дорога тайлится с UNIT_SCALE уже внутри фиксированной FLOOR_TOP..FLOOR_BOT
+const SKY_WALL_TOTAL = FLOOR_TOP - WALL_TOP; // 206
+const SKY_H = SKY_WALL_TOTAL * (80/(80+96));
+const WALL_H = SKY_WALL_TOTAL - SKY_H;
+// ВНИМАНИЕ: WALL_TOP тут — верх НЕБА, а не верх стены (сама стена
+// начинается ниже, см. wallY = WALL_TOP+SKY_H в drawBackground). Для
+// реквизита комнат (граффити, вход в клуб и т.п.), которому нужен именно
+// верх стены, используем этот алиас — иначе всё съезжает в небо
+const WALL_TOP_Y = WALL_TOP + SKY_H;
+// верхняя полоса неба, где НЕТ силуэта города (сама картинка скайлайна
+// сжата и прижата к низу SKY_H) — сюда кладём луну, чтобы она была
+// гарантированно позади/выше крыш, а не "перед домами". Самая высокая
+// крыша в back.png начинается на 10% высоты картинки от верха (замерено
+// сканированием пикселей) — держим полосу настолько узкой, насколько
+// можно, чтобы дома были покрупнее, но луна её не касалась
+const SKY_OPEN_H = SKY_H * 0.15;
+// технический зазор между низом HUD-плашки и WALL_TOP (никем больше не
+// используется — плашка рисуется поверх всего в конце кадра) даём под
+// свечение луны, чтобы его не резало ровной линией клипа
+const SKY_EXTRA_TOP = 10;
+const ROAD_TILE_H = 144 * UNIT_SCALE;
+
+const TILESET_SRC = 'sprites/streets_of_fight/stage/tileset.png';
+const BACK_SRC     = 'sprites/streets_of_fight/stage/back.png';
+const FORE_SRC      = 'sprites/streets_of_fight/stage/fore.png';
+
+// Точные координаты кусков внутри tileset.png/fore.png — вычислены
+// сканированием прозрачных зазоров (PowerShell System.Drawing), не на глаз:
+const TILE_WALL_PIZZA  = { sx:0,   sy:0,   sw:224, sh:96 };
+const TILE_WALL_WINDOW = { sx:288, sy:0,   sw:224, sh:96 };
+const TILE_ROAD        = { sx:48,  sy:224, sw:112, sh:144 };
+const TILE_LAMP         = { sx:16,  sy:0,   sw:42,  sh:144 }; // fore.png содержит фонарь+куст, куст не используем
+
+// плитки для системы комнат (см. ROOMS ниже) — координаты row2/row3
+// tileset.png перепроверены прямым замером пикселей (не на глаз): sx=64
+// это ЧИСТЫЙ мелкий кирпич без пропа (не труба, как можно подумать по
+// порядку), sx=416 — решётка/ограждение, а НЕ кирпич
+const ROOM_TILES = {
+  pizza:      TILE_WALL_PIZZA,
+  window:     TILE_WALL_WINDOW,
+  brick:      { sx:0,   sy:112, sw:48,  sh:96 },  // крупный кирпич
+  smallbrick: { sx:64,  sy:112, sw:48,  sh:96 },  // мелкий кирпич, чистый
+  pipe:       { sx:128, sy:112, sw:48,  sh:96 },
+  archwin:    { sx:192, sy:112, sw:48,  sh:96 },
+  door:       { sx:256, sy:112, sw:48,  sh:96 },
+  brick2:     { sx:320, sy:112, sw:32,  sh:96 },  // тоже крупный кирпич
+  garageCar:  { sx:176, sy:224, sw:112, sh:144 },
+  garageShut: { sx:304, sy:224, sw:112, sh:144 },
+  graffiti:   { sx:432, sy:224, sw:96,  sh:144 },
+};
+
+const imgTileset = new Image(); imgTileset.src = TILESET_SRC;
+const imgBack     = new Image(); imgBack.src = BACK_SRC;
+const imgFore     = new Image(); imgFore.src = FORE_SRC;
+
+// автомат с газировкой — своего спрайта в паке нет, рисуем процедурно;
+// шрифт "COLA" общий, без чужого товарного знака (публичный TikTok-стрим)
+function drawVendingMachine(dx, dyBase, h){
+  const w = h * 0.5;
+  const y = dyBase - h;
+  ctx.save();
+  ctx.fillStyle = 'rgba(0,0,0,0.35)';
+  ctx.beginPath(); ctx.ellipse(dx + w/2, dyBase + 2, w*0.6, 6, 0, 0, Math.PI*2); ctx.fill();
+
+  const body = ctx.createLinearGradient(dx, y, dx + w, y);
+  body.addColorStop(0, '#8f0d13'); body.addColorStop(0.5, '#e21b26'); body.addColorStop(1, '#a80f16');
+  ctx.fillStyle = body;
+  roundRectPath(dx, y, w, h, 4); ctx.fill();
+
+  ctx.fillStyle = '#333';
+  ctx.fillRect(dx - 2, y - 5, w + 4, 6);
+
+  const pw = w*0.72, ph = h*0.4, px = dx + (w-pw)/2, py = y + h*0.1;
+  ctx.fillStyle = '#150c10';
+  ctx.fillRect(px - 3, py - 3, pw + 6, ph + 6);
+  const glow = ctx.createLinearGradient(px, py, px, py + ph);
+  glow.addColorStop(0, '#124a66'); glow.addColorStop(1, '#0a2436');
+  ctx.fillStyle = glow;
+  ctx.fillRect(px, py, pw, ph);
+  ctx.fillStyle = 'rgba(230,60,60,0.85)';
+  const canW = pw/4;
+  for (let i=0;i<3;i++) ctx.fillRect(px+4+i*canW, py+ph*0.3, canW*0.55, ph*0.6);
+
+  ctx.fillStyle = '#fff';
+  ctx.textAlign = 'center';
+  ctx.font = `bold ${Math.max(8, h*0.1)}px Arial Black`;
+  ctx.fillText('COLA', dx + w/2, y + h*0.63);
+
+  ctx.fillStyle = '#1a1a1a';
+  ctx.fillRect(dx + w*0.12, y + h*0.68, w*0.76, h*0.06);
+  ctx.fillStyle = '#ffd23f';
+  for (let i=0;i<4;i++){
+    ctx.beginPath();
+    ctx.arc(dx + w*0.2 + i*w*0.2, y + h*0.71, w*0.035, 0, Math.PI*2);
+    ctx.fill();
+  }
+  ctx.fillStyle = '#111';
+  ctx.fillRect(dx + w*0.25, y + h*0.86, w*0.5, h*0.08);
+
+  ctx.strokeStyle = 'rgba(0,0,0,0.5)'; ctx.lineWidth = 2;
+  roundRectPath(dx, y, w, h, 4); ctx.stroke();
+  ctx.restore();
+}
+
+// мусорный бак в духе улиц Америки 80-х — оцинкованная сталь, помятый,
+// с ржавыми потёками и торчащим мусором; тоже рисуется процедурно
+function drawTrashCan(dx, dyBase, h){
+  const wTop = h * 0.5, wBot = h * 0.58;
+  const y = dyBase - h;
+  ctx.save();
+
+  ctx.fillStyle = 'rgba(0,0,0,0.35)';
+  ctx.beginPath(); ctx.ellipse(dx + wBot/2, dyBase + 2, wBot*0.62, 6, 0, 0, Math.PI*2); ctx.fill();
+
+  // корпус — слегка сужается кверху (классический жестяной бак)
+  const bodyTop = y + h*0.14;
+  ctx.beginPath();
+  ctx.moveTo(dx + (wBot-wTop)/2, bodyTop);
+  ctx.lineTo(dx + (wBot-wTop)/2 + wTop, bodyTop);
+  ctx.lineTo(dx + wBot, dyBase);
+  ctx.lineTo(dx, dyBase);
+  ctx.closePath();
+  const body = ctx.createLinearGradient(dx, y, dx + wBot, y);
+  body.addColorStop(0,   '#5c6068');
+  body.addColorStop(0.35,'#9aa0a8');
+  body.addColorStop(0.55,'#c4c9cf');
+  body.addColorStop(0.75,'#83898f');
+  body.addColorStop(1,   '#4a4e54');
+  ctx.fillStyle = body;
+  ctx.fill();
+
+  // гофрированные горизонтальные рёбра жёсткости
+  ctx.save();
+  ctx.clip();
+  ctx.strokeStyle = 'rgba(0,0,0,0.25)'; ctx.lineWidth = 1.5;
+  for (let i=1;i<=3;i++){
+    const ly = bodyTop + (dyBase-bodyTop)*(i/4);
+    ctx.beginPath(); ctx.moveTo(dx-2, ly); ctx.lineTo(dx+wBot+2, ly); ctx.stroke();
+  }
+  // ржавые потёки
+  ctx.fillStyle = 'rgba(140,70,20,0.35)';
+  ctx.fillRect(dx + wBot*0.22, bodyTop + (dyBase-bodyTop)*0.35, 3, (dyBase-bodyTop)*0.6);
+  ctx.fillRect(dx + wBot*0.68, bodyTop + (dyBase-bodyTop)*0.15, 2, (dyBase-bodyTop)*0.75);
+  // вмятина
+  ctx.fillStyle = 'rgba(0,0,0,0.18)';
+  ctx.beginPath(); ctx.ellipse(dx + wBot*0.4, dyBase - (dyBase-bodyTop)*0.3, wBot*0.14, wBot*0.1, 0, 0, Math.PI*2); ctx.fill();
+  ctx.restore();
+
+  ctx.strokeStyle = 'rgba(0,0,0,0.45)'; ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  // крышка с ободом
+  const lidY = bodyTop, lidRX = wTop*0.62, lidRY = h*0.055;
+  ctx.fillStyle = '#6d7178';
+  ctx.beginPath(); ctx.ellipse(dx + (wBot-wTop)/2 + wTop/2, lidY, lidRX, lidRY, 0, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#b6bac0';
+  ctx.beginPath(); ctx.ellipse(dx + (wBot-wTop)/2 + wTop/2, lidY - lidRY*0.35, lidRX*0.86, lidRY*0.7, 0, 0, Math.PI*2); ctx.fill();
+  ctx.strokeStyle = 'rgba(0,0,0,0.4)'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.ellipse(dx + (wBot-wTop)/2 + wTop/2, lidY, lidRX, lidRY, 0, 0, Math.PI*2); ctx.stroke();
+
+  // торчащий мусор — мятая бумага и обломок доски
+  ctx.fillStyle = '#e8dcc0';
+  ctx.beginPath();
+  ctx.moveTo(dx + wTop*0.35, lidY - lidRY*0.3);
+  ctx.lineTo(dx + wTop*0.55, lidY - h*0.16);
+  ctx.lineTo(dx + wTop*0.7,  lidY - lidRY*0.2);
+  ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = 'rgba(0,0,0,0.25)'; ctx.lineWidth = 1; ctx.stroke();
+
+  ctx.restore();
+}
+
+// ── реквизит для системы комнат (см. ROOMS ниже) ──
+function neonSign(cx0, cy0, w, h, text, colFace, colGlow){
+  ctx.save();
+  ctx.shadowColor = colGlow; ctx.shadowBlur = 14;
+  ctx.strokeStyle = colGlow; ctx.lineWidth = 3;
+  roundRectPath(cx0, cy0, w, h, 6); ctx.stroke();
+  ctx.shadowBlur = 6;
+  ctx.fillStyle = colFace;
+  ctx.font = `bold ${h*0.55}px Arial Black`;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(text, cx0+w/2, cy0+h/2+1);
+  ctx.restore();
+}
+
+// луч прожектора от земли в небо — под клуб/дискотеку
+function drawSpotBeam(x, groundY, topY, tiltPx, color){
+  ctx.save();
+  const grad = ctx.createLinearGradient(x, groundY, x+tiltPx, topY);
+  grad.addColorStop(0, color.replace('ALPHA','0.55'));
+  grad.addColorStop(1, color.replace('ALPHA','0'));
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  ctx.moveTo(x-16, groundY);
+  ctx.lineTo(x+16, groundY);
+  ctx.lineTo(x+tiltPx+3, topY);
+  ctx.lineTo(x+tiltPx-3, topY);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+}
+
+// стойка-ограждение с бархатным канатом — классический вход в клуб
+function drawVelvetRope(x1, x2, groundY, h){
+  ctx.save();
+  [x1,x2].forEach(x=>{
+    ctx.fillStyle = '#2a2420';
+    ctx.fillRect(x-2, groundY-h, 4, h);
+    ctx.fillStyle = '#c9a63f';
+    ctx.beginPath(); ctx.arc(x, groundY-h-3, 4, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(x, groundY, 6, 2, 0, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    ctx.beginPath(); ctx.ellipse(x, groundY+1, 7, 2.5, 0, 0, Math.PI*2); ctx.fill();
+  });
+  const sagY = groundY-h*0.6;
+  ctx.strokeStyle = '#a01830'; ctx.lineWidth = 3.5;
+  ctx.beginPath();
+  ctx.moveTo(x1, groundY-h+4);
+  ctx.quadraticCurveTo((x1+x2)/2, sagY+10, x2, groundY-h+4);
+  ctx.stroke();
+  ctx.strokeStyle = 'rgba(255,255,255,0.25)'; ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(x1, groundY-h+3);
+  ctx.quadraticCurveTo((x1+x2)/2, sagY+8, x2, groundY-h+3);
+  ctx.stroke();
+  ctx.restore();
+}
+
+// полноценный вход в клуб — процедурный (в паке нет готовой "клубной
+// двери"): ниша, двустворчатые двери со светящейся щелью, неоновые
+// колонны по бокам, козырёк-маркиза прямо НАД дверью (не оторван от неё)
+function drawClubEntrance(cx0, text, t){
+  const doorW = 56, doorH = (FLOOR_TOP-WALL_TOP_Y)*0.72;
+  const doorY = FLOOR_TOP - doorH;
+  const doorX = cx0 - doorW/2;
+
+  const colW=7, colGap=10, segH=14;
+  [doorX-colGap-colW, doorX+doorW+colGap].forEach((cx,i)=>{
+    const segs = Math.ceil(doorH/segH);
+    for (let s=0;s<segs;s++){
+      const sy = doorY + s*segH;
+      const on = ((s + Math.floor((t||0)/220)) % 2)===0;
+      ctx.fillStyle = on ? (i===0?'#ff2fb0':'#2fe0ff') : 'rgba(255,255,255,0.15)';
+      if (on){ ctx.shadowColor = i===0?'#ff8fe0':'#9df5ff'; ctx.shadowBlur=8; } else ctx.shadowBlur=0;
+      ctx.fillRect(cx, sy+1, colW, segH-2);
+    }
+  });
+  ctx.shadowBlur=0;
+
+  ctx.fillStyle = '#0a0a0c';
+  ctx.fillRect(doorX-6, doorY-4, doorW+12, doorH+4);
+
+  const leafW = doorW/2;
+  const doorGrad = ctx.createLinearGradient(doorX,doorY,doorX+doorW,doorY);
+  doorGrad.addColorStop(0,'#2b1b12'); doorGrad.addColorStop(1,'#1a100b');
+  ctx.fillStyle = doorGrad;
+  ctx.fillRect(doorX, doorY, leafW-2, doorH);
+  ctx.fillRect(doorX+leafW+2, doorY, leafW-2, doorH);
+  ctx.fillStyle = '#cfd6dc';
+  ctx.fillRect(doorX+leafW-6, doorY+doorH*0.35, 3, doorH*0.28);
+  ctx.fillRect(doorX+leafW+3, doorY+doorH*0.35, 3, doorH*0.28);
+  const gapGlow = ctx.createLinearGradient(doorX+leafW-4,0,doorX+leafW+6,0);
+  gapGlow.addColorStop(0,'rgba(255,80,200,0)');
+  gapGlow.addColorStop(0.5,'rgba(255,120,220,0.95)');
+  gapGlow.addColorStop(1,'rgba(255,80,200,0)');
+  ctx.fillStyle = gapGlow;
+  ctx.fillRect(doorX+leafW-4, doorY, 10, doorH);
+
+  ctx.fillStyle = '#3a3a3f';
+  ctx.fillRect(doorX-10, FLOOR_TOP-3, doorW+20, 5);
+
+  const canW = doorW+52, canH = 24, canX = cx0-canW/2, canY = doorY-canH;
+  const canGrad = ctx.createLinearGradient(canX,canY,canX,canY+canH);
+  canGrad.addColorStop(0,'#160a12'); canGrad.addColorStop(1,'#2c0f1e');
+  ctx.fillStyle = canGrad;
+  ctx.fillRect(canX, canY, canW, canH);
+  ctx.strokeStyle = '#ff2fb0'; ctx.lineWidth = 1.5; ctx.strokeRect(canX,canY,canW,canH);
+  const bN = Math.floor(canW/10);
+  for (let i=0;i<bN;i++){
+    const on = Math.sin(i*1.9 + (t||0)*0.004) > 0;
+    ctx.fillStyle = on ? '#fff4c2' : 'rgba(255,244,194,0.2)';
+    if (on){ ctx.shadowColor='#ffe789'; ctx.shadowBlur=4; } else ctx.shadowBlur=0;
+    ctx.beginPath(); ctx.arc(canX+6+i*10, canY+canH-2, 1.6, 0, Math.PI*2); ctx.fill();
+  }
+  ctx.shadowBlur = 0;
+
+  // текст прямо в квадратном козырьке (не отдельная овальная табличка
+  // над ним) — козырёк уже с рамкой и бегущими огнями, второй рамки не нужно
+  ctx.save();
+  ctx.shadowColor = '#ff2fb0'; ctx.shadowBlur = 8;
+  ctx.fillStyle = '#ff8fe0';
+  ctx.font = `bold ${canH*0.55}px Arial Black`;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(text, canX+canW/2, canY+canH/2 - 1);
+  ctx.restore();
+}
+
+// граффити-подпись поверх голого кирпича — палитра взята с реальной
+// плитки граффити из этого же пака (sx:432,sy:224 в tileset.png): буквы
+// ЗАЛИТЫ тёмным, а толстый контур — охристо-оранжевый (не наоборот), плюс
+// потёки краски снизу; текст строго по центру заданного прямоугольника,
+// наружу не вылезает — это стена, а не свободное место
+function drawGraffitiTag(cx0, cy0, lines, maxW, maxH){
+  ctx.save();
+  ctx.translate(cx0, cy0);
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+
+  let fontSize = Math.min(maxH/lines.length*0.82, 34);
+  const fit = () => {
+    ctx.font = `bold ${fontSize}px Arial Black`;
+    return Math.max(...lines.map(l=>ctx.measureText(l).width));
+  };
+  let w = fit();
+  if (w*1.18 > maxW) fontSize *= maxW/(w*1.18);
+  ctx.font = `bold ${fontSize}px Arial Black`;
+
+  const lineH = fontSize*1.08;
+  const totalH = lineH*lines.length;
+  lines.forEach((line,i)=>{
+    const ly = -totalH/2 + lineH*(i+0.5);
+    const lw = ctx.measureText(line).width;
+
+    ctx.strokeStyle = '#dd9a4c'; ctx.lineWidth = fontSize*0.32;
+    ctx.strokeText(line, 0, ly);
+    ctx.fillStyle = '#170d07';
+    ctx.fillText(line, 0, ly);
+
+    ctx.strokeStyle = '#dd9a4c'; ctx.lineWidth = 2.2;
+    for (let k=0;k<3;k++){
+      const dx = -lw/2 + lw*(0.22+k*0.28);
+      const dripLen = 5+((i+k)%2)*6;
+      ctx.beginPath(); ctx.moveTo(dx, ly+fontSize*0.3); ctx.lineTo(dx, ly+fontSize*0.3+dripLen); ctx.stroke();
+    }
+  });
+  ctx.restore();
+}
+
+// ── конфигурация комнат: каждые ROOM_SWITCH_MS сменяется фон/реквизит,
+// сами бойцы/бой не сбрасываются. wallSeq — последовательность плиток
+// ROOM_TILES, тайлится по ширине; каждая плитка масштабируется по СВОЕЙ
+// native-высоте (не силой под WALL_H), поэтому 144-высокие тайлы (гараж/
+// граффити) корректно уходят ниже уровня стены, на тротуар
+const ROOMS = [
+  {
+    name: 'Пиццерия',
+    wallSeq: ['pizza','window'],
+  },
+  {
+    name: 'Гараж',
+    wallSeq: ['brick','garageCar','brick2','garageShut','brick','graffiti','smallbrick'],
+  },
+  {
+    name: 'Тёмный переулок',
+    wallSeq: ['smallbrick','smallbrick','smallbrick','smallbrick','pipe','archwin','smallbrick','door','smallbrick','smallbrick'],
+    tint: 'rgba(20,40,20,0.28)',
+    extra(){
+      drawGraffitiTag(220, WALL_TOP_Y + WALL_H*0.5, ['LEHA','NEPLOXO'], 170, WALL_H*0.8);
+    },
+  },
+  {
+    name: 'Ночной клуб',
+    wallSeq: ['brick'],
+    tint: 'rgba(40,0,40,0.22)',
+    extra(t){
+      drawSpotBeam(190, WALL_TOP_Y+10, WALL_TOP-SKY_EXTRA_TOP, -60, 'rgba(255,60,220,ALPHA)');
+      drawSpotBeam(410, WALL_TOP_Y+10, WALL_TOP-SKY_EXTRA_TOP, 60,  'rgba(80,220,255,ALPHA)');
+      drawClubEntrance(300, 'CLUB 21', t);
+      drawVelvetRope(255, 345, FLOOR_TOP+2, 30);
+    },
+  },
+];
+const ROOM_SWITCH_MS = 5*60*1000;
+let roomIdx = 0;
+let roomSwitchTimer = ROOM_SWITCH_MS;
+
+// звёзды и луна — рисуются ДО скайлайна (см. drawBackground), поэтому
+// силуэт города потом полностью перекрывает всё, что попало ниже
+// открытой полосы SKY_OPEN_H; сид звёзд фиксированный (не дёргаются
+// между кадрами), лёгкое мерцание по времени t (мс из rAF)
+let _nightStars = null;
+function drawNightSky(t){
+  if (!_nightStars){
+    _nightStars = [];
+    let seed = 1337;
+    const rnd = () => { seed = (seed*9301+49297) % 233280; return seed/233280; };
+    // держим звёзды в открытой полосе неба (SKY_OPEN_H) — та же зона, где
+    // луна, — чтобы все были гарантированно видны, а не спрятаны за домами
+    const openFrac = SKY_OPEN_H / SKY_H;
+    for (let i=0;i<80;i++){
+      _nightStars.push({ x: rnd(), y: rnd()*openFrac, r: 0.5+rnd()*1.3, phase: rnd()*Math.PI*2 });
+    }
+  }
+  ctx.save();
+  // клип расширен вверх на SKY_EXTRA_TOP — это ничейный технический зазор
+  // под HUD-плашкой, полностью перекрывается ею в конце кадра; используем
+  // его как запас, чтобы мягкое свечение луны угасало само по себе, а не
+  // обрезалось ровной линией клипа
+  ctx.beginPath(); ctx.rect(0, WALL_TOP - SKY_EXTRA_TOP, CW, SKY_H + SKY_EXTRA_TOP); ctx.clip();
+
+  // луна — маленькая и компактная, чтобы вместе с мягким свечением
+  // целиком помещаться в запас над крышами даже при узкой SKY_OPEN_H
+  const moonX = CW*0.83, moonR = 7, glowR = moonR*1.8;
+  const moonY = (WALL_TOP - SKY_EXTRA_TOP) + glowR + 1;
+  const glow = ctx.createRadialGradient(moonX, moonY, moonR*0.3, moonX, moonY, glowR);
+  glow.addColorStop(0, 'rgba(255,248,214,0.4)');
+  glow.addColorStop(1, 'rgba(255,248,214,0)');
+  ctx.fillStyle = glow;
+  ctx.beginPath(); ctx.arc(moonX, moonY, glowR, 0, Math.PI*2); ctx.fill();
+
+  ctx.fillStyle = '#fdf6d8';
+  ctx.beginPath(); ctx.arc(moonX, moonY, moonR, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = 'rgba(196,186,148,0.55)';
+  ctx.beginPath(); ctx.arc(moonX-3, moonY-2, 1.7, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(moonX+3.5, moonY+3, 1.3, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(moonX+1.5, moonY-4.5, 0.9, 0, Math.PI*2); ctx.fill();
+
+  ctx.fillStyle = '#fff';
+  for (const s of _nightStars){
+    const tw = 0.5 + 0.5*Math.sin(t*0.0018 + s.phase);
+    ctx.globalAlpha = 0.35 + tw*0.55;
+    ctx.beginPath();
+    ctx.arc(s.x*CW, WALL_TOP + s.y*SKY_H, s.r, 0, Math.PI*2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+  ctx.restore();
+}
+
+function drawTiledSource(img, tile, dx, dy, dw, dh, tileScreenW, tileScreenH){
+  if (!img.complete || !img.naturalWidth) return;
+  const nx = Math.ceil(dw / tileScreenW) + 1;
+  const ny = tileScreenH ? Math.ceil(dh / tileScreenH) + 1 : 1;
+  ctx.save();
+  ctx.beginPath(); ctx.rect(dx, dy, dw, dh); ctx.clip();
+  for (let row = 0; row < ny; row++){
+    for (let i = 0; i < nx; i++){
+      ctx.drawImage(img, tile.sx, tile.sy, tile.sw, tile.sh,
+        dx + i*tileScreenW, dy + row*(tileScreenH||dh), tileScreenW, tileScreenH||dh);
+    }
+  }
+  ctx.restore();
+}
+
+function drawBackground(t) {
+  // фон неба на всю полосу (в т.ч. под открытую полосу вверху) — один и
+  // тот же тон NIGHT_PURPLE и здесь, и в lighten-проходе ниже, чтобы стык
+  // между открытой полосой и фоном за домами не был виден
+  const NIGHT_PURPLE = '#000000';
+  // заливаем и технический запас SKY_EXTRA_TOP над WALL_TOP — иначе там
+  // будет видна голая полоса, когда в неё зайдёт свечение луны
+  ctx.fillStyle = NIGHT_PURPLE; ctx.fillRect(0, WALL_TOP - SKY_EXTRA_TOP, CW, SKY_H + SKY_EXTRA_TOP);
+
+  // звёзды и луна рисуются ДО скайлайна — луна и часть звёзд лежат в
+  // открытой полосе неба над крышами (SKY_OPEN_H), силуэт города рисуется
+  // поверх нижней части и полностью перекрывает то, что попало на него
+  drawNightSky(t);
+
+  // небо/неоновый скайлайн (back.png, тайлится по ширине) — прижат к низу
+  // полосы SKY_H и сжат по высоте, чтобы наверху осталась чистая полоса
+  // неба SKY_OPEN_H без домов
+  const skyImgH = SKY_H - SKY_OPEN_H;
+  if (imgBack.complete && imgBack.naturalWidth){
+    const tw = imgBack.naturalWidth * UNIT_SCALE;
+    drawTiledSource(imgBack, { sx:0, sy:0, sw:imgBack.naturalWidth, sh:imgBack.naturalHeight }, 0, WALL_TOP + SKY_OPEN_H, CW, skyImgH, tw);
+
+    // у back.png фон за домами чисто чёрный (не фиолетовый, как хотелось) —
+    // "lighten" поднимает только тёмные/чёрные пиксели до фиолетового тона,
+    // яркие неоновые цвета зданий почти не трогает (max по каналам)
+    ctx.save();
+    ctx.beginPath(); ctx.rect(0, WALL_TOP + SKY_OPEN_H, CW, skyImgH); ctx.clip();
+    ctx.globalCompositeOperation = 'lighten';
+    ctx.fillStyle = NIGHT_PURPLE;
+    ctx.fillRect(0, WALL_TOP + SKY_OPEN_H, CW, skyImgH);
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.restore();
+  }
+
+  const wallY = WALL_TOP + SKY_H;
+  const room = ROOMS[roomIdx];
+
+  // дорога рисуется ПЕРВОЙ — тайлы гаража/граффити (144px, выше обычной
+  // стены в 96px) масштабируются СВОЕЙ native-высотой (не силой под
+  // WALL_H) и заходят ниже уровня стены, перекрывая часть тротуара —
+  // ровно как проём гаражных ворот, доходящий до земли
+  const roadH = FLOOR_BOT - FLOOR_TOP;
+  if (imgTileset.complete && imgTileset.naturalWidth){
+    const tw = TILE_ROAD.sw * UNIT_SCALE;
+    drawTiledSource(imgTileset, TILE_ROAD, 0, FLOOR_TOP, CW, roadH, tw, ROAD_TILE_H);
+  } else {
+    ctx.fillStyle = '#26364a'; ctx.fillRect(0, FLOOR_TOP, CW, roadH);
+  }
+
+  // лёгкое затемнение снизу для глубины
+  const g = ctx.createLinearGradient(0, FLOOR_TOP, 0, FLOOR_BOT);
+  g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,0.35)');
+  ctx.fillStyle = g; ctx.fillRect(0, FLOOR_TOP, CW, roadH);
+
+  // стена — последовательность плиток текущей комнаты (room.wallSeq),
+  // тайлится по ширине; масштаб каждой плитки — по её собственной высоте
+  if (imgTileset.complete && imgTileset.naturalWidth){
+    let x = 0, i = 0;
+    while (x < CW + 40){
+      const key = room.wallSeq[i % room.wallSeq.length];
+      const tile = ROOM_TILES[key];
+      const tw = tile.sw * UNIT_SCALE;
+      // высота — по WALL_H/96, а НЕ по UNIT_SCALE: WALL_H исторически
+      // считается отдельно (доля SKY_WALL_TOTAL), а не как 96*UNIT_SCALE,
+      // и эти значения не совпадают (WALL_H меньше). При th=sh*UNIT_SCALE
+      // обычные 96-высокие тайлы (кирпич и т.п.) рисовались выше WALL_H и
+      // "наезжали" на тротуар — из-за этого дверь клуба казалась слишком
+      // высоко. При sh=96 эта формула даёт ровно WALL_H, а 144-высокие
+      // тайлы (гараж/граффити) по-прежнему пропорционально выше стены
+      const th = tile.sh * (WALL_H / 96);
+      ctx.drawImage(imgTileset, tile.sx, tile.sy, tile.sw, tile.sh, x, wallY, tw, th);
+      x += tw; i++;
+    }
+  } else {
+    ctx.fillStyle = '#3a2a20'; ctx.fillRect(0, wallY, CW, WALL_H);
+  }
+
+  // козырёк/карниз крыши на стыке неба и стены — без него стена сливалась
+  // с фоном и было непонятно, откуда она "начинается"; с карнизом сразу
+  // видно, что это крыша одноэтажного магазина, а ночной город (back.png)
+  // остаётся виден выше — как горизонт позади здания
+  const ledgeH = 13;
+  ctx.fillStyle = '#2b2129';
+  ctx.fillRect(0, wallY - ledgeH, CW, ledgeH + 4);
+  ctx.fillStyle = '#6b5f68';
+  ctx.fillRect(0, wallY - ledgeH, CW, 4);
+  ctx.fillStyle = 'rgba(255,220,160,0.35)';
+  ctx.fillRect(0, wallY - ledgeH, CW, 1.5);
+  const ledgeShadow = ctx.createLinearGradient(0, wallY + 4, 0, wallY + 20);
+  ledgeShadow.addColorStop(0, 'rgba(0,0,0,0.6)');
+  ledgeShadow.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = ledgeShadow;
+  ctx.fillRect(0, wallY + 4, CW, 20);
+
+  // лёгкий цветной тон комнаты (переулок/клуб) поверх стены+дороги
+  if (room.tint){ ctx.fillStyle = room.tint; ctx.fillRect(0, wallY, CW, FLOOR_BOT - wallY); }
+
+  // фонари по бокам (только фонарь из fore.png, без куста) — для глубины;
+  // одинаковые во всех комнатах, не часть room.wallSeq
+  if (imgFore.complete && imgFore.naturalWidth){
+    const fw = TILE_LAMP.sw * UNIT_SCALE, fh = TILE_LAMP.sh * UNIT_SCALE;
+    ctx.drawImage(imgFore, TILE_LAMP.sx, TILE_LAMP.sy, TILE_LAMP.sw, TILE_LAMP.sh, 18, wallY - fh*0.35, fw, fh);
+    ctx.save(); ctx.scale(-1,1);
+    ctx.drawImage(imgFore, TILE_LAMP.sx, TILE_LAMP.sy, TILE_LAMP.sw, TILE_LAMP.sh, -(CW-18), wallY - fh*0.35, fw, fh);
+    ctx.restore();
+  }
+
+  // реквизит текущей комнаты (автомат/бак/вход в клуб/граффити и т.п.)
+  if (room.extra) room.extra(t);
+}
+
+// ── ПЛАШКА (как в arena2.html): правила слева, топ справа ──
+function drawHUD() {
+  const T = PANEL_TOP, TH = PANEL_H;
+
+  const bg = ctx.createLinearGradient(0, T, 0, T + TH);
+  bg.addColorStop(0, 'rgba(10,10,20,0.97)'); bg.addColorStop(1, 'rgba(4,4,10,0.97)');
+  ctx.fillStyle = bg; ctx.fillRect(0, T, CW, TH);
+  ctx.strokeStyle = 'rgba(80,180,255,0.4)'; ctx.lineWidth = 1.5;
+  ctx.strokeRect(2, T + 2, CW - 4, TH - 4);
+
+  ctx.font = 'bold 24px Arial Black'; ctx.textAlign = 'center';
+  ctx.strokeStyle = 'rgba(0,0,0,0.9)'; ctx.lineWidth = 4;
+  ctx.strokeText('STREET FIGHTERS', CW/2, T+34, CW-20);
+  ctx.save();
+  ctx.shadowColor = '#ff2020'; ctx.shadowBlur = 10;
+  ctx.fillStyle = '#ff2020'; ctx.fillText('STREET FIGHTERS', CW/2, T+34, CW-20);
+  ctx.restore();
+
+  const hg = ctx.createLinearGradient(0,0,CW,0);
+  hg.addColorStop(0,'rgba(80,180,255,0)'); hg.addColorStop(0.2,'rgba(80,180,255,0.4)');
+  hg.addColorStop(0.8,'rgba(80,180,255,0.4)'); hg.addColorStop(1,'rgba(80,180,255,0)');
+  ctx.strokeStyle = hg; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(0,T+44); ctx.lineTo(CW,T+44); ctx.stroke();
+
+  // creator-подпись (как в arena3.html) — увеличена по максимуму в рамках
+  // существующей плашки (без изменения PANEL_H/размера ринга)
+  ctx.font = 'bold 26px Arial Black'; ctx.textAlign = 'center';
+  ctx.shadowColor = 'rgba(255,215,0,0.55)'; ctx.shadowBlur = 10;
+  ctx.strokeStyle = 'rgba(0,0,0,0.65)'; ctx.lineWidth = 3;
+  ctx.strokeText('🎮 creator: Leha Neploxo', CW/2, T+62, CW-20);
+  ctx.fillStyle = 'rgba(255,215,0,0.75)';
+  ctx.fillText('🎮 creator: Leha Neploxo', CW/2, T+62, CW-20);
+  ctx.shadowBlur = 0;
+
+  const vg = ctx.createLinearGradient(0,T+72,0,T+TH-6);
+  vg.addColorStop(0,'rgba(255,255,255,0)'); vg.addColorStop(0.3,'rgba(255,255,255,0.12)');
+  vg.addColorStop(0.7,'rgba(255,255,255,0.12)'); vg.addColorStop(1,'rgba(255,255,255,0)');
+  ctx.strokeStyle = vg;
+  ctx.beginPath(); ctx.moveTo(CW/2,T+72); ctx.lineTo(CW/2,T+TH-6); ctx.stroke();
+
+  // левая колонка — правила (только суть: лайк/монета/рейтинг/команда);
+  // заголовок "КАК ИГРАТЬ:" убран, чтобы освободить место под строку Team
+  const rules = [
+    { text: '👍 1 лайк = +10❤️ +1💪',       color: '#FF6688' },
+    { text: '🎁 1 монета = +100❤️ +10💪',   color: '#FFD700' },
+    { text: '💬 Напиши "rating" — узнаешь свой топ', color: '#8fffb0' },
+    { text: '🚩 Напиши "Team" — заходи в команду', color: '#ff5566' },
+    { text: '🎮 Напиши "skin1"-"skin5" — выбери героя', color: '#4fc3ff' },
+    { text: '⏳ 15 мин тишины = 💪Сила -1/сек', color: '#ffa64d' },
+  ];
+  const rY = T+78, rStep = 24; // сжато с 82/28 — освободило строку снизу под телеграм-канал
+  // буквы "растянуты" по высоте: берём шрифт покрупнее и сжимаем его по
+  // ширине через ctx.scale(sx,1) — так же, как сделано в arena2/arena3 —
+  // ширина остаётся в рамках левой колонки (не вылезает на топ-список),
+  // а сама плашка не увеличивается. Шрифт увеличен с 22 до 24px по просьбе
+  // (читаемость) — авто-сжатие по ширине (ruleScaleX ниже) само подстроится
+  // под новый размер и не даст тексту вылезти за периметр колонки.
+  const ruleFont = 'bold 24px Arial Black';
+  const ruleAvailW = CW/2 - 16;
+  ctx.font = ruleFont;
+  let ruleScaleX = 1;
+  rules.forEach(r => { ruleScaleX = Math.min(ruleScaleX, ruleAvailW / ctx.measureText(r.text).width); });
+  rules.forEach((r,i)=>{
+    ctx.save();
+    ctx.scale(ruleScaleX, 1);
+    ctx.font = ruleFont; ctx.textAlign = 'left';
+    ctx.strokeStyle = 'rgba(0,0,0,0.85)'; ctx.lineWidth = 3.5;
+    ctx.strokeText(r.text, 8/ruleScaleX, rY + i*rStep);
+    ctx.fillStyle = r.color;
+    ctx.fillText(r.text, 8/ruleScaleX, rY + i*rStep);
+    ctx.restore();
+  });
+
+  // телеграм-канал — отдельной строкой под правилами, своим размером
+  // шрифта (не участвует в общем ruleScaleX, чтобы не сжимать остальные
+  // правила из-за длинного адреса)
+  {
+    const tgText = '📱 Наш телеграм: tiktokgames777';
+    ctx.save();
+    ctx.font = 'bold 19px Arial Black'; ctx.textAlign = 'left';
+    ctx.strokeStyle = 'rgba(0,0,0,0.85)'; ctx.lineWidth = 3;
+    ctx.strokeText(tgText, 8, rY + rules.length*rStep, ruleAvailW);
+    ctx.fillStyle = '#4fc3ff';
+    ctx.fillText(tgText, 8, rY + rules.length*rStep, ruleAvailW);
+    ctx.restore();
+  }
+
+  // правая колонка — топ по силе
+  ctx.font = 'bold 12px Arial Black'; ctx.textAlign = 'center';
+  ctx.strokeStyle = 'rgba(0,0,0,0.9)'; ctx.lineWidth = 3;
+  ctx.strokeText('🏆 TOP БОЙЦЫ 🏆', CW*0.75, T+80, CW/2-16);
+  ctx.fillStyle = '#ffd24f'; ctx.fillText('🏆 TOP БОЙЦЫ 🏆', CW*0.75, T+80, CW/2-16);
+
+  // очки топа = отнятая энергия у противников ЗА ТЕКУЩИЙ ДЕНЬ (из отдельной
+  // БД — _dbTop, обнуляется каждую полночь вместе с короной, см.
+  // performStreetFighterWeeklyResetIfNeeded), НЕ текущая сила/энергия боя
+  const top = _dbTop.slice(0,5).map(p=>({ name:p.username, stolenEnergy:p.stolen }));
+  const rankColors = ['#FFD700','#C0C0C0','#CD7F32','#AAAAAA','#666666'];
+  const ranks = ['1.','2.','3.','4.','5.'];
+  const tX = CW/2 + 8, tY = T+108, tStep = 29;
+  for (let i=0;i<top.length;i++){
+    const p = top[i], y = tY + i*tStep;
+    if (i===0){ ctx.fillStyle='rgba(255,215,0,0.08)'; ctx.fillRect(tX-4,y-21,CW/2-12,tStep-1); }
+    ctx.font = i===0 ? 'bold 21px Arial Black' : 'bold 19px Arial Black';
+    ctx.textAlign='left'; ctx.strokeStyle='rgba(0,0,0,0.9)'; ctx.lineWidth=3.5;
+    ctx.strokeText(ranks[i], tX, y);
+    ctx.fillStyle=rankColors[i];
+    ctx.fillText(ranks[i], tX, y);
+    ctx.strokeText(p.name, tX+26, y, 148);
+    ctx.fillStyle = i===0 ? '#FFE566' : '#EEEEEE';
+    ctx.fillText(p.name, tX+26, y, 148);
+    ctx.textAlign='right'; ctx.strokeStyle='rgba(0,0,0,0.9)'; ctx.lineWidth=3;
+    ctx.font = i===0 ? 'bold 17px Arial' : 'bold 16px Arial';
+    ctx.strokeText('⚡'+p.stolenEnergy, CW-8, y);
+    ctx.fillStyle='#7fd3ff'; ctx.fillText('⚡'+p.stolenEnergy, CW-8, y);
+  }
+  ctx.font = '9px Arial'; ctx.fillStyle = 'rgba(255,255,255,0.18)';
+  ctx.textAlign = 'center'; ctx.fillText('отнятая энергия за день', CW*0.75, T+TH-6);
+
+  drawWeeklyChampionBadge();
+}
+
+// чемпион ПРОШЛОЙ недели — маленький постоянный бейдж слева, сразу под
+// плашкой правил (WALL_TOP — там начинается городской фон, место пустое).
+// Пока ни разу не было сброса (_weeklyChampion===null, самая первая неделя
+// фичи) — вместо ника приглашение "Тут можешь быть ты".
+function drawWeeklyChampionBadge(){
+  ctx.save();
+  ctx.font = 'bold 19px Arial Black';
+  // просто "корона + ник" — тот же приём стиля/размера, что у 2-5 мест в
+  // топ-листе (жирная обводка + сплошная заливка, БЕЗ shadowBlur-свечения,
+  // оно было нечитаемо на пёстром городском фоне и жрёт производительность)
+  const txt = '👑 ' + (_weeklyChampion ? '@'+_weeklyChampion.username : 'Тут можешь быть ты');
+  const tw = ctx.measureText(txt).width;
+  const bh = 32; // высота самого бейджа — используется и для отступа сверху
+  const bw = tw + 20;
+
+  // отступ от плашки правил — ДВЕ толщины (высоты) бейджа (было WALL_TOP+4).
+  // Пробовали добавить ещё +0.5*ширины бейджа — оказалось слишком много
+  // (бейдж широкий текстовый, его ширина намного больше высоты), откатили.
+  const bx = 10, by = WALL_TOP + 4 + 2*bh + 12;
+
+  ctx.fillStyle = 'rgba(15,10,0,0.85)';
+  ctx.strokeStyle = '#ffd24f'; ctx.lineWidth = 1.5;
+  roundRectPath(bx, by, bw, bh, 7);
+  ctx.fill(); ctx.stroke();
+
+  ctx.textAlign = 'left';
+  ctx.font = 'bold 19px Arial Black';
+  ctx.strokeStyle = 'rgba(0,0,0,0.9)'; ctx.lineWidth = 3.5;
+  ctx.strokeText(txt, bx+10, by+23);
+  ctx.fillStyle = '#FFD700';
+  ctx.fillText(txt, bx+10, by+23);
+  ctx.restore();
+}
+
+// все бойцы ОДНОГО размера (как totalSc в arena2) — глубина влияет только на позицию/порядок отрисовки, не на масштаб
+// увеличено на 25% (было 0.85) — решили сначала зафиксировать размер бойцов,
+// а карту/комнаты подгонять уже под них
+const FIGHTER_SCALE = 0.85 * 1.25;
+
+function roundRectPath(x, y, w, h, r){
+  ctx.beginPath();
+  ctx.moveTo(x+r, y);
+  ctx.arcTo(x+w, y,   x+w, y+h, r);
+  ctx.arcTo(x+w, y+h, x,   y+h, r);
+  ctx.arcTo(x,   y+h, x,   y,   r);
+  ctx.arcTo(x,   y,   x+w, y,   r);
+  ctx.closePath();
+}
+
+// ── Процедурная анимация нокаута/падения (заменяет застывший кадр Hurt) ──
+// В паке нет отдельной анимации "лежит" — раньше использовался последний
+// кадр Hurt, застывающий на месте (заглушка). Теперь падение анимируется
+// поворотом на 90° (спина ложится строго горизонтально на пол).
+//
+// ВАЖНО: за основу берём кадр IDLE, а не Hurt. Во всех PNG пака у каждого
+// кадра фиксированный холст с прозрачными полями по краям, а сам силуэт
+// внутри — уже. У некоторых персонажей (enemy_punk/batting_girl/brute_arms/
+// bancho) кадры Hurt сами по себе нарисованы раскинутыми/широкими (у Brute
+// Arms, например, силуэт Hurt — 134×72, шире чем выше — размашистый рефлекс
+// на удар). При повороте на 90° такой уже широкий кадр становится узким и
+// вертикальным — выглядит как будто персонаж встал, а не упал. Idle-поза
+// (руки по бокам) у ВСЕХ 5 силуэтов стабильно "выше, чем шире" — только она
+// даёт предсказуемый результат после поворота у любого персонажа.
+const _koBBoxCache = {};
+function getKOBBox(img){
+  const key = img.src;
+  if (_koBBoxCache[key]) return _koBBoxCache[key];
+  const c = document.createElement('canvas');
+  c.width = img.naturalWidth; c.height = img.naturalHeight;
+  const cctx = c.getContext('2d');
+  cctx.drawImage(img,0,0);
+  const data = cctx.getImageData(0,0,c.width,c.height).data;
+  let minX=c.width, minY=c.height, maxX=-1, maxY=-1;
+  for (let y=0;y<c.height;y++){
+    for (let x=0;x<c.width;x++){
+      if (data[(y*c.width+x)*4+3] > 10){
+        if (x<minX) minX=x; if (x>maxX) maxX=x;
+        if (y<minY) minY=y; if (y>maxY) maxY=y;
+      }
+    }
+  }
+  const bbox = maxX<0 ? {x:0,y:0,w:c.width,h:c.height} : {x:minX,y:minY,w:maxX-minX+1,h:maxY-minY+1};
+  _koBBoxCache[key] = bbox;
+  return bbox;
+}
+
+const KO_STUMBLE_END = 300, KO_FALL_END = 650, KO_SETTLE_END = 1300;
+const KO_FULL_ANGLE = Math.PI/2; // 90° — лежит строго горизонтально, одинаково у всех
+function koEaseInCubic(t){ return t*t*t; }
+
+// рисует бойца в процедурной позе падения/лежания вместо обычного кадра;
+// НЕ трогает игровую логику (v.koTimer уже считается в update(), тут только
+// отрисовка по текущему значению таймера). Возвращает dh для меток ниже.
+function drawKOPose(v, cx, floorY, s){
+  const img = (v.frames.idle && v.frames.idle[0]) || null;
+  const baseH = 130*s;
+
+  let dw = baseH*0.6, dh = baseH, bx=0, by=0, bw=dw, bh=dh;
+  if (img && img.complete && img.naturalWidth){
+    const maxW = baseH*1.55;
+    let scale = baseH/img.naturalHeight;
+    if (img.naturalWidth*scale > maxW) scale = maxW/img.naturalWidth;
+    dw = img.naturalWidth*scale;
+    dh = img.naturalHeight*scale;
+    const bbox = getKOBBox(img);
+    bx = bbox.x*scale; by = bbox.y*scale; bw = bbox.w*scale; bh = bbox.h*scale;
+  }
+
+  const t = Math.max(0, KO_FALL_MS - v.koTimer);
+  const facingRight = v.facing < 0; // та же логика направления, что и в обычной отрисовке
+  let angle = 0, skidX = 0, alpha = 1;
+
+  if (t <= KO_STUMBLE_END){
+    const p = t/KO_STUMBLE_END;
+    angle = Math.sin(p*Math.PI*3) * 0.09 * (1-p); // мелкая тряска-шатание
+  } else if (t <= KO_FALL_END){
+    const p = (t-KO_STUMBLE_END)/(KO_FALL_END-KO_STUMBLE_END);
+    const e = koEaseInCubic(p);
+    angle = e * KO_FULL_ANGLE;
+    skidX = e * (18*s) * (facingRight ? -1 : 1); // отлетает назад от направления взгляда
+  } else if (t <= KO_SETTLE_END){
+    const p = (t-KO_FALL_END)/(KO_SETTLE_END-KO_FALL_END);
+    const wobble = Math.sin(p*Math.PI*2.2) * 0.04 * (1-p); // демпфированное доседание
+    angle = Math.min(KO_FULL_ANGLE, KO_FULL_ANGLE + wobble);
+    skidX = (18*s) * (facingRight ? -1 : 1);
+  } else {
+    const p = (t-KO_SETTLE_END)/(KO_FALL_MS-KO_SETTLE_END);
+    angle = KO_FULL_ANGLE;
+    skidX = (18*s) * (facingRight ? -1 : 1);
+    alpha = 1 - Math.min(1,p); // fade out перед исчезновением с ринга
+  }
+
+  // доля "прижатости" к полу — пивот поднят на половину ширины РЕАЛЬНОГО
+  // силуэта (bw), а не всего холста, иначе прозрачные поля вокруг
+  // персонажа приподнимают его над полом на неправильную величину
+  const settleP = Math.min(1, Math.abs(angle)/KO_FULL_ANGLE);
+  const px = cx + skidX;
+  const py = floorY - (bw/2)*settleP;
+  // поворот ВСЕГДА в сторону, противоположную facingRight — падает на
+  // спину, одинаково для любого силуэта
+  const theta = (facingRight ? -1 : 1) * angle;
+
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.translate(px, py);
+  ctx.rotate(theta);
+  if (img && img.complete && img.naturalWidth){
+    const defaultsRight = v.baseType === 'brawler_girl' || v.baseType === 'batting_girl'
+      || v.baseType === 'brute_arms' || v.baseType === 'bancho';
+    if (facingRight !== defaultsRight) ctx.scale(-1,1);
+    // сдвиг так, чтобы центр НИЗА именно силуэта (bbox), а не холста, лёг
+    // точно на точку опоры/поворота
+    ctx.drawImage(img, -(bx+bw/2), 8-(by+bh), dw, dh);
+  }
+  ctx.restore();
+
+  return dh;
+}
+
+// золотой костюм чемпиона прошлой недели — тонирует ЛЮБОЙ выбранный спрайт
+// целиком (силуэт не меняется). Рисуем через офскрин-буфер: source-atop
+// прямо на основном canvas красил бы весь прямоугольник (там уже
+// непрозрачный фон под спрайтом), а не только пиксели персонажа — поэтому
+// сначала переносим кадр на отдельный прозрачный canvas и тонируем ТАМ.
+// Один переиспользуемый буфер (не новый canvas каждый кадр) — чемпион
+// прошлой недели всегда только один на ринге, так что это дёшево.
+const _tintCanvas = document.createElement('canvas');
+const _tintCtx = _tintCanvas.getContext('2d');
+function tintGold(img){
+  _tintCanvas.width = img.naturalWidth;
+  _tintCanvas.height = img.naturalHeight;
+  _tintCtx.drawImage(img, 0, 0);
+  _tintCtx.globalCompositeOperation = 'source-atop';
+  _tintCtx.globalAlpha = 0.55;
+  _tintCtx.fillStyle = '#ffd700';
+  _tintCtx.fillRect(0, 0, _tintCanvas.width, _tintCanvas.height);
+  _tintCtx.globalCompositeOperation = 'source-over';
+  _tintCtx.globalAlpha = 1;
+  return _tintCanvas;
+}
+
+function drawFighter(v) {
+  if (v.eliminated) return; // насовсем исчез с ринга
+
+  const s = FIGHTER_SCALE;
+  const cx = v.x, floorY = v.y;
+  const img = (v.frames[v.animName] || v.frames.idle)[v.frameIdx];
+
+  ctx.save();
+  ctx.globalAlpha = v.alive ? 0.25 : 0.15;
+  ctx.fillStyle = '#000';
+  ctx.beginPath();
+  ctx.ellipse(cx, floorY, 28*s, 7*s, 0, 0, Math.PI*2);
+  ctx.fill();
+  ctx.restore();
+
+  const baseH = 130*s;
+  let dh = baseH;
+  if (v.state === 'ko') {
+    // падение/лежание — процедурный поворот вместо застывшего кадра Hurt
+    dh = drawKOPose(v, cx, floorY, s);
+  } else if (img && img.complete && img.naturalWidth) {
+    // некоторые кадры удара сильно шире (вытянутая рука) — ограничиваем
+    // ширину, а не растягиваем, чтобы не было "кляксы"; масштаб равномерный
+    const maxW = baseH*1.55;
+    let scale = baseH / img.naturalHeight;
+    if (img.naturalWidth*scale > maxW) scale = maxW/img.naturalWidth;
+    const dw = img.naturalWidth*scale;
+    dh = img.naturalHeight*scale;
+    ctx.save();
+    ctx.translate(cx, floorY);
+    ctx.rotate(v.lean||0); // лёгкий наклон в сторону движения — заменяет отсутствующий цикл ходьбы
+    // v.facing<0 значит "должен смотреть вправо". У базовых спрайтов
+    // ПРОТИВОПОЛОЖНЫЙ дефолт в исходных файлах — проверено ЖИВЫМ тестом
+    // (принудительная ходьба в игре, не по одному кадру стойки — на стоячем
+    // кадре направление легко спутать с наклоном позы): enemy_punk по
+    // умолчанию смотрит влево; brawler_girl и все три Urban Brawlers
+    // (batting_girl/brute_arms/bancho) — вправо. Флип считаем от реального
+    // дефолта каждого типа, иначе кто-то из бойцов всегда ходит/бьёт спиной.
+    const wantsRight = v.facing < 0;
+    const defaultsRight = v.baseType === 'brawler_girl' || v.baseType === 'batting_girl'
+      || v.baseType === 'brute_arms' || v.baseType === 'bancho';
+    if (wantsRight !== defaultsRight) ctx.scale(-1,1);
+    if (v.isChamp && v.alive){
+      ctx.drawImage(tintGold(img), -dw/2, -dh+8, dw, dh);
+    } else {
+      ctx.drawImage(img, -dw/2, -dh+8, dw, dh);
+    }
+    ctx.restore();
+  }
+
+  const headTopY = floorY - dh + 8;
+  const labelY = headTopY - 16*s;
+
+  ctx.textAlign = 'center';
+  ctx.font = `bold ${16*s}px Arial Black`;
+  const tag = (v.team ? '🚩' : '') + (v.isBot ? '🤖' : '');
+  // корона у короля улиц — справа от ника, прямо на арене (не только в
+  // топ-листе/карточке рейтинга). Считается частью nameTxt ДО замера
+  // ширины (nameW), чтобы тёмная подложка под ником тоже растянулась под неё.
+  const crownTag = (v.isChamp && v.alive) ? ' 👑' : '';
+  const nameTxt = v.alive ? tag+v.name+crownTag : tag+v.name+' 💤';
+
+  // тёмная подложка под ником — читаемость не зависит от цвета фона за спиной
+  const nameW = ctx.measureText(nameTxt).width;
+  ctx.fillStyle = 'rgba(0,0,0,0.45)';
+  ctx.fillRect(cx - nameW/2 - 6*s, labelY - 14*s, nameW + 12*s, 18*s);
+
+  // уровень зрителя (бейдж слева от ника) — только у реальных бойцов,
+  // независимо от короны чемпиона (можно носить и то, и другое сразу)
+  const level = (!v.isBot) ? levelOf(v.allTimeStolen||0) : null;
+  // порог свечения сдвинут 46→96 (19.08.2026, после расширения шкалы до 100
+  // уровней) — теперь светится самый верхний ранг "Миф улиц", а не старый потолок
+  const isTopRank = level!=null && level >= 96;
+
+  if (v.isChamp && v.alive){
+    // чемпион ПРОШЛОЙ недели — сплошной золотой ник, БЕЗ shadowBlur-свечения
+    // (по просьбе пользователя: жрёт производительность на слабых телефонах,
+    // тот же приём, что у бейджа/уровня — просто обводка+заливка)
+    ctx.lineWidth = 4.5*s;
+    ctx.strokeStyle = 'rgba(40,20,0,0.95)';
+    ctx.strokeText(nameTxt, cx, labelY);
+    ctx.fillStyle = '#FFD700';
+    ctx.fillText(nameTxt, cx, labelY);
+  } else if (isTopRank && v.alive){
+    // топ-ранг "Легенда улиц" (не чемпион) — тот же приём, но свечение слабее
+    ctx.lineWidth = 4.5;
+    ctx.strokeStyle = 'rgba(0,0,0,0.95)';
+    ctx.strokeText(nameTxt, cx, labelY);
+    ctx.shadowColor = '#ffcc33';
+    ctx.shadowBlur = 6*s;
+    ctx.fillStyle = '#fff2b0';
+    ctx.fillText(nameTxt, cx, labelY);
+    ctx.shadowBlur = 0;
+  } else {
+    ctx.fillStyle = v.alive ? v.color : '#888';
+    ctx.strokeStyle = 'rgba(0,0,0,0.95)';
+    ctx.lineWidth = 4.5;
+    ctx.strokeText(nameTxt, cx, labelY);
+    ctx.fillText(nameTxt, cx, labelY);
+  }
+
+  if (level!=null && v.alive){
+    drawLevelText(cx - nameW/2 - 8*s, labelY, s, level);
+  }
+
+  // ⚡ Энергия и 💪 Сила — в стиле _drawLabels из arena3.html (сердечки убраны — Энергия теперь и есть здоровье)
+  ctx.font = `bold ${13*s}px Arial`;
+  ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(0,0,0,0.9)';
+  const enTxt = `❤️ ${Math.max(0,v.energy)}`;
+  ctx.strokeText(enTxt, cx, labelY + 18*s);
+  ctx.fillStyle = '#FF6688'; ctx.fillText(enTxt, cx, labelY + 18*s);
+
+  const pwTxt = `💪 ${v.power}`;
+  ctx.strokeText(pwTxt, cx, labelY + 36*s);
+  ctx.fillStyle = '#ff9d5c'; ctx.fillText(pwTxt, cx, labelY + 36*s);
+}
+
+// ── Игровая логика: движение по рингу, столкновения, урон, нокаут ──
+// урон наносит ТОЛЬКО тот, кто реально попал (один "победитель обмена" за
+// столкновение, не оба одновременно — так реалистичнее)
+// урон = Сила атакующего напрямую (Сила и Энергия растут из одного
+// источника лайки/донаты, так что шкалы соразмерны)
+function damageFor(power){ return Math.max(1, power); }
+
+function advanceAnim(v, dt){
+  const key = v.state==='walk' ? 'walk'
+    : v.state==='punch' ? v.animName
+    : v.state==='hurt' ? 'hurt'
+    : v.state==='ko' ? 'ko'
+    : 'idle';
+  const def = CHAR_ANIMS[v.baseType][key];
+  v.frameTimer += dt;
+  const frameDur = 1000/def.fps;
+  if (v.frameTimer >= frameDur){
+    v.frameTimer -= frameDur;
+    v.frameIdx++;
+    if (v.frameIdx >= def.count) v.frameIdx = def.loop ? 0 : def.count-1;
+  }
+  v.animName = key;
+}
+
+function pick(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
+
+const KO_LINES = [
+  (w,l)=>`⚔️ ${w} нокаутировал ${l}!`,
+  (w,l)=>`💥 ${w} впечатал ${l} в стену!`,
+  (w,l)=>`🥋 ${l} досчитался до десяти от ${w}!`,
+  (w,l)=>`😵 ${w} выключил свет для ${l}!`,
+  (w,l)=>`🌟 ${l} увидел звёзды после удара ${w}!`,
+  (w,l)=>`🏥 ${l} отправляется в нокдаун стараниями ${w}!`,
+];
+const TIRED_LINES = [
+  l=>`💦 ${l} выдохся и упал!`,
+  l=>`🥵 ${l} сдулся без сил!`,
+  l=>`😮‍💨 ${l} рухнул от истощения!`,
+  l=>`🫠 ${l} закончился раньше боя!`,
+];
+
+function collapse(loser, winner){
+  if (!loser.alive) return;
+  loser.alive = false;
+  loser.state = 'ko'; loser.animName = 'ko'; loser.frameIdx = 0; loser.frameTimer = 0;
+  loser.koTimer = KO_FALL_MS;
+  playKOSound();
+
+  // нокаут обнуляет ВСЮ накопленную статистику реального бойца (не только
+  // текущую энергию) — следующий лайк/донат от этого зрителя стартует его
+  // заново с нуля, а не восстанавливает прежнюю силу
+  if (!loser.isBot){
+    loser.energyMax = 0; loser.energy = 0;
+    loser.powerMax = 0; loser.power = 0;
+  }
+  if (winner){
+    // очки за сам нокаут НЕ начисляются — рейтинг = чисто отнятая энергия,
+    // уже засчитанная за каждый удар в throwPunch (включая добивающий).
+    // Здесь только считаем счётчик нокаутов (kos), очков он не даёт.
+    // боты не пишутся в БД/рейтинг — счётчик нокаутов засчитывается
+    // только реальному зрителю-победителю
+    if (!winner.isBot){
+      winner.kos = (winner.kos||0) + 1;
+      reportKO(winner.name);
+    }
+    // диктор объявляет только реальных победителей — бот-победитель молчит
+    if (!winner.isBot) pushEvent(pick(KO_LINES)(cleanNickForSpeech(winner.name), cleanNickForSpeech(loser.name)), true);
+  } else if (!loser.isBot) {
+    pushEvent(pick(TIRED_LINES)(cleanNickForSpeech(loser.name)), true);
+  }
+}
+
+// как в arena2.html: при столкновении бьют ОБА (не один случайный
+// атакующий), удар ничего не стоит — ограничен только кулдауном между
+// обменами. Урон = Сила напрямую, пропущенный удар ослабляет Силу
+// защищавшегося на 30% от урона (в arena2 — 40%, тут 30% по договорённости).
+// За один обмен каждый может попасть серией 1-3 ударов — но НЕ одним кадром:
+// удары розыгрываются по одному, по очереди между бойцами, так что на
+// экране видно ровно столько попаданий, сколько было по факту.
+let activeExchanges = [];
+const PUNCH_TICK_MS = 240; // пауза между отдельными ударами внутри серии
+
+function startExchange(a, b){
+  a.punchCooldown = 999999; b.punchCooldown = 999999;
+  a.inExchange = true; b.inExchange = true;
+  a.facing = b.x>=a.x ? -1 : 1;
+  b.facing = a.x>=b.x ? -1 : 1;
+
+  const hits = 1 + Math.floor(Math.random()*3);
+  const queue = [];
+  for (let i=0; i<hits; i++){
+    // порядок внутри пары рандомный, а не всегда "a первый" - иначе тот,
+    // кто оказался a по индексу спавна, всегда бьёт раньше и может убить
+    // соперника до того, как дойдёт очередь до его ответного удара
+    if (Math.random() < 0.5){
+      queue.push({ attacker:a, defender:b });
+      queue.push({ attacker:b, defender:a });
+    } else {
+      queue.push({ attacker:b, defender:a });
+      queue.push({ attacker:a, defender:b });
+    }
+  }
+  activeExchanges.push({ a, b, queue, idx:0, timer:0 });
+}
+
+function throwPunch(attacker, defender){
+  const punchNames = CHAR_ATTACKS[attacker.baseType];
+  attacker.state='punch'; attacker.animName=punchNames[Math.floor(Math.random()*punchNames.length)]; attacker.frameIdx=0; attacker.frameTimer=0; attacker.stateTimer=PUNCH_TICK_MS;
+  defender.state='hurt'; defender.animName='hurt'; defender.frameIdx=0; defender.frameTimer=0; defender.stateTimer=PUNCH_TICK_MS;
+  attacker.facing = defender.x>=attacker.x ? -1 : 1;
+  defender.facing = attacker.x>=defender.x ? -1 : 1;
+
+  const dmg = damageFor(attacker.power);
+  // очки рейтинга — не больше, чем у защищающегося реально было энергии:
+  // Сила бьёт на dmg, но "отжать" физически можно максимум то, что было
+  // (иначе при избыточной Силе засчитывался бы придуманный излишек)
+  const stolen = Math.min(dmg, Math.max(0, defender.energy));
+  defender.energy -= dmg;
+  defender.power = Math.max(1, defender.power - Math.max(1, Math.floor(dmg*0.3)));
+  defender.lastAttacker = attacker;
+  playPunchSound();
+
+  // очки рейтинга — за каждый удар, сразу и безусловно (не только победителю
+  // финального нокаута): отнял энергию — она сразу твоя, в любом случае
+  attacker.stolenEnergy += stolen;
+  if (!attacker.isBot){
+    attacker.allTimeStolen = (attacker.allTimeStolen||0) + stolen;
+    reportStolen(attacker.name, stolen);
+    // повышение РАНГА (не каждого уровня — см. RANK_UP_LINES) — диктор
+    // объявляет целиком, не перебивая (protect=true), но не обрывая уже
+    // звучащую protected-фразу правил/чемпиона (см. pushEvent)
+    const newRankIdx = rankIndexOfLevel(levelOf(attacker.allTimeStolen));
+    if (newRankIdx > (attacker.knownRankIdx||0)){
+      attacker.knownRankIdx = newRankIdx;
+      const rankName = LEVEL_RANKS[newRankIdx].name;
+      pushEvent(pick(RANK_UP_LINES)(cleanNickForSpeech(attacker.name), rankName), true, true);
+    }
+  }
+
+  if (defender.energy<=0) collapse(defender, attacker);
+}
+
+function finishExchange(ex){
+  const { a, b } = ex;
+  const cd = 1000 + Math.random()*500;
+  a.punchCooldown = cd; b.punchCooldown = cd;
+  a.inExchange = false; b.inExchange = false;
+  if (a.alive) a.state = 'idle';
+  if (b.alive) b.state = 'idle';
+  if (a.alive && b.alive){
+    const dx=b.x-a.x, dy=b.y-a.y, d=Math.hypot(dx,dy)||1, push=75;
+    a.tx = clamp(a.x - dx/d*push, RING.xMin, RING.xMax);
+    a.ty = clamp(a.y - dy/d*push, RING.yMin, RING.yMax);
+    b.tx = clamp(b.x + dx/d*push, RING.xMin, RING.xMax);
+    b.ty = clamp(b.y + dy/d*push, RING.yMin, RING.yMax);
+    a.wanderPause = 500; b.wanderPause = 500;
+  }
+}
+
+function updateExchanges(dt){
+  for (let i=activeExchanges.length-1; i>=0; i--){
+    const ex = activeExchanges[i];
+    ex.timer -= dt;
+    if (ex.timer > 0) continue;
+
+    if (!ex.a.alive || !ex.b.alive || ex.idx >= ex.queue.length){
+      finishExchange(ex);
+      activeExchanges.splice(i,1);
+      continue;
+    }
+
+    const { attacker, defender } = ex.queue[ex.idx];
+    ex.idx++;
+    ex.timer = PUNCH_TICK_MS;
+    if (attacker.alive && defender.alive) throwPunch(attacker, defender);
+  }
+}
+
+function update(dt){
+  for (const v of VARIANTS){
+    advanceAnim(v, dt);
+
+    if (!v.alive){
+      if (!v.eliminated){
+        v.koTimer -= dt;
+        if (v.koTimer<=0){ v.eliminated = true; v.team = false; } // исчезает с ринга насовсем, флажок команды слетает
+      }
+      continue;
+    }
+
+    if (v.energy<=0){ collapse(v, v.lastAttacker); continue; } // выдохся сам по себе, не только от удара
+
+    // 15 минут без лайков/донатов — Сила капает по 1/сек, не ниже 1
+    // (ботов не касается — у них нет зрителя-владельца)
+    if (!v.isBot && v.power>1 && Date.now()-v.lastActiveAt >= INACTIVITY_MS){
+      v.powerDecayAcc = (v.powerDecayAcc||0) + dt;
+      while (v.powerDecayAcc >= POWER_DECAY_INTERVAL_MS && v.power>1){
+        v.powerDecayAcc -= POWER_DECAY_INTERVAL_MS;
+        v.power -= 1;
+      }
+    } else if (!v.isBot){
+      v.powerDecayAcc = 0;
+    }
+
+    if (v.punchCooldown>0) v.punchCooldown -= dt;
+
+    if (v.state==='punch' || v.state==='hurt'){
+      v.stateTimer -= dt;
+      if (v.stateTimer<=0) v.state='idle';
+      continue;
+    }
+
+    // во время серии ударов боец стоит на месте и ждёт своего следующего
+    // удара/реакции — не убегает бродить между отдельными попаданиями
+    if (v.inExchange) continue;
+
+    v.wanderPause -= dt;
+    const dx=v.tx-v.x, dy=v.ty-v.y, dist=Math.hypot(dx,dy);
+    if (dist<6 && v.wanderPause<=0){
+      v.tx = RING.xMin + Math.random()*(RING.xMax-RING.xMin);
+      v.ty = RING.yMin + Math.random()*(RING.yMax-RING.yMin);
+      v.wanderPause = 500 + Math.random()*1400;
+    }
+    if (dist>6){
+      const speed = 0.05;
+      v.x += (dx/dist)*speed*dt;
+      v.y += (dy/dist)*speed*dt;
+      v.facing = dx>=0 ? -1 : 1; // спрайт по умолчанию смотрит влево — флип нужен при движении вправо
+      v.state = 'walk';
+    } else {
+      v.state = 'idle';
+      v.lean = (v.lean||0)*0.85;
+    }
+  }
+
+  // мягкое разведение — живые бойцы не должны залипать друг в друге
+  const MIN_SEP = 58;
+  for (let i=0;i<VARIANTS.length;i++){
+    const a = VARIANTS[i];
+    if (!a.alive) continue;
+    for (let j=i+1;j<VARIANTS.length;j++){
+      const b = VARIANTS[j];
+      if (!b.alive) continue;
+      const dx=b.x-a.x, dy=b.y-a.y, d=Math.hypot(dx,dy)||0.001;
+      if (d < MIN_SEP){
+        const push = (MIN_SEP-d)/2, ux=dx/d, uy=dy/d;
+        a.x = clamp(a.x-ux*push, RING.xMin, RING.xMax);
+        a.y = clamp(a.y-uy*push, RING.yMin, RING.yMax);
+        b.x = clamp(b.x+ux*push, RING.xMin, RING.xMax);
+        b.y = clamp(b.y+uy*push, RING.yMin, RING.yMax);
+      }
+    }
+  }
+
+  for (let i=0;i<VARIANTS.length;i++){
+    const a = VARIANTS[i];
+    if (!a.alive || a.punchCooldown>0) continue;
+    for (let j=i+1;j<VARIANTS.length;j++){
+      const b = VARIANTS[j];
+      if (!b.alive || b.punchCooldown>0) continue;
+      if (a.team && b.team) continue; // свои с красным флажком друг друга не бьют
+      if (Math.hypot(a.x-b.x, a.y-b.y) < FIGHT_DIST && Math.abs(a.y-b.y) < FIGHT_Y_GAP) startExchange(a,b);
+    }
+  }
+
+  updateExchanges(dt);
+  updateBotSpawns(dt);
+
+  // смена комнаты (фон/реквизит) каждые ROOM_SWITCH_MS — бой и бойцы не
+  // сбрасываются, меняется только декорация
+  roomSwitchTimer -= dt;
+  if (roomSwitchTimer <= 0){
+    roomIdx = (roomIdx + 1) % ROOMS.length;
+    roomSwitchTimer = ROOM_SWITCH_MS;
+  }
+
+  // удаляем выбывших бойцов из активного списка (см. комментарий у
+  // VARIANTS выше) — реальных зрителей перед удалением кэшируем
+  // (уровень/закреплённый скин), боты просто выбрасываются, им кэш не нужен
+  for (let i=VARIANTS.length-1; i>=0; i--){
+    const v = VARIANTS[i];
+    if (!v.eliminated) continue;
+    if (!v.isBot){
+      _fighterCache.set(v.name, {
+        allTimeStolen: v.allTimeStolen, knownRankIdx: v.knownRankIdx,
+        skinChosen: v.skinChosen, dir: v.dir, baseType: v.baseType,
+        color: v.color, baseDir: v.baseDir, baseColor: v.baseColor,
+      });
+    }
+    VARIANTS.splice(i, 1);
+  }
+
+  // сама очередь двигается по завершению речи (см. vSpeakNext)
+}
+
+let _lastT = 0;
+let _lastFrameT = 0;
+const FRAME_INTERVAL = 1000/30; // FPS-cap: 30 кадров/сек вместо неограниченных ~60 — вдвое меньше нагрузки на CPU/GPU телефона, визуально почти незаметно
+function loop(t) {
+  if (t - _lastFrameT < FRAME_INTERVAL) { requestAnimationFrame(loop); return; }
+  _lastFrameT = t;
+
+  if (!_lastT) _lastT = t;
+  const dt = Math.min(50, t-_lastT);
+  _lastT = t;
+
+  const _workStart = performance.now();
+
+  update(dt);
+
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  drawBackground(t);
+
+  const sorted = [...VARIANTS].sort((a,b)=>a.y-b.y);
+  for (const v of sorted) drawFighter(v);
+
+  drawHUD();
+
+  updateDrawCoinRain(dt); // дождь монет крупного доната — поверх всего, на весь экран
+  drawGiftBanner();
+
+  trackPerf(performance.now() - _workStart);
+
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

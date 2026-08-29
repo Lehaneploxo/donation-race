@@ -67,6 +67,7 @@ app.get('/boxing-en',    serveHtml('boxing_arena_en.html'));
 app.get('/boxing-db-en', serveHtml('boxing_db_en.html'));
 app.get('/streetfighter',    serveHtml('streetfighter_arena.html'));
 app.get('/streetfighter-db', serveHtml('streetfighter_db.html'));
+app.get('/streetfighter2',   serveHtml('streetfighter_arena2.html'));
 app.get('/fantasyarena',     serveHtml('fantasy_arena.html'));
 app.get('/fantasyarena-db',  serveHtml('fantasy_arena_db.html'));
 app.get('/fishing',    serveHtml('fishing.html'));

@@ -275,6 +275,22 @@
     <div class="status-msg" id="streetfighterStatus">⏳ Открываю игру…</div>
   </div>
 
+  <!-- ── STREET FIGHTERS 2 (копия, общий топ/БД со Street Fighters) ── -->
+  <div class="game-panel panel-arena" style="border-left:1px solid rgba(120,80,255,0.3)">
+    <div class="panel-title" style="color:#9d6bff;text-shadow:0 0 18px #7a3dff">🥋 STREET FIGHTERS 2 🥋</div>
+    <div class="panel-sub">Копия для второго аккаунта · общий топ/рейтинг · пиши "rating" в чате</div>
+
+    <input class="nick-input" id="streetfighter2Input" type="text"
+           placeholder="@your_username"
+           autocomplete="off" autocorrect="off" spellcheck="false">
+
+    <div class="error-msg" id="streetfighter2Error">Введи никнейм TikTok</div>
+
+    <button class="btn-start" id="streetfighter2Start" style="background:linear-gradient(90deg,#4a1e8f,#9d6bff);color:#fff;box-shadow:0 4px 20px rgba(120,80,255,0.4)">🥋 START STREET FIGHTERS 2</button>
+
+    <div class="status-msg" id="streetfighter2Status">⏳ Открываю игру…</div>
+  </div>
+
   <!-- ── STREET FIGHTERS: БАЗА ДАННЫХ ── -->
   <div class="game-panel panel-arena" style="border-left:1px solid rgba(120,80,255,0.3)">
     <div class="panel-title" style="color:#9d6bff;text-shadow:0 0 18px #7a3dff">📊 БАЗА ДАННЫХ STREET FIGHTERS</div>
@@ -406,6 +422,7 @@
   document.getElementById('boxingInput').value = saved;
   document.getElementById('boxingEnInput').value = saved;
   document.getElementById('streetfighterInput').value = saved;
+  document.getElementById('streetfighter2Input').value = saved;
   document.getElementById('fishingInput').value = saved;
   document.getElementById('fantasyarenaInput').value = saved;
   document.getElementById('vzaimkiInput').value = saved;
@@ -413,10 +430,10 @@
   document.getElementById('avatarwarInput').value = saved;
 
   // Sync all inputs when typing
-  ['civInput','boxingInput','boxingEnInput','streetfighterInput','fishingInput','fantasyarenaInput','vzaimkiInput','tamagotchiInput','avatarwarInput'].forEach(id => {
+  ['civInput','boxingInput','boxingEnInput','streetfighterInput','streetfighter2Input','fishingInput','fantasyarenaInput','vzaimkiInput','tamagotchiInput','avatarwarInput'].forEach(id => {
     document.getElementById(id).addEventListener('input', function() {
       if (this.value.startsWith('@')) this.value = this.value.slice(1);
-      ['civInput','boxingInput','boxingEnInput','streetfighterInput','fishingInput','fantasyarenaInput','vzaimkiInput','tamagotchiInput','avatarwarInput'].forEach(oid => {
+      ['civInput','boxingInput','boxingEnInput','streetfighterInput','streetfighter2Input','fishingInput','fantasyarenaInput','vzaimkiInput','tamagotchiInput','avatarwarInput'].forEach(oid => {
         if (oid !== id) document.getElementById(oid).value = this.value;
       });
     });
@@ -465,6 +482,13 @@
     handleClick('streetfighterInput','streetfighterError','streetfighterStatus','streetfighterStart','/streetfighter'));
   document.getElementById('streetfighterInput').addEventListener('keydown', e => {
     if (e.key === 'Enter') document.getElementById('streetfighterStart').click();
+  });
+
+  // Street Fighters 2 (копия)
+  document.getElementById('streetfighter2Start').addEventListener('click', () =>
+    handleClick('streetfighter2Input','streetfighter2Error','streetfighter2Status','streetfighter2Start','/streetfighter2'));
+  document.getElementById('streetfighter2Input').addEventListener('keydown', e => {
+    if (e.key === 'Enter') document.getElementById('streetfighter2Start').click();
   });
 
   // Fishing
