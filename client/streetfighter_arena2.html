@@ -2108,17 +2108,23 @@ function drawPortalCountdown(){
   const secs = Math.max(0, Math.ceil(portalTimer/1000));
   const mm = Math.floor(secs/60), ss = String(secs%60).padStart(2,'0');
   const label = portalActive ? `🌀 ПОРТАЛ FANTASY ARENA: 0:${ss}` : `🌀 Портал через ${mm}:${ss}`;
+  // активный портал — крупный баннер (39px, ×3 от исходных 13px); ожидание
+  // портала — вдвое меньше (20px), по просьбе пользователя, чтобы не
+  // мешал в обычном режиме
+  const fontPx = portalActive ? 39 : 20;
+  const boxH = portalActive ? 60 : 32;
+  const baselineOffset = portalActive ? 52 : 27;
   ctx.save();
   ctx.textAlign = 'center';
-  ctx.font = 'bold 39px Arial Black'; // ×3 от исходных 13px, по просьбе пользователя (шрифт и иконка вместе, т.к. эмодзи в той же строке)
+  ctx.font = `bold ${fontPx}px Arial Black`;
   const w = ctx.measureText(label).width;
   const maxW = CW-16;
   ctx.fillStyle = portalActive ? 'rgba(120,40,180,0.75)' : 'rgba(0,0,0,0.55)';
-  ctx.fillRect(CW/2-Math.min(w,maxW)/2-14, WALL_TOP+8, Math.min(w,maxW)+28, 60);
-  ctx.strokeStyle = 'rgba(0,0,0,0.85)'; ctx.lineWidth = 5;
-  ctx.strokeText(label, CW/2, WALL_TOP+52, maxW);
+  ctx.fillRect(CW/2-Math.min(w,maxW)/2-14, WALL_TOP+8, Math.min(w,maxW)+28, boxH);
+  ctx.strokeStyle = 'rgba(0,0,0,0.85)'; ctx.lineWidth = portalActive ? 5 : 3;
+  ctx.strokeText(label, CW/2, WALL_TOP+baselineOffset, maxW);
   ctx.fillStyle = portalActive ? '#e0b0ff' : '#ffd76b';
-  ctx.fillText(label, CW/2, WALL_TOP+52, maxW);
+  ctx.fillText(label, CW/2, WALL_TOP+baselineOffset, maxW);
   ctx.restore();
 }
 
