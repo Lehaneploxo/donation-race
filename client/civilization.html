@@ -1442,6 +1442,10 @@ let disasterAnim=null;
 let warAnim=null;// {t,dur,attackerColor,username,queue,attackerDeadTotal,defenderDeadTotal}
 let warCooldownUntil=0;
 const WAR_COOLDOWN_MS=30000,WAR_DUR=10000,WAR_MIN_POP=10;
+// сколько длится фаза "сбегаются в кучку" ПЕРЕД тем, как ринуться в атаку —
+// первая смерть в очереди не раньше 1200мс (см. queue ниже), так что войска
+// успевают собраться визуально до первого удара
+const WAR_RALLY_DUR=1500;
 function shuffleArr(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
 // 6 волн боя: на каждой волне обе стороны наносят урон пропорционально
 // ТЕКУЩЕЙ (не начальной) численности противника — чем дольше длится бой,
@@ -1492,13 +1496,26 @@ function tryDeclareWar(username){
   if(donors[username]===0)delete donors[username];
   deductDonorPop(username,defenderLoss);updateTopDonors();
   const attackerFigs=figures.filter(f=>f.donorColor===attackerColor);
-  attackerFigs.forEach(f=>f.atWar=true);
+  // точка сбора — центр масс нападающих на момент объявления войны, чуть
+  // смещённая в сторону ближайшего скопления защитников, чтобы после сбора
+  // "кучка" сразу срывалась в внятном направлении, а не расползалась обратно
+  let rx=0,ry=0;attackerFigs.forEach(f=>{rx+=f.x;ry+=f.y;});
+  rx/=attackerFigs.length;ry/=attackerFigs.length;
+  const defenderFigsAll=figures.filter(f=>f.donorColor!==attackerColor);
+  let ex=rx,ey=ry;
+  if(defenderFigsAll.length){
+    let sx=0,sy=0;defenderFigsAll.forEach(f=>{sx+=f.x;sy+=f.y;});
+    ex=sx/defenderFigsAll.length;ey=sy/defenderFigsAll.length;
+  }
+  const ed=Math.hypot(ex-rx,ey-ry)||1;
+  rx=Math.min(W-25,Math.max(25,rx+(ex-rx)/ed*40));ry=Math.min(SEA_Y-15,Math.max(GND+15,ry+(ey-ry)/ed*40));
+  attackerFigs.forEach(f=>{f.atWar=true;f._rallyOffX=(Math.random()-0.5)*26;f._rallyOffY=(Math.random()-0.5)*16;});
   shuffleArr(attackerFigs);
   const attackerDead=attackerFigs.slice(0,attackerLoss);
-  const defenderFigs=shuffleArr(figures.filter(f=>f.donorColor!==attackerColor));
+  const defenderFigs=shuffleArr(defenderFigsAll);
   const defenderDead=defenderFigs.slice(0,defenderLoss);
-  const queue=[...attackerDead,...defenderDead].map(f=>({f,at:1200+Math.random()*7500,done:false}));
-  warAnim={t:0,dur:WAR_DUR,attackerColor,username,queue,attackerDeadTotal:attackerLoss,defenderDeadTotal:defenderLoss};
+  const queue=[...attackerDead,...defenderDead].map(f=>({f,at:WAR_RALLY_DUR+300+Math.random()*7200,done:false}));
+  warAnim={t:0,dur:WAR_DUR,attackerColor,username,queue,attackerDeadTotal:attackerLoss,defenderDeadTotal:defenderLoss,rallyPoint:{x:rx,y:ry}};
   giftBanner={t:0,dur:2600,text:`⚔️ ${username} ОБЪЯВИЛ ВОЙНУ!`,color:'#FF4444',y:H/2};
   try{sndInvasion();}catch(e){}
   try{pushEvent(pick(WAR_LINES)(cleanNickForSpeech(username)),true,true);}catch(e){}
@@ -2028,16 +2045,29 @@ function gameLoop(now){
   figures.forEach(f=>{
     f.phase+=dt*(f.atWar?0.011:0.005);
     if(f.atWar&&warAnim){
-      // во время войны бойцы-нападающие ищут ближайшего "чужого" и бегут к нему
-      let nearest=null,nd=Infinity;
-      for(const g of figures){if(g.donorColor!==f.donorColor){const dd=Math.hypot(g.x-f.x,g.y-f.y);if(dd<nd){nd=dd;nearest=g;}}}
-      if(nearest){
-        const dx=nearest.x-f.x,dy=nearest.y-f.y,dist=Math.hypot(dx,dy)||1;
-        f.vx=f.vx*0.85+(dx/dist)*0.9*0.15;f.vy=f.vy*0.85+(dy/dist)*0.5*0.15;
-        // в радиусе удара — оба бойца визуально "дерутся" (видно и нападающего, и защищающегося)
-        if(nd<MELEE_RANGE){
-          f._inMelee=true;nearest._inMelee=true;
-          if(Math.random()<0.12) spawnWarClash((f.x+nearest.x)/2,(f.y+nearest.y)/2-10);
+      if(warAnim.t<WAR_RALLY_DUR){
+        // фаза сбора: нападающие бегут в одну точку (центр их толпы на момент
+        // объявления войны), у каждого свой небольшой оффсет — чтобы не
+        // слипались в одну точку, а сбивались в узнаваемую "кучку"
+        const rp=warAnim.rallyPoint,tx=rp.x+(f._rallyOffX||0),ty=rp.y+(f._rallyOffY||0);
+        const dx=tx-f.x,dy=ty-f.y,dist=Math.hypot(dx,dy)||1;
+        // бегут заметно быстрее обычной ходьбы — иначе за 1.5с не успевают
+        // сбежаться в кучку с другого конца города
+        f.vx=f.vx*0.7+(dx/dist)*4.2*0.3;f.vy=f.vy*0.7+(dy/dist)*2.3*0.3;
+      } else {
+        // фаза атаки: сбежавшиеся нападающие все разом бросаются на ближайшего "чужого"
+        let nearest=null,nd=Infinity;
+        for(const g of figures){if(g.donorColor!==f.donorColor){const dd=Math.hypot(g.x-f.x,g.y-f.y);if(dd<nd){nd=dd;nearest=g;}}}
+        if(nearest){
+          const dx=nearest.x-f.x,dy=nearest.y-f.y,dist=Math.hypot(dx,dy)||1;
+          f.vx=f.vx*0.85+(dx/dist)*1.1*0.15;f.vy=f.vy*0.85+(dy/dist)*0.6*0.15;
+          // в радиусе удара — оба бойца визуально "дерутся" (видно и нападающего, и защищающегося),
+          // защитник ещё и шарахается назад от удара — читается как ответный бой, а не истукан
+          if(nd<MELEE_RANGE){
+            f._inMelee=true;nearest._inMelee=true;
+            if(Math.random()<0.12) spawnWarClash((f.x+nearest.x)/2,(f.y+nearest.y)/2-10);
+            if(Math.random()<0.1){nearest.vx-=(dx/dist)*0.5;nearest.vy-=(dy/dist)*0.3;}
+          }
         }
       }
     } else if(f.pathTarget>=0&&civPop>150){
