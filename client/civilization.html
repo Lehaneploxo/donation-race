@@ -852,6 +852,22 @@ const MAX_FIGURES=250;
 function randDisasterDelay(){return 45000+Math.random()*75000;} // 45–120 сек
 let nextDisasterAt=performance.now()+randDisasterDelay();
 const figures=[],donors={};
+// Списывает kn погибших пропорционально текущей доле каждого донатера (кроме excludeUser),
+// чтобы donors{} всегда отражал ЖИВОЕ население игрока, а не сумму донатов за игру.
+function deductDonorPop(excludeUser,kn){
+  if(kn<=0)return;
+  const entries=Object.entries(donors).filter(([u,c])=>u!==excludeUser&&c>0);
+  let total=entries.reduce((s,[,c])=>s+c,0);
+  if(total<=0)return;
+  let remaining=Math.min(kn,total);
+  while(remaining>0){
+    let r=Math.random()*total,idx=entries.length-1;
+    for(let i=0;i<entries.length;i++){r-=entries[i][1];if(r<=0){idx=i;break;}}
+    const u=entries[idx][0];
+    entries[idx][1]--;donors[u]--;total--;remaining--;
+    if(entries[idx][1]<=0){delete donors[u];entries.splice(idx,1);}
+  }
+}
 const buildings=[],MIN_BLDG_DIST=75,MAX_BUILDINGS=55;
 let isDemo=false; // always false — civ is TikTok-only
 const blockedZones=[];// {x,y,until} — no building can appear here until `until` ms
@@ -1423,6 +1439,9 @@ function tryDeclareWar(username){
     A0=3;
   }
   const{defenderLoss,attackerLoss}=simulateWar(A0,D0);
+  donors[username]=Math.max(0,(donors[username]||0)-attackerLoss);
+  if(donors[username]===0)delete donors[username];
+  deductDonorPop(username,defenderLoss);updateTopDonors();
   const attackerFigs=figures.filter(f=>f.donorColor===attackerColor);
   attackerFigs.forEach(f=>f.atWar=true);
   shuffleArr(attackerFigs);
@@ -1537,6 +1556,7 @@ function applyDisasterDamage(a){
   for(let i=0;i<bkill2;i++){dyingBuildings.push({...buildings[i],dieT:0,dieDur:900,dvx:(Math.random()-0.5)*2.5});}
   buildings.splice(0,bkill2);
   civPop=Math.max(0,civPop-kn);
+  deductDonorPop(null,kn);updateTopDonors();
   updateEra();updateUI();
 }
 
