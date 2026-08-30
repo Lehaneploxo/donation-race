@@ -33,6 +33,7 @@ canvas { display:block; }
 #fsBtn { position:fixed; z-index:99999; top:50%; right:10px; transform:translateY(-50%); width:26px; height:26px; font-size:12px; background:rgba(0,0,0,0.55); color:rgba(255,255,255,0.55); border:1px solid rgba(255,255,255,0.2); border-radius:6px; cursor:pointer; display:flex; align-items:center; justify-content:center; }
 #voiceBtn { position:fixed; z-index:99999; top:calc(50% - 40px); right:10px; width:26px; height:26px; font-size:12px; background:rgba(0,0,0,0.55); color:rgba(255,255,255,0.55); border:1px solid rgba(255,255,255,0.2); border-radius:6px; cursor:pointer; display:flex; align-items:center; justify-content:center; }
 #backBtn { position:fixed; z-index:99999; top:calc(50% + 40px); right:10px; width:26px; height:26px; font-size:12px; background:rgba(0,0,0,0.55); color:rgba(255,255,255,0.55); border:1px solid rgba(255,255,255,0.2); border-radius:6px; cursor:pointer; display:flex; align-items:center; justify-content:center; }
+#civResetBtn { position:fixed; z-index:99999; top:calc(50% + 80px); right:10px; width:26px; height:26px; font-size:12px; background:rgba(0,0,0,0.55); color:rgba(255,255,255,0.55); border:1px solid rgba(255,255,255,0.2); border-radius:6px; cursor:pointer; display:flex; align-items:center; justify-content:center; }
 #coinHint {
   position:absolute; top:128px; left:8px; width:auto; max-width:132px;
   background:rgba(0,0,0,0.82); border-radius:8px;
@@ -51,6 +52,7 @@ canvas { display:block; }
 <button id="fsBtn" title="Полный экран">⛶</button>
 <button id="voiceBtn" title="Озвучка">🔇</button>
 <button id="backBtn" title="Выход в меню">⌂</button>
+<button id="civResetBtn" title="Сбросить город на ноль">↺</button>
 <div id="scaleWrapper">
   <canvas id="cvs" width="563" height="1000"></canvas>
   <div id="uiOverlay">
@@ -965,6 +967,53 @@ function spawnPeople(username,coins){
   if(isReal){donors[username]=(donors[username]||0)+n;updateTopDonors();}
   if(isReal&&coins>=BIG_GIFT_THRESHOLD) triggerBigGift(username,coins,dc);
   updateEra();updateUI();
+}
+// ── Восстановление состояния с сервера после перезахода в игру ─────────────────
+// Сервер шлёт civ_state_restore при подключении (см. connectWS) — сюда прилетают
+// civPop/eraIdx/donors, сохранённые последним сохранением ДО того, как вкладку
+// закрыли. Фигурки на экране не хранятся на сервере (их не было бы смысла
+// хранить — при большом населении их и так не 1:1 с civPop, см. MAX_FIGURES),
+// поэтому респавним видимую часть заново, пропорционально живому населению
+// каждого донатера, чтобы цвета в толпе сразу совпадали с таблицей лидеров.
+// force=true — принудительный сброс (кнопка справа), применяется всегда, даже
+// если обычное восстановление уже отработало. Без force применяем только один
+// раз за сессию вкладки — иначе автопереподключение WS (обрывы TikTok-связи)
+// откатывало бы прогресс к последнему сохранению (раз в 15 сек, см. ниже).
+let civRestored=false;
+function applyCivRestore(state,force){
+  if(civRestored&&!force)return;
+  const rp=Math.max(0,Math.floor(Number(state.civPop))||0);
+  const rEra=Math.max(0,Math.min(ERAS.length-1,Math.floor(Number(state.eraIdx))||0));
+  const wasEmpty=!civRestored&&rp<=0&&rEra<=0;
+  civRestored=true;
+  if(wasEmpty)return; // новый/пустой город — нечего восстанавливать
+  civPop=rp;eraIdx=rEra;cachedEra=-1;
+  buildings.length=0; // отрастут заново через tryAddBuilding(), как в setEra()
+  figures.length=0;
+  Object.keys(donors).forEach(k=>delete donors[k]);
+  if(state.donors&&typeof state.donors==='object'){
+    for(const[u,c] of Object.entries(state.donors)){
+      const n=Math.max(0,Math.floor(Number(c))||0);
+      if(n>0&&u)donors[u]=n;
+    }
+  }
+  const totalDonorPop=Object.values(donors).reduce((s,c)=>s+c,0);
+  const budget=Math.min(MAX_FIGURES,civPop);
+  if(totalDonorPop>0){
+    for(const[u,c] of Object.entries(donors)){
+      const dc=getDonorColor(u);
+      const share=Math.round(budget*(c/totalDonorPop));
+      for(let i=0;i<share&&figures.length<budget;i++){
+        const p=randZone();
+        figures.push({x:p.x,y:p.y,vx:(Math.random()-0.5)*0.6,vy:(Math.random()-0.5)*0.3,phase:Math.random()*Math.PI*2,donorColor:dc,gender:Math.random()<0.5?'m':'f',pathTarget:Math.random()<0.3?Math.floor(Math.random()*GATHER_SPOTS.length):-1});
+      }
+    }
+  }
+  while(figures.length<budget){
+    const p=randZone();
+    figures.push({x:p.x,y:p.y,vx:(Math.random()-0.5)*0.6,vy:(Math.random()-0.5)*0.3,phase:Math.random()*Math.PI*2,donorColor:null,gender:Math.random()<0.5?'m':'f',pathTarget:Math.random()<0.3?Math.floor(Math.random()*GATHER_SPOTS.length):-1});
+  }
+  updateTopDonors();updateUI();
 }
 // ── Большой подарок: баннер + салют + именное здание ───────────────────────────
 function triggerBigGift(username,coins,color){
@@ -2237,7 +2286,7 @@ document.getElementById('voiceBtn').addEventListener('click',()=>{
 function connectWS(){
   const proto=location.protocol==='https:'?'wss':'ws';
   socket=new WebSocket(`${proto}://${location.host}?username=${encodeURIComponent(username)}`);
-  socket.addEventListener('open',()=>{connMsg.textContent='🔗 Подключение к TikTok…';connMsg.style.display='block';});
+  socket.addEventListener('open',()=>{connMsg.textContent='🔗 Подключение к TikTok…';connMsg.style.display='block';socket.send(JSON.stringify({type:'civ_state_request'}));});
   socket.addEventListener('message',e=>{let m;try{m=JSON.parse(e.data);}catch{return;}handleEvent(m);});
   socket.addEventListener('close',()=>{connMsg.textContent='⚠️ Переподключение…';connMsg.style.display='block';setTimeout(connectWS,3000);});
   socket.addEventListener('error',()=>socket.close());
@@ -2266,6 +2315,7 @@ function handleEvent(m){
     const c=(m.comment||'').trim().toLowerCase();
     if(c==='war'||c==='война'||c==='війна') tryDeclareWar(m.username);
   }
+  else if(m.type==='civ_state_restore'){applyCivRestore(m,!!m.reset);}
   else if(m.type==='arena_like'||m.type==='like'){/* лайки больше не влияют на игру */}
   else if(m.type==='arena_member'||m.type==='member'){/* ignore */}
   else if(m.type==='arena_bot'){/* ignore — arena AI bots must not affect civilization */}
@@ -2335,6 +2385,22 @@ connMsg.textContent='⏳ Ждём начало эфира…';
 connectWS();
 updateUI();
 requestAnimationFrame(t=>{lastTime=t;gameLoop(t);});
+
+// ── Автосейв населения/эпохи/донатеров на сервер (раз в 15 сек + при уходе
+// со вкладки) — та же схема, что у автосейва боя Street Fighter/Boxing Arena.
+// Сервер сам решает как часто писать в БД (см. Room.saveCivState).
+function saveCivToServer(){
+  if(!socket||socket.readyState!==1)return;
+  socket.send(JSON.stringify({type:'civ_state_save',state:{civPop,eraIdx,donors}}));
+}
+setInterval(saveCivToServer,15000);
+document.addEventListener('visibilitychange',()=>{if(document.hidden)saveCivToServer();});
+
+// ── Кнопка сброса игры на ноль (справа, вместе с fsBtn/voiceBtn/backBtn) ───────
+document.getElementById('civResetBtn').addEventListener('click',()=>{
+  if(!confirm('Сбросить город на ноль? Население, эпоха и таблица лидеров обнулятся у всех зрителей.'))return;
+  if(socket&&socket.readyState===1)socket.send(JSON.stringify({type:'civ_reset'}));
+});
 
 // ── Dev panel functions ───────────────────────────────────────────────────────
 function testDisaster(type){

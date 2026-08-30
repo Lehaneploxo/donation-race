@@ -656,6 +656,13 @@ class Room {
     this._tamagotchiDbSavedAt  = 0;
     this._tamagotchiTickIv     = null;
     this._loadTamagotchi();
+    // Цивилизация: население/эпоха/донатеры — та же схема снапшота, что у
+    // Тамагочи (game_state_snapshots), только без фонового тика — цифры не
+    // должны "дрейфовать" сами по себе, пока никто не смотрит игру, поэтому
+    // грузим лениво по первому запросу клиента (см. sendCivState).
+    this._civ          = null;
+    this._civLoading    = false;
+    this._civDbSavedAt  = 0;
     this._connect();
   }
 
@@ -807,6 +814,63 @@ class Room {
         ws.send(JSON.stringify({ type: 'tamagotchi_state_restore', ...this._tamagotchi }));
       }
     });
+  }
+
+  // Цивилизация: сохранить снапшот {civPop, eraIdx, donors} — в память сразу
+  // (клиент шлёт каждые ~15 сек, см. civilization.html), в БД не чаще раза в
+  // минуту на комнату (резерв на случай рестарта сервера), та же схема
+  // троттлинга, что у saveStateSnapshot/saveTamagotchiState выше.
+  saveCivState(state) {
+    if (!state || typeof state !== 'object') return;
+    const donors = {};
+    if (state.donors && typeof state.donors === 'object') {
+      for (const [u, c] of Object.entries(state.donors)) {
+        const n = Math.max(0, Math.floor(Number(c)) || 0);
+        if (n > 0 && typeof u === 'string' && u) donors[u.slice(0, 100)] = n;
+      }
+    }
+    const clean = {
+      civPop: Math.max(0, Math.floor(Number(state.civPop)) || 0),
+      eraIdx: Math.max(0, Math.floor(Number(state.eraIdx)) || 0),
+      donors,
+    };
+    this._civ = clean;
+    const now = Date.now();
+    if (now - this._civDbSavedAt >= STATE_DB_SAVE_MIN_INTERVAL_MS) {
+      this._civDbSavedAt = now;
+      db.saveGameStateSnapshot('civilization', this.username, clean)
+        .catch(e => console.error('[DB] civ_state error:', e.message));
+    }
+  }
+
+  // отдать снапшот только что подключившемуся клиенту — сперва из памяти
+  // комнаты, если её нет (сервер только что перезапустился) — из БД
+  sendCivState(ws) {
+    const send = (state) => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'civ_state_restore', ...(state || { civPop: 0, eraIdx: 0, donors: {} }) }));
+      }
+    };
+    if (this._civ) { send(this._civ); return; }
+    if (this._civLoading) return;
+    this._civLoading = true;
+    db.getGameStateSnapshot('civilization', this.username)
+      .then(state => {
+        this._civLoading = false;
+        if (state && typeof state === 'object') this._civ = state;
+        send(this._civ);
+      })
+      .catch(() => { this._civLoading = false; send(null); });
+  }
+
+  // Полный сброс игры на ноль по кнопке в углу — сразу пишем в БД (не ждём
+  // троттлинг saveCivState) и рассылаем всем открытым вкладкам комнаты, чтобы
+  // сброс не "вернулся" при следующем сохранении с другого клиента.
+  resetCivState() {
+    this._civ = { civPop: 0, eraIdx: 0, donors: {} };
+    this._civDbSavedAt = Date.now();
+    db.saveGameStateSnapshot('civilization', this.username, this._civ).catch(() => {});
+    this.broadcast({ type: 'civ_state_restore', civPop: 0, eraIdx: 0, donors: {}, reset: true });
   }
 
   _connect() {
@@ -1184,6 +1248,9 @@ class Room {
     if (this._tamagotchi) {
       db.saveGameStateSnapshot('tamagotchi', this.username, this._tamagotchi).catch(() => {});
     }
+    if (this._civ) {
+      db.saveGameStateSnapshot('civilization', this.username, this._civ).catch(() => {});
+    }
   }
 
   // сохранить снапшот энергии/силы реальных бойцов конкретной игры — в
@@ -1428,6 +1495,15 @@ wss.on('connection', (ws, req) => {
       }
       if (msg.type === 'tamagotchi_state_request') {
         room.sendTamagotchiState(ws);
+      }
+      if (msg.type === 'civ_state_save' && msg.state) {
+        room.saveCivState(msg.state);
+      }
+      if (msg.type === 'civ_state_request') {
+        room.sendCivState(ws);
+      }
+      if (msg.type === 'civ_reset') {
+        room.resetCivState();
       }
       if (msg.type === 'fishing_catch' && msg.username && msg.fish) {
         db.addFishingCatch(msg.username, msg.fish)
