@@ -887,6 +887,8 @@ class Room {
           // Взаимки: тот же принцип, что и civ_gift — только реальные донаты,
           // демо-боты не должны красить рейтинг подставными подарками
           this.broadcast({ type: 'vzaimki_gift', username: data.username, userId: data.userId, avatarUrl: data.avatarUrl, giftName: data.giftName, coins: data.coins });
+          // Разнос: донат даёт приоритет в очереди по монетам, без проверки подписки
+          this.broadcast({ type: 'razgon_gift', username: data.username, userId: data.userId, avatarUrl: data.avatarUrl, giftName: data.giftName, coins: data.coins });
         }
 
         const giftLower = (data.giftName || '').toLowerCase();

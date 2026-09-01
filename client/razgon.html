@@ -89,10 +89,12 @@
   }
   .bubble:not(.has-target) .bubble-text{ text-align:center; }
   .bubble.has-target .bubble-text{ flex:0 0 50%; font-size:24px; }
-  /* Аватарка + никнейм — справа, того зрителя, которого сейчас разносят */
+  /* Аватарка + никнейм — справа, того зрителя, которого сейчас разносят.
+     [hidden] явно, иначе наш display:flex перебивает стандартный display:none. */
   .bubble-target{
     flex:1; display:flex; flex-direction:column; align-items:center; gap:6px;
   }
+  .bubble-target[hidden]{ display:none; }
   .bubble-avatar{
     flex:none; width:76px; height:76px; border-radius:50%; overflow:hidden;
     border:3px solid #c81d33; box-shadow:0 0 0 3px rgba(200,29,51,0.18);
@@ -144,6 +146,11 @@
   .qchip.current{ opacity:1; }
   .qchip.current .qav{ width:58px; height:58px; border-color: var(--accent); box-shadow:0 0 14px rgba(255,95,109,0.6); }
   .qchip.current .qnick{ color:#fff; font-weight:800; max-width:74px; }
+  /* Донатеры — впереди очереди по монетам, подсвечены золотым */
+  .qchip.donor{ opacity:1; }
+  .qchip.donor .qav{ border-color: var(--accent2); box-shadow:0 0 10px rgba(255,195,113,0.55); }
+  .qchip.donor .qnick{ color: var(--accent2); }
+  .qcoins{ font-size:14px; font-weight:800; color: var(--accent2); }
   .qempty{ font-size:20px; color: var(--text-faint); padding:6px 2px; }
 
   .footer{ order:6; text-align:center; font-size:20px; color: var(--text-faint); padding: 2px 0 0; flex:none; letter-spacing:0.3px; }
@@ -173,7 +180,7 @@
       <span class="connBadge" id="connBadge" hidden>—</span>
     </div>
 
-    <div class="rules">Подписка + лайк + напиши <b>«разнеси»</b> в чат — чтобы тебя разнесли!</div>
+    <div class="rules">Подписка + 100 лайков или напиши <b>«разнеси»</b> — в очередь! Донат — без очереди, по монетам!</div>
 
     <div class="bubbleWrap">
       <div class="bubble" id="bubble">
@@ -217,8 +224,11 @@
   <div class="dbg-btns">
     <button data-t="follow">TEST FOLLOW</button>
     <button data-t="like">TEST LIKE</button>
+    <button data-t="like100">TEST 100 ЛАЙКОВ</button>
     <button data-t="cmd">TEST «разнеси»</button>
-    <button data-t="full">FOLLOW+LIKE+CMD</button>
+    <button data-t="full">FOLLOW+CMD</button>
+    <button data-t="gift">TEST ДОНАТ</button>
+    <button data-t="giftbig">ДОНАТ x10 (приоритет)</button>
     <button data-t="mass" style="grid-column:1/3">MASS (5 жертв)</button>
     <button data-t="reset" style="grid-column:1/3">RESET SESSION</button>
   </div>
@@ -240,6 +250,7 @@ const CONFIG = {
   CTA_INTERVAL_MAX_MS: 15000,
   REQUEUE_COOLDOWN_MS: 45000, // после разноса — пауза, прежде чем можно встать в очередь снова
   MAX_QUEUE_LEN: 10,
+  LIKE_THRESHOLD: 100, // подписан + набрал столько лайков за эфир = автоматически в очередь
 };
 
 function escHtml(s){ return String(s==null?'':s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
@@ -292,15 +303,27 @@ const EventBus = (() => {
 // ── Eligibility — кто в этом эфире реально подписался/лайкнул ──────────────
 const Eligibility = (() => {
   let followed = new Set();
-  let liked = new Set();
+  let likeCounts = new Map(); // userId -> накопленные лайки с последнего срабатывания
   let cooldownUntil = new Map();
   function markFollowed(userId){ if (userId) followed.add(userId); }
-  function markLiked(userId){ if (userId) liked.add(userId); }
-  function isEligible(userId){ return !!userId && followed.has(userId) && liked.has(userId); }
+  function isFollowed(userId){ return !!userId && followed.has(userId); }
+  // Возвращает true и обнуляет счётчик, когда лайки зрителя (подписанного)
+  // впервые за это накопление перевалили порог — используется, чтобы
+  // автоматически поставить его в очередь без команды.
+  function addLikesAndCheckThreshold(userId, n){
+    if (!userId || !isFollowed(userId)) return false;
+    const total = (likeCounts.get(userId) || 0) + Math.max(0, Number(n) || 0);
+    if (total >= CONFIG.LIKE_THRESHOLD){
+      likeCounts.set(userId, 0);
+      return true;
+    }
+    likeCounts.set(userId, total);
+    return false;
+  }
   function isCoolingDown(userId){ return (cooldownUntil.get(userId)||0) > Date.now(); }
   function startCooldown(userId){ if (userId) cooldownUntil.set(userId, Date.now() + CONFIG.REQUEUE_COOLDOWN_MS); }
-  function reset(){ followed = new Set(); liked = new Set(); cooldownUntil = new Map(); }
-  return { markFollowed, markLiked, isEligible, isCoolingDown, startCooldown, reset };
+  function reset(){ followed = new Set(); likeCounts = new Map(); cooldownUntil = new Map(); }
+  return { markFollowed, isFollowed, addLikesAndCheckThreshold, isCoolingDown, startCooldown, reset };
 })();
 
 // ── HostManager — Live2D "Kei" (идентично vzaimki.html) ─────────────────────
@@ -377,10 +400,16 @@ const HostManager = (() => {
   return { init, setState, setSpeaking, mouthTick, pulseExcited };
 })();
 
-// ── VoiceManager — очередь роастов (queueA) + CTA-филлеры, TTS ─────────────
+// ── VoiceManager — очередь роастов + CTA-филлеры, TTS ──────────────────────
+// Две очереди: queueP — донатеры (приоритет, сортировка по монетам, без
+// проверки подписки), queueA — обычная FIFO (подписка + 100 лайков ИЛИ
+// команда «разнеси»). Донатеры всегда идут раньше обычной очереди, но
+// НИКОГДА не перебивают уже начатую фразу — новый приоритет применяется
+// только когда next() естественно вызывается после текущей речи.
 const VoiceManager = (() => {
   const synth = window.speechSynthesis || null;
-  let queueA = []; // { text, nick, userId, avatarUrl }
+  let queueP = []; // { text, nick, userId, avatarUrl, coins } — донатеры, сорт. по coins desc
+  let queueA = []; // { text, nick, userId, avatarUrl } — обычная очередь, FIFO
   let current = null; // объект сейчас озвучиваемого роаста (для UI/cooldown)
   let speaking = false;
   let cachedVoice = null;
@@ -388,14 +417,14 @@ const VoiceManager = (() => {
   let started = false;
 
   const CTA = [
-    'Кто следующий? Подпишись, лайкни и напиши «разнеси» — очередь открыта!',
-    'Не стесняйтесь — подписка, лайк и «разнеси» в чат, и я найду о чём сказать!',
-    'Тишина в студии... Подпишитесь, лайкните, напишите «разнеси» — разбудите меня!',
-    'Есть тут смелые? Подписка + лайк + «разнеси» — и вы в эфире!',
-    'Я заскучал без работы. Подпишись, лайкни, пиши «разнеси» — не пожалеешь. Или пожалеешь!',
-    'Очередь пустая — непорядок! Подписка, лайк, команда «разнеси» — вперёд!',
-    'Кто хочет прославиться на весь эфир? Подпишись, лайкни, напиши «разнеси»!',
-    'Готовлю формулировки, жду жертв. Подписка + лайк + «разнеси» в чат!',
+    'Кто следующий? Подпишись, набери 100 лайков или напиши «разнеси» — очередь открыта!',
+    'Не стесняйтесь — подписка + лайк или команда «разнеси», и я найду о чём сказать!',
+    'Тишина в студии... Подпишитесь и разбудите меня лайками или командой «разнеси»!',
+    'Есть тут смелые? Подписка + 100 лайков или «разнеси» в чат — и вы в эфире!',
+    'Донат решает быстрее всех — больше монет, выше очередь, без всякой подписки!',
+    'Очередь пустая — непорядок! Подписка + лайки или команда «разнеси» — вперёд!',
+    'Кто хочет прославиться на весь эфир? Подпишись и набери 100 лайков или пиши «разнеси»!',
+    'Готовлю формулировки, жду жертв. Донат — без очереди, остальным — подписка обязательна!',
   ];
 
   function pickVoice(){
@@ -424,14 +453,18 @@ const VoiceManager = (() => {
     try { synth.speak(u); } catch(e){ finish(); }
   }
 
-  function renderQueueUI(){ UI.renderQueue(queueA, current); }
+  function renderQueueUI(){ UI.renderQueue(queueP, queueA, current); }
 
   function next(){
     if (speaking) return;
     clearTimeout(idleTimer);
     if (current){ Eligibility.startCooldown(current.userId); current = null; }
-    if (queueA.length){
-      const item = queueA.shift();
+    // Донатеры всегда впереди обычной очереди; среди самих донатеров —
+    // у кого больше монет, тот раньше (queueP держим отсортированным).
+    let item = null;
+    if (queueP.length) item = queueP.shift();
+    else if (queueA.length) item = queueA.shift();
+    if (item){
       current = item;
       renderQueueUI();
       // Имени в облачке нет специально — кто именно это, показывает аватарка
@@ -447,10 +480,36 @@ const VoiceManager = (() => {
     }
   }
 
+  function totalQueueLen(){ return queueP.length + queueA.length; }
+
   function enqueueRoast(userId, nick, avatarUrl, text){
     if (isQueued(userId)) return false;
-    if (queueA.length >= CONFIG.MAX_QUEUE_LEN) return false;
+    if (totalQueueLen() >= CONFIG.MAX_QUEUE_LEN) return false;
     queueA.push({ text, nick, userId, avatarUrl });
+    renderQueueUI();
+    next();
+    return true;
+  }
+
+  // Донат — без проверки подписки, приоритет по сумме монет. Если человек
+  // уже стоит в обычной очереди — переносим в приоритетную (донат ускоряет,
+  // не отменяет). Если уже донатил и ждёт — просто плюсуем монеты и
+  // пересортировываем, текст роаста обновляем с новой суммой.
+  function enqueueDonor(userId, nick, avatarUrl, coins, textFn){
+    if (current && current.userId === userId) return false; // уже читаем про него
+    const existing = queueP.find(q => q.userId === userId);
+    if (existing){
+      existing.coins += coins;
+      existing.text = textFn(existing.coins);
+      queueP.sort((a,b) => b.coins - a.coins);
+      renderQueueUI();
+      return true;
+    }
+    const idxA = queueA.findIndex(q => q.userId === userId);
+    if (idxA !== -1) queueA.splice(idxA, 1);
+    else if (totalQueueLen() >= CONFIG.MAX_QUEUE_LEN) return false;
+    queueP.push({ text: textFn(coins), nick, userId, avatarUrl, coins });
+    queueP.sort((a,b) => b.coins - a.coins);
     renderQueueUI();
     next();
     return true;
@@ -458,6 +517,7 @@ const VoiceManager = (() => {
 
   function isQueued(userId){
     if (current && current.userId === userId) return true;
+    if (queueP.some(q => q.userId === userId)) return true;
     return queueA.some(q => q.userId === userId);
   }
 
@@ -468,7 +528,7 @@ const VoiceManager = (() => {
       if (speaking) return;
       // Реальные жертвы могли встать в очередь, пока ждали таймер филлера —
       // не перекрикивать их болтовнёй, сразу пропускаем вперёд.
-      if (queueA.length){ next(); return; }
+      if (totalQueueLen()){ next(); return; }
       const text = rnd(CTA);
       UI.showBubble(text);
       speaking = true;
@@ -514,13 +574,13 @@ const VoiceManager = (() => {
   }
 
   function reset(){
-    queueA = []; current = null; speaking = false;
+    queueP = []; queueA = []; current = null; speaking = false;
     clearTimeout(idleTimer);
     if (synth) synth.cancel();
     renderQueueUI();
   }
 
-  return { enqueueRoast, isQueued, start, reset };
+  return { enqueueRoast, enqueueDonor, isQueued, start, reset };
 })();
 
 // ── UI ───────────────────────────────────────────────────────────────────
@@ -540,20 +600,22 @@ const UI = (() => {
     }
     b.classList.remove('pop'); void b.offsetWidth; b.classList.add('pop');
   }
-  function renderQueue(queueA, current){
+  function renderQueue(queueP, queueA, current){
     const el = document.getElementById('queueRow');
     const items = [];
     if (current) items.push(Object.assign({}, current, { isCurrent:true }));
+    queueP.forEach(q => items.push(Object.assign({}, q, { isDonor:true })));
     queueA.forEach(q => items.push(q));
     if (!items.length){ el.innerHTML = '<div class="qempty">Пока никого — жду героя!</div>'; return; }
     el.innerHTML = items.map(p => {
-      return '<div class="qchip'+(p.isCurrent?' current':'')+'">'
+      return '<div class="qchip'+(p.isCurrent?' current':'')+(p.isDonor?' donor':'')+'">'
         + '<div class="qav">'+avatarNode(p)+'</div>'
+        + (p.isDonor ? '<div class="qcoins">🪙'+Math.round(p.coins)+'</div>' : '')
         + '<div class="qnick">'+escHtml(p.nick)+'</div></div>';
     }).join('');
   }
   function resetAll(){
-    renderQueue([], null);
+    renderQueue([], [], null);
     showBubble('Жду первую жертву…');
   }
   return { showBubble, renderQueue, resetAll };
@@ -597,21 +659,39 @@ const ROAST_PHRASES = [
   'Хотел разнос — получишь. Могло быть больнее, но мы гуманисты.',
 ];
 
+function donorText(coins){
+  return '🪙 ' + Math.round(coins).toLocaleString('ru-RU') + ' монет — и всё равно: ' + rnd(ROAST_PHRASES);
+}
+
 // ── Обработчики доменных событий ────────────────────────────────────────
+// Подписка обязательна для лайков-порога и команды «разнеси» — но НЕ для
+// доната (донат сам по себе даёт приоритет в очереди, без всяких условий).
 EventBus.on('FOLLOW_RECEIVED', (d) => {
   const uid = String(d.userId||''); if (!uid) return;
   Eligibility.markFollowed(uid);
 });
 
 EventBus.on('LIKE_RECEIVED', (d) => {
+  const nick = filterNick(d.username) || 'Зритель';
   const uid = String(d.userId||''); if (!uid) return;
-  Eligibility.markLiked(uid);
+  const reachedThreshold = Eligibility.addLikesAndCheckThreshold(uid, d.likes || 1);
+  if (!reachedThreshold) return;
+  if (Eligibility.isCoolingDown(uid)) return;
+  if (VoiceManager.isQueued(uid)) return;
+  VoiceManager.enqueueRoast(uid, nick, d.avatarUrl, rnd(ROAST_PHRASES));
+});
+
+EventBus.on('DONATION_RECEIVED', (d) => {
+  const nick = filterNick(d.username) || 'Зритель';
+  const uid = String(d.userId||''); if (!uid) return;
+  const coins = Math.max(1, Math.floor(Number(d.coins) || 0));
+  VoiceManager.enqueueDonor(uid, nick, d.avatarUrl, coins, donorText);
 });
 
 EventBus.on('COMMAND_RECEIVED', (d) => {
   const nick = filterNick(d.username) || 'Зритель';
   const uid = String(d.userId||''); if (!uid) return;
-  if (!Eligibility.isEligible(uid)) return;
+  if (!Eligibility.isFollowed(uid)) return;
   if (Eligibility.isCoolingDown(uid)) return;
   if (VoiceManager.isQueued(uid)) return;
   VoiceManager.enqueueRoast(uid, nick, d.avatarUrl, rnd(ROAST_PHRASES));
@@ -636,6 +716,8 @@ function wsConnect(username){
         EventBus.emit('FOLLOW_RECEIVED', d);
       } else if (d.type === 'razgon_like'){
         EventBus.emit('LIKE_RECEIVED', d);
+      } else if (d.type === 'razgon_gift'){
+        EventBus.emit('DONATION_RECEIVED', d);
       } else if (d.type === 'razgon_chat'){
         const msg = (d.message||'').trim().toLowerCase().replace(/[!.,?]+$/,'');
         if (msg === 'разнеси') EventBus.emit('COMMAND_RECEIVED', d);
@@ -672,17 +754,28 @@ const Debug = (() => {
   function setStatus(m){ const el = document.getElementById('dbgStatus'); if (el) el.textContent = m; }
   function fireFollow(u){ EventBus.emit('FOLLOW_RECEIVED', u || rndUser()); }
   function fireLike(u){ EventBus.emit('LIKE_RECEIVED', Object.assign(u || rndUser(), { likes: 1+Math.floor(Math.random()*10) })); }
+  function fireLike100(){ const u = rndUser(); fireFollow(u); EventBus.emit('LIKE_RECEIVED', Object.assign(u, { likes: 100 })); }
   function fireCmd(u){ EventBus.emit('COMMAND_RECEIVED', Object.assign(u || rndUser(), { message: 'разнеси' })); }
-  function fireFull(){ const u = rndUser(); fireFollow(u); fireLike(u); fireCmd(u); }
-  function fireMass(){ for (let i=0;i<5;i++) setTimeout(fireFull, i*250); }
+  function fireFull(){ const u = rndUser(); fireFollow(u); fireCmd(u); }
+  function fireGift(min, max){ const u = rndUser(); EventBus.emit('DONATION_RECEIVED', Object.assign(u, { coins: min + Math.floor(Math.random()*(max-min)) })); }
+  function fireMass(){
+    // Смешиваем обычный вход (подписка+команда) и донаты — чтобы было видно,
+    // что донатеры сортируются по монетам и идут впереди обычной очереди.
+    for (let i=0;i<3;i++) setTimeout(fireFull, i*250);
+    setTimeout(() => fireGift(20, 100), 300);
+    setTimeout(() => fireGift(300, 900), 500);
+  }
   function wire(){
     document.querySelectorAll('#debugPanel button[data-t]').forEach(btn => {
       btn.addEventListener('click', () => {
         const t = btn.dataset.t;
         if (t==='follow') fireFollow();
         else if (t==='like') fireLike();
+        else if (t==='like100') fireLike100();
         else if (t==='cmd') fireCmd();
         else if (t==='full') fireFull();
+        else if (t==='gift') fireGift(10, 150);
+        else if (t==='giftbig') fireGift(500, 2000);
         else if (t==='mass') fireMass();
         else if (t==='reset'){ Eligibility.reset(); VoiceManager.reset(); UI.resetAll(); }
       });
