@@ -395,6 +395,22 @@
     <div class="status-msg" id="tamagotchiStatus">⏳ Открываю…</div>
   </div>
 
+  <!-- ── РАЗНОС (говорящий ведущий роастит зрителей по подписке+лайку+команде) ── -->
+  <div class="game-panel panel-arena" style="border-left:1px solid rgba(255,95,109,0.3)">
+    <div class="panel-title" style="color:#ff5f6d;text-shadow:0 0 18px #ffc371">🔥 РАЗНОС 🔥</div>
+    <div class="panel-sub">Не игра — оверлей поверх LIVE: подписка + лайк + «разнеси» в чат ставит в очередь, говорящий ведущий зачитывает роаст</div>
+
+    <input class="nick-input" id="razgonInput" type="text"
+           placeholder="@your_username"
+           autocomplete="off" autocorrect="off" spellcheck="false">
+
+    <div class="error-msg" id="razgonError">Введи никнейм TikTok</div>
+
+    <button class="btn-start" id="razgonStart" style="background:linear-gradient(90deg,#ff5f6d,#ffc371);color:#1a1420;box-shadow:0 4px 20px rgba(255,95,109,0.4)">🔥 START РАЗНОС</button>
+
+    <div class="status-msg" id="razgonStatus">⏳ Открываю…</div>
+  </div>
+
   <!-- ── AVATAR WAR ── -->
   <div class="game-panel panel-arena" style="border-left:1px solid rgba(79,168,255,0.3)">
     <div class="panel-title" style="color:#4fa8ff;text-shadow:0 0 18px #ff5566">⚔️ AVATAR WAR ⚔️</div>
@@ -427,13 +443,14 @@
   document.getElementById('fantasyarenaInput').value = saved;
   document.getElementById('vzaimkiInput').value = saved;
   document.getElementById('tamagotchiInput').value = saved;
+  document.getElementById('razgonInput').value = saved;
   document.getElementById('avatarwarInput').value = saved;
 
   // Sync all inputs when typing
-  ['civInput','boxingInput','boxingEnInput','streetfighterInput','streetfighter2Input','fishingInput','fantasyarenaInput','vzaimkiInput','tamagotchiInput','avatarwarInput'].forEach(id => {
+  ['civInput','boxingInput','boxingEnInput','streetfighterInput','streetfighter2Input','fishingInput','fantasyarenaInput','vzaimkiInput','tamagotchiInput','razgonInput','avatarwarInput'].forEach(id => {
     document.getElementById(id).addEventListener('input', function() {
       if (this.value.startsWith('@')) this.value = this.value.slice(1);
-      ['civInput','boxingInput','boxingEnInput','streetfighterInput','streetfighter2Input','fishingInput','fantasyarenaInput','vzaimkiInput','tamagotchiInput','avatarwarInput'].forEach(oid => {
+      ['civInput','boxingInput','boxingEnInput','streetfighterInput','streetfighter2Input','fishingInput','fantasyarenaInput','vzaimkiInput','tamagotchiInput','razgonInput','avatarwarInput'].forEach(oid => {
         if (oid !== id) document.getElementById(oid).value = this.value;
       });
     });
@@ -517,6 +534,13 @@
     handleClick('tamagotchiInput','tamagotchiError','tamagotchiStatus','tamagotchiStart','/tamagotchi'));
   document.getElementById('tamagotchiInput').addEventListener('keydown', e => {
     if (e.key === 'Enter') document.getElementById('tamagotchiStart').click();
+  });
+
+  // Разнос
+  document.getElementById('razgonStart').addEventListener('click', () =>
+    handleClick('razgonInput','razgonError','razgonStatus','razgonStart','/razgon'));
+  document.getElementById('razgonInput').addEventListener('keydown', e => {
+    if (e.key === 'Enter') document.getElementById('razgonStart').click();
   });
 
   // Avatar War

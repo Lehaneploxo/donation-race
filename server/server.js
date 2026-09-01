@@ -74,6 +74,7 @@ app.get('/fishing',    serveHtml('fishing.html'));
 app.get('/fishing-db', serveHtml('fishing_db.html'));
 app.get('/vzaimki',    serveHtml('vzaimki.html'));
 app.get('/tamagotchi', serveHtml('tamagotchi.html'));
+app.get('/razgon',     serveHtml('razgon.html'));
 app.get('/avatarwar',  serveHtml('avatar_war.html'));
 
 // Локальный no-op сервис подписи — возвращает URL без изменений
@@ -964,6 +965,8 @@ class Room {
         if (this.connection?._tiktokMode === 'tiktok') {
           this.broadcast({ type: 'civ_like', likes: data.likes || 1, username: data.username });
           this.broadcast({ type: 'vzaimki_like', likes: data.likes || 1, username: data.username, userId: data.userId, avatarUrl: data.avatarUrl });
+          // Разнос: та же защита от демо-ботов — лайк засчитывается только в реальном эфире
+          this.broadcast({ type: 'razgon_like', likes: data.likes || 1, username: data.username, userId: data.userId, avatarUrl: data.avatarUrl });
         }
         // War game: broadcast raw like count regardless of race state
         this.broadcast({ type: 'war_like', likes: data.likes || 0, username: data.username });
@@ -993,6 +996,12 @@ class Room {
 
         // Civilization game: broadcast raw chat so client can react to keywords
         this.broadcast({ type: 'chat', uniqueId: data.userId, username: data.username, comment: msg });
+
+        // Разнос: команда "разнеси" — только из реального эфира, демо-боты
+        // не должны наполнять очередь на разнос
+        if (this.connection?._tiktokMode === 'tiktok') {
+          this.broadcast({ type: 'razgon_chat', userId: data.userId, username: data.username, avatarUrl: data.avatarUrl, message: msg });
+        }
 
         // War game: broadcast team command to all clients
         if (msg === 'blue' || msg === 'red') {
@@ -1182,6 +1191,7 @@ class Room {
       (data) => {
         if (this.connection?._tiktokMode === 'tiktok') {
           this.broadcast({ type: 'vzaimki_follow', username: data.username, userId: data.userId, avatarUrl: data.avatarUrl });
+          this.broadcast({ type: 'razgon_follow', username: data.username, userId: data.userId, avatarUrl: data.avatarUrl });
         }
       }
     );

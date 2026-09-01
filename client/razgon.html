@@ -1,0 +1,698 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Разнос</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --gap: 12px;
+    --radius: 16px;
+    --panel: rgba(14,17,26,0.74);
+    --border: rgba(255,255,255,0.10);
+    --text: #f3f5fb;
+    --text-dim: rgba(243,245,251,0.62);
+    --text-faint: rgba(243,245,251,0.38);
+    --accent: #ff5f6d;
+    --accent2: #ffc371;
+    --green: #57d9a3;
+  }
+  *{ box-sizing:border-box; }
+  html,body{
+    margin:0; padding:0; width:100%; height:100%;
+    background:
+      radial-gradient(circle at 20% 10%, rgba(255,95,109,0.28), transparent 55%),
+      radial-gradient(circle at 85% 90%, rgba(255,195,113,0.20), transparent 50%),
+      linear-gradient(165deg, rgba(12,13,22,0.90) 0%, rgba(9,10,17,0.93) 55%, rgba(6,7,12,0.96) 100%);
+    font-family:'Manrope','Segoe UI',system-ui,sans-serif;
+    color: var(--text);
+    overflow: hidden;
+  }
+  img{ max-width:none; }
+
+  #stageWrap{ position:fixed; inset:0; }
+  #stage{
+    position:absolute; top:50%; left:50%;
+    width:600px; height:1000px;
+    transform-origin:center center;
+    display:flex; flex-direction:column;
+    gap: var(--gap);
+    padding: 14px 14px 10px;
+  }
+
+  .topbar{ display:flex; align-items:center; justify-content:space-between; padding: 6px 4px; }
+  .brand{ font-weight:800; font-size:34px; letter-spacing:0.5px; display:flex; align-items:center; gap:8px; color:#fff; text-shadow: 0 1px 6px rgba(0,0,0,0.5); }
+  .brand .dotpulse{ width:9px; height:9px; border-radius:50%; background: var(--green); box-shadow: 0 0 0 0 rgba(87,217,163,0.6); animation: dotpulse 2.2s infinite; }
+  @keyframes dotpulse{ 0%{ box-shadow: 0 0 0 0 rgba(87,217,163,0.55); } 70%{ box-shadow: 0 0 0 8px rgba(87,217,163,0); } 100%{ box-shadow: 0 0 0 0 rgba(87,217,163,0); } }
+  .ui-btn{
+    position:fixed; z-index:99999; width:26px; height:26px; font-size:12px;
+    background:rgba(0,0,0,0.55); color:rgba(255,255,255,0.55);
+    border:1px solid rgba(255,255,255,0.2); border-radius:6px; cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+  }
+  #backBtn{ top: calc(50% - 49px); right:10px; }
+  #musicBtn{ top: calc(50%); right:10px; }
+  #fsBtn{ top: calc(50% + 49px); right:10px; }
+  .connBadge{ font-size:20px; padding:3px 9px; border-radius:8px; background: rgba(255,255,255,0.08); color: var(--text-dim); font-weight:600; }
+  .connBadge[hidden]{ display:none; }
+
+  /* ── Rules banner ─────────────────────────────────────────── */
+  .rules{
+    order:1; flex:none;
+    background: linear-gradient(90deg, rgba(255,95,109,0.22), rgba(14,17,26,0.80));
+    border:2px solid rgba(255,95,109,0.55); border-radius: var(--radius);
+    padding: 14px 16px; text-align:center;
+    font-weight:800; font-size:26px; line-height:1.35; letter-spacing:0.2px;
+    color:#fff; text-transform:uppercase;
+  }
+  .rules b{ color: var(--accent2); }
+
+  /* ── Speech bubble ─────────────────────────────────────────── */
+  .bubbleWrap{ order:2; flex:none; display:flex; flex-direction:column; align-items:center; }
+  .bubble{
+    position:relative; max-width:560px; min-height:120px;
+    background:#fff; color:#181818; border-radius:22px;
+    padding:20px 24px; display:flex; align-items:center; justify-content:center;
+    text-align:center; font-weight:700; font-size:32px; line-height:1.32;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.35);
+  }
+  .bubble.pop{ animation: bubblepop .3s ease; }
+  @keyframes bubblepop{ 0%{ transform:scale(0.96); } 60%{ transform:scale(1.015); } 100%{ transform:scale(1); } }
+  .bubble b{ color:#c81d33; }
+  .bubble-arrow{
+    width:0; height:0; margin-top:-2px;
+    border-left:16px solid transparent; border-right:16px solid transparent;
+    border-top:20px solid #fff;
+  }
+
+  /* ── Host (говорящая голова, Live2D "Kei") ───────────────────── */
+  .hostCard{ order:3; flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; min-height:0; }
+  .host-avatar{ position:relative; width:270px; height:270px; animation: hostBob 4.2s ease-in-out infinite; }
+  #host[data-state="excited"]{ animation: hostBobExcited 0.7s ease-in-out infinite; }
+  #host[data-state="waiting"]{ animation: hostBob 5.4s ease-in-out infinite; }
+  @keyframes hostBob{ 0%,100%{ transform: translateY(0) rotate(0deg); } 50%{ transform: translateY(-2px) rotate(-1deg); } }
+  @keyframes hostBobExcited{ 0%,100%{ transform: translateY(0) rotate(-2deg) scale(1.03); } 50%{ transform: translateY(-4px) rotate(2deg) scale(1.06); } }
+  .hf-halo{ position:absolute; inset:-28px; border-radius:50%; background: radial-gradient(circle, rgba(255,95,109,0.30), rgba(255,95,109,0) 68%); transition: background .5s ease; }
+  #host[data-state="waiting"] .hf-halo, #host[data-state="idle"] .hf-halo{ background: radial-gradient(circle, rgba(87,217,163,0.28), rgba(87,217,163,0) 68%); }
+  #host[data-state="speaking"] .hf-halo{ background: radial-gradient(circle, rgba(255,95,109,0.42), rgba(255,95,109,0) 68%); animation: haloPulse 1s ease-in-out infinite; }
+  #host[data-state="excited"] .hf-halo{ background: radial-gradient(circle, rgba(255,195,113,0.50), rgba(255,195,113,0) 70%); animation: haloPulse .45s ease-in-out infinite; }
+  @keyframes haloPulse{ 0%,100%{ transform: scale(1); opacity:1; } 50%{ transform: scale(1.1); opacity:.8; } }
+  #hostCanvas{ position:absolute; inset:0; width:100%; height:100%; display:block; }
+  .host-eq{ position:absolute; left:58%; top:65%; transform:translateY(-50%); display:flex; align-items:flex-end; gap:2px; height:10px; z-index:3; opacity:0; transition: opacity .2s ease; }
+  #host[data-state="speaking"] .host-eq, #host[data-state="excited"] .host-eq{ opacity:1; }
+  .host-eq span{ width:3px; height:4px; border-radius:2px; background: var(--accent); }
+  #host[data-state="speaking"] .host-eq span, #host[data-state="excited"] .host-eq span{ animation: eqBounce .5s ease-in-out infinite; }
+  .host-eq span:nth-child(2){ animation-delay:.12s; }
+  .host-eq span:nth-child(3){ animation-delay:.24s; }
+  @keyframes eqBounce{ 0%,100%{ height:4px; } 50%{ height:12px; } }
+
+  /* ── Queue strip ──────────────────────────────────────────── */
+  .queueBox{
+    order:4; flex:none;
+    background: var(--panel); border:1px solid var(--border); border-radius: var(--radius);
+    padding: 10px 12px; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  }
+  .queueHead{ font-size:22px; font-weight:800; color: var(--accent2); margin-bottom:8px; }
+  .queueRow{ display:flex; align-items:center; gap:10px; overflow:hidden; min-height:64px; }
+  .qchip{ flex:none; display:flex; flex-direction:column; align-items:center; gap:4px; opacity:0.85; }
+  .qchip .qav{ width:44px; height:44px; border-radius:50%; overflow:hidden; border:2px solid var(--border); background:rgba(255,255,255,0.08); }
+  .qchip .qav img, .qchip .qav .avfallback{ width:100%; height:100%; object-fit:cover; font-size:20px; }
+  .qchip .qnick{ font-size:16px; color: var(--text-dim); max-width:56px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .qchip.current{ opacity:1; }
+  .qchip.current .qav{ width:58px; height:58px; border-color: var(--accent); box-shadow:0 0 14px rgba(255,95,109,0.6); }
+  .qchip.current .qnick{ color:#fff; font-weight:800; max-width:74px; }
+  .qempty{ font-size:20px; color: var(--text-faint); padding:6px 2px; }
+
+  .footer{ order:6; text-align:center; font-size:20px; color: var(--text-faint); padding: 2px 0 0; flex:none; letter-spacing:0.3px; }
+
+  #fxLayer{ position:absolute; inset:0; pointer-events:none; overflow:hidden; z-index:50; }
+  .fx-flash{ position:absolute; inset:0; background: radial-gradient(circle at 50% 30%, rgba(255,95,109,0.55), rgba(255,95,109,0) 70%); opacity:0; animation: fxFlash 0.6s ease-out forwards; }
+  @keyframes fxFlash{ 0%{ opacity:0; } 15%{ opacity:1; } 100%{ opacity:0; } }
+
+  #debugPanel{ position:fixed; right:8px; bottom:8px; z-index:99; background: rgba(0,0,0,0.86); border:1px solid rgba(255,255,255,0.2); border-radius:12px; padding:8px; width:220px; font-size:11px; }
+  #debugPanel .dbg-row{ margin-bottom:6px; color:#fff; }
+  #debugPanel .dbg-btns{ display:grid; grid-template-columns:1fr 1fr; gap:5px; }
+  #debugPanel button{ font-size:10px; padding:6px 3px; border-radius:6px; border:1px solid rgba(255,255,255,0.25); background:#1a1f2e; color:#fff; cursor:pointer; }
+  #debugPanel button:active{ background:#2a3145; }
+</style>
+</head>
+<body>
+
+<button id="backBtn" class="ui-btn" title="Главное меню">⌂</button>
+<button id="musicBtn" class="ui-btn" title="Музыка">🎵</button>
+<button id="fsBtn" class="ui-btn" title="На весь экран">⛶</button>
+
+<div id="stageWrap">
+  <div id="stage">
+
+    <div class="topbar">
+      <div class="brand"><span class="dotpulse"></span> 🔥 РАЗНОС</div>
+      <span class="connBadge" id="connBadge" hidden>—</span>
+    </div>
+
+    <div class="rules">Подписка + лайк + напиши <b>«разнеси»</b> в чат — чтобы тебя разнесли!</div>
+
+    <div class="bubbleWrap">
+      <div class="bubble" id="bubble"><span id="bubbleText">Жду первую жертву…</span></div>
+      <div class="bubble-arrow"></div>
+    </div>
+
+    <div class="hostCard">
+      <div class="host-avatar" id="host" data-state="waiting">
+        <div class="hf-halo"></div>
+        <canvas id="hostCanvas"></canvas>
+        <div class="host-eq"><span></span><span></span><span></span></div>
+      </div>
+    </div>
+
+    <div class="queueBox">
+      <div class="queueHead">🎯 Очередь на разнос</div>
+      <div class="queueRow" id="queueRow"><div class="qempty">Пока никого</div></div>
+    </div>
+
+    <div class="footer">🔥 РАЗНОС</div>
+
+    <div id="fxLayer"></div>
+
+  </div>
+</div>
+
+<!-- Live2D-рендер ведущего (Kei, официальный бесплатный сэмпл Live2D, тот же
+     ассет, что и в «Взаимках» — client/sprites/kei_live2d/) -->
+<script src="https://cubism.live2d.com/sdk-web/cubismcore/live2dcubismcore.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/pixi.js@6.5.10/dist/browser/pixi.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/pixi-live2d-display@0.4.0/dist/cubism4.min.js"></script>
+
+<div id="debugPanel" hidden>
+  <div class="dbg-row"><b>DEBUG</b> — статус: <span id="dbgStatus">—</span></div>
+  <div class="dbg-btns">
+    <button data-t="follow">TEST FOLLOW</button>
+    <button data-t="like">TEST LIKE</button>
+    <button data-t="cmd">TEST «разнеси»</button>
+    <button data-t="full">FOLLOW+LIKE+CMD</button>
+    <button data-t="mass" style="grid-column:1/3">MASS (5 жертв)</button>
+    <button data-t="reset" style="grid-column:1/3">RESET SESSION</button>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════════════
+// РАЗНОС — TikTok LIVE игра: зритель подписывается + лайкает + пишет в чат
+// «разнеси» → встаёт в очередь → говорящий ведущий (Live2D, тот же движок,
+// что в «Взаимках») зачитывает про него шутливую роаст-фразу.
+// Данные (кто подписался/лайкнул/в очереди) — только в памяти текущего эфира,
+// сбрасываются на каждый новый LIVE (тот же принцип, что в vzaimki.html).
+// ═══════════════════════════════════════════════════════════════════════════
+
+const CONFIG = {
+  VOICE_ENABLED: true,
+  SPEECH_COOLDOWN_MS: 500,
+  CTA_INTERVAL_MIN_MS: 9000,
+  CTA_INTERVAL_MAX_MS: 15000,
+  REQUEUE_COOLDOWN_MS: 45000, // после разноса — пауза, прежде чем можно встать в очередь снова
+  MAX_QUEUE_LEN: 10,
+};
+
+function escHtml(s){ return String(s==null?'':s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function buildNickStripRegex(){
+  var ranges = [[0,0x1F],[0x7F,0x7F],[0x200B,0x200F],[0x202A,0x202E],[0x2060,0x206F]];
+  var pat = "[" + ranges.map(function(r){ return String.fromCharCode(r[0]) + "-" + String.fromCharCode(r[1]); }).join("") + "]";
+  return new RegExp(pat, "g");
+}
+var NICK_STRIP_RE = buildNickStripRegex();
+function filterNick(n){
+  return String(n||"").replace(NICK_STRIP_RE, "").trim().slice(0, 40);
+}
+function rnd(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
+function tpl(s, nick){ return s.replace(/\[НИК\]/g, nick); }
+function hashHue(str){
+  let h=0; str = String(str||'x');
+  for (let i=0;i<str.length;i++) h = (h*31 + str.charCodeAt(i)) >>> 0;
+  return h % 360;
+}
+function razAvatarFallback(img){
+  const initial = img.dataset.fallbackInitial || '?';
+  const hue = img.dataset.fallbackHue || '0';
+  const div = document.createElement('div');
+  div.className = 'avfallback';
+  div.style.background = 'hsl('+hue+',55%,42%)';
+  div.textContent = initial;
+  img.replaceWith(div);
+}
+function avatarNode(p){
+  const initial = escHtml((p.nick||'?').trim().charAt(0).toUpperCase() || '?');
+  const hue = hashHue(p.userId || p.nick || 'x');
+  if (p.avatarUrl){
+    return '<img src="'+escHtml(p.avatarUrl)+'" alt="" loading="lazy" '
+      + 'data-fallback-initial="'+initial+'" data-fallback-hue="'+hue+'" onerror="razAvatarFallback(this)">';
+  }
+  return '<div class="avfallback" style="background:hsl('+hue+',55%,42%)">'+initial+'</div>';
+}
+
+// ── EventBus ─────────────────────────────────────────────────────────────
+const EventBus = (() => {
+  const listeners = {};
+  function on(type, fn){ (listeners[type] = listeners[type] || []).push(fn); }
+  function emit(type, payload){
+    (listeners[type]||[]).slice().forEach(fn => {
+      try { fn(payload); } catch(e){ console.error('[EventBus]', type, e); }
+    });
+  }
+  return { on, emit };
+})();
+
+// ── Eligibility — кто в этом эфире реально подписался/лайкнул ──────────────
+const Eligibility = (() => {
+  let followed = new Set();
+  let liked = new Set();
+  let cooldownUntil = new Map();
+  function markFollowed(userId){ if (userId) followed.add(userId); }
+  function markLiked(userId){ if (userId) liked.add(userId); }
+  function isEligible(userId){ return !!userId && followed.has(userId) && liked.has(userId); }
+  function isCoolingDown(userId){ return (cooldownUntil.get(userId)||0) > Date.now(); }
+  function startCooldown(userId){ if (userId) cooldownUntil.set(userId, Date.now() + CONFIG.REQUEUE_COOLDOWN_MS); }
+  function reset(){ followed = new Set(); liked = new Set(); cooldownUntil = new Map(); }
+  return { markFollowed, markLiked, isEligible, isCoolingDown, startCooldown, reset };
+})();
+
+// ── HostManager — Live2D "Kei" (идентично vzaimki.html) ─────────────────────
+const HostManager = (() => {
+  let hostEl, app, model = null;
+  let state = 'waiting';
+  let mouthLoopId = null;
+  let mouthTarget = 0, eyeTarget = 1;
+  let mouthValue = 0, eyeValue = 1;
+  let excitedTimer = null, waitTimer = null, blinkTimer = null;
+
+  function init(){
+    hostEl = document.getElementById('host');
+    const canvas = document.getElementById('hostCanvas');
+    const box = hostEl.getBoundingClientRect();
+    app = new PIXI.Application({
+      view: canvas, width: box.width || 270, height: box.height || 270,
+      resolution: Math.min(window.devicePixelRatio || 1, 2), autoDensity: true,
+      backgroundAlpha: 0, antialias: true,
+    });
+    PIXI.live2d.Live2DModel.from('sprites/kei_live2d/kei_basic_free.model3.json', { autoUpdate: false })
+      .then(m => {
+        model = m;
+        model.anchor.set(0.5, 0.5);
+        const scale = Math.min(app.screen.width / model.width, app.screen.height / model.height) * 1.65;
+        model.scale.set(scale);
+        model.x = app.screen.width / 2 + app.screen.width * 0.09;
+        model.y = app.screen.height * 0.58;
+        app.stage.addChild(model);
+      })
+      .catch(e => console.error('[HostManager] Live2D load failed', e));
+
+    app.ticker.add(() => {
+      if (!model) return;
+      model.update(PIXI.Ticker.shared.deltaMS);
+      mouthValue += (mouthTarget - mouthValue) * 0.35;
+      eyeValue += (eyeTarget - eyeValue) * 0.4;
+      const core = model.internalModel.coreModel;
+      core.setParameterValueById('ParamMouthOpenY', mouthValue);
+      core.setParameterValueById('ParamEyeLOpen', eyeValue);
+      core.setParameterValueById('ParamEyeROpen', eyeValue);
+    });
+
+    scheduleBlink();
+  }
+  function setState(s){ state = s; if (hostEl) hostEl.setAttribute('data-state', s); }
+  function mouthTick(){ mouthTarget = mouthTarget > 0.4 ? 0.05 : (0.5 + Math.random()*0.5); }
+  function startMouthLoop(){ stopMouthLoop(); mouthLoopId = setInterval(mouthTick, 100 + Math.random()*70); }
+  function stopMouthLoop(){ if (mouthLoopId){ clearInterval(mouthLoopId); mouthLoopId = null; } mouthTarget = 0; }
+  function setSpeaking(isSpeaking){
+    if (isSpeaking){
+      setState(state === 'excited' ? 'excited' : 'speaking');
+      startMouthLoop();
+    } else {
+      stopMouthLoop();
+      setState('idle');
+      clearTimeout(waitTimer);
+      waitTimer = setTimeout(() => { if (state === 'idle') setState('waiting'); }, 4000);
+    }
+  }
+  function pulseExcited(){
+    setState('excited');
+    clearTimeout(excitedTimer);
+    excitedTimer = setTimeout(() => { setState(mouthLoopId ? 'speaking' : 'idle'); }, 2200);
+  }
+  function scheduleBlink(){
+    const delay = 2600 + Math.random()*3200;
+    blinkTimer = setTimeout(() => {
+      eyeTarget = 0;
+      setTimeout(() => { eyeTarget = 1; }, 120);
+      scheduleBlink();
+    }, delay);
+  }
+  return { init, setState, setSpeaking, mouthTick, pulseExcited };
+})();
+
+// ── VoiceManager — очередь роастов (queueA) + CTA-филлеры, TTS ─────────────
+const VoiceManager = (() => {
+  const synth = window.speechSynthesis || null;
+  let queueA = []; // { text, nick, userId, avatarUrl }
+  let current = null; // объект сейчас озвучиваемого роаста (для UI/cooldown)
+  let speaking = false;
+  let cachedVoice = null;
+  let idleTimer = null;
+  let started = false;
+
+  const CTA = [
+    'Кто следующий? Подпишись, лайкни и напиши «разнеси» — очередь открыта!',
+    'Не стесняйтесь — подписка, лайк и «разнеси» в чат, и я найду о чём сказать!',
+    'Тишина в студии... Подпишитесь, лайкните, напишите «разнеси» — разбудите меня!',
+    'Есть тут смелые? Подписка + лайк + «разнеси» — и вы в эфире!',
+    'Я заскучал без работы. Подпишись, лайкни, пиши «разнеси» — не пожалеешь. Или пожалеешь!',
+    'Очередь пустая — непорядок! Подписка, лайк, команда «разнеси» — вперёд!',
+    'Кто хочет прославиться на весь эфир? Подпишись, лайкни, напиши «разнеси»!',
+    'Готовлю формулировки, жду жертв. Подписка + лайк + «разнеси» в чат!',
+  ];
+
+  function pickVoice(){
+    if (cachedVoice || !synth) return cachedVoice;
+    const voices = synth.getVoices();
+    cachedVoice =
+      voices.find(v => /ru/i.test(v.lang) && /(male|мужск|pavel|dmitri|yuri)/i.test(v.name)) ||
+      voices.find(v => /ru[-_]/i.test(v.lang)) ||
+      voices.find(v => /ru/i.test(v.lang)) ||
+      voices.find(v => v.default) || voices[0] || null;
+    return cachedVoice;
+  }
+
+  function speakText(text, done){
+    if (!synth){ done(); return; }
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = 'ru-RU'; u.rate = 1.02; u.pitch = 0.92;
+    u.volume = CONFIG.VOICE_ENABLED ? 1 : 0;
+    const v = pickVoice(); if (v) u.voice = v;
+    let doneCalled = false;
+    const finish = () => { if (doneCalled) return; doneCalled = true; HostManager.setSpeaking(false); done(); };
+    u.onstart = () => HostManager.setSpeaking(true);
+    u.onboundary = () => HostManager.mouthTick();
+    u.onend = finish; u.onerror = finish;
+    setTimeout(finish, 12000);
+    try { synth.speak(u); } catch(e){ finish(); }
+  }
+
+  function renderQueueUI(){ UI.renderQueue(queueA, current); }
+
+  function next(){
+    if (speaking) return;
+    clearTimeout(idleTimer);
+    if (current){ Eligibility.startCooldown(current.userId); current = null; }
+    if (queueA.length){
+      const item = queueA.shift();
+      current = item;
+      renderQueueUI();
+      UI.showBubble(tpl(item.text, '<b>'+escHtml(item.nick)+'</b>'));
+      HostManager.pulseExcited();
+      FX.flash();
+      speaking = true;
+      speakText(item.text.replace(/\[НИК\]/g, item.nick), () => { speaking = false; setTimeout(next, CONFIG.SPEECH_COOLDOWN_MS); });
+    } else {
+      renderQueueUI();
+      scheduleFiller();
+    }
+  }
+
+  function enqueueRoast(userId, nick, avatarUrl, text){
+    if (isQueued(userId)) return false;
+    if (queueA.length >= CONFIG.MAX_QUEUE_LEN) return false;
+    queueA.push({ text, nick, userId, avatarUrl });
+    renderQueueUI();
+    next();
+    return true;
+  }
+
+  function isQueued(userId){
+    if (current && current.userId === userId) return true;
+    return queueA.some(q => q.userId === userId);
+  }
+
+  function scheduleFiller(){
+    clearTimeout(idleTimer);
+    const delay = CONFIG.CTA_INTERVAL_MIN_MS + Math.random()*(CONFIG.CTA_INTERVAL_MAX_MS-CONFIG.CTA_INTERVAL_MIN_MS);
+    idleTimer = setTimeout(() => {
+      if (speaking) return;
+      // Реальные жертвы могли встать в очередь, пока ждали таймер филлера —
+      // не перекрикивать их болтовнёй, сразу пропускаем вперёд.
+      if (queueA.length){ next(); return; }
+      const text = rnd(CTA);
+      UI.showBubble(text);
+      speaking = true;
+      speakText(text, () => { speaking = false; next(); });
+    }, delay);
+  }
+
+  let _unlocked = false;
+  function unlock(){
+    if (_unlocked || !synth) return;
+    _unlocked = true;
+    try { const u = new SpeechSynthesisUtterance(''); u.volume = 0; synth.speak(u); } catch(e){}
+  }
+  setInterval(() => { try { if (synth && synth.paused) synth.resume(); } catch(e){} }, 4000);
+
+  let _interacted = false;
+  function armInteractionUnlock(){
+    const onFirstInteract = () => {
+      if (_interacted) return;
+      _interacted = true;
+      unlock();
+      if (!speaking) next();
+    };
+    document.addEventListener('pointerdown', onFirstInteract, { once:true });
+    document.addEventListener('keydown', onFirstInteract, { once:true });
+  }
+
+  const GREETING = [
+    'Всем привет! Кто первый подпишется, лайкнет и напишет «разнеси» — тот и получит!',
+    'Эфир начинается! Подписка, лайк, команда «разнеси» — и я скажу о вас пару ласковых!',
+    'Добро пожаловать на разнос! Подпишись, лайкни, пиши «разнеси» — очередь уже открыта!',
+  ];
+
+  function start(){
+    if (started) return; started = true;
+    unlock();
+    armInteractionUnlock();
+    if (synth) synth.onvoiceschanged = () => { cachedVoice = null; pickVoice(); };
+    const g = rnd(GREETING);
+    UI.showBubble(g);
+    speaking = true;
+    speakText(g, () => { speaking = false; next(); });
+  }
+
+  function reset(){
+    queueA = []; current = null; speaking = false;
+    clearTimeout(idleTimer);
+    if (synth) synth.cancel();
+    renderQueueUI();
+  }
+
+  return { enqueueRoast, isQueued, start, reset };
+})();
+
+// ── UI ───────────────────────────────────────────────────────────────────
+const UI = (() => {
+  function showBubble(html){
+    const b = document.getElementById('bubble');
+    document.getElementById('bubbleText').innerHTML = html;
+    b.classList.remove('pop'); void b.offsetWidth; b.classList.add('pop');
+  }
+  function renderQueue(queueA, current){
+    const el = document.getElementById('queueRow');
+    const items = [];
+    if (current) items.push(Object.assign({}, current, { isCurrent:true }));
+    queueA.forEach(q => items.push(q));
+    if (!items.length){ el.innerHTML = '<div class="qempty">Пока никого — жду героя!</div>'; return; }
+    el.innerHTML = items.map(p => {
+      return '<div class="qchip'+(p.isCurrent?' current':'')+'">'
+        + '<div class="qav">'+avatarNode(p)+'</div>'
+        + '<div class="qnick">'+escHtml(p.nick)+'</div></div>';
+    }).join('');
+  }
+  function resetAll(){
+    renderQueue([], null);
+    showBubble('Жду первую жертву…');
+  }
+  return { showBubble, renderQueue, resetAll };
+})();
+
+// ── FX ───────────────────────────────────────────────────────────────────
+const FX = (() => {
+  function flash(){
+    const l = document.getElementById('fxLayer'); if (!l) return;
+    const el = document.createElement('div');
+    el.className = 'fx-flash';
+    l.appendChild(el);
+    setTimeout(() => el.remove(), 700);
+  }
+  return { flash };
+})();
+
+// ── Роаст-фразы ──────────────────────────────────────────────────────────
+const ROAST_PHRASES = [
+  '[НИК], ты пришёл сюда за вниманием. Мы дали. Больше не подходи.',
+  '[НИК], твоя энергетика как вайфай в подвале — вроде есть, а толку ноль.',
+  'Смотрю на [НИК] и понимаю: не всем повезло родиться главным героем.',
+  '[НИК], твой стиль общения — как автоответчик, только без вежливости.',
+  '[НИК] написал «разнеси» — храбрость это, конечно, не про мозги.',
+  'У [НИК] столько уверенности, сколько у чайника с отклеенной ручкой — держаться не за что.',
+  '[НИК], если бы упорство продавали, ты бы всё равно взял в рассрочку.',
+  'Профиль [НИК] — как холодильник у студента: пусто, но дверь хлопает громко.',
+  '[НИК], твоя харизма работает как будильник по выходным — все хотят её выключить.',
+  'У [НИК] лицо человека, который забыл, зачем зашёл в комнату. Круглосуточно.',
+  '[НИК], не переживай — не все рождены звёздами, кто-то просто фон.',
+  'Спокойствие [НИК] — это не дзен, это просто нечем ответить.',
+  '[НИК], твой вкус как музыка без наушников в автобусе — всем мешает, кроме тебя.',
+  '[НИК] думает, что он загадка. Нет, просто мало текста.',
+  'У [НИК] столько тайны, сколько у пустой коробки с надписью «сюрприз».',
+  '[НИК], твоя самооценка держится на честном слове и на том, что зеркало молчит.',
+  'План [НИК] на вечер — сидеть в чате и надеяться на внимание. План сработал, аплодисменты.',
+  '[НИК], ты как автозамена — вроде стараешься, а получается не то.',
+  'Диагноз для [НИК]: острая нехватка повода для гордости, хроническая форма.',
+  '[НИК] хотел разнос — получит. Могло быть больнее, но мы гуманисты.',
+];
+
+// ── Обработчики доменных событий ────────────────────────────────────────
+EventBus.on('FOLLOW_RECEIVED', (d) => {
+  const uid = String(d.userId||''); if (!uid) return;
+  Eligibility.markFollowed(uid);
+});
+
+EventBus.on('LIKE_RECEIVED', (d) => {
+  const uid = String(d.userId||''); if (!uid) return;
+  Eligibility.markLiked(uid);
+});
+
+EventBus.on('COMMAND_RECEIVED', (d) => {
+  const nick = filterNick(d.username) || 'Зритель';
+  const uid = String(d.userId||''); if (!uid) return;
+  if (!Eligibility.isEligible(uid)) return;
+  if (Eligibility.isCoolingDown(uid)) return;
+  if (VoiceManager.isQueued(uid)) return;
+  VoiceManager.enqueueRoast(uid, nick, d.avatarUrl, rnd(ROAST_PHRASES));
+});
+
+// ── WS Adapter ───────────────────────────────────────────────────────────
+let _ws = null, _wsUser = '', _mode = 'connecting';
+
+function wsConnect(username){
+  _wsUser = username;
+  if (_ws && _ws.readyState < 2){ _ws.onclose = null; _ws.close(); }
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  _ws = new WebSocket(proto+'//'+location.host+'?username='+encodeURIComponent(username));
+  _ws.onopen = () => Debug.setStatus('connecting…');
+  _ws.onmessage = (e) => {
+    let d;
+    try { d = JSON.parse(e.data); } catch(err){ return; }
+    try {
+      if (d.type === 'status' || d.type === 'init'){
+        onConnStatus(d.tiktokMode || d.mode || 'connecting');
+      } else if (d.type === 'razgon_follow'){
+        EventBus.emit('FOLLOW_RECEIVED', d);
+      } else if (d.type === 'razgon_like'){
+        EventBus.emit('LIKE_RECEIVED', d);
+      } else if (d.type === 'razgon_chat'){
+        const msg = (d.message||'').trim().toLowerCase().replace(/[!.,?]+$/,'');
+        if (msg === 'разнеси') EventBus.emit('COMMAND_RECEIVED', d);
+      }
+    } catch(err){ console.error('[razgon ws]', err); }
+  };
+  _ws.onclose = () => { Debug.setStatus('❌ разрыв, переподключение…'); setTimeout(() => wsConnect(_wsUser), 3000); };
+  _ws.onerror = () => {};
+}
+
+let _sessionStarted = false;
+function onConnStatus(mode){
+  Debug.setStatus(mode);
+  const badge = document.getElementById('connBadge');
+  if (badge) badge.textContent = mode === 'tiktok' ? '🔴 LIVE' : (mode === 'demo' ? '🟡 демо/ожидание' : '⏳ подключение');
+  if (mode === 'tiktok' && !_sessionStarted){
+    _sessionStarted = true;
+    Eligibility.reset();
+    VoiceManager.reset();
+    UI.resetAll();
+    HostManager.setState('waiting');
+  }
+  _mode = mode;
+}
+
+// ── DEBUG MODE ───────────────────────────────────────────────────────────
+const Debug = (() => {
+  const NAMES = ['Alex','Lana_777','Vika_fire','Sergey_','Maximka','DoBro','Smile_21','NightWolf','Katya_M','Angel_Kiss'];
+  let idCounter = 1000;
+  function rndUser(){
+    const n = NAMES[Math.floor(Math.random()*NAMES.length)] + (Math.random()<0.3 ? Math.floor(Math.random()*99) : '');
+    return { userId: 'test'+(idCounter++), username: n, avatarUrl: '' };
+  }
+  function setStatus(m){ const el = document.getElementById('dbgStatus'); if (el) el.textContent = m; }
+  function fireFollow(u){ EventBus.emit('FOLLOW_RECEIVED', u || rndUser()); }
+  function fireLike(u){ EventBus.emit('LIKE_RECEIVED', Object.assign(u || rndUser(), { likes: 1+Math.floor(Math.random()*10) })); }
+  function fireCmd(u){ EventBus.emit('COMMAND_RECEIVED', Object.assign(u || rndUser(), { message: 'разнеси' })); }
+  function fireFull(){ const u = rndUser(); fireFollow(u); fireLike(u); fireCmd(u); }
+  function fireMass(){ for (let i=0;i<5;i++) setTimeout(fireFull, i*250); }
+  function wire(){
+    document.querySelectorAll('#debugPanel button[data-t]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const t = btn.dataset.t;
+        if (t==='follow') fireFollow();
+        else if (t==='like') fireLike();
+        else if (t==='cmd') fireCmd();
+        else if (t==='full') fireFull();
+        else if (t==='mass') fireMass();
+        else if (t==='reset'){ Eligibility.reset(); VoiceManager.reset(); UI.resetAll(); }
+      });
+    });
+  }
+  return { setStatus, wire };
+})();
+
+// ── Масштабирование 600×1000 ─────────────────────────────────────────────
+function fitStage(){
+  const stage = document.getElementById('stage');
+  const scale = Math.min(window.innerWidth/600, window.innerHeight/1000, 1.6);
+  stage.style.transform = 'translate(-50%,-50%) scale('+scale+')';
+}
+window.addEventListener('resize', fitStage);
+
+// ── Bootstrap ────────────────────────────────────────────────────────────
+(function init(){
+  fitStage();
+  HostManager.init();
+  UI.resetAll();
+  VoiceManager.start();
+
+  const p = new URLSearchParams(location.search);
+  const debug = p.get('debug') === '1';
+  if (debug){
+    document.getElementById('debugPanel').hidden = false;
+    document.getElementById('connBadge').hidden = false;
+    Debug.wire();
+  }
+
+  document.getElementById('backBtn').addEventListener('click', () => { window.location.href = '/'; });
+  document.getElementById('fsBtn').addEventListener('click', () => {
+    if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(()=>{});
+    else document.exitFullscreen().catch(()=>{});
+  });
+  const musicBtn = document.getElementById('musicBtn');
+  let musicEnabled = localStorage.getItem('razgon_music') !== '0';
+  musicBtn.textContent = musicEnabled ? '🎵' : '🔇';
+  musicBtn.addEventListener('click', () => {
+    musicEnabled = !musicEnabled;
+    localStorage.setItem('razgon_music', musicEnabled ? '1' : '0');
+    musicBtn.textContent = musicEnabled ? '🎵' : '🔇';
+  });
+
+  const u = (p.get('username')||'').replace(/^@/,'').trim();
+  if (u){ wsConnect(u); }
+})();
+</script>
+
+</body>
+</html>
