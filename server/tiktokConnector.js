@@ -104,7 +104,7 @@ function connectToTikTok(username, onGift, onStatus, onMember, onLike, onChat, o
     connection.on('like', (data) => {
       if (!onLike) return;
       const nick = data.nickname || data.uniqueId || 'Unknown';
-      console.log(`[TikTok] ❤️ ${nick} likes=${data.likeCount||1}`);
+      console.log(`[TikTok] ❤️ ${nick} likes=${data.likeCount||1} followRole=${data.followRole}`);
       onLike({
         userId:     String(data.userId || data.uniqueId || 'u'),
         username:   nick,
@@ -121,7 +121,7 @@ function connectToTikTok(username, onGift, onStatus, onMember, onLike, onChat, o
     connection.on('chat', (data) => {
       if (!onChat) return;
       const nick = data.nickname || data.uniqueId || 'Unknown';
-      console.log(`[TikTok] 💬 ${nick}: "${data.comment||''}"`);
+      console.log(`[TikTok] 💬 ${nick}: "${data.comment||''}" followRole=${data.followRole}`);
       onChat({
         userId:     String(data.userId || data.uniqueId || 'u'),
         username:   nick,
