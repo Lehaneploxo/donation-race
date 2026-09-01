@@ -106,10 +106,15 @@ function connectToTikTok(username, onGift, onStatus, onMember, onLike, onChat, o
       const nick = data.nickname || data.uniqueId || 'Unknown';
       console.log(`[TikTok] ❤️ ${nick} likes=${data.likeCount||1}`);
       onLike({
-        userId:    String(data.userId || data.uniqueId || 'u'),
-        username:  nick,
-        avatarUrl: data.profilePictureUrl || '',
-        likes:     data.likeCount || 1,
+        userId:     String(data.userId || data.uniqueId || 'u'),
+        username:   nick,
+        avatarUrl:  data.profilePictureUrl || '',
+        likes:      data.likeCount || 1,
+        // followRole: 0=не подписан, 1=подписан, 2=взаимно (друзья) — актуальный
+        // статус подписки ПРЯМО СЕЙЧАС, а не только "только что подписался".
+        // Нужен для «Разноса»: иначе зрители, подписанные ДО начала эфира,
+        // никогда не проходили бы проверку (событие 'follow' у них не всплывает).
+        followRole: data.followRole,
       });
     });
 
@@ -118,10 +123,11 @@ function connectToTikTok(username, onGift, onStatus, onMember, onLike, onChat, o
       const nick = data.nickname || data.uniqueId || 'Unknown';
       console.log(`[TikTok] 💬 ${nick}: "${data.comment||''}"`);
       onChat({
-        userId:    String(data.userId || data.uniqueId || 'u'),
-        username:  nick,
-        avatarUrl: data.profilePictureUrl || '',
-        message:   data.comment || '',
+        userId:     String(data.userId || data.uniqueId || 'u'),
+        username:   nick,
+        avatarUrl:  data.profilePictureUrl || '',
+        message:    data.comment || '',
+        followRole: data.followRole,
       });
     });
 

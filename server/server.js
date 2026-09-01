@@ -968,7 +968,7 @@ class Room {
           this.broadcast({ type: 'civ_like', likes: data.likes || 1, username: data.username });
           this.broadcast({ type: 'vzaimki_like', likes: data.likes || 1, username: data.username, userId: data.userId, avatarUrl: data.avatarUrl });
           // Разнос: та же защита от демо-ботов — лайк засчитывается только в реальном эфире
-          this.broadcast({ type: 'razgon_like', likes: data.likes || 1, username: data.username, userId: data.userId, avatarUrl: data.avatarUrl });
+          this.broadcast({ type: 'razgon_like', likes: data.likes || 1, username: data.username, userId: data.userId, avatarUrl: data.avatarUrl, followRole: data.followRole });
         }
         // War game: broadcast raw like count regardless of race state
         this.broadcast({ type: 'war_like', likes: data.likes || 0, username: data.username });
@@ -1002,7 +1002,7 @@ class Room {
         // Разнос: команда "разнеси" — только из реального эфира, демо-боты
         // не должны наполнять очередь на разнос
         if (this.connection?._tiktokMode === 'tiktok') {
-          this.broadcast({ type: 'razgon_chat', userId: data.userId, username: data.username, avatarUrl: data.avatarUrl, message: msg });
+          this.broadcast({ type: 'razgon_chat', userId: data.userId, username: data.username, avatarUrl: data.avatarUrl, message: msg, followRole: data.followRole });
         }
 
         // War game: broadcast team command to all clients
