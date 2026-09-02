@@ -70,9 +70,10 @@
     border:1px solid rgba(255,255,255,0.2); border-radius:6px; cursor:pointer;
     display:flex; align-items:center; justify-content:center;
   }
-  #backBtn{ top: calc(50% - 49px); right:10px; }
-  #musicBtn{ top: calc(50%); right:10px; }
-  #fsBtn{ top: calc(50% + 49px); right:10px; }
+  #backBtn{ top: calc(50% - 73px); right:10px; }
+  #voiceBtn{ top: calc(50% - 24px); right:10px; }
+  #musicBtn{ top: calc(50% + 25px); right:10px; }
+  #fsBtn{ top: calc(50% + 74px); right:10px; }
   .connBadge{ font-size:20px; padding:3px 9px; border-radius:8px; background: rgba(255,255,255,0.08); color: var(--text-dim); font-weight:600; }
   .connBadge[hidden]{ display:none; }
 
@@ -187,9 +188,9 @@
 <body>
 
 <button id="backBtn" class="ui-btn" title="Главное меню">⌂</button>
+<button id="voiceBtn" class="ui-btn" title="Звук">🔇</button>
 <button id="musicBtn" class="ui-btn" title="Музыка">🎵</button>
 <button id="fsBtn" class="ui-btn" title="На весь экран">⛶</button>
-<div id="voiceDbg" style="position:fixed; top:6px; left:6px; z-index:999999; background:rgba(0,0,0,0.75); color:#0f0; font:11px monospace; padding:6px 8px; border-radius:6px; max-width:260px; white-space:pre-wrap;"></div>
 
 <div id="stageWrap">
   <div id="stage">
@@ -447,16 +448,13 @@ const VoiceManager = (() => {
     'Готовлю формулировки, жду жертв. Донат — без очереди, остальным — подписка обязательна!',
   ];
 
-  // ── ВРЕМЕННАЯ диагностика на экран (убрать после того как разберёмся) ────
-  const dbgEl = document.getElementById('voiceDbg');
-  const dbgLines = [];
-  function dbg(line){
-    dbgLines.push(new Date().toLocaleTimeString('ru-RU') + ' ' + line);
-    if (dbgLines.length > 8) dbgLines.shift();
-    if (dbgEl) dbgEl.textContent = dbgLines.join('\n');
-  }
-  dbg('synth=' + !!synth + ' voices=' + (synth ? synth.getVoices().length : 'n/a'));
-  if (synth) synth.addEventListener('voiceschanged', () => dbg('voiceschanged, voices=' + synth.getVoices().length));
+  // Звук ВЫКЛЮЧЕН по умолчанию и включается кнопкой #voiceBtn — как в
+  // Boxing Arena / Street Fighter / Fantasy Arena (см. voiceEnabled там).
+  // Диагностика на реальном эфире (13:56-13:57, скрин от пользователя)
+  // показала onerror:"synthesis-failed" на КАЖДОЙ попытке — Разнос пытался
+  // говорить сам, без единого касания экрана, чего остальные игры проекта
+  // никогда не делают (у них speak() всегда только после тапа по 🔊).
+  let voiceEnabled = false;
 
   function pickVoice(){
     if (cachedVoice || !synth) return cachedVoice;
@@ -469,20 +467,32 @@ const VoiceManager = (() => {
     return cachedVoice;
   }
 
+  function estimateMs(text){ return Math.min(7000, Math.max(1400, text.length * 65)); }
+
   function speakText(text, done){
-    if (!synth){ dbg('speakText: synth=null, skip'); done(); return; }
+    if (!voiceEnabled || !synth){ setTimeout(done, estimateMs(text)); return; }
     const u = new SpeechSynthesisUtterance(text);
-    u.lang = 'ru-RU'; u.rate = 1.02; u.pitch = 0.92;
+    u.lang = 'ru-RU'; u.rate = 1.02;
     u.volume = CONFIG.VOICE_ENABLED ? 1 : 0;
     const v = pickVoice(); if (v) u.voice = v;
-    dbg('speak() call, voice=' + (v ? v.name : 'none') + ' pending=' + synth.pending + ' speaking=' + synth.speaking);
     let doneCalled = false;
-    const finish = (why) => { if (doneCalled) return; doneCalled = true; dbg('finish: ' + why); HostManager.setSpeaking(false); done(); };
-    u.onstart = () => { dbg('onstart FIRED (звук должен идти)'); HostManager.setSpeaking(true); };
+    const finish = () => { if (doneCalled) return; doneCalled = true; HostManager.setSpeaking(false); done(); };
+    u.onstart = () => HostManager.setSpeaking(true);
     u.onboundary = () => HostManager.mouthTick();
-    u.onend = () => finish('onend'); u.onerror = (e) => finish('onerror: ' + e.error);
-    setTimeout(() => finish('timeout-12s (onstart/onend/onerror ни разу не сработали)'), 12000);
-    try { synth.speak(u); } catch(e){ dbg('speak() threw: ' + e); finish('exception'); }
+    u.onend = finish; u.onerror = finish;
+    setTimeout(finish, 12000);
+    try { synth.speak(u); } catch(e){ finish(); }
+  }
+
+  function toggleVoice(){
+    voiceEnabled = !voiceEnabled;
+    const btn = document.getElementById('voiceBtn');
+    if (btn) btn.textContent = voiceEnabled ? '🔊' : '🔇';
+    if (voiceEnabled && synth){
+      // разблокировка ровно внутри тапа — как в Boxing Arena
+      try { const s = new SpeechSynthesisUtterance(''); s.volume = 0; synth.speak(s); } catch(e){}
+    }
+    return voiceEnabled;
   }
 
   function renderQueueUI(){ UI.renderQueue(queueP, queueA, current); }
@@ -568,25 +578,7 @@ const VoiceManager = (() => {
     }, delay);
   }
 
-  let _unlocked = false;
-  function unlock(){
-    if (_unlocked || !synth) return;
-    _unlocked = true;
-    try { const u = new SpeechSynthesisUtterance(''); u.volume = 0; synth.speak(u); } catch(e){}
-  }
   setInterval(() => { try { if (synth && synth.paused) synth.resume(); } catch(e){} }, 4000);
-
-  let _interacted = false;
-  function armInteractionUnlock(){
-    const onFirstInteract = () => {
-      if (_interacted) return;
-      _interacted = true;
-      unlock();
-      if (!speaking) next();
-    };
-    document.addEventListener('pointerdown', onFirstInteract, { once:true });
-    document.addEventListener('keydown', onFirstInteract, { once:true });
-  }
 
   const GREETING = [
     'Всем привет! Кто первый подпишется, лайкнет и напишет «разнеси» — тот и получит!',
@@ -596,8 +588,6 @@ const VoiceManager = (() => {
 
   function start(){
     if (started) return; started = true;
-    unlock();
-    armInteractionUnlock();
     if (synth) synth.onvoiceschanged = () => { cachedVoice = null; pickVoice(); };
     const g = rnd(GREETING);
     UI.showBubble(g);
@@ -612,7 +602,7 @@ const VoiceManager = (() => {
     renderQueueUI();
   }
 
-  return { enqueueRoast, enqueueDonor, isQueued, start, reset };
+  return { enqueueRoast, enqueueDonor, isQueued, start, reset, toggleVoice };
 })();
 
 // ── UI ───────────────────────────────────────────────────────────────────
@@ -968,6 +958,7 @@ window.addEventListener('resize', fitStage);
   }
 
   document.getElementById('backBtn').addEventListener('click', () => { window.location.href = '/'; });
+  document.getElementById('voiceBtn').addEventListener('click', () => { VoiceManager.toggleVoice(); });
   document.getElementById('fsBtn').addEventListener('click', () => {
     if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(()=>{});
     else document.exitFullscreen().catch(()=>{});
