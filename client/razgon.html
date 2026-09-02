@@ -64,9 +64,6 @@
   .brand{ font-weight:800; font-size:34px; letter-spacing:0.5px; display:flex; align-items:center; gap:8px; color:#fff; text-shadow: 0 1px 6px rgba(0,0,0,0.5); }
   .brand .dotpulse{ width:9px; height:9px; border-radius:50%; background: var(--green); box-shadow: 0 0 0 0 rgba(87,217,163,0.6); animation: dotpulse 2.2s infinite; }
   @keyframes dotpulse{ 0%{ box-shadow: 0 0 0 0 rgba(87,217,163,0.55); } 70%{ box-shadow: 0 0 0 8px rgba(87,217,163,0); } 100%{ box-shadow: 0 0 0 0 rgba(87,217,163,0); } }
-  #soundGate{ position:fixed; inset:0; z-index:999999; background:rgba(0,0,0,0.72); display:flex; align-items:center; justify-content:center; }
-  #soundGate[hidden]{ display:none; }
-  #soundGateBtn{ font-family:inherit; font-size:20px; font-weight:800; color:#fff; background:linear-gradient(135deg,#ff5f6d,#ffc371); border:none; border-radius:16px; padding:22px 30px; cursor:pointer; box-shadow:0 8px 24px rgba(0,0,0,0.5); }
   .ui-btn{
     position:fixed; z-index:99999; width:26px; height:26px; font-size:12px;
     background:rgba(0,0,0,0.55); color:rgba(255,255,255,0.55);
@@ -192,10 +189,6 @@
 <button id="backBtn" class="ui-btn" title="Главное меню">⌂</button>
 <button id="musicBtn" class="ui-btn" title="Музыка">🎵</button>
 <button id="fsBtn" class="ui-btn" title="На весь экран">⛶</button>
-
-<div id="soundGate">
-  <button id="soundGateBtn">🔊 Нажми, чтобы включить звук</button>
-</div>
 
 <div id="stageWrap">
   <div id="stage">
@@ -362,44 +355,36 @@ const HostManager = (() => {
   let excitedTimer = null, waitTimer = null, blinkTimer = null;
 
   function init(){
-    // Если один из CDN (cubism.live2d.com / jsdelivr) не догрузился на
-    // мобильной сети во время эфира — PIXI/PIXI.live2d может быть undefined.
-    // Раньше это кидало необработанное исключение прямо из bootstrap-IIFE и
-    // обрывало его ДО VoiceManager.start() — ведущая не только не появлялась
-    // на экране, но и молчала (не озвучивала совсем ничего). Тело обёрнуто в
-    // try/catch, чтобы отвал аватарки не топил голос — это отдельные системы.
-    try {
-      hostEl = document.getElementById('host');
-      const canvas = document.getElementById('hostCanvas');
-      const box = hostEl.getBoundingClientRect();
-      app = new PIXI.Application({
-        view: canvas, width: box.width || 270, height: box.height || 270,
-        resolution: Math.min(window.devicePixelRatio || 1, 2), autoDensity: true,
-        backgroundAlpha: 0, antialias: true,
-      });
-      PIXI.live2d.Live2DModel.from('sprites/kei_live2d/kei_basic_free.model3.json', { autoUpdate: false })
-        .then(m => {
-          model = m;
-          model.anchor.set(0.5, 0.5);
-          const scale = Math.min(app.screen.width / model.width, app.screen.height / model.height) * 1.65;
-          model.scale.set(scale);
-          model.x = app.screen.width / 2 + app.screen.width * 0.09;
-          model.y = app.screen.height * 0.58;
-          app.stage.addChild(model);
-        })
-        .catch(e => console.error('[HostManager] Live2D load failed', e));
+    hostEl = document.getElementById('host');
+    const canvas = document.getElementById('hostCanvas');
+    const box = hostEl.getBoundingClientRect();
+    app = new PIXI.Application({
+      view: canvas, width: box.width || 270, height: box.height || 270,
+      resolution: Math.min(window.devicePixelRatio || 1, 2), autoDensity: true,
+      backgroundAlpha: 0, antialias: true,
+    });
+    PIXI.live2d.Live2DModel.from('sprites/kei_live2d/kei_basic_free.model3.json', { autoUpdate: false })
+      .then(m => {
+        model = m;
+        model.anchor.set(0.5, 0.5);
+        const scale = Math.min(app.screen.width / model.width, app.screen.height / model.height) * 1.65;
+        model.scale.set(scale);
+        model.x = app.screen.width / 2 + app.screen.width * 0.09;
+        model.y = app.screen.height * 0.58;
+        app.stage.addChild(model);
+      })
+      .catch(e => console.error('[HostManager] Live2D load failed', e));
 
-      app.ticker.add(() => {
-        if (!model) return;
-        model.update(PIXI.Ticker.shared.deltaMS);
-        mouthValue += (mouthTarget - mouthValue) * 0.35;
-        eyeValue += (eyeTarget - eyeValue) * 0.4;
-        const core = model.internalModel.coreModel;
-        core.setParameterValueById('ParamMouthOpenY', mouthValue);
-        core.setParameterValueById('ParamEyeLOpen', eyeValue);
-        core.setParameterValueById('ParamEyeROpen', eyeValue);
-      });
-    } catch(e){ console.error('[HostManager] init failed (PIXI/Live2D CDN?)', e); }
+    app.ticker.add(() => {
+      if (!model) return;
+      model.update(PIXI.Ticker.shared.deltaMS);
+      mouthValue += (mouthTarget - mouthValue) * 0.35;
+      eyeValue += (eyeTarget - eyeValue) * 0.4;
+      const core = model.internalModel.coreModel;
+      core.setParameterValueById('ParamMouthOpenY', mouthValue);
+      core.setParameterValueById('ParamEyeLOpen', eyeValue);
+      core.setParameterValueById('ParamEyeROpen', eyeValue);
+    });
 
     scheduleBlink();
   }
@@ -490,7 +475,6 @@ const VoiceManager = (() => {
   function renderQueueUI(){ UI.renderQueue(queueP, queueA, current); }
 
   function next(){
-    if (!armed){ renderQueueUI(); return; } // ждём тап по #soundGateBtn (см. armVoice)
     if (speaking) return;
     clearTimeout(idleTimer);
     if (current){ Eligibility.startCooldown(current.userId); current = null; }
@@ -560,7 +544,7 @@ const VoiceManager = (() => {
     clearTimeout(idleTimer);
     const delay = CONFIG.CTA_INTERVAL_MIN_MS + Math.random()*(CONFIG.CTA_INTERVAL_MAX_MS-CONFIG.CTA_INTERVAL_MIN_MS);
     idleTimer = setTimeout(() => {
-      if (!armed || speaking) return;
+      if (speaking) return;
       // Реальные жертвы могли встать в очередь, пока ждали таймер филлера —
       // не перекрикивать их болтовнёй, сразу пропускаем вперёд.
       if (totalQueueLen()){ next(); return; }
@@ -571,16 +555,25 @@ const VoiceManager = (() => {
     }, delay);
   }
 
-  // iOS Safari требует, чтобы ПЕРВЫЙ speak() был вызван синхронно внутри
-  // настоящего пользовательского жеста (тап) — иначе он молча зависает и
-  // блокирует вообще ВСЕ последующие фразы (даже те, что уже с жестом),
-  // без единой ошибки в консоли. Раньше unlock() дёргался автоматически при
-  // загрузке страницы БЕЗ жеста — на телефоне это гасило звук насмерть.
-  // Теперь голос стартует только по реальному тапу — либо по кнопке
-  // #soundGateBtn, либо по первому тапу/клавише где угодно на странице.
-  let armed = false;
-  function unlock(){ try { if (synth && synth.paused) synth.resume(); } catch(e){} }
-  setInterval(unlock, 4000);
+  let _unlocked = false;
+  function unlock(){
+    if (_unlocked || !synth) return;
+    _unlocked = true;
+    try { const u = new SpeechSynthesisUtterance(''); u.volume = 0; synth.speak(u); } catch(e){}
+  }
+  setInterval(() => { try { if (synth && synth.paused) synth.resume(); } catch(e){} }, 4000);
+
+  let _interacted = false;
+  function armInteractionUnlock(){
+    const onFirstInteract = () => {
+      if (_interacted) return;
+      _interacted = true;
+      unlock();
+      if (!speaking) next();
+    };
+    document.addEventListener('pointerdown', onFirstInteract, { once:true });
+    document.addEventListener('keydown', onFirstInteract, { once:true });
+  }
 
   const GREETING = [
     'Всем привет! Кто первый подпишется, лайкнет и напишет «разнеси» — тот и получит!',
@@ -588,31 +581,15 @@ const VoiceManager = (() => {
     'Добро пожаловать на разнос! Подпишись, лайкни, пиши «разнеси» — очередь уже открыта!',
   ];
 
-  function armVoice(){
-    if (armed || !synth) return;
-    armed = true;
-    try { synth.cancel(); } catch(e){} // на случай зависшей пустой фразы из старых сессий
-    synth.onvoiceschanged = () => { cachedVoice = null; pickVoice(); };
-    const gate = document.getElementById('soundGate'); if (gate) gate.hidden = true;
+  function start(){
+    if (started) return; started = true;
+    unlock();
+    armInteractionUnlock();
+    if (synth) synth.onvoiceschanged = () => { cachedVoice = null; pickVoice(); };
     const g = rnd(GREETING);
     UI.showBubble(g);
     speaking = true;
     speakText(g, () => { speaking = false; next(); });
-  }
-
-  function armInteractionUnlock(){
-    const onFirstInteract = () => armVoice();
-    document.addEventListener('pointerdown', onFirstInteract, { once:true });
-    document.addEventListener('keydown', onFirstInteract, { once:true });
-  }
-
-  function start(){
-    if (started) return; started = true;
-    armInteractionUnlock();
-    const gate = document.getElementById('soundGate');
-    const btn = document.getElementById('soundGateBtn');
-    if (gate) gate.hidden = false;
-    if (btn) btn.addEventListener('click', armVoice);
   }
 
   function reset(){
