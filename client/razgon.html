@@ -523,6 +523,18 @@ const VoiceManager = (() => {
 
   function renderQueueUI(){ UI.renderQueue(queueP, queueA, current); }
 
+  // Фраза-филлер (когда очередь пустая, диктор зовёт в чат) можно оборвать
+  // на полуслове, если в этот момент реально пришло событие от зрителя —
+  // очередь не должна ждать, пока доболтает зазывалка. А вот РЕАЛЬНОГО
+  // зрителя (speakingFiller=false) перебивать нельзя никогда — его карточка
+  // обязана довисеть до конца фразы.
+  let speakingFiller = false;
+  function interruptFillerForRealEvent(){
+    if (speaking && speakingFiller && synth){
+      try { synth.cancel(); } catch(e){}
+    }
+  }
+
   function next(){
     if (speaking) return;
     clearTimeout(idleTimer);
@@ -555,6 +567,7 @@ const VoiceManager = (() => {
     if (totalQueueLen() >= CONFIG.MAX_QUEUE_LEN) return false;
     queueA.push({ text, nick, userId, avatarUrl });
     renderQueueUI();
+    interruptFillerForRealEvent();
     next();
     return true;
   }
@@ -571,6 +584,7 @@ const VoiceManager = (() => {
       existing.text = textFn(existing.coins, nick);
       queueP.sort((a,b) => b.coins - a.coins);
       renderQueueUI();
+      interruptFillerForRealEvent();
       return true;
     }
     const idxA = queueA.findIndex(q => q.userId === userId);
@@ -579,6 +593,7 @@ const VoiceManager = (() => {
     queueP.push({ text: textFn(coins, nick), nick, userId, avatarUrl, coins });
     queueP.sort((a,b) => b.coins - a.coins);
     renderQueueUI();
+    interruptFillerForRealEvent();
     next();
     return true;
   }
@@ -600,7 +615,8 @@ const VoiceManager = (() => {
       const text = rnd(CTA);
       UI.showBubble(text);
       speaking = true;
-      speakText(text, () => { speaking = false; next(); });
+      speakingFiller = true;
+      speakText(text, () => { speaking = false; speakingFiller = false; next(); });
     }, delay);
   }
 
