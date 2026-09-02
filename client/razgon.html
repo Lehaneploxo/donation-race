@@ -355,36 +355,44 @@ const HostManager = (() => {
   let excitedTimer = null, waitTimer = null, blinkTimer = null;
 
   function init(){
-    hostEl = document.getElementById('host');
-    const canvas = document.getElementById('hostCanvas');
-    const box = hostEl.getBoundingClientRect();
-    app = new PIXI.Application({
-      view: canvas, width: box.width || 270, height: box.height || 270,
-      resolution: Math.min(window.devicePixelRatio || 1, 2), autoDensity: true,
-      backgroundAlpha: 0, antialias: true,
-    });
-    PIXI.live2d.Live2DModel.from('sprites/kei_live2d/kei_basic_free.model3.json', { autoUpdate: false })
-      .then(m => {
-        model = m;
-        model.anchor.set(0.5, 0.5);
-        const scale = Math.min(app.screen.width / model.width, app.screen.height / model.height) * 1.65;
-        model.scale.set(scale);
-        model.x = app.screen.width / 2 + app.screen.width * 0.09;
-        model.y = app.screen.height * 0.58;
-        app.stage.addChild(model);
-      })
-      .catch(e => console.error('[HostManager] Live2D load failed', e));
+    // Если один из CDN (cubism.live2d.com / jsdelivr) не догрузился на
+    // мобильной сети во время эфира — PIXI/PIXI.live2d может быть undefined.
+    // Раньше это кидало необработанное исключение прямо из bootstrap-IIFE и
+    // обрывало его ДО VoiceManager.start() — ведущая не только не появлялась
+    // на экране, но и молчала (не озвучивала совсем ничего). Тело обёрнуто в
+    // try/catch, чтобы отвал аватарки не топил голос — это отдельные системы.
+    try {
+      hostEl = document.getElementById('host');
+      const canvas = document.getElementById('hostCanvas');
+      const box = hostEl.getBoundingClientRect();
+      app = new PIXI.Application({
+        view: canvas, width: box.width || 270, height: box.height || 270,
+        resolution: Math.min(window.devicePixelRatio || 1, 2), autoDensity: true,
+        backgroundAlpha: 0, antialias: true,
+      });
+      PIXI.live2d.Live2DModel.from('sprites/kei_live2d/kei_basic_free.model3.json', { autoUpdate: false })
+        .then(m => {
+          model = m;
+          model.anchor.set(0.5, 0.5);
+          const scale = Math.min(app.screen.width / model.width, app.screen.height / model.height) * 1.65;
+          model.scale.set(scale);
+          model.x = app.screen.width / 2 + app.screen.width * 0.09;
+          model.y = app.screen.height * 0.58;
+          app.stage.addChild(model);
+        })
+        .catch(e => console.error('[HostManager] Live2D load failed', e));
 
-    app.ticker.add(() => {
-      if (!model) return;
-      model.update(PIXI.Ticker.shared.deltaMS);
-      mouthValue += (mouthTarget - mouthValue) * 0.35;
-      eyeValue += (eyeTarget - eyeValue) * 0.4;
-      const core = model.internalModel.coreModel;
-      core.setParameterValueById('ParamMouthOpenY', mouthValue);
-      core.setParameterValueById('ParamEyeLOpen', eyeValue);
-      core.setParameterValueById('ParamEyeROpen', eyeValue);
-    });
+      app.ticker.add(() => {
+        if (!model) return;
+        model.update(PIXI.Ticker.shared.deltaMS);
+        mouthValue += (mouthTarget - mouthValue) * 0.35;
+        eyeValue += (eyeTarget - eyeValue) * 0.4;
+        const core = model.internalModel.coreModel;
+        core.setParameterValueById('ParamMouthOpenY', mouthValue);
+        core.setParameterValueById('ParamEyeLOpen', eyeValue);
+        core.setParameterValueById('ParamEyeROpen', eyeValue);
+      });
+    } catch(e){ console.error('[HostManager] init failed (PIXI/Live2D CDN?)', e); }
 
     scheduleBlink();
   }
