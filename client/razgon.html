@@ -189,6 +189,7 @@
 <button id="backBtn" class="ui-btn" title="Главное меню">⌂</button>
 <button id="musicBtn" class="ui-btn" title="Музыка">🎵</button>
 <button id="fsBtn" class="ui-btn" title="На весь экран">⛶</button>
+<div id="voiceDbg" style="position:fixed; top:6px; left:6px; z-index:999999; background:rgba(0,0,0,0.75); color:#0f0; font:11px monospace; padding:6px 8px; border-radius:6px; max-width:260px; white-space:pre-wrap;"></div>
 
 <div id="stageWrap">
   <div id="stage">
@@ -446,6 +447,17 @@ const VoiceManager = (() => {
     'Готовлю формулировки, жду жертв. Донат — без очереди, остальным — подписка обязательна!',
   ];
 
+  // ── ВРЕМЕННАЯ диагностика на экран (убрать после того как разберёмся) ────
+  const dbgEl = document.getElementById('voiceDbg');
+  const dbgLines = [];
+  function dbg(line){
+    dbgLines.push(new Date().toLocaleTimeString('ru-RU') + ' ' + line);
+    if (dbgLines.length > 8) dbgLines.shift();
+    if (dbgEl) dbgEl.textContent = dbgLines.join('\n');
+  }
+  dbg('synth=' + !!synth + ' voices=' + (synth ? synth.getVoices().length : 'n/a'));
+  if (synth) synth.addEventListener('voiceschanged', () => dbg('voiceschanged, voices=' + synth.getVoices().length));
+
   function pickVoice(){
     if (cachedVoice || !synth) return cachedVoice;
     const voices = synth.getVoices();
@@ -458,18 +470,19 @@ const VoiceManager = (() => {
   }
 
   function speakText(text, done){
-    if (!synth){ done(); return; }
+    if (!synth){ dbg('speakText: synth=null, skip'); done(); return; }
     const u = new SpeechSynthesisUtterance(text);
     u.lang = 'ru-RU'; u.rate = 1.02; u.pitch = 0.92;
     u.volume = CONFIG.VOICE_ENABLED ? 1 : 0;
     const v = pickVoice(); if (v) u.voice = v;
+    dbg('speak() call, voice=' + (v ? v.name : 'none') + ' pending=' + synth.pending + ' speaking=' + synth.speaking);
     let doneCalled = false;
-    const finish = () => { if (doneCalled) return; doneCalled = true; HostManager.setSpeaking(false); done(); };
-    u.onstart = () => HostManager.setSpeaking(true);
+    const finish = (why) => { if (doneCalled) return; doneCalled = true; dbg('finish: ' + why); HostManager.setSpeaking(false); done(); };
+    u.onstart = () => { dbg('onstart FIRED (звук должен идти)'); HostManager.setSpeaking(true); };
     u.onboundary = () => HostManager.mouthTick();
-    u.onend = finish; u.onerror = finish;
-    setTimeout(finish, 12000);
-    try { synth.speak(u); } catch(e){ finish(); }
+    u.onend = () => finish('onend'); u.onerror = (e) => finish('onerror: ' + e.error);
+    setTimeout(() => finish('timeout-12s (onstart/onend/onerror ни разу не сработали)'), 12000);
+    try { synth.speak(u); } catch(e){ dbg('speak() threw: ' + e); finish('exception'); }
   }
 
   function renderQueueUI(){ UI.renderQueue(queueP, queueA, current); }
