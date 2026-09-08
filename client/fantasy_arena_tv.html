@@ -25,6 +25,7 @@
   #voiceBtn { top: calc(50% - 25px); right: 10px; }
   #musicBtn { top: calc(50% + 24px); right: 10px; }
   #fsBtn    { top: calc(50% + 73px); right: 10px; }
+  #mapBtn   { top: calc(50% + 122px); right: 10px; }
   #statusBadge { position: fixed; bottom: 10px; left: 50%; transform: translateX(-50%); font-size: 12px; padding: 4px 12px; border-radius: 8px; border: 2px solid #555; background: rgba(0,0,0,0.78); color: #AAA; white-space: nowrap; z-index: 99999; display: none; }
   #statusBadge.live  { color: #00FF88; border-color: #00FF88; }
   #statusBadge.demo  { color: #FF9900; border-color: #FF9900; }
@@ -36,6 +37,7 @@
 <button id="voiceBtn" class="ui-btn" title="Озвучка">🔇</button>
 <button id="musicBtn" class="ui-btn" title="Музыка">🎵</button>
 <button id="fsBtn"    class="ui-btn" title="На весь экран">⛶</button>
+<button id="mapBtn"   class="ui-btn" title="Сменить карту">🗺️</button>
 <div id="statusBadge"></div>
 <audio id="bgMusic" src="audio/fantasy_arena_theme.mp3" loop preload="auto"></audio>
 <div id="ratingOverlay" style="position:fixed;top:14%;left:50%;transform:translateX(-50%);z-index:200;pointer-events:none;display:none;background:rgba(0,0,0,0.88);border:1.5px solid rgba(160,80,255,0.5);border-radius:8px;padding:6px 12px 7px;font-family:Arial,sans-serif;min-width:150px;text-align:center;line-height:1.25;white-space:nowrap;"></div>
@@ -206,6 +208,19 @@ document.getElementById('fsBtn').addEventListener('click', ()=>{
     if (screen.orientation && screen.orientation.unlock) { try { screen.orientation.unlock(); } catch(e){} }
     document.exitFullscreen().catch(()=>{});
   }
+});
+
+// Ручная смена карты по кнопке 🗺️ (по прямой просьбе пользователя) — та же
+// логика, что и автосмена каждые 5 мин (updateMapSwitch/MAPS ниже по файлу,
+// это ок — функция вызывается только по клику, уже после того как весь
+// скрипт целиком выполнился и currentMap/MAPS/nextMapSwitchAt объявлены).
+// Клик просто переставляет currentMap на следующую карту в списке и сдвигает
+// таймер автосмены вперёд на полный интервал — иначе автосмена сработала бы
+// повторно уже через пару секунд после ручного клика.
+document.getElementById('mapBtn').addEventListener('click', ()=>{
+  const idx = MAPS.findIndex(m=>m.key===currentMap);
+  currentMap = MAPS[(idx+1) % MAPS.length].key;
+  nextMapSwitchAt = performance.now() + MAP_SWITCH_MS;
 });
 
 // ---------- roster (frame size == sheet height, frames laid out horizontally) ----------
