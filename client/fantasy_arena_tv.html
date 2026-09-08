@@ -78,12 +78,87 @@ const WALL_TOP = 0;
 // полоса пола та же (FLOOR_ROWS*TILE*TS = 288) — сдвиг ровно на 280
 const GROUND_Y = 609;
 
-function fitScreen(){
-  const s = Math.min(window.innerWidth/CW, window.innerHeight/CH);
+// ---------- ручной зум пальцами (пинч) + перетаскивание ----------
+// fitScreen вписывает арену в экран "contain" (Math.min по ширине/высоте) —
+// на телевизоре/телефоне в landscape это часто оставляет чёрные полосы по
+// бокам (аспект экрана не 16:9 тютелька в тютельку). По прямой просьбе
+// пользователя ("пальцами могу расширять, есть куда ещё увеличивать")
+// добавлен СВОЙ pinch-zoom поверх базового fit-масштаба — браузерный
+// пинч-зум страницы отключён (user-scalable=no в <meta viewport>), чтобы
+// не зумило заодно кнопки/бейджи, а тут скейлится только #wrap с ареной.
+let baseScale = 1;      // масштаб "вписать в экран", пересчитывается в fitScreen
+let userZoom = 1;       // 1..MAX_USER_ZOOM — докручивается пинчем
+let panX = 0, panY = 0; // доп. смещение (px экрана) поверх центрирования, тащится пальцем
+const MAX_USER_ZOOM = 2.5;
+
+function clampPan(){
+  const s = baseScale * userZoom;
+  // сколько арена "вылезает" за пределы окна при текущем зуме — панить
+  // дальше этого нет смысла, иначе с одного края появится пустой чёрный край
+  const overflowX = Math.max(0, CW*s - window.innerWidth);
+  const overflowY = Math.max(0, CH*s - window.innerHeight);
+  panX = Math.max(-overflowX/2, Math.min(overflowX/2, panX));
+  panY = Math.max(-overflowY/2, Math.min(overflowY/2, panY));
+}
+function applyTransform(){
+  const s = baseScale * userZoom;
   const wrap = document.getElementById('wrap');
-  wrap.style.transform = `translate(${(window.innerWidth-CW*s)/2}px,${(window.innerHeight-CH*s)/2}px) scale(${s})`;
+  const baseX = (window.innerWidth - CW*s) / 2;
+  const baseY = (window.innerHeight - CH*s) / 2;
+  wrap.style.transform = `translate(${baseX+panX}px,${baseY+panY}px) scale(${s})`;
+}
+function fitScreen(){
+  baseScale = Math.min(window.innerWidth/CW, window.innerHeight/CH);
+  clampPan();
+  applyTransform();
 }
 window.addEventListener('resize', fitScreen); fitScreen();
+
+// два пальца — зум (расстояние между ними) и перенос центра щипка;
+// один палец, когда уже приближено — перетаскивание (пан)
+let _pinch = null, _drag = null;
+function touchDist(a,b){ return Math.hypot(a.clientX-b.clientX, a.clientY-b.clientY); }
+document.addEventListener('touchstart', (e)=>{
+  if (e.touches.length===2){
+    _drag = null;
+    _pinch = { startDist: touchDist(e.touches[0],e.touches[1]), startZoom: userZoom, startPanX: panX, startPanY: panY };
+  } else if (e.touches.length===1 && userZoom>1.02){
+    _pinch = null;
+    _drag = { startX: e.touches[0].clientX, startY: e.touches[0].clientY, startPanX: panX, startPanY: panY };
+  }
+}, { passive:true });
+document.addEventListener('touchmove', (e)=>{
+  if (_pinch && e.touches.length===2){
+    e.preventDefault();
+    const ratio = touchDist(e.touches[0],e.touches[1]) / _pinch.startDist;
+    userZoom = Math.max(1, Math.min(MAX_USER_ZOOM, _pinch.startZoom*ratio));
+    panX = _pinch.startPanX; panY = _pinch.startPanY;
+    clampPan(); applyTransform();
+  } else if (_drag && e.touches.length===1){
+    e.preventDefault();
+    panX = _drag.startPanX + (e.touches[0].clientX-_drag.startX);
+    panY = _drag.startPanY + (e.touches[0].clientY-_drag.startY);
+    clampPan(); applyTransform();
+  }
+}, { passive:false });
+// двойной тап (не по кнопкам) — быстрый сброс зума/пана обратно к "вписать в экран"
+let _lastTapAt=0, _lastTapX=0, _lastTapY=0;
+document.addEventListener('touchend', (e)=>{
+  if (e.touches.length===2) _pinch = null;
+  if (e.touches.length===0){
+    _pinch = null; _drag = null;
+    const t = e.changedTouches[0];
+    if (t && !e.target.closest('.ui-btn')){
+      const now = Date.now();
+      if (now-_lastTapAt<300 && Math.hypot(t.clientX-_lastTapX, t.clientY-_lastTapY)<30){
+        userZoom = 1; panX = 0; panY = 0; clampPan(); applyTransform();
+        _lastTapAt = 0;
+      } else {
+        _lastTapAt = now; _lastTapX = t.clientX; _lastTapY = t.clientY;
+      }
+    }
+  }
+}, { passive:true });
 
 document.getElementById('backBtn').addEventListener('click', ()=>{ window.location.href='/'; });
 // На весь экран + принудительно горизонтальная ориентация (ТВ-формат 16:9,
