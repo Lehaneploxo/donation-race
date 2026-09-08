@@ -13,7 +13,13 @@
      обрезаются CSS-overflow и никогда не попадают в кадр зрителя. См.
      VISIBLE_CH в <script> — тем же числом считается посадка/масштаб. */
   #wrap { position:absolute; left:0; top:0; width:1280px; height:520px; overflow:hidden; transform-origin:0 0; }
-  canvas { display:block; background:#000; }
+  /* Полное зеркало картинки (по прямой просьбе пользователя, подтверждено —
+     да, текст/ники/цифры тоже отразятся задом наперёд, это осознанно).
+     Зеркалим САМ канвас, а не #wrap — на #wrap висит динамический transform
+     (fitScreen/pinch-zoom, translate+scale), трогать его нельзя, иначе
+     сломается позиционирование/зум. Канвас — статичный CSS-transform поверх
+     их результата, ничего в JS/логике игры не меняет. */
+  canvas { display:block; background:#000; transform:scaleX(-1); }
   .ui-btn { position: fixed; z-index: 99999; width: 26px; height: 26px; font-size: 12px; background: rgba(0,0,0,0.55); color: rgba(255,255,255,0.55); border: 1px solid rgba(255,255,255,0.2); border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
   #backBtn  { top: calc(50% - 74px); right: 10px; }
   #voiceBtn { top: calc(50% - 25px); right: 10px; }
