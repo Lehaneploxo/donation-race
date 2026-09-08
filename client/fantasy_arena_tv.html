@@ -586,15 +586,15 @@ const BOT_ENERGY = 100, BOT_POWER = 5;
 // масштабированы тем же коэффициентом (~x1.79 от исходных 70/100/85/55),
 // иначе "личное пространство"/дистанция удара считались бы по старым,
 // вдвое меньшим меркам относительно новых крупных спрайтов.
-const RING_X = { min:128, max: CW-128 };
+const RING_X = { min:134, max: CW-134 };
 // Ринг в ТВ-формате шире портретного примерно в 2.5 раза (1140px против 460px),
 // поэтому при исходной скорости бойцы разбредались бы и почти не встречались.
 // Один множитель на все скорости ROSTER — крутить частоту стычек только тут.
 const SPEED_SCALE = 1.6;
-const FIGHT_DIST = 182;
-const MIN_SEP = 155;
+const FIGHT_DIST = 190;
+const MIN_SEP = 162;
 const PUNCH_TICK_MS = 260;
-const RETREAT_PUSH = 99;
+const RETREAT_PUSH = 103;
 const RESPAWN_DELAY_MS = 2200; // боты — сколько лежат перед возрождением на новом месте
 const KO_FALL_MS = 1800;       // реальные — сколько играет анимация падения перед уходом с арены
 const LIKE_POWER_CAP = 1000;    // лайки растят Силу только до этого потолка (донат — без потолка)
@@ -1041,7 +1041,7 @@ function throwPunch(attacker, defender){
   // пропущенный удар ослабляет Силу защищавшегося на 30% от урона (не ниже 1)
   defender.power = Math.max(1, defender.power - Math.max(1, Math.floor(dmg*0.3)));
   defender.lastAttacker = attacker;
-  spawnDamageNumber(defender.x, defender.y-526, dmg); // та же пропорция, что и у подписей над головой (см. by в drawFighter) — вылетает чуть выше них
+  spawnDamageNumber(defender.x, defender.y-564, dmg); // та же пропорция, что и у подписей над головой (см. by в drawFighter) — вылетает чуть выше них
 
   attacker.stolenEnergy = (attacker.stolenEnergy||0) + stolen;
   if (!attacker.isBot){
@@ -1471,17 +1471,15 @@ function drawFighter(f, now){
   // при буквальных +50% ни при какой позиции бойца на арене (заголовок на
   // всю ширину — проверено вживую в центре арены, не только по краям).
   // 820 — потолок без наездов, см. GROUND_Y/by ниже.
-  // УМЕНЬШЕНО с 820 до 690 — на 820 "сломалась дорога" (по прямой жалобе
-  // пользователя): каждый из 4 героев отрисован в квадратном кадре с
-  // ОГРОМНЫМИ прозрачными полями сверху И снизу (замер по пикселям:
-  // видимая фигура занимает всего ~26-37% высоты кадра, у каждого героя
-  // своя доля) — при drawH=820 это утаскивало видимые ступни ВЫШЕ шва
-  // пол/стена (seamY=432), герои "висели" над дорогой вместо того чтобы
-  // стоять на плитке. 690 — подобрано так, чтобы у САМОГО невыгодного
-  // героя (martial_hero, у него больше всего пустого поля снизу — 39%)
-  // ступни всё равно попадали на плитку с запасом, проверено вживую по
-  // всем 4 героям.
-  const drawH = 690, drawW = 690;
+  // Просили ещё +50% к размеру персонажей — физически не влезает: 690 УЖЕ
+  // был подобранным максимумом, при котором ступни всех 4 героев попадают
+  // на плитку дороги (см. комментарий у GROUND_Y про "сломанную дорогу" и
+  // огромные прозрачные поля внутри каждого кадра спрайта). 720 — предел,
+  // дальше у героя с самым большим нижним полем (martial_hero, 39%) ступни
+  // снова уходят выше шва пол/стена. Это +4%, не +50% — дальше только ценой
+  // повторной поломки дороги, либо перекройкой соотношения пол/стена на
+  // всех 8 картах (бОльшая переделка, отдельный разговор).
+  const drawH = 720, drawW = 720;
   ctx.save();
   // герои — не пиксель-арт (в отличие от фона карты, где чуть выше стоит
   // ctx.imageSmoothingEnabled=false и не возвращается обратно) — включаем
@@ -1500,7 +1498,11 @@ function drawFighter(f, now){
     // якорь над головой — раньше тут была полоска HP, но в
     // streetfighter_arena.html Энергия/Сила показаны ЧИСЛОМ, без полоски
     // (❤️/💪 друг под другом под ником), убрано в пользу 1-в-1 соответствия
-    const by = f.y-504; // пересчитано под drawH=690 (та же пропорция, что и раньше при 820) — минимум, при котором строка уровня не наезжает на титр, где бы боец ни стоял по ширине арены
+    // 540 — сдвинуто выше (было 504), чтобы у выросших на 50% шрифтов
+    // (см. ниже) "рабочий" нижний край стопки (💪Сила) остался на ТОЙ ЖЕ
+    // высоте над головой, что и раньше (проверено вживую, там уже впритык
+    // к макушке мага при касте фаербола — см. коммит "почти с головы")
+    const by = f.y-540;
     // Y и половина ширины строки с ником/именем — заполняются в обеих ветках
     // ниже, нужны бейджу серии, чтобы встать РЯДОМ с ником, а не столбиком
     // НАД всей подписью (раньше бейдж стоял над уровнем+ником — на TV-высоте
@@ -1521,28 +1523,29 @@ function drawFighter(f, now){
       const shortName = f.name.length>14 ? f.name.slice(0,13)+'…' : f.name;
       const nickLine = (isChamp?'👑 ':'') + shortName;
       const lvlLine = 'ур.'+lvl;
-      // шрифты и отступы x2 от исходных (было 17/16px, ник/уровень на by-8/
-      // by-30) — по прямой просьбе пользователя, читабельнее с телевизора
-      const nickY = by-16, lvlY = by-60;
+      // шрифты и отступы x1.5 от предыдущего раунда (было 34/17px по факту
+      // x2 от самых первых 17/16) — по прямой просьбе пользователя,
+      // читабельнее с телевизора. Освободилось после того как убрали титр.
+      const nickY = by-24, lvlY = by-90;
       ctx.save();
       ctx.textAlign='center';
       // подложки под обеими строками — читаемость не зависит от фона
-      ctx.font='bold 34px Arial Black';
+      ctx.font='bold 51px Arial Black';
       const nickW = ctx.measureText(nickLine).width;
-      ctx.font='bold 32px Arial Black';
+      ctx.font='bold 48px Arial Black';
       const lvlW = ctx.measureText(lvlLine).width;
       ctx.fillStyle='rgba(0,0,0,0.5)';
-      ctx.fillRect(f.x-nickW/2-12, nickY-32, nickW+24, 42);
-      ctx.fillRect(f.x-lvlW/2-12, lvlY-28, lvlW+24, 40);
+      ctx.fillRect(f.x-nickW/2-18, nickY-48, nickW+36, 63);
+      ctx.fillRect(f.x-lvlW/2-18, lvlY-42, lvlW+36, 60);
 
-      ctx.font='bold 32px Arial Black';
-      ctx.strokeStyle='rgba(0,0,0,0.9)'; ctx.lineWidth=7;
+      ctx.font='bold 48px Arial Black';
+      ctx.strokeStyle='rgba(0,0,0,0.9)'; ctx.lineWidth=10;
       ctx.strokeText(lvlLine, f.x, lvlY);
       ctx.fillStyle = rank.color;
       ctx.fillText(lvlLine, f.x, lvlY);
 
-      ctx.font='bold 34px Arial Black';
-      ctx.strokeStyle='rgba(0,0,0,0.9)'; ctx.lineWidth=7;
+      ctx.font='bold 51px Arial Black';
+      ctx.strokeStyle='rgba(0,0,0,0.9)'; ctx.lineWidth=10;
       ctx.strokeText(nickLine, f.x, nickY);
       ctx.fillStyle = isChamp ? '#ffd700' : colorForName(f.name);
       ctx.fillText(nickLine, f.x, nickY);
@@ -1552,15 +1555,15 @@ function drawFighter(f, now){
       // бот-заполнитель — просто имя с меткой 🤖, без уровня (нет в БД/топе
       // дня — гейт !isBot стоит везде, где что-то шлётся на сервер). Цвет
       // тоже по имени, но приглушённый (ниже насыщенность/яркость), чтобы
-      // визуально отличаться от реальных зрителей. Шрифт x2 (было 15px)
+      // визуально отличаться от реальных зрителей. Шрифт x1.5 (было 30px)
       const label = '🤖 '+f.name;
-      const labelY = by-20;
+      const labelY = by-30;
       ctx.save();
-      ctx.font='bold 30px Arial Black'; ctx.textAlign='center';
+      ctx.font='bold 45px Arial Black'; ctx.textAlign='center';
       const labelW = ctx.measureText(label).width;
       ctx.fillStyle='rgba(0,0,0,0.45)';
-      ctx.fillRect(f.x-labelW/2-12, labelY-30, labelW+24, 38);
-      ctx.strokeStyle='rgba(0,0,0,0.85)'; ctx.lineWidth=6;
+      ctx.fillRect(f.x-labelW/2-18, labelY-45, labelW+36, 57);
+      ctx.strokeStyle='rgba(0,0,0,0.85)'; ctx.lineWidth=9;
       ctx.strokeText(label, f.x, labelY);
       ctx.fillStyle=colorForName(f.name).replace('78%, 68%','30%, 62%');
       ctx.fillText(label, f.x, labelY);
@@ -1568,20 +1571,20 @@ function drawFighter(f, now){
       nameRowY = labelY; nameRowHalfW = labelW/2;
     }
 
-    // ❤️ Энергия и 💪 Сила — числом друг под другом под ником, шрифт x2
-    // (было 14px) — по прямой просьбе пользователя, читабельнее с телевизора
+    // ❤️ Энергия и 💪 Сила — числом друг под другом под ником, шрифт x1.5
+    // (было 28px) — по прямой просьбе пользователя, читабельнее с телевизора
     {
-      const statsLabelY = by-20;
+      const statsLabelY = by-30;
       ctx.save();
-      ctx.font='bold 28px Arial'; ctx.textAlign='center';
-      ctx.lineWidth=6; ctx.strokeStyle='rgba(0,0,0,0.9)';
+      ctx.font='bold 42px Arial'; ctx.textAlign='center';
+      ctx.lineWidth=9; ctx.strokeStyle='rgba(0,0,0,0.9)';
       const enTxt = `❤️ ${Math.max(0,Math.floor(f.energy||0))}`;
-      ctx.strokeText(enTxt, f.x, statsLabelY+36);
-      ctx.fillStyle='#FF6688'; ctx.fillText(enTxt, f.x, statsLabelY+36);
+      ctx.strokeText(enTxt, f.x, statsLabelY+54);
+      ctx.fillStyle='#FF6688'; ctx.fillText(enTxt, f.x, statsLabelY+54);
 
       const pwTxt = `💪 ${Math.floor(f.power||0)}`;
-      ctx.strokeText(pwTxt, f.x, statsLabelY+72);
-      ctx.fillStyle='#ff9d5c'; ctx.fillText(pwTxt, f.x, statsLabelY+72);
+      ctx.strokeText(pwTxt, f.x, statsLabelY+108);
+      ctx.fillStyle='#ff9d5c'; ctx.fillText(pwTxt, f.x, statsLabelY+108);
       ctx.restore();
     }
 
@@ -1591,16 +1594,16 @@ function drawFighter(f, now){
     // теперь просто текст с обводкой. Стоит СПРАВА от строки ника/имени
     // (nameRowY/nameRowHalfW выше), а не столбиком над всей подписью —
     // см. комментарий у объявления nameRowY.
-    // Радиус x2 (было 15/19/24) — в паре с остальными подписями, выросшими вдвое.
+    // Радиус x1.5 (было 30/38/48) — в паре с остальными подписями.
     if(f.streak>=2){
       const tier = f.streak>=8 ? 8 : (f.streak>=5?5:3);
-      const r = tier===8?48:(tier===5?38:30);
-      const badgeX = f.x + nameRowHalfW + r + 14, badgeY = nameRowY - 10;
+      const r = tier===8?72:(tier===5?57:45);
+      const badgeX = f.x + nameRowHalfW + r + 21, badgeY = nameRowY - 15;
       ctx.save();
       ctx.fillStyle=streakColorFor(tier);
       ctx.font=`900 ${Math.round(r*0.95)}px Arial Black`;
       ctx.textAlign='center'; ctx.textBaseline='middle';
-      ctx.lineWidth=3; ctx.strokeStyle='rgba(0,0,0,0.9)';
+      ctx.lineWidth=4.5; ctx.strokeStyle='rgba(0,0,0,0.9)';
       const streakTxt = '💀'+f.streak;
       ctx.strokeText(streakTxt, badgeX, badgeY+1);
       ctx.fillText(streakTxt, badgeX, badgeY+1);
