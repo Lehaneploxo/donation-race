@@ -347,6 +347,30 @@
     <a class="btn-start" href="/fantasyarena-db" style="display:block;text-align:center;text-decoration:none;background:linear-gradient(90deg,#2e0a66,#a858ff);color:#fff;box-shadow:0 4px 20px rgba(192,96,255,0.4)">📊 ОТКРЫТЬ БАЗУ ДАННЫХ</a>
   </div>
 
+  <!-- ── FANTASY ARENA TV (ТВ-формат 16:9, своя база) ── -->
+  <div class="game-panel panel-arena" style="border-left:1px solid rgba(192,96,255,0.3)">
+    <div class="panel-title" style="color:#c060ff;text-shadow:0 0 18px #9333ff">📺 FANTASY ARENA TV 📺</div>
+    <div class="panel-sub">То же самое, но горизонтально под телевизор · без плашек · своя база</div>
+
+    <input class="nick-input" id="fantasyarenatvInput" type="text"
+           placeholder="@your_username"
+           autocomplete="off" autocorrect="off" spellcheck="false">
+
+    <div class="error-msg" id="fantasyarenatvError">Введи никнейм TikTok</div>
+
+    <button class="btn-start" id="fantasyarenatvStart" style="background:linear-gradient(90deg,#4a0e8f,#c060ff);color:#fff;box-shadow:0 4px 20px rgba(192,96,255,0.4)">📺 START FANTASY ARENA TV</button>
+
+    <div class="status-msg" id="fantasyarenatvStatus">⏳ Открываю игру…</div>
+  </div>
+
+  <!-- ── FANTASY ARENA TV: БАЗА ДАННЫХ ── -->
+  <div class="game-panel panel-arena" style="border-left:1px solid rgba(192,96,255,0.3)">
+    <div class="panel-title" style="color:#c060ff;text-shadow:0 0 18px #9333ff">📊 БАЗА ДАННЫХ FANTASY ARENA TV</div>
+    <div class="panel-sub">Отдельный рейтинг ТВ-версии, не смешан с обычной Fantasy Arena</div>
+
+    <a class="btn-start" href="/fantasyarenatv-db" style="display:block;text-align:center;text-decoration:none;background:linear-gradient(90deg,#2e0a66,#a858ff);color:#fff;box-shadow:0 4px 20px rgba(192,96,255,0.4)">📊 ОТКРЫТЬ БАЗУ ДАННЫХ</a>
+  </div>
+
   <!-- ── ЦИВИЛИЗАЦИЯ ── -->
   <div class="game-panel panel-civ">
     <div class="panel-title">🏛️ ЦИВИЛИЗАЦИЯ 🏛️</div>
@@ -441,16 +465,17 @@
   document.getElementById('streetfighter2Input').value = saved;
   document.getElementById('fishingInput').value = saved;
   document.getElementById('fantasyarenaInput').value = saved;
+  document.getElementById('fantasyarenatvInput').value = saved;
   document.getElementById('vzaimkiInput').value = saved;
   document.getElementById('tamagotchiInput').value = saved;
   document.getElementById('razgonInput').value = saved;
   document.getElementById('avatarwarInput').value = saved;
 
   // Sync all inputs when typing
-  ['civInput','boxingInput','boxingEnInput','streetfighterInput','streetfighter2Input','fishingInput','fantasyarenaInput','vzaimkiInput','tamagotchiInput','razgonInput','avatarwarInput'].forEach(id => {
+  ['civInput','boxingInput','boxingEnInput','streetfighterInput','streetfighter2Input','fishingInput','fantasyarenaInput','fantasyarenatvInput','vzaimkiInput','tamagotchiInput','razgonInput','avatarwarInput'].forEach(id => {
     document.getElementById(id).addEventListener('input', function() {
       if (this.value.startsWith('@')) this.value = this.value.slice(1);
-      ['civInput','boxingInput','boxingEnInput','streetfighterInput','streetfighter2Input','fishingInput','fantasyarenaInput','vzaimkiInput','tamagotchiInput','razgonInput','avatarwarInput'].forEach(oid => {
+      ['civInput','boxingInput','boxingEnInput','streetfighterInput','streetfighter2Input','fishingInput','fantasyarenaInput','fantasyarenatvInput','vzaimkiInput','tamagotchiInput','razgonInput','avatarwarInput'].forEach(oid => {
         if (oid !== id) document.getElementById(oid).value = this.value;
       });
     });
@@ -520,6 +545,13 @@
     handleClick('fantasyarenaInput','fantasyarenaError','fantasyarenaStatus','fantasyarenaStart','/fantasyarena'));
   document.getElementById('fantasyarenaInput').addEventListener('keydown', e => {
     if (e.key === 'Enter') document.getElementById('fantasyarenaStart').click();
+  });
+
+  // Fantasy Arena TV
+  document.getElementById('fantasyarenatvStart').addEventListener('click', () =>
+    handleClick('fantasyarenatvInput','fantasyarenatvError','fantasyarenatvStatus','fantasyarenatvStart','/fantasyarenatv'));
+  document.getElementById('fantasyarenatvInput').addEventListener('keydown', e => {
+    if (e.key === 'Enter') document.getElementById('fantasyarenatvStart').click();
   });
 
   // Взаимки

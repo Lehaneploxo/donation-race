@@ -171,6 +171,40 @@ async function init() {
     )
   `);
 
+  // ── Fantasy Arena TV (2026-09-08) — ТВ-версия Fantasy Arena (16:9, без
+  // плашек), схема 1-в-1 как у fantasyarena_stolen выше, но СВОЯ таблица/
+  // архив/метка сброса: рейтинг и уровни у ТВ-версии полностью отдельные.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS fantasyarenatv_stolen (
+      username TEXT PRIMARY KEY,
+      total_stolen INTEGER NOT NULL DEFAULT 0
+    )
+  `);
+  await pool.query(`ALTER TABLE fantasyarenatv_stolen ADD COLUMN IF NOT EXISTS total_kos INTEGER NOT NULL DEFAULT 0`);
+  await pool.query(`ALTER TABLE fantasyarenatv_stolen ADD COLUMN IF NOT EXISTS belt_seconds INTEGER NOT NULL DEFAULT 0`);
+  // выбор героя командой "hero1".."hero4" — как в портретной версии, но своя колонка
+  await pool.query(`ALTER TABLE fantasyarenatv_stolen ADD COLUMN IF NOT EXISTS chosen_skin INTEGER`);
+  await pool.query(`ALTER TABLE fantasyarenatv_stolen ADD COLUMN IF NOT EXISTS lifetime_stolen INTEGER NOT NULL DEFAULT 0`);
+  await pool.query(`UPDATE fantasyarenatv_stolen SET lifetime_stolen = total_stolen WHERE lifetime_stolen = 0 AND total_stolen > 0`);
+  await pool.query(`ALTER TABLE fantasyarenatv_stolen ADD COLUMN IF NOT EXISTS weekly_belt_seconds INTEGER NOT NULL DEFAULT 0`);
+  await pool.query(`ALTER TABLE fantasyarenatv_stolen ADD COLUMN IF NOT EXISTS weekly_king_wins INTEGER NOT NULL DEFAULT 0`);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS fantasyarenatv_weekly_kings (
+      id SERIAL PRIMARY KEY,
+      week_start TIMESTAMPTZ NOT NULL,
+      username TEXT NOT NULL,
+      weekly_belt_seconds INTEGER NOT NULL,
+      weekly_points INTEGER NOT NULL DEFAULT 0,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS fantasyarenatv_weekly_meta (
+      id INTEGER PRIMARY KEY DEFAULT 1,
+      last_reset_at TIMESTAMPTZ NOT NULL
+    )
+  `);
+
   // ── Avatar War (2026-08-26) — 1-в-1 схема Fantasy Arena выше (см.
   // комментарии там), своя таблица/архив/метка сброса. total_stolen тут по
   // смыслу "нанесённый урон" (юнит-донатер бьёт врагов/вражескую базу).
@@ -857,6 +891,164 @@ async function getFantasyArenaWeeklyHistory() {
   }));
 }
 
+// ── Fantasy Arena TV: 1-в-1 логика Fantasy Arena выше (см. комментарии там),
+// своя таблица/архив/метка сброса — рейтинг ТВ-версии не смешивается с
+// портретной Fantasy Arena. ──
+const fantasyArenaTv = makeBoxingApi('fantasyarenatv_stolen');
+const getTopFantasyArenaTvStolen = fantasyArenaTv.getTop;
+const addFantasyArenaTvKO = fantasyArenaTv.addKO;
+const resetFantasyArenaTvRating = fantasyArenaTv.reset;
+const setFantasyArenaTvStolen = fantasyArenaTv.setStolen;
+const deleteFantasyArenaTvUser = fantasyArenaTv.deleteUser;
+const setFantasyArenaTvWeeklyKingWins = fantasyArenaTv.setWeeklyKingWins;
+
+async function addFantasyArenaTvStolen(username, amount) {
+  if (!pool || !username || !amount) return;
+  await pool.query(`
+    INSERT INTO fantasyarenatv_stolen (username, total_stolen, lifetime_stolen)
+    VALUES ($1, $2, $2)
+    ON CONFLICT (username)
+    DO UPDATE SET total_stolen = fantasyarenatv_stolen.total_stolen + $2,
+                  lifetime_stolen = fantasyarenatv_stolen.lifetime_stolen + $2
+  `, [username, Math.floor(amount)]);
+}
+
+async function addFantasyArenaTvBeltSeconds(username, seconds) {
+  if (!pool || !username || !seconds) return;
+  await pool.query(`
+    INSERT INTO fantasyarenatv_stolen (username, belt_seconds, weekly_belt_seconds)
+    VALUES ($1, $2, $2)
+    ON CONFLICT (username)
+    DO UPDATE SET belt_seconds = fantasyarenatv_stolen.belt_seconds + $2,
+                  weekly_belt_seconds = fantasyarenatv_stolen.weekly_belt_seconds + $2
+  `, [username, Math.floor(seconds)]);
+}
+
+async function getUserFantasyArenaTvRank(username) {
+  if (!pool || !username) return null;
+  const res = await pool.query(`
+    SELECT username, total_stolen, total_kos, belt_seconds, lifetime_stolen, weekly_king_wins, weekly_belt_seconds,
+           RANK() OVER (ORDER BY total_stolen DESC) AS rank
+    FROM fantasyarenatv_stolen
+  `);
+  const row = res.rows.find(r => r.username.toLowerCase() === username.toLowerCase());
+  return row ? {
+    rank: Number(row.rank),
+    total_stolen: Number(row.total_stolen),
+    total_kos: Number(row.total_kos),
+    belt_seconds: Number(row.belt_seconds),
+    lifetime_stolen: Number(row.lifetime_stolen),
+    weekly_king_wins: Number(row.weekly_king_wins),
+    weekly_belt_seconds: Number(row.weekly_belt_seconds),
+  } : null;
+}
+
+async function getAllFantasyArenaTvStolen() {
+  if (!pool) return [];
+  const res = await pool.query(`
+    SELECT username, total_stolen, total_kos, belt_seconds, lifetime_stolen, weekly_king_wins, weekly_belt_seconds,
+           ROW_NUMBER() OVER (ORDER BY total_stolen DESC, username ASC) AS rank
+    FROM fantasyarenatv_stolen
+    ORDER BY total_stolen DESC, username ASC
+  `);
+  return res.rows.map(r => ({
+    rank: Number(r.rank),
+    username: r.username,
+    total_stolen: Number(r.total_stolen),
+    total_kos: Number(r.total_kos),
+    belt_seconds: Number(r.belt_seconds),
+    lifetime_stolen: Number(r.lifetime_stolen),
+    weekly_king_wins: Number(r.weekly_king_wins),
+    weekly_belt_seconds: Number(r.weekly_belt_seconds),
+  }));
+}
+
+async function performFantasyArenaTvWeeklyResetIfNeeded() {
+  if (!pool) return null;
+  const boundaryMs = mostRecentMidnightKyivMs(Date.now());
+  const boundary = new Date(boundaryMs);
+
+  const metaRes = await pool.query(`SELECT last_reset_at FROM fantasyarenatv_weekly_meta WHERE id=1`);
+  if (metaRes.rows.length === 0) {
+    await pool.query(`INSERT INTO fantasyarenatv_weekly_meta (id, last_reset_at) VALUES (1, $1)`, [boundary]);
+    return null;
+  }
+
+  const lastReset = metaRes.rows[0].last_reset_at;
+  if (boundary <= lastReset) return null;
+
+  const winnerRes = await pool.query(`
+    SELECT username, total_stolen, weekly_belt_seconds FROM fantasyarenatv_stolen
+    WHERE total_stolen > 0
+    ORDER BY total_stolen DESC LIMIT 1
+  `);
+  let winner = null;
+  if (winnerRes.rows.length) {
+    winner = winnerRes.rows[0];
+    await pool.query(`
+      INSERT INTO fantasyarenatv_weekly_kings (week_start, username, weekly_belt_seconds, weekly_points)
+      VALUES ($1, $2, $3, $4)
+    `, [lastReset, winner.username, winner.weekly_belt_seconds, winner.total_stolen]);
+    await pool.query(`
+      UPDATE fantasyarenatv_stolen SET weekly_king_wins = weekly_king_wins + 1
+      WHERE LOWER(username) = LOWER($1)
+    `, [winner.username]);
+  }
+
+  await pool.query(`UPDATE fantasyarenatv_stolen SET total_stolen = 0, weekly_belt_seconds = 0`);
+  await pool.query(`UPDATE fantasyarenatv_weekly_meta SET last_reset_at = $1 WHERE id=1`, [boundary]);
+
+  console.log(`[FANTASYARENATV] Дневной сброс выполнен, граница=${boundary.toISOString()}, король дня: ${winner ? winner.username + ' (' + winner.total_stolen + ' очков)' : 'нет (очков никто не набрал)'}`);
+
+  return { winner: winner ? winner.username : null, weekStart: lastReset.toISOString() };
+}
+
+// выбор героя (hero1..hero4) — как в портретной Fantasy Arena, но в своей таблице
+async function setFantasyArenaTvSkin(username, skinIndex) {
+  if (!pool || !username) return;
+  await pool.query(`
+    INSERT INTO fantasyarenatv_stolen (username, chosen_skin)
+    VALUES ($1, $2)
+    ON CONFLICT (username)
+    DO UPDATE SET chosen_skin = $2
+  `, [username, skinIndex]);
+}
+async function getFantasyArenaTvSkin(username) {
+  if (!pool || !username) return null;
+  const res = await pool.query(
+    `SELECT chosen_skin FROM fantasyarenatv_stolen WHERE LOWER(username) = LOWER($1)`,
+    [username]
+  );
+  return res.rows.length ? res.rows[0].chosen_skin : null;
+}
+
+async function getLastFantasyArenaTvWeeklyChampion() {
+  if (!pool) return null;
+  const res = await pool.query(`
+    SELECT username, weekly_points, week_start FROM fantasyarenatv_weekly_kings
+    ORDER BY week_start DESC LIMIT 1
+  `);
+  return res.rows.length ? {
+    username: res.rows[0].username,
+    weeklyPoints: Number(res.rows[0].weekly_points),
+    weekStart: res.rows[0].week_start,
+  } : null;
+}
+
+async function getFantasyArenaTvWeeklyHistory() {
+  if (!pool) return [];
+  const res = await pool.query(`
+    SELECT username, weekly_points, weekly_belt_seconds, week_start, created_at
+    FROM fantasyarenatv_weekly_kings ORDER BY week_start ASC
+  `);
+  return res.rows.map(r => ({
+    username: r.username,
+    weeklyPoints: Number(r.weekly_points),
+    weekStart: r.week_start,
+    createdAt: r.created_at,
+  }));
+}
+
 // ── Avatar War: 1-в-1 логика Fantasy Arena выше (см. комментарии там),
 // своя таблица/архив/метка сброса. Нет выбора героя (chosen_skin) — команда
 // (1/2) выбирается только на клиенте по чат-цифре и не персистится в БД. ──
@@ -1266,6 +1458,12 @@ module.exports = {
   setFantasyArenaSkin, getFantasyArenaSkin,
   performFantasyArenaWeeklyResetIfNeeded, getLastFantasyArenaWeeklyChampion,
   setFantasyArenaWeeklyKingWins, getFantasyArenaWeeklyHistory,
+  addFantasyArenaTvStolen, getTopFantasyArenaTvStolen, getUserFantasyArenaTvRank,
+  addFantasyArenaTvKO, addFantasyArenaTvBeltSeconds, resetFantasyArenaTvRating,
+  setFantasyArenaTvStolen, deleteFantasyArenaTvUser, getAllFantasyArenaTvStolen,
+  setFantasyArenaTvSkin, getFantasyArenaTvSkin,
+  performFantasyArenaTvWeeklyResetIfNeeded, getLastFantasyArenaTvWeeklyChampion,
+  setFantasyArenaTvWeeklyKingWins, getFantasyArenaTvWeeklyHistory,
   addAvatarWarStolen, getTopAvatarWarStolen, getUserAvatarWarRank,
   addAvatarWarKO, resetAvatarWarRating, setAvatarWarStolen,
   deleteAvatarWarUser, getAllAvatarWarStolen,

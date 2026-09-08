@@ -70,6 +70,10 @@ app.get('/streetfighter-db', serveHtml('streetfighter_db.html'));
 app.get('/streetfighter2',   serveHtml('streetfighter_arena2.html'));
 app.get('/fantasyarena',     serveHtml('fantasy_arena.html'));
 app.get('/fantasyarena-db',  serveHtml('fantasy_arena_db.html'));
+// Fantasy Arena TV (08.09.2026) — та же игра в ТВ-формате 16:9, без плашек,
+// со СВОЕЙ отдельной базой (таблицы fantasyarenatv_*)
+app.get('/fantasyarenatv',    serveHtml('fantasy_arena_tv.html'));
+app.get('/fantasyarenatv-db', serveHtml('fantasy_arena_tv_db.html'));
 app.get('/fishing',    serveHtml('fishing.html'));
 app.get('/fishing-db', serveHtml('fishing_db.html'));
 app.get('/vzaimki',    serveHtml('vzaimki.html'));
@@ -526,6 +530,100 @@ app.get('/admin/fantasyarena-weekly-check', async (req, res) => {
   }
 });
 
+// ─── Fantasy Arena TV — те же ручки, но по своей таблице ───
+app.get('/api/fantasyarenatv-db', async (req, res) => {
+  try {
+    const rows = await db.getAllFantasyArenaTvStolen();
+    res.json({ ok: true, count: rows.length, rows });
+  } catch(e) {
+    res.json({ ok: false, error: e.message });
+  }
+});
+
+app.get('/admin/reset-fantasyarenatv-rating', async (req, res) => {
+  try {
+    await db.resetFantasyArenaTvRating();
+    res.json({ ok: true });
+  } catch(e) {
+    res.json({ ok: false, error: e.message });
+  }
+});
+
+app.get('/admin/set-fantasyarenatv-stolen', async (req, res) => {
+  try {
+    const username = req.query.username || '';
+    const value = parseInt(req.query.value);
+    if (!username || Number.isNaN(value)) return res.json({ ok: false, error: 'username and value required' });
+    await db.setFantasyArenaTvStolen(username, value);
+    console.log(`[ADMIN-SET-FANTASYARENATV-STOLEN] username="${username}" value=${value}`);
+    res.json({ ok: true, username, value });
+  } catch(e) {
+    res.json({ ok: false, error: e.message });
+  }
+});
+
+app.get('/admin/set-fantasyarenatv-wins', async (req, res) => {
+  try {
+    const username = req.query.username || '';
+    const value = parseInt(req.query.value);
+    if (!username || Number.isNaN(value)) return res.json({ ok: false, error: 'username and value required' });
+    await db.setFantasyArenaTvWeeklyKingWins(username, value);
+    console.log(`[ADMIN-SET-FANTASYARENATV-WINS] username="${username}" value=${value}`);
+    res.json({ ok: true, username, value });
+  } catch(e) {
+    res.json({ ok: false, error: e.message });
+  }
+});
+
+app.get('/admin/delete-fantasyarenatv-user', async (req, res) => {
+  try {
+    const username = req.query.username || '';
+    if (!username) return res.json({ ok: false, error: 'username required' });
+    await db.deleteFantasyArenaTvUser(username);
+    console.log(`[ADMIN-DELETE-FANTASYARENATV-USER] username="${username}"`);
+    res.json({ ok: true, username });
+  } catch(e) {
+    res.json({ ok: false, error: e.message });
+  }
+});
+
+app.get('/top-fantasyarenatv', async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 100;
+    const top = await db.getTopFantasyArenaTvStolen(limit);
+    res.json({ ok: true, count: top.length, top });
+  } catch(e) {
+    res.json({ ok: false, error: e.message });
+  }
+});
+
+app.get('/fantasyarenatv-weekly-champion', async (req, res) => {
+  try {
+    const champion = await db.getLastFantasyArenaTvWeeklyChampion();
+    res.json({ ok: true, champion });
+  } catch(e) {
+    res.json({ ok: false, error: e.message });
+  }
+});
+
+app.get('/admin/fantasyarenatv-weekly-history', async (req, res) => {
+  try {
+    const history = await db.getFantasyArenaTvWeeklyHistory();
+    res.json({ ok: true, count: history.length, history });
+  } catch(e) {
+    res.json({ ok: false, error: e.message });
+  }
+});
+
+app.get('/admin/fantasyarenatv-weekly-check', async (req, res) => {
+  try {
+    const result = await checkFantasyArenaTvWeeklyReset();
+    res.json({ ok: true, result });
+  } catch(e) {
+    res.json({ ok: false, error: e.message });
+  }
+});
+
 app.get('/api/fishing-db', async (req, res) => {
   try {
     const rows = await db.getAllFishing();
@@ -612,6 +710,7 @@ const STATE_RESTORE_TYPE = {
   boxing: 'boxing_state_restore',
   boxing_en: 'boxing_state_restore_en',
   fantasyarena: 'fantasyarena_state_restore',
+  fantasyarenatv: 'fantasyarenatv_state_restore',
 };
 
 // ─── Тамагочи-девушка ───────────────────────────────────────────────────────
@@ -1062,6 +1161,11 @@ class Room {
           db.setFantasyArenaSkin(data.username, skinIndex)
             .catch(e => console.error('[DB] fantasyarena_skin error:', e.message));
           this.broadcast({ type: 'fantasyarena_skin_choice', username: data.username, skinIndex });
+          // та же команда закрепляет героя и в ТВ-версии — у неё своя
+          // таблица, поэтому пишем отдельно (портретная версия не меняется)
+          db.setFantasyArenaTvSkin(data.username, skinIndex)
+            .catch(e => console.error('[DB] fantasyarenatv_skin error:', e.message));
+          this.broadcast({ type: 'fantasyarenatv_skin_choice', username: data.username, skinIndex });
         }
 
         const lowerUser = (data.username || '').toLowerCase();
@@ -1176,6 +1280,23 @@ class Room {
             })
             .catch(() => {
               this.broadcast({ type: 'arena_fantasyarena_rating', username: data.username, rank: null, stolen: 0, kos: 0, lifetimeStolen: 0, weeklyKingWins: 0, weeklyBeltSeconds: 0 });
+            });
+          // Fantasy Arena TV: свой топ по своей таблице
+          db.getUserFantasyArenaTvRank(data.username)
+            .then(rank => {
+              this.broadcast({
+                type: 'arena_fantasyarenatv_rating',
+                username: data.username,
+                rank: rank ? rank.rank : null,
+                stolen: rank ? rank.total_stolen : 0,
+                kos: rank ? rank.total_kos : 0,
+                lifetimeStolen: rank ? rank.lifetime_stolen : 0,
+                weeklyKingWins: rank ? rank.weekly_king_wins : 0,
+                weeklyBeltSeconds: rank ? rank.weekly_belt_seconds : 0,
+              });
+            })
+            .catch(() => {
+              this.broadcast({ type: 'arena_fantasyarenatv_rating', username: data.username, rank: null, stolen: 0, kos: 0, lifetimeStolen: 0, weeklyKingWins: 0, weeklyBeltSeconds: 0 });
             });
           // Рыбалка: место в дневном топе + вечный счёт рыбок
           db.getUserFishingRank(data.username)
@@ -1479,6 +1600,33 @@ wss.on('connection', (ws, req) => {
             room.broadcast({ type: 'fantasyarena_tier_info', username: msg.username, lifetimeStolen: 0, chosenSkin: null });
           });
       }
+      // ─── Fantasy Arena TV — то же самое, но в свою таблицу ───
+      if (msg.type === 'fantasyarenatv_stolen' && msg.username && msg.amount) {
+        db.addFantasyArenaTvStolen(msg.username, msg.amount)
+          .then(() => db.getTopFantasyArenaTvStolen(5))
+          .then(top => {
+            room.broadcast({ type: 'top_fantasyarenatv', data: top });
+          })
+          .catch(e => console.error('[DB] fantasyarenatv_stolen error:', e.message));
+      }
+      if (msg.type === 'fantasyarenatv_ko' && msg.username) {
+        db.addFantasyArenaTvKO(msg.username).catch(e => console.error('[DB] fantasyarenatv_ko error:', e.message));
+      }
+      if (msg.type === 'fantasyarenatv_belt' && msg.username && msg.seconds) {
+        db.addFantasyArenaTvBeltSeconds(msg.username, msg.seconds).catch(e => console.error('[DB] fantasyarenatv_belt error:', e.message));
+      }
+      if (msg.type === 'fantasyarenatv_tier_request' && msg.username) {
+        Promise.all([
+          db.getUserFantasyArenaTvRank(msg.username),
+          db.getFantasyArenaTvSkin(msg.username),
+        ])
+          .then(([rank, chosenSkin]) => {
+            room.broadcast({ type: 'fantasyarenatv_tier_info', username: msg.username, lifetimeStolen: rank ? rank.lifetime_stolen : 0, chosenSkin });
+          })
+          .catch(() => {
+            room.broadcast({ type: 'fantasyarenatv_tier_info', username: msg.username, lifetimeStolen: 0, chosenSkin: null });
+          });
+      }
       if (msg.type === 'avatarwar_stolen' && msg.username && msg.amount) {
         db.addAvatarWarStolen(msg.username, msg.amount)
           .then(() => db.getTopAvatarWarStolen(5))
@@ -1504,6 +1652,12 @@ wss.on('connection', (ws, req) => {
       }
       if (msg.type === 'fantasyarena_state_request') {
         room.sendStateSnapshot(ws, 'fantasyarena');
+      }
+      if (msg.type === 'fantasyarenatv_state_save') {
+        room.saveStateSnapshot('fantasyarenatv', msg.players);
+      }
+      if (msg.type === 'fantasyarenatv_state_request') {
+        room.sendStateSnapshot(ws, 'fantasyarenatv');
       }
       if (msg.type === 'tamagotchi_state_request') {
         room.sendTamagotchiState(ws);
@@ -1654,6 +1808,26 @@ async function checkFantasyArenaWeeklyReset() {
 }
 setInterval(() => { checkFantasyArenaWeeklyReset().catch(e => console.error('[FANTASYARENA] weekly-check error:', e.message)); }, 10*60*1000);
 setTimeout(() => { checkFantasyArenaWeeklyReset().catch(e => console.error('[FANTASYARENA] weekly-check (startup) error:', e.message)); }, 15*1000);
+
+// ─── Fantasy Arena TV: ЕЖЕДНЕВНЫЙ сброс рейтинга (полночь по Киеву) ─────
+// 1-в-1 паттерн Fantasy Arena выше, но по своей таблице.
+async function checkFantasyArenaTvWeeklyReset() {
+  const result = await db.performFantasyArenaTvWeeklyResetIfNeeded();
+  if (result) {
+    console.log('[FANTASYARENATV] Рассылаю обновлённый топ и нового чемпиона дня во все активные комнаты после сброса');
+    for (const room of rooms.values()) {
+      db.getTopFantasyArenaTvStolen(5)
+        .then(top => room.broadcast({ type: 'top_fantasyarenatv', data: top }))
+        .catch(e => console.error('[FANTASYARENATV] Ошибка рассылки топа после сброса:', e.message));
+      db.getLastFantasyArenaTvWeeklyChampion()
+        .then(champion => room.broadcast({ type: 'fantasyarenatv_weekly_champion', champion }))
+        .catch(e => console.error('[FANTASYARENATV] Ошибка рассылки чемпиона после сброса:', e.message));
+    }
+  }
+  return result;
+}
+setInterval(() => { checkFantasyArenaTvWeeklyReset().catch(e => console.error('[FANTASYARENATV] weekly-check error:', e.message)); }, 10*60*1000);
+setTimeout(() => { checkFantasyArenaTvWeeklyReset().catch(e => console.error('[FANTASYARENATV] weekly-check (startup) error:', e.message)); }, 15*1000);
 
 // ─── Avatar War: ЕЖЕДНЕВНЫЙ сброс рейтинга (полночь по Киеву) ─────
 // 1-в-1 паттерн Street Fighter/Fantasy Arena выше (см. комментарий там).
