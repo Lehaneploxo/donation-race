@@ -86,9 +86,22 @@ function fitScreen(){
 window.addEventListener('resize', fitScreen); fitScreen();
 
 document.getElementById('backBtn').addEventListener('click', ()=>{ window.location.href='/'; });
+// На весь экран + принудительно горизонтальная ориентация (ТВ-формат 16:9,
+// по прямой просьбе пользователя — важно на телефоне, где по умолчанию
+// portrait). screen.orientation.lock() в большинстве браузеров (Chrome/
+// Android) работает ТОЛЬКО внутри fullscreen, поэтому лочим ориентацию
+// сразу после успешного входа в fullscreen, не раньше. iOS Safari API не
+// поддерживает вообще — там просто останется обычный fullscreen без лока,
+// это нормально (ничего не падает, .catch молча проглатывает).
 document.getElementById('fsBtn').addEventListener('click', ()=>{
-  if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(()=>{});
-  else document.exitFullscreen().catch(()=>{});
+  if (!document.fullscreenElement) {
+    document.documentElement.requestFullscreen()
+      .then(()=>{ if (screen.orientation && screen.orientation.lock) screen.orientation.lock('landscape').catch(()=>{}); })
+      .catch(()=>{});
+  } else {
+    if (screen.orientation && screen.orientation.unlock) { try { screen.orientation.unlock(); } catch(e){} }
+    document.exitFullscreen().catch(()=>{});
+  }
 });
 
 // ---------- roster (frame size == sheet height, frames laid out horizontally) ----------
