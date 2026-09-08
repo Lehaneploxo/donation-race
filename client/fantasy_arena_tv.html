@@ -6,7 +6,13 @@
 <title>📺 Fantasy Arena TV</title>
 <style>
   html, body { width:100vw; height:100vh; margin:0; background:#000; overflow:hidden; font-family:Arial,sans-serif; }
-  #wrap { position:absolute; left:0; top:0; width:1280px; height:720px; transform-origin:0 0; }
+  /* высота #wrap ОБРЕЗАНА (720 -> 520) — по прямой просьбе пользователя
+     убрать пустую полосу пола снизу кадра (видна на скриншоте с телефона).
+     Канвас внутри остаётся полным 1280x720 — вся игровая логика (пол,
+     GROUND_Y, шов пол/стена) не тронута, просто нижние ~200px картинки
+     обрезаются CSS-overflow и никогда не попадают в кадр зрителя. См.
+     VISIBLE_CH в <script> — тем же числом считается посадка/масштаб. */
+  #wrap { position:absolute; left:0; top:0; width:1280px; height:520px; overflow:hidden; transform-origin:0 0; }
   canvas { display:block; background:#000; }
   .ui-btn { position: fixed; z-index: 99999; width: 26px; height: 26px; font-size: 12px; background: rgba(0,0,0,0.55); color: rgba(255,255,255,0.55); border: 1px solid rgba(255,255,255,0.2); border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
   #backBtn  { top: calc(50% - 74px); right: 10px; }
@@ -99,13 +105,21 @@ let baseScale = 1;      // масштаб "вписать в экран", пер
 let userZoom = 1;       // 1..MAX_USER_ZOOM — докручивается пинчем
 let panX = 0, panY = 0; // доп. смещение (px экрана) поверх центрирования, тащится пальцем
 const MAX_USER_ZOOM = 2.5;
+// Видимая высота арены — 520 вместо полных 720 (по прямой просьбе
+// пользователя, скриншот с телефона: внизу кадра пустая полоса пола, её
+// не показываем). Используется ТОЛЬКО тут, для подгонки/центрирования
+// картинки под экран — игровая логика (GROUND_Y, seamY и т.д.) всё ещё
+// считает по полным CH=720, персонажи и пол не двигаются, просто нижние
+// ~200px рисунка обрезаются #wrap{overflow:hidden} (см. CSS) и никогда не
+// попадают в кадр. Держать в паре с CSS-высотой #wrap.
+const VISIBLE_CH = 520;
 
 function clampPan(){
   const s = baseScale * userZoom;
   // сколько арена "вылезает" за пределы окна при текущем зуме — панить
   // дальше этого нет смысла, иначе с одного края появится пустой чёрный край
   const overflowX = Math.max(0, CW*s - window.innerWidth);
-  const overflowY = Math.max(0, CH*s - window.innerHeight);
+  const overflowY = Math.max(0, VISIBLE_CH*s - window.innerHeight);
   panX = Math.max(-overflowX/2, Math.min(overflowX/2, panX));
   panY = Math.max(-overflowY/2, Math.min(overflowY/2, panY));
 }
@@ -113,11 +127,11 @@ function applyTransform(){
   const s = baseScale * userZoom;
   const wrap = document.getElementById('wrap');
   const baseX = (window.innerWidth - CW*s) / 2;
-  const baseY = (window.innerHeight - CH*s) / 2;
+  const baseY = (window.innerHeight - VISIBLE_CH*s) / 2;
   wrap.style.transform = `translate(${baseX+panX}px,${baseY+panY}px) scale(${s})`;
 }
 function fitScreen(){
-  baseScale = Math.min(window.innerWidth/CW, window.innerHeight/CH);
+  baseScale = Math.min(window.innerWidth/CW, window.innerHeight/VISIBLE_CH);
   clampPan();
   applyTransform();
 }
@@ -1385,22 +1399,11 @@ function updateMapSwitch(now){
 // продолжают тянуться с сервера (см. fetchFantasyArenaTvTop/Champion ниже) —
 // чемпион нужен для короны 👑 над ником бойца, топ пишется в БД как обычно.
 let _dbTop = []; // [{username, stolen}] — на экране не рисуется, нужен только серверу/БД
-function drawHUD(){
-  // Титр сжат в ОДНУ компактную строку (было 2 строки, ~47px по высоте) —
-  // персонажи и подписи над головой выросли настолько, что старый двухстрочный
-  // титр стал главным узким местом сверху экрана; освобождённое место отдано
-  // под рост бойцов (по прямой просьбе пользователя).
-  ctx.save();
-  ctx.textAlign='center';
-  ctx.font='bold 16px Arial Black';
-  ctx.strokeStyle='rgba(0,0,0,0.85)'; ctx.lineWidth=3.5;
-  const titleTxt = '🏰 FANTASY ARENA · creator: Leha Neploxo';
-  ctx.strokeText(titleTxt, CW/2, 18);
-  ctx.shadowColor='#b040ff'; ctx.shadowBlur=8;
-  ctx.fillStyle='rgba(216,160,255,0.95)';
-  ctx.fillText(titleTxt, CW/2, 18);
-  ctx.restore();
-}
+// Титр "FANTASY ARENA · creator: Leha Neploxo" убран целиком (по прямой
+// просьбе пользователя, скриншот с телефона) — раньше тут рисовалась
+// строка текста, drawHUD() остаётся no-op-функцией (вызов ниже в render()
+// не трогаем — так меньше риск что-то сломать при следующей правке).
+function drawHUD(){}
 
 // цвет ника, устойчивый (одинаковый у одного и того же ника всегда) и
 // разный у разных ников — чтобы подписи не сливались, когда бойцы стоят
