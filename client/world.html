@@ -17,10 +17,10 @@
             -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}
   #wrap{position:fixed;inset:0;display:flex;align-items:center;justify-content:center}
   canvas{width:min(100vw, 100vh*16/9);height:auto;aspect-ratio:16/9;background:#000;display:block;touch-action:none}
-  #rot{display:none;position:fixed;inset:0;z-index:30;background:#05050c;align-items:center;justify-content:center;
+  #rot{display:none;position:fixed;inset:0;z-index:15;background:#05050c;align-items:center;justify-content:center;
        flex-direction:column;text-align:center;font-size:22px;gap:14px}
   #rot b{font-size:64px}
-  @media (orientation:portrait){ #rot{display:flex} }
+  @media (orientation:portrait){ body.ingame #rot{display:flex} }
 
   /* экраны входа / создания персонажа */
   #ov{position:fixed;inset:0;z-index:20;display:flex;
@@ -88,17 +88,25 @@
           box-shadow:0 0 40px rgba(120,70,255,.4);background:linear-gradient(#05010c 0%,#160a2c 55%,#2a1140 100%)}
   .banner .city{position:absolute;inset:0;background:url(sprites/streets_of_fight/stage/back.png) repeat-x 0 82%/auto 70%;image-rendering:pixelated}
   .banner .road{position:absolute;left:0;right:0;bottom:0;height:24%;background:linear-gradient(#2c3f57,#0e1622);border-top:3px solid #6b5f68}
-  .banner .fighters{position:absolute;left:0;right:0;bottom:6%;display:flex;justify-content:center;align-items:flex-end;gap:clamp(4px,3vw,36px)}
-  .banner .fighters img{height:clamp(64px,30vh,190px);image-rendering:pixelated;filter:drop-shadow(0 6px 3px rgba(0,0,0,.65))}
+  .banner .fighters{position:absolute;left:0;right:0;bottom:6%;display:flex;justify-content:space-evenly;align-items:flex-end;padding:0 2%}
+  .banner .fighters img{height:clamp(56px,min(30vh,21vw),190px);max-width:24%;object-fit:contain;image-rendering:pixelated;filter:drop-shadow(0 6px 3px rgba(0,0,0,.65))}
   .banner .ttl{position:absolute;top:5%;left:0;right:0;text-align:center;font-family:"Arial Black",Arial;line-height:1.02}
-  .banner .t1{font-size:clamp(22px,8vh,62px);color:#ffd23f;letter-spacing:2px;text-shadow:0 0 18px rgba(255,90,0,.9),0 3px 0 #7a2a00}
-  .banner .t2{font-size:clamp(28px,11vh,84px);color:#ff4a3a;letter-spacing:8px;text-shadow:0 0 22px rgba(255,40,0,.85),0 4px 0 #500}
+  .banner .t1{font-size:clamp(20px,min(8vh,7.4vw),62px);color:#ffd23f;letter-spacing:2px;text-shadow:0 0 18px rgba(255,90,0,.9),0 3px 0 #7a2a00}
+  .banner .t2{font-size:clamp(26px,min(11vh,10vw),84px);color:#ff4a3a;letter-spacing:8px;text-shadow:0 0 22px rgba(255,40,0,.85),0 4px 0 #500}
   .banner .tag{position:absolute;left:0;right:0;bottom:1.5%;text-align:center;font-size:clamp(11px,2.4vh,15px);color:#cfd8ff;letter-spacing:1px;text-shadow:0 1px 3px #000}
   .langs{display:flex;gap:8px;justify-content:center}
   .lang{flex:1;max-width:200px;padding:10px 6px;border-radius:10px;border:2px solid #2b2650;background:#14112a;color:#9fb0d8;font-size:15px;font-weight:bold;cursor:pointer}
   .lang.on{background:#6f4bd8;border-color:#a58bff;color:#fff}
   #scrStart button.main{margin-top:0}
   @media (max-height:520px){ .lang{padding:7px 4px;font-size:14px} #scrStart{gap:6px} }
+  .pw{position:relative}
+  .pw input{padding-right:46px}
+  .eye{position:absolute;right:5px;top:50%;transform:translateY(-50%);width:36px;height:36px;padding:0;border:0;background:transparent;
+       color:#8391b8;cursor:pointer;display:flex;align-items:center;justify-content:center}
+  .eye svg{width:22px;height:22px}
+  .eye .e-off{display:none}.eye.on{color:#ffd23f}.eye.on .e-on{display:none}.eye.on .e-off{display:block}
+  .pwrow{display:flex;flex-direction:column}
+  @media (max-height:520px){ .pwrow{flex-direction:row;gap:8px}.pwcol{flex:1;min-width:0} }
   #msg button{margin-top:16px;padding:12px 26px;border:0;border-radius:10px;background:#6f4bd8;color:#fff;font-size:17px;font-weight:bold}
 </style>
 </head>
@@ -134,8 +142,22 @@
     <label for="nick" data-i="nick"></label>
     <input id="nick" maxlength="16" autocomplete="username" autocapitalize="off" spellcheck="false" data-ph="nick_ph">
     <div class="hint" id="nickHint" data-i="nick_hint"></div>
-    <label for="pass" data-i="pass"></label>
-    <input id="pass" type="password" maxlength="64" autocomplete="new-password" data-ph="pass_ph">
+    <div class="pwrow">
+      <div class="pwcol">
+        <label for="pass" data-i="pass"></label>
+        <div class="pw">
+          <input id="pass" type="password" maxlength="64" autocomplete="new-password" autocapitalize="off" autocorrect="off" spellcheck="false" data-ph="pass_ph">
+          <button type="button" class="eye" id="eye" data-title="show_pass">
+            <svg class="e-on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>
+            <svg class="e-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.9 17.9A10.9 10.9 0 0112 20C5 20 1 12 1 12a18.5 18.5 0 015.1-5.9M9.9 4.2A10.7 10.7 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.2 3.2M1 1l22 22"/><path d="M14.1 14.1a3 3 0 11-4.2-4.2"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="pwcol" id="pass2Box">
+        <label for="pass2" data-i="pass2"></label>
+        <div class="pw"><input id="pass2" type="password" maxlength="64" autocomplete="new-password" autocapitalize="off" autocorrect="off" spellcheck="false" data-ph="pass2_ph"></div>
+      </div>
+    </div>
     <div class="warn" id="passWarn" data-i="pass_warn"></div>
     <div class="err" id="err"></div>
     <button class="main" id="go"></button>
@@ -163,6 +185,9 @@ const L = {"ru":{"tagline":"Уличные бои онлайн","play":"ИГРА
 let lang = 'en';
 try { lang = localStorage.getItem('world_lang'); } catch(_){}
 if (!L[lang]){ const n = (navigator.language || '').toLowerCase(); lang = n.startsWith('uk') ? 'uk' : n.startsWith('ru') ? 'ru' : 'en'; }
+Object.assign(L.ru, { pass2:'Повтори пароль', pass2_ph:'ещё раз тот же пароль', err_pass_mismatch:'Пароли не совпадают', show_pass:'Показать пароль' });
+Object.assign(L.uk, { pass2:'Повтори пароль', pass2_ph:'ще раз той самий пароль', err_pass_mismatch:'Паролі не збігаються', show_pass:'Показати пароль' });
+Object.assign(L.en, { pass2:'Repeat password', pass2_ph:'same password again', err_pass_mismatch:'Passwords do not match', show_pass:'Show password' });
 function t(k, ...a){
   let s = (L[lang] && k in L[lang]) ? L[lang][k] : (k in L.ru ? L.ru[k] : k);
   a.forEach((v, i) => { s = s.split('{' + i + '}').join(v); });
@@ -258,14 +283,16 @@ function setMode(m){
   mode = m;
   $('tabReg').classList.toggle('on', m==='reg'); $('tabLog').classList.toggle('on', m==='log');
   $('go').textContent = m==='reg' ? t('btn_reg') : t('btn_log');
-  $('passWarn').style.display = $('nickHint').style.display = m==='reg' ? '' : 'none';
+  $('passWarn').style.display = $('nickHint').style.display = $('pass2Box').style.display = m==='reg' ? '' : 'none';
   $('pass').autocomplete = m==='reg' ? 'new-password' : 'current-password';
   $('err').textContent = '';
 }
 $('tabReg').onclick = () => setMode('reg'); $('tabLog').onclick = () => setMode('log');
 async function submitAuth(){
   const nick = $('nick').value.trim(), pass = $('pass').value;
-  $('err').textContent = ''; $('go').disabled = true;
+  $('err').textContent = '';
+  if (mode === 'reg' && pass !== $('pass2').value){ $('err').textContent = t('err_pass_mismatch'); return; }
+  $('go').disabled = true;
   try {
     const r = await api(mode==='reg' ? 'register' : 'login', { nick, pass });
     token = r.token; try { localStorage.setItem('world_token', token); } catch(_){}
@@ -274,7 +301,9 @@ async function submitAuth(){
   $('go').disabled = false;
 }
 $('go').onclick = submitAuth;
-$('pass').addEventListener('keydown', e => { if (e.key === 'Enter') submitAuth(); });
+$('pass').addEventListener('keydown', e => { if (e.key === 'Enter'){ if (mode === 'reg') $('pass2').focus(); else submitAuth(); } });
+$('pass2').addEventListener('keydown', e => { if (e.key === 'Enter') submitAuth(); });
+$('eye').onclick = () => { const on = !$('eye').classList.contains('on'); $('eye').classList.toggle('on', on); $('pass').type = $('pass2').type = on ? 'text' : 'password'; };
 $('nick').addEventListener('keydown', e => { if (e.key === 'Enter') $('pass').focus(); });
 
 async function showCreate(){
@@ -319,7 +348,7 @@ const me = { x:0, y:600, f:1, xp:0, need:50, pt:0, st:{str:1,hp:1,spd:1}, duel:0
 const ui = { hits:[], toasts:[], floaters:[], banner:null, card:null, panel:false, touch:false, koText:0, invite:null, duelName:'' };
 
 function enterGame(){
-  $('ov').hidden = true;
+  $('ov').hidden = true; document.body.classList.add('ingame');
   if (!gameStarted){ gameStarted = true; requestAnimationFrame(frame); }
   connect();
 }
@@ -331,7 +360,7 @@ function connect(){
     connected = false;
     if (stopRetry) return;
     if (ev.code === 4001){ showMsg(t('need_login_msg'), t('btn_log'), logout); return; }
-    if (ev.code === 4002){ $('ov').hidden = false; $('scrAuth').hidden = true; showCreate(); return; }
+    if (ev.code === 4002){ document.body.classList.remove('ingame'); $('ov').hidden = false; $('scrAuth').hidden = true; showCreate(); return; }
     if (ev.code === 4004){ stopRetry = true; showMsg(t('kicked'), t('play_here'), () => location.reload()); return; }
     retry++; setTimeout(connect, Math.min(5000, 500 * retry));
   };
