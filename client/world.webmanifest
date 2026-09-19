@@ -1,0 +1,25 @@
+{
+  "name": "Leha Neploxo Game",
+  "short_name": "Leha Game",
+  "description": "Street fights online",
+  "start_url": "/world",
+  "scope": "/",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#08040f",
+  "theme_color": "#08040f",
+  "icons": [
+    {
+      "src": "img/world_icon_192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "img/world_icon_512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}

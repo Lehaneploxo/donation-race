@@ -3,8 +3,15 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no, viewport-fit=cover">
-<title>Мир</title>
-<link rel="icon" href="data:,">
+<title>Leha Neploxo Game</title>
+<link rel="icon" href="img/world_icon_192.png">
+<link rel="manifest" href="world.webmanifest">
+<link rel="apple-touch-icon" href="img/world_icon_180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-fullscreen">
+<meta name="apple-mobile-web-app-title" content="Leha Neploxo">
+<meta name="theme-color" content="#08040f">
 <style>
   html,body{margin:0;height:100%;background:#000;overflow:hidden;font-family:Arial,sans-serif;color:#fff;
             -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}
@@ -16,10 +23,10 @@
   @media (orientation:portrait){ #rot{display:flex} }
 
   /* экраны входа / создания персонажа */
-  #ov{position:fixed;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;
+  #ov{position:fixed;inset:0;z-index:20;display:flex;
       background:radial-gradient(ellipse at 50% 30%,#2a1140 0%,#08040f 70%);overflow:auto;padding:12px;box-sizing:border-box}
   #ov[hidden]{display:none}
-  .box{background:rgba(12,10,24,.94);border:2px solid #6f4bd8;border-radius:16px;padding:22px 26px;
+  .box{margin:auto;background:rgba(12,10,24,.94);border:2px solid #6f4bd8;border-radius:16px;padding:22px 26px;
        width:min(420px,100%);box-sizing:border-box;box-shadow:0 0 40px rgba(120,70,255,.35)}
   .box.wide{width:min(900px,100%)}
   h1{margin:0 0 4px;font-size:30px;text-align:center;letter-spacing:2px;color:#ffd23f;text-shadow:0 0 14px rgba(255,80,0,.6)}
@@ -52,35 +59,99 @@
   #msg{position:fixed;inset:0;z-index:25;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.75);
        font-size:22px;text-align:center;padding:20px}
   #msg[hidden]{display:none}
+  #msgText{white-space:pre-line;line-height:1.5;max-width:520px}
+  #fs{position:fixed;top:calc(8px + env(safe-area-inset-top,0px));right:calc(8px + env(safe-area-inset-right,0px));z-index:40;
+      width:40px;height:40px;padding:0;border-radius:10px;border:1px solid rgba(255,255,255,.25);background:rgba(10,10,24,.55);
+      color:#fff;opacity:.5;display:flex;align-items:center;justify-content:center;cursor:pointer}
+  #fs:hover,#fs:active{opacity:1}
+  #fs svg{width:22px;height:22px}
+  #fs .ic-off{display:none}#fs.on .ic-on{display:none}#fs.on .ic-off{display:block}
+  @media (max-height:520px){
+    #ov{padding:8px}
+    .box{padding:12px 18px}
+    h1{font-size:22px;margin:0}
+    .sub{display:none}
+    .tabs{margin-bottom:8px}.tab{padding:7px}
+    label{margin:6px 0 2px}
+    input{padding:8px 10px}
+    .warn{padding:5px 8px;margin-top:6px;font-size:12px}
+    .err{min-height:14px;margin-top:4px}
+    button.main{padding:10px;margin-top:4px;font-size:16px}
+    .card{padding:6px}.card img{height:64px}.card .nm{margin:2px 0 3px;font-size:14px}
+    .st{margin:1px 0;font-size:11px}.sw{margin-top:3px}.sw img{height:30px}
+    .cards{gap:6px}
+  }
+  #rot .rt{font-family:"Arial Black",Arial;font-size:26px;color:#ffd23f;letter-spacing:2px;text-shadow:0 0 14px rgba(255,90,0,.8);margin-bottom:8px}
+  #scrStart{width:min(940px,100%);margin:auto;display:flex;flex-direction:column;gap:10px}
+  #scrStart[hidden]{display:none}
+  .banner{position:relative;height:clamp(150px,54vh,360px);border-radius:16px;overflow:hidden;border:2px solid #6f4bd8;
+          box-shadow:0 0 40px rgba(120,70,255,.4);background:linear-gradient(#05010c 0%,#160a2c 55%,#2a1140 100%)}
+  .banner .city{position:absolute;inset:0;background:url(sprites/streets_of_fight/stage/back.png) repeat-x 0 82%/auto 70%;image-rendering:pixelated}
+  .banner .road{position:absolute;left:0;right:0;bottom:0;height:24%;background:linear-gradient(#2c3f57,#0e1622);border-top:3px solid #6b5f68}
+  .banner .fighters{position:absolute;left:0;right:0;bottom:6%;display:flex;justify-content:center;align-items:flex-end;gap:clamp(4px,3vw,36px)}
+  .banner .fighters img{height:clamp(64px,30vh,190px);image-rendering:pixelated;filter:drop-shadow(0 6px 3px rgba(0,0,0,.65))}
+  .banner .ttl{position:absolute;top:5%;left:0;right:0;text-align:center;font-family:"Arial Black",Arial;line-height:1.02}
+  .banner .t1{font-size:clamp(22px,8vh,62px);color:#ffd23f;letter-spacing:2px;text-shadow:0 0 18px rgba(255,90,0,.9),0 3px 0 #7a2a00}
+  .banner .t2{font-size:clamp(28px,11vh,84px);color:#ff4a3a;letter-spacing:8px;text-shadow:0 0 22px rgba(255,40,0,.85),0 4px 0 #500}
+  .banner .tag{position:absolute;left:0;right:0;bottom:1.5%;text-align:center;font-size:clamp(11px,2.4vh,15px);color:#cfd8ff;letter-spacing:1px;text-shadow:0 1px 3px #000}
+  .langs{display:flex;gap:8px;justify-content:center}
+  .lang{flex:1;max-width:200px;padding:10px 6px;border-radius:10px;border:2px solid #2b2650;background:#14112a;color:#9fb0d8;font-size:15px;font-weight:bold;cursor:pointer}
+  .lang.on{background:#6f4bd8;border-color:#a58bff;color:#fff}
+  #scrStart button.main{margin-top:0}
+  @media (max-height:520px){ .lang{padding:7px 4px;font-size:14px} #scrStart{gap:6px} }
   #msg button{margin-top:16px;padding:12px 26px;border:0;border-radius:10px;background:#6f4bd8;color:#fff;font-size:17px;font-weight:bold}
 </style>
 </head>
 <body>
 <div id="wrap"><canvas id="c" width="1280" height="720"></canvas></div>
-<div id="rot"><b>📱↻</b><div>Поверни телефон горизонтально</div></div>
+<div id="rot"><div class="rt">LEHA NEPLOXO GAME</div><b>📱↻</b><div data-i="rotate"></div></div>
 
 <div id="ov">
+  <!-- стартовая страница: баннер игры + выбор языка -->
+  <div id="scrStart">
+    <div class="banner">
+      <div class="city"></div><div class="road"></div>
+      <div class="fighters">
+        <img src="sprites/urban_brawlers/brute_arms/Idle/idle1.png" alt="">
+        <img src="sprites/streets_of_fight/brawler_girl_v5_blue/Idle/idle1.png" alt="">
+        <img src="sprites/urban_brawlers/batting_girl_v7_pink/Idle/idle1.png" alt="">
+        <img src="sprites/urban_brawlers/bancho_v4_teal/Idle/idle1.png" alt="">
+      </div>
+      <div class="ttl"><div class="t1">LEHA NEPLOXO</div><div class="t2">GAME</div></div>
+      <div class="tag" data-i="tagline"></div>
+    </div>
+    <div class="langs">
+      <button class="lang" data-lang="uk">Українська</button>
+      <button class="lang" data-lang="en">English</button>
+      <button class="lang" data-lang="ru">Русский</button>
+    </div>
+    <button class="main" id="play" data-i="play"></button>
+  </div>
   <!-- вход / регистрация -->
-  <div class="box" id="scrAuth">
-    <h1>МИР</h1><div class="sub">уличные бои онлайн</div>
-    <div class="tabs"><div class="tab on" id="tabReg">Регистрация</div><div class="tab" id="tabLog">Вход</div></div>
-    <label for="nick">Никнейм</label>
-    <input id="nick" maxlength="16" autocomplete="username" autocapitalize="off" spellcheck="false" placeholder="например Tiger_77">
-    <div class="hint" id="nickHint">3–16 символов: буквы, цифры и _ · ник уникальный</div>
-    <label for="pass">Пароль</label>
-    <input id="pass" type="password" maxlength="64" autocomplete="new-password" placeholder="от 6 символов">
-    <div class="warn" id="passWarn">⚠ Запомни пароль: без почты его нельзя восстановить.</div>
+  <div class="box" id="scrAuth" hidden>
+    <h1>LEHA NEPLOXO GAME</h1>
+    <div class="tabs"><div class="tab on" id="tabReg" data-i="tab_reg"></div><div class="tab" id="tabLog" data-i="tab_log"></div></div>
+    <label for="nick" data-i="nick"></label>
+    <input id="nick" maxlength="16" autocomplete="username" autocapitalize="off" spellcheck="false" data-ph="nick_ph">
+    <div class="hint" id="nickHint" data-i="nick_hint"></div>
+    <label for="pass" data-i="pass"></label>
+    <input id="pass" type="password" maxlength="64" autocomplete="new-password" data-ph="pass_ph">
+    <div class="warn" id="passWarn" data-i="pass_warn"></div>
     <div class="err" id="err"></div>
-    <button class="main" id="go">Создать аккаунт</button>
+    <button class="main" id="go"></button>
   </div>
   <!-- выбор бойца -->
   <div class="box wide" id="scrCreate" hidden>
-    <h1>ВЫБЕРИ БОЙЦА</h1><div class="sub">Стартовые характеристики зависят от бойца. Выбор нельзя изменить позже.</div>
+    <h1 data-i="choose_title"></h1><div class="sub" data-i="choose_sub"></div>
     <div class="cards" id="cards"></div>
     <div class="err" id="err2"></div>
-    <button class="main" id="start">В мир!</button>
+    <button class="main" id="start" data-i="go_world"></button>
   </div>
 </div>
+<button id="fs" data-title="fs_title">
+  <svg class="ic-on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>
+  <svg class="ic-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/></svg>
+</button>
 <div id="msg" hidden><div><div id="msgText"></div><button id="msgBtn">Ок</button></div></div>
 
 <script>
@@ -88,11 +159,30 @@
 // ═══════════════════════════════════════════════════════════════════════════
 //  МИР — клиент. Всё считает сервер (/world-ws), клиент рисует и шлёт ввод.
 // ═══════════════════════════════════════════════════════════════════════════
+const L = {"ru":{"tagline":"Уличные бои онлайн","play":"ИГРАТЬ","rotate":"Поверни телефон горизонтально","tab_reg":"Регистрация","tab_log":"Вход","nick":"Никнейм","nick_ph":"например Tiger_77","nick_hint":"3–16 символов: буквы, цифры и _ · ник уникальный","pass":"Пароль","pass_ph":"от 6 символов","pass_warn":"⚠ Запомни пароль: без почты его нельзя восстановить.","btn_reg":"Создать аккаунт","btn_log":"Войти","choose_title":"ВЫБЕРИ БОЙЦА","choose_sub":"Стартовые характеристики зависят от бойца. Выбор нельзя изменить позже.","go_world":"В мир!","st_str":"Сила","st_hp":"Здоровье","st_spd":"Скорость","f_brute_arms":"Качок","f_bancho":"Хулиган","f_batting_girl":"Девушка с битой","f_brawler_girl":"Уличная боец","z0":"Тёмный переулок","z1":"Кирпичная улица","z2":"Гараж","z3":"ПЛОЩАДЬ","z4":"Пиццерия","z5":"Улица с окнами","z6":"Ночной клуб","lbl_safe":"БЕЗОПАСНО","lbl_consent":"ПО СОГЛАСИЮ","lbl_danger":"ОПАСНО","sub_hub":"драться нельзя","sub_safe":"только боты, игроки не дерутся","sub_consent":"бой с игроком — только по принятому вызову","sub_danger":"бой без правил — бить можно любого","pill":"ур.","lvl_big":"УР.","xp":"опыт {0} / {1}","points":"★ Очки: {0}","duel_hud":"⚔ Дуэль: {0}","menu":"☰ Персонаж","walk":"ХОДЬБА","btn_hit":"УДАР","btn_kick":"ПИНОК","btn_block":"БЛОК","hint1":"← → ↑ ↓ / WASD — ходить, Shift — бежать","hint2":"J — удар   K — пинок   Пробел — блок","hint3":"E — игрок рядом   Tab — персонаж","connecting":"Подключение к миру…","ko":"НОКАУТ","lvlup":"НОВЫЙ УРОВЕНЬ: {0}","lvlup_sub":"+{0} очка характеристик","block_dmg":"БЛОК −{0}","bot_prefix":"Бот · ","fighter_lbl":"Боец: ","card_bot":"Это бот — бей его!","duel_btn":"⚔ Вызвать на дуэль","lvl_word":"ур. {0}","panel_title":"Персонаж: {0}","panel_info":"Уровень {0}    •    Свободных очков: {1}","d_str":"урон ударов","d_hp":"макс. здоровье","d_spd":"скорость ходьбы и бега","no_reset":"Очки нельзя сбросить — выбор окончательный","logout":"Выйти","inv_title":"⚔ {0} вызывает тебя на дуэль","accept":"Принять","decline":"Отказаться","nobody":"Рядом никого нет","no_card_combat":"В бою карточка недоступна","duel_with":"Дуэль с {0}!","m_consent_only":"Здесь бой только по вызову — нажми на игрока","m_no_fight":"В этом районе драться нельзя","m_ko_respawn":"Тебя вырубили — возрождение на площади","m_win_over":"Победа над {0}!","m_duel_interrupted":"Дуэль прервана","m_duel_timeout":"Дуэль закончилась по времени","m_duel_only_consent":"Дуэль — только в районах «по согласию»","m_other_zone":"Игрок в другом районе","m_already_dueling":"Кто-то из вас уже в дуэли","m_already_invited":"Игроку уже отправлен вызов","m_invite_sent":"Вызов отправлен: {0}","m_declined":"{0} отказался от дуэли","need_login_msg":"Нужно войти заново","btn_ok":"Ок","kicked":"Ты зашёл в игру с другого устройства","play_here":"Играть здесь","fs_title":"На весь экран","understood":"Понятно","ios_help":"На iPhone браузер не даёт открыть игру на весь экран.\n\nСделай так один раз:\n1. Нажми «Поделиться» (квадрат со стрелкой)\n2. Выбери «На экран Домой»\n3. Запускай игру с новой иконки — она откроется без полосок браузера","err_nick_bad":"Ник: 3–16 символов, только буквы, цифры и _","err_nick_reserved":"Этот ник зарезервирован","err_pass_bad":"Пароль: от 6 до 64 символов","err_nick_taken":"Этот ник уже занят","err_too_many":"Слишком много попыток, подожди минуту","err_bad_creds":"Неверный ник или пароль","err_need_login":"Нужно войти заново","err_bad_fighter":"Неверный выбор бойца","err_char_exists":"Персонаж уже создан","err_unavailable":"Мир временно недоступен, попробуй через минуту","err_server_error":"Ошибка сервера","err_net":"Ошибка связи"},"uk":{"tagline":"Вуличні бої онлайн","play":"ГРАТИ","rotate":"Поверни телефон горизонтально","tab_reg":"Реєстрація","tab_log":"Вхід","nick":"Нікнейм","nick_ph":"наприклад Tiger_77","nick_hint":"3–16 символів: літери, цифри та _ · нік унікальний","pass":"Пароль","pass_ph":"від 6 символів","pass_warn":"⚠ Запам’ятай пароль: без пошти його не можна відновити.","btn_reg":"Створити акаунт","btn_log":"Увійти","choose_title":"ОБЕРИ БІЙЦЯ","choose_sub":"Стартові характеристики залежать від бійця. Вибір не можна змінити пізніше.","go_world":"У світ!","st_str":"Сила","st_hp":"Здоров’я","st_spd":"Швидкість","f_brute_arms":"Качок","f_bancho":"Хуліган","f_batting_girl":"Дівчина з бітою","f_brawler_girl":"Вулична бійчиня","z0":"Темний провулок","z1":"Цегляна вулиця","z2":"Гараж","z3":"ПЛОЩА","z4":"Піцерія","z5":"Вулиця з вікнами","z6":"Нічний клуб","lbl_safe":"БЕЗПЕЧНО","lbl_consent":"ЗА ЗГОДОЮ","lbl_danger":"НЕБЕЗПЕЧНО","sub_hub":"битися не можна","sub_safe":"лише боти, гравці не б’ються","sub_consent":"бій з гравцем — лише за прийнятим викликом","sub_danger":"бій без правил — можна бити будь-кого","pill":"рів.","lvl_big":"РІВ.","xp":"досвід {0} / {1}","points":"★ Очки: {0}","duel_hud":"⚔ Дуель: {0}","menu":"☰ Персонаж","walk":"ХОДЬБА","btn_hit":"УДАР","btn_kick":"ПІНОК","btn_block":"БЛОК","hint1":"← → ↑ ↓ / WASD — ходити, Shift — бігти","hint2":"J — удар   K — пінок   Пробіл — блок","hint3":"E — гравець поруч   Tab — персонаж","connecting":"Підключення до світу…","ko":"НОКАУТ","lvlup":"НОВИЙ РІВЕНЬ: {0}","lvlup_sub":"+{0} очки характеристик","block_dmg":"БЛОК −{0}","bot_prefix":"Бот · ","fighter_lbl":"Боєць: ","card_bot":"Це бот — бий його!","duel_btn":"⚔ Викликати на дуель","lvl_word":"рів. {0}","panel_title":"Персонаж: {0}","panel_info":"Рівень {0}    •    Вільних очок: {1}","d_str":"шкода від ударів","d_hp":"макс. здоров’я","d_spd":"швидкість ходьби та бігу","no_reset":"Очки не можна скинути — вибір остаточний","logout":"Вийти","inv_title":"⚔ {0} викликає тебе на дуель","accept":"Прийняти","decline":"Відмовитися","nobody":"Поруч нікого немає","no_card_combat":"У бою картка недоступна","duel_with":"Дуель з {0}!","m_consent_only":"Тут бій лише за викликом — натисни на гравця","m_no_fight":"У цьому районі битися не можна","m_ko_respawn":"Тебе вирубили — відродження на площі","m_win_over":"Перемога над {0}!","m_duel_interrupted":"Дуель перервано","m_duel_timeout":"Дуель закінчилась за часом","m_duel_only_consent":"Дуель — лише в районах «за згодою»","m_other_zone":"Гравець в іншому районі","m_already_dueling":"Хтось із вас уже в дуелі","m_already_invited":"Гравцеві вже надіслано виклик","m_invite_sent":"Виклик надіслано: {0}","m_declined":"{0} відмовився від дуелі","need_login_msg":"Потрібно увійти знову","btn_ok":"Ок","kicked":"Ти зайшов у гру з іншого пристрою","play_here":"Грати тут","fs_title":"На весь екран","understood":"Зрозуміло","ios_help":"На iPhone браузер не дозволяє відкрити гру на весь екран.\n\nЗроби так один раз:\n1. Натисни «Поділитися» (квадрат зі стрілкою)\n2. Обери «На екран «Додому»»\n3. Запускай гру з нової іконки — вона відкриється без смуг браузера","err_nick_bad":"Нік: 3–16 символів, лише літери, цифри та _","err_nick_reserved":"Цей нік зарезервовано","err_pass_bad":"Пароль: від 6 до 64 символів","err_nick_taken":"Цей нік уже зайнято","err_too_many":"Забагато спроб, зачекай хвилину","err_bad_creds":"Невірний нік або пароль","err_need_login":"Потрібно увійти знову","err_bad_fighter":"Невірний вибір бійця","err_char_exists":"Персонаж уже створено","err_unavailable":"Світ тимчасово недоступний, спробуй за хвилину","err_server_error":"Помилка сервера","err_net":"Помилка зв’язку"},"en":{"tagline":"Street fights online","play":"PLAY","rotate":"Rotate your phone to landscape","tab_reg":"Sign up","tab_log":"Log in","nick":"Nickname","nick_ph":"e.g. Tiger_77","nick_hint":"3–16 characters: letters, digits and _ · nickname is unique","pass":"Password","pass_ph":"6+ characters","pass_warn":"⚠ Remember your password: without email it can’t be recovered.","btn_reg":"Create account","btn_log":"Log in","choose_title":"CHOOSE YOUR FIGHTER","choose_sub":"Starting stats depend on the fighter. You can’t change this later.","go_world":"Enter the world!","st_str":"Strength","st_hp":"Health","st_spd":"Speed","f_brute_arms":"Bruiser","f_bancho":"Thug","f_batting_girl":"Girl with a bat","f_brawler_girl":"Street brawler","z0":"Dark Alley","z1":"Brick Street","z2":"Garage","z3":"PLAZA","z4":"Pizzeria","z5":"Window Street","z6":"Night Club","lbl_safe":"SAFE","lbl_consent":"BY CONSENT","lbl_danger":"DANGER","sub_hub":"no fighting","sub_safe":"bots only, no player fights","sub_consent":"player fights only by accepted challenge","sub_danger":"no rules — anyone can be attacked","pill":"lv.","lvl_big":"LV.","xp":"XP {0} / {1}","points":"★ Points: {0}","duel_hud":"⚔ Duel: {0}","menu":"☰ Character","walk":"MOVE","btn_hit":"PUNCH","btn_kick":"KICK","btn_block":"BLOCK","hint1":"← → ↑ ↓ / WASD — move, Shift — run","hint2":"J — punch   K — kick   Space — block","hint3":"E — nearby player   Tab — character","connecting":"Connecting to the world…","ko":"KNOCKOUT","lvlup":"LEVEL UP: {0}","lvlup_sub":"+{0} stat points","block_dmg":"BLOCK −{0}","bot_prefix":"Bot · ","fighter_lbl":"Fighter: ","card_bot":"It’s a bot — hit it!","duel_btn":"⚔ Challenge to a duel","lvl_word":"lv. {0}","panel_title":"Character: {0}","panel_info":"Level {0}    •    Free points: {1}","d_str":"punch damage","d_hp":"max health","d_spd":"walk and run speed","no_reset":"Points can’t be reset — choices are final","logout":"Log out","inv_title":"⚔ {0} challenges you to a duel","accept":"Accept","decline":"Decline","nobody":"Nobody nearby","no_card_combat":"Card unavailable during combat","duel_with":"Duel with {0}!","m_consent_only":"Fights here are by challenge only — tap a player","m_no_fight":"No fighting in this district","m_ko_respawn":"You were knocked out — respawning at the plaza","m_win_over":"Victory over {0}!","m_duel_interrupted":"Duel interrupted","m_duel_timeout":"Duel ended by timeout","m_duel_only_consent":"Duels are only in “by consent” districts","m_other_zone":"Player is in another district","m_already_dueling":"One of you is already in a duel","m_already_invited":"A challenge was already sent","m_invite_sent":"Challenge sent: {0}","m_declined":"{0} declined the duel","need_login_msg":"Please log in again","btn_ok":"OK","kicked":"You logged in from another device","play_here":"Play here","fs_title":"Fullscreen","understood":"Got it","ios_help":"On iPhone the browser can’t show the game fullscreen.\n\nDo this once:\n1. Tap “Share” (square with an arrow)\n2. Choose “Add to Home Screen”\n3. Launch the game from the new icon — it opens without browser bars","err_nick_bad":"Nickname: 3–16 characters, letters, digits and _ only","err_nick_reserved":"This nickname is reserved","err_pass_bad":"Password: 6 to 64 characters","err_nick_taken":"This nickname is taken","err_too_many":"Too many attempts, wait a minute","err_bad_creds":"Wrong nickname or password","err_need_login":"Please log in again","err_bad_fighter":"Invalid fighter","err_char_exists":"Character already created","err_unavailable":"The world is temporarily unavailable, try again in a minute","err_server_error":"Server error","err_net":"Connection error"}};
+let lang = 'en';
+try { lang = localStorage.getItem('world_lang'); } catch(_){}
+if (!L[lang]){ const n = (navigator.language || '').toLowerCase(); lang = n.startsWith('uk') ? 'uk' : n.startsWith('ru') ? 'ru' : 'en'; }
+function t(k, ...a){
+  let s = (L[lang] && k in L[lang]) ? L[lang][k] : (k in L.ru ? L.ru[k] : k);
+  a.forEach((v, i) => { s = s.split('{' + i + '}').join(v); });
+  return s;
+}
+function applyLang(){
+  document.documentElement.lang = lang;
+  document.querySelectorAll('[data-i]').forEach(el => { el.textContent = t(el.dataset.i); });
+  document.querySelectorAll('[data-ph]').forEach(el => { el.placeholder = t(el.dataset.ph); });
+  document.querySelectorAll('[data-title]').forEach(el => { el.title = t(el.dataset.title); el.setAttribute('aria-label', t(el.dataset.title)); });
+  document.querySelectorAll('.lang').forEach(b => b.classList.toggle('on', b.dataset.lang === lang));
+  if (typeof setMode === 'function') setMode(mode);
+}
+const errText = e => (e && e.code && L.ru['err_' + e.code]) ? t('err_' + e.code) : ((e && e.message) || t('err_net'));
 const $ = id => document.getElementById(id);
 const canvas = $('c'), ctx = canvas.getContext('2d');
 const CW = canvas.width, CH = canvas.height;
 
 // ── сцена ──
+const RX = 1280 - 16 - 56;   // правый край HUD (справа оставлено место под кнопку «на весь экран»)
 const S = 2.5, WALL_Y = 190, WALL_H = 96*S, ROAD_TOP = WALL_Y + WALL_H;
 let GROUND_MIN = 500, GROUND_MAX = 700, ZONE_W = 1800, WORLD_W = 1800*7;
 const TILESET = new Image(); TILESET.src = 'sprites/streets_of_fight/stage/tileset.png';
@@ -106,31 +196,31 @@ const T = {
 };
 const ROAD = {sx:48,sy:224,sw:112,sh:144}, LAMP = {sx:16,sy:0,sw:42,sh:144};
 const TYPES = {
-  hub:     { label:'БЕЗОПАСНО',   sub:'драться нельзя',                              color:'#3ddc84', tint:null },
-  safe:    { label:'БЕЗОПАСНО',   sub:'только боты, игроки не дерутся',              color:'#3ddc84', tint:null },
-  consent: { label:'ПО СОГЛАСИЮ', sub:'бой с игроком — только по принятому вызову',  color:'#ffc933', tint:'rgba(70,55,0,0.16)' },
-  danger:  { label:'ОПАСНО',      sub:'бой без правил — бить можно любого',          color:'#ff4a4a', tint:'rgba(110,0,0,0.26)' },
+  hub:     { get label(){ return t('lbl_safe'); },    get sub(){ return t('sub_hub'); },     color:'#3ddc84', tint:null },
+  safe:    { get label(){ return t('lbl_safe'); },    get sub(){ return t('sub_safe'); },    color:'#3ddc84', tint:null },
+  consent: { get label(){ return t('lbl_consent'); }, get sub(){ return t('sub_consent'); }, color:'#ffc933', tint:'rgba(70,55,0,0.16)' },
+  danger:  { get label(){ return t('lbl_danger'); },  get sub(){ return t('sub_danger'); },  color:'#ff4a4a', tint:'rgba(110,0,0,0.26)' },
 };
 const ZONES = [
-  { name:'Тёмный переулок', type:'danger',  seq:['smallbrick','smallbrick','pipe','smallbrick','archwin','smallbrick','door','smallbrick','smallbrick'], tint:'rgba(20,40,20,0.28)' },
-  { name:'Кирпичная улица', type:'consent', seq:['brick','brick2','brick','archwin','brick2','brick','door'] },
-  { name:'Гараж',           type:'safe',    seq:['brick','garageCar','brick2','garageShut','brick','graffiti','smallbrick'] },
-  { name:'ПЛОЩАДЬ',         type:'hub',     seq:['window','pizza','window'] },
-  { name:'Пиццерия',        type:'safe',    seq:['pizza','window'] },
-  { name:'Улица с окнами',  type:'consent', seq:['window','window','archwin','window','window','door'] },
-  { name:'Ночной клуб',     type:'danger',  seq:['brick'], tint:'rgba(70,0,70,0.28)', neon:true },
+  { get name(){ return t('z0'); }, type:'danger',  seq:['smallbrick','smallbrick','pipe','smallbrick','archwin','smallbrick','door','smallbrick','smallbrick'], tint:'rgba(20,40,20,0.28)' },
+  { get name(){ return t('z1'); }, type:'consent', seq:['brick','brick2','brick','archwin','brick2','brick','door'] },
+  { get name(){ return t('z2'); },           type:'safe',    seq:['brick','garageCar','brick2','garageShut','brick','graffiti','smallbrick'] },
+  { get name(){ return t('z3'); },         type:'hub',     seq:['window','pizza','window'] },
+  { get name(){ return t('z4'); },        type:'safe',    seq:['pizza','window'] },
+  { get name(){ return t('z5'); },  type:'consent', seq:['window','window','archwin','window','window','door'] },
+  { get name(){ return t('z6'); },     type:'danger',  seq:['brick'], tint:'rgba(70,0,70,0.28)', neon:true },
 ];
 const zoneAt = x => Math.max(0, Math.min(ZONES.length-1, Math.floor(x / ZONE_W)));
 
 // ── бойцы: [папка, префикс, кадров, fps] ──
 const A = {
-  brute_arms:   { base:'urban_brawlers',   name:'Качок',
+  brute_arms:   { base:'urban_brawlers',   get name(){ return t('f_brute_arms'); },
     idle:['Idle','idle',8,9],  walk:['Walk','walk',6,11], jab:['Jab','jab',7,14],  punch:['Punch','punch',5,16], kick:['Kick','kick',8,16],  hurt:['Hurt','hurt',4,12] },
-  bancho:       { base:'urban_brawlers',   name:'Хулиган',
+  bancho:       { base:'urban_brawlers',   get name(){ return t('f_bancho'); },
     idle:['Idle','idle',7,9],  walk:['Walk','walk',6,12], jab:['Jab','jab',9,18],  punch:['Punch','punch',7,18], kick:['Kick','kick',8,18],  hurt:['Hurt','hurt',4,12] },
-  batting_girl: { base:'urban_brawlers',   name:'Девушка с битой',
+  batting_girl: { base:'urban_brawlers',   get name(){ return t('f_batting_girl'); },
     idle:['Idle','idle',15,10],walk:['Walk','walk',6,12], jab:['Jab','jab',5,18],  punch:['Punch','punch',8,18], kick:['Kick','kick',11,20], hurt:['Hurt','hurt',4,12] },
-  brawler_girl: { base:'streets_of_fight', name:'Уличная боец',
+  brawler_girl: { base:'streets_of_fight', get name(){ return t('f_brawler_girl'); },
     idle:['Idle','idle',4,8],  walk:['Walk','walk',10,12],jab:['Jab','jab',3,16],  punch:['Punch','punch',3,16], kick:['Kick','kick',5,16],  hurt:['Hurt','hurt',2,12] },
 };
 const VARIANT_DIRS = {
@@ -159,15 +249,15 @@ const api = async (path, body, auth) => {
   const opt = { method: body ? 'POST' : 'GET', headers: {} };
   if (body){ opt.headers['Content-Type'] = 'application/json'; opt.body = JSON.stringify(body); }
   if (auth && token) opt.headers.Authorization = 'Bearer ' + token;
-  const r = await fetch('/world-api/' + path, opt);
+  let r; try { r = await fetch('/world-api/' + path, opt); } catch(_){ const ne = new Error(''); ne.code = 'net'; throw ne; }
   let data = {}; try { data = await r.json(); } catch(_){}
-  if (!r.ok) { const e = new Error(data.error || 'Ошибка связи'); e.status = r.status; throw e; }
+  if (!r.ok) { const e = new Error(data.error || ''); e.code = data.code || 'net'; e.status = r.status; throw e; }
   return data;
 };
 function setMode(m){
   mode = m;
   $('tabReg').classList.toggle('on', m==='reg'); $('tabLog').classList.toggle('on', m==='log');
-  $('go').textContent = m==='reg' ? 'Создать аккаунт' : 'Войти';
+  $('go').textContent = m==='reg' ? t('btn_reg') : t('btn_log');
   $('passWarn').style.display = $('nickHint').style.display = m==='reg' ? '' : 'none';
   $('pass').autocomplete = m==='reg' ? 'new-password' : 'current-password';
   $('err').textContent = '';
@@ -180,7 +270,7 @@ async function submitAuth(){
     const r = await api(mode==='reg' ? 'register' : 'login', { nick, pass });
     token = r.token; try { localStorage.setItem('world_token', token); } catch(_){}
     r.hasChar ? enterGame() : showCreate();
-  } catch(e){ $('err').textContent = e.message; }
+  } catch(e){ $('err').textContent = errText(e); }
   $('go').disabled = false;
 }
 $('go').onclick = submitAuth;
@@ -194,8 +284,8 @@ async function showCreate(){
   const maxes = { str:10, hp:10, spd:10 };
   cfg.fighters.forEach((f, i) => {
     const el = document.createElement('div'); el.className = 'card' + (i===0 ? ' on' : '');
-    el.innerHTML = `<img src="${spriteUrl(f.type, 0)}"><div class="nm">${f.name}</div>
-      ${[['Сила','str','#ff8a4a'],['Здоровье','hp','#4be06f'],['Скорость','spd','#5fc8ff']].map(([n,k,c]) =>
+    el.innerHTML = `<img src="${spriteUrl(f.type, 0)}"><div class="nm">${t('f_' + f.type)}</div>
+      ${[[t('st_str'),'str','#ff8a4a'],[t('st_hp'),'hp','#4be06f'],[t('st_spd'),'spd','#5fc8ff']].map(([n,k,c]) =>
         `<div class="st"><span>${n}</span><i style="width:${f.stats[k]*8}px;background:${c}"></i>${f.stats[k]}</div>`).join('')}
       <div class="sw">${[0,1,2].map(v => `<img data-v="${v}" class="${v===0?'on':''}" src="${spriteUrl(f.type, v)}">`).join('')}</div>`;
     el.onclick = e => {
@@ -213,12 +303,12 @@ async function showCreate(){
 $('start').onclick = async () => {
   $('err2').textContent = ''; $('start').disabled = true;
   try { await api('create', { type: pick.type, variant: pick.variant }, true); enterGame(); }
-  catch(e){ $('err2').textContent = e.message; if (e.status === 401) logout(); }
+  catch(e){ $('err2').textContent = errText(e); if (e.status === 401) logout(); }
   $('start').disabled = false;
 };
 function logout(){ try { localStorage.removeItem('world_token'); } catch(_){} location.reload(); }
 function showMsg(text, btn, fn){
-  $('msgText').textContent = text; $('msgBtn').textContent = btn || 'Ок'; $('msg').hidden = false;
+  $('msgText').textContent = text; $('msgBtn').textContent = btn || t('btn_ok'); $('msg').hidden = false;
   $('msgBtn').onclick = fn || (() => { $('msg').hidden = true; });
 }
 
@@ -240,9 +330,9 @@ function connect(){
   ws.onclose = ev => {
     connected = false;
     if (stopRetry) return;
-    if (ev.code === 4001){ showMsg('Нужно войти заново', 'Войти', logout); return; }
+    if (ev.code === 4001){ showMsg(t('need_login_msg'), t('btn_log'), logout); return; }
     if (ev.code === 4002){ $('ov').hidden = false; $('scrAuth').hidden = true; showCreate(); return; }
-    if (ev.code === 4004){ stopRetry = true; showMsg('Ты зашёл в игру с другого устройства', 'Играть здесь', () => location.reload()); return; }
+    if (ev.code === 4004){ stopRetry = true; showMsg(t('kicked'), t('play_here'), () => location.reload()); return; }
     retry++; setTimeout(connect, Math.min(5000, 500 * retry));
   };
 }
@@ -273,17 +363,17 @@ function onServer(m){
       for (const id of m.rm) ents.delete(id);
       for (const v of m.ev){
         const e = ents.get(v[0]); if (!e) continue;
-        floater(e, v[2] ? 'БЛОК −'+v[1] : '−'+v[1], v[2] ? '#7ec8ff' : (e.id === myId ? '#ff5a5a' : '#ffe14a'));
+        floater(e, v[2] ? t('block_dmg', v[1]) : '−'+v[1], v[2] ? '#7ec8ff' : (e.id === myId ? '#ff5a5a' : '#ffe14a'));
       }
       Object.assign(me, { xp:m.me.xp, need:m.me.need, pt:m.me.pt, st:m.me.st, duel:m.me.duel });
       break;
     }
-    case 'toast': toast(m.text, m.color); break;
-    case 'lvl': ui.banner = { text:'НОВЫЙ УРОВЕНЬ: '+m.level, sub:'+'+m.points+' очка характеристик', t:2.6 }; break;
+    case 'toast': toast(t('m_' + m.k, ...(m.a || [])), m.color); break;
+    case 'lvl': ui.banner = { text:t('lvlup', m.level), sub:t('lvlup_sub', m.points), t:2.6 }; break;
     case 'ko': ui.koText = 2; ui.card = null; ui.invite = null; break;
     case 'card': ui.card = m; ui.panel = false; break;
     case 'duel_inv': ui.invite = { from:m.from, name:m.name, t:m.sec }; break;
-    case 'duel_start': ui.duelName = m.name; ui.invite = null; ui.card = null; toast('Дуэль с '+m.name+'!', '#ff9d5a'); break;
+    case 'duel_start': ui.duelName = m.name; ui.invite = null; ui.card = null; toast(t('duel_with', m.name), '#ff9d5a'); break;
     case 'duel_end': ui.duelName = ''; break;
     case 'kicked': break;
   }
@@ -296,9 +386,9 @@ const maxHpMe = () => { const e = myEnt(); return e ? e.m : 100; };
 const keys = {};
 const joy = { active:false, id:-1, ox:0, oy:0, x:0, y:0, vx:0, vy:0 };
 const btns = [
-  { name:'hit',   x:1170, y:590, r:72, label:'УДАР',  col:'#ff6b3d', down:false },
-  { name:'kick',  x:1040, y:648, r:58, label:'ПИНОК', col:'#ffc933', down:false },
-  { name:'block', x:1180, y:452, r:54, label:'БЛОК',  col:'#4aa8ff', down:false },
+  { name:'hit',   x:1170, y:590, r:72, get label(){ return t('btn_hit'); },  col:'#ff6b3d', down:false },
+  { name:'kick',  x:1040, y:648, r:58, get label(){ return t('btn_kick'); }, col:'#ffc933', down:false },
+  { name:'block', x:1180, y:452, r:54, get label(){ return t('btn_block'); },  col:'#4aa8ff', down:false },
 ];
 let blockHeld = false;
 const KEY_ACTION = { KeyJ:'hit', KeyZ:'hit', KeyK:'kick', KeyX:'kick' };
@@ -312,7 +402,7 @@ addEventListener('keydown', e => {
   if (e.code === 'KeyE'){
     let best = null, bd = 240;
     for (const a of ents.values()){ if (a.id === myId) continue; const d = Math.hypot(a.x-me.x, (a.y-me.y)*2); if (d < bd){ bd = d; best = a; } }
-    if (best) askCard(best); else toast('Рядом никого нет');
+    if (best) askCard(best); else toast(t('nobody'));
   }
 });
 addEventListener('keyup', e => { keys[e.code] = false; });
@@ -372,7 +462,7 @@ function tapWorld(x, y){
   askCard(hit);
 }
 function askCard(a){
-  if (inCombat()){ toast('В бою карточка недоступна', '#ffc933'); return; }
+  if (inCombat()){ toast(t('no_card_combat'), '#ffc933'); return; }
   sendWs({ t:'inspect', id:a.id });
 }
 
@@ -560,8 +650,8 @@ function drawActor(e){
   const isMe = e.id === myId, isBot = e.k === 'b';
   const zt = ZONES[zoneAt(e.rx)].type;
   ctx.font = 'bold 15px Arial';
-  const name = isBot ? '🤖 '+e.n : e.n, nameW = ctx.measureText(name).width;
-  const pill = 'ур.' + e.l, pw = ctx.measureText(pill).width + 10, total = pw + 6 + nameW, x0 = sx - total/2;
+  const name = isBot ? '🤖 '+t('f_'+e.ty) : e.n, nameW = ctx.measureText(name).width;
+  const pill = t('pill') + e.l, pw = ctx.measureText(pill).width + 10, total = pw + 6 + nameW, x0 = sx - total/2;
   ctx.fillStyle = 'rgba(0,0,0,0.5)'; rr(x0-6, ny-15, total+12, 21, 6); ctx.fill();
   ctx.fillStyle = isMe ? '#b8860b' : isBot ? '#7a2a2a' : '#3a4a8a'; rr(x0, ny-12, pw, 16, 5); ctx.fill();
   ctx.textAlign = 'center'; ctx.fillStyle = '#fff'; ctx.fillText(pill, x0 + pw/2, ny);
@@ -583,21 +673,21 @@ function drawHUD(){
   ctx.strokeStyle = 'rgba(255,210,63,0.7)'; ctx.lineWidth = 2; rr(16, 16, 330, 100, 12); ctx.stroke();
   ctx.fillStyle = '#b8860b'; ctx.beginPath(); ctx.arc(58, 66, 30, 0, Math.PI*2); ctx.fill();
   ctx.strokeStyle = '#ffd23f'; ctx.lineWidth = 3; ctx.stroke();
-  txt(String(lvl), 58, 76, 26, '#fff'); txt('УР.', 58, 46, 11, '#ffe9a0');
+  txt(String(lvl), 58, 76, 26, '#fff'); txt(t('lvl_big'), 58, 46, 11, '#ffe9a0');
   txt(my ? my.n : '…', 100, 44, 20, '#ffd23f', 'left', 230);
   bar(100, 54, 230, 16, hp/mx, hp/mx > 0.35 ? '#4be06f' : '#ff5a5a');
   txt(hp+' / '+mx, 215, 67, 12, '#fff');
   bar(100, 78, 230, 10, me.xp/me.need, '#5fa8ff');
-  txt('опыт '+Math.floor(me.xp)+' / '+me.need, 100, 106, 12, '#b8c8ee', 'left');
+  txt(t('xp', Math.floor(me.xp), me.need), 100, 106, 12, '#b8c8ee', 'left');
 
   if (me.pt > 0){
     ctx.globalAlpha = 0.75 + 0.25*Math.sin(performance.now()*0.008); ctx.fillStyle = '#ff9d2e'; rr(16, 124, 170, 34, 10); ctx.fill(); ctx.globalAlpha = 1;
-    txt('★ Очки: '+me.pt, 101, 148, 16, '#fff');
+    txt(t('points', me.pt), 101, 148, 16, '#fff');
     addHit(16, 124, 170, 34, () => { ui.panel = true; ui.card = null; });
   }
   if (ui.duelName){
     ctx.fillStyle = 'rgba(200,60,30,0.85)'; rr(16, me.pt > 0 ? 166 : 124, 260, 30, 10); ctx.fill();
-    txt('⚔ Дуэль: '+ui.duelName, 146, (me.pt > 0 ? 166 : 124) + 21, 14, '#fff', 'center', 240);
+    txt(t('duel_hud', ui.duelName), 146, (me.pt > 0 ? 166 : 124) + 21, 14, '#fff', 'center', 240);
   }
 
   ctx.fillStyle = 'rgba(8,8,16,0.82)'; rr(362, 16, 380, 70, 12); ctx.fill();
@@ -607,7 +697,7 @@ function drawHUD(){
   ctx.font = '13px Arial'; ctx.textAlign = 'left'; ctx.fillStyle = '#b8c0d8';
   ctx.fillText(ty.sub, 378 + lw + 10, 68, 732 - (378 + lw + 10));
 
-  const cellW = 48, mapW = cellW*ZONES.length, mmx = CW - 16 - mapW, my2 = 16, mh = 18;
+  const cellW = 48, mapW = cellW*ZONES.length, mmx = RX - mapW, my2 = 16, mh = 18;
   ctx.fillStyle = 'rgba(0,0,0,0.6)'; rr(mmx-6, my2-6, mapW+12, mh+12, 8); ctx.fill();
   for (let z=0; z<ZONES.length; z++){
     ctx.globalAlpha = (z === zoneAt(me.x)) ? 0.95 : 0.5; ctx.fillStyle = TYPES[ZONES[z].type].color; ctx.fillRect(mmx + z*cellW + 1, my2, cellW-2, mh);
@@ -619,15 +709,15 @@ function drawHUD(){
     ctx.beginPath(); ctx.arc(px, my2 + mh/2, self ? 5 : 2.5, 0, Math.PI*2); ctx.fill();
     if (self){ ctx.strokeStyle = '#000'; ctx.lineWidth = 2; ctx.stroke(); }
   }
-  ctx.fillStyle = 'rgba(8,8,16,0.82)'; rr(CW-16-150, 50, 150, 34, 10); ctx.fill();
-  ctx.strokeStyle = 'rgba(140,170,255,0.6)'; ctx.lineWidth = 2; rr(CW-16-150, 50, 150, 34, 10); ctx.stroke();
-  txt('☰ Персонаж', CW-16-75, 73, 15, '#dfe6ff');
-  addHit(CW-16-150, 50, 150, 34, () => { ui.panel = !ui.panel; ui.card = null; });
+  ctx.fillStyle = 'rgba(8,8,16,0.82)'; rr(RX-150, 50, 150, 34, 10); ctx.fill();
+  ctx.strokeStyle = 'rgba(140,170,255,0.6)'; ctx.lineWidth = 2; rr(RX-150, 50, 150, 34, 10); ctx.stroke();
+  txt(t('menu'), RX-75, 73, 15, '#dfe6ff');
+  addHit(RX-150, 50, 150, 34, () => { ui.panel = !ui.panel; ui.card = null; });
 
   if (!ui.touch){
     ctx.font = '12px Arial'; ctx.textAlign = 'right'; ctx.fillStyle = 'rgba(210,220,245,0.9)';
-    ['← → ↑ ↓ / WASD — ходить, Shift — бежать', 'J — удар   K — пинок   Пробел — блок', 'E — игрок рядом   Tab — персонаж']
-      .forEach((s,i) => { ctx.strokeStyle='rgba(0,0,0,0.8)'; ctx.lineWidth=3; ctx.strokeText(s, CW-16, 106+i*17); ctx.fillText(s, CW-16, 106+i*17); });
+    [t('hint1'), t('hint2'), t('hint3')]
+      .forEach((s,i) => { ctx.strokeStyle='rgba(0,0,0,0.8)'; ctx.lineWidth=3; ctx.strokeText(s, RX, 106+i*17); ctx.fillText(s, RX, 106+i*17); });
   }
 }
 function drawControls(){
@@ -639,7 +729,7 @@ function drawControls(){
     ctx.globalAlpha = 0.6; ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(joy.ox + dx/len*m, joy.oy + dy/len*m, 30, 0, Math.PI*2); ctx.fill(); ctx.globalAlpha = 1;
   } else {
     ctx.globalAlpha = 0.16; ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(170, 590, 70, 0, Math.PI*2); ctx.stroke();
-    ctx.globalAlpha = 0.5; txt('ХОДЬБА', 170, 596, 14, '#fff'); ctx.globalAlpha = 1;
+    ctx.globalAlpha = 0.5; txt(t('walk'), 170, 596, 14, '#fff'); ctx.globalAlpha = 1;
   }
   for (const b of btns){
     const on = b.down;
@@ -654,21 +744,21 @@ function drawCard(){
   ctx.fillStyle = 'rgba(8,8,16,0.94)'; rr(x, y, w, h, 14); ctx.fill();
   ctx.strokeStyle = '#8ab4ff'; ctx.lineWidth = 2.5; rr(x, y, w, h, 14); ctx.stroke();
   addHit(x, y, w, h, () => {});
-  txt(a.name, x+20, y+40, 26, '#fff', 'left', 260); txt('ур. '+a.level, x+w-56, y+40, 22, '#ffd23f', 'right');
+  txt(a.kind === 'b' ? t('f_'+a.ty) : a.name, x+20, y+40, 26, '#fff', 'left', 260); txt(t('lvl_word', a.level), x+w-56, y+40, 22, '#ffd23f', 'right');
   txt('✕', x+w-24, y+36, 24, '#ff8a8a'); addHit(x+w-50, y+6, 44, 44, () => { ui.card = null; });
   ctx.font = '14px Arial'; ctx.textAlign = 'left'; ctx.fillStyle = '#9fb0d8';
-  ctx.fillText((a.kind === 'b' ? 'Бот · ' : '') + 'Боец: ' + (A[a.ty] ? A[a.ty].name : ''), x+20, y+62);
+  ctx.fillText((a.kind === 'b' ? t('bot_prefix') : '') + t('fighter_lbl') + (A[a.ty] ? A[a.ty].name : ''), x+20, y+62);
   bar(x+20, y+76, w-40, 16, a.hp/a.max, '#4be06f'); txt(a.hp+' / '+a.max, x+w/2, y+89, 12, '#fff');
-  [['Сила', a.st.str, '#ff8a4a'], ['Здоровье', a.st.hp, '#4be06f'], ['Скорость', a.st.spd, '#5fc8ff']].forEach((r,i) => {
+  [[t('st_str'), a.st.str, '#ff8a4a'], [t('st_hp'), a.st.hp, '#4be06f'], [t('st_spd'), a.st.spd, '#5fc8ff']].forEach((r,i) => {
     const ry = y + 118 + i*30;
     txt(r[0], x+20, ry+10, 16, '#dfe6ff', 'left'); bar(x+130, ry-2, w-190, 14, r[1]/20, r[2]); txt(String(r[1]), x+w-24, ry+11, 16, '#fff', 'right');
   });
   const can = a.kind === 'p' && ZONES[zoneAt(me.x)].type === 'consent', by = y + h - 60;
   ctx.fillStyle = can ? '#e0472e' : 'rgba(80,80,100,0.6)'; rr(x+20, by, w-40, 42, 10); ctx.fill();
-  txt(a.kind === 'b' ? 'Это бот — бей его!' : '⚔ Вызвать на дуэль', x+w/2, by+28, 18, can ? '#fff' : '#9a9ab0');
+  txt(a.kind === 'b' ? t('card_bot') : t('duel_btn'), x+w/2, by+28, 18, can ? '#fff' : '#9a9ab0');
   addHit(x+20, by, w-40, 42, () => {
     if (can){ sendWs({ t:'duel', to:a.id }); ui.card = null; }
-    else if (a.kind === 'p') toast('Дуэль — только в районах «по согласию»', '#ffc933');
+    else if (a.kind === 'p') toast(t('m_duel_only_consent'), '#ffc933');
   });
 }
 function drawPanel(){
@@ -677,11 +767,11 @@ function drawPanel(){
   ctx.fillStyle = 'rgba(8,8,16,0.95)'; rr(x, y, w, h, 14); ctx.fill();
   ctx.strokeStyle = '#ffd23f'; ctx.lineWidth = 2.5; rr(x, y, w, h, 14); ctx.stroke();
   addHit(x, y, w, h, () => {});
-  txt('Персонаж: '+(my && A[my.ty] ? A[my.ty].name : ''), x+22, y+40, 24, '#ffd23f', 'left', 340);
+  txt(t('panel_title', my && A[my.ty] ? A[my.ty].name : ''), x+22, y+40, 24, '#ffd23f', 'left', 340);
   txt('✕', x+w-26, y+38, 24, '#ff8a8a'); addHit(x+w-52, y+6, 46, 46, () => { ui.panel = false; });
   ctx.font = '16px Arial'; ctx.textAlign = 'left'; ctx.fillStyle = '#dfe6ff';
-  ctx.fillText('Уровень '+(my ? my.l : 1)+'    •    Свободных очков: '+me.pt, x+22, y+72);
-  [['str','Сила','урон ударов','#ff8a4a'],['hp','Здоровье','макс. здоровье','#4be06f'],['spd','Скорость','скорость ходьбы и бега','#5fc8ff']].forEach((r,i) => {
+  ctx.fillText(t('panel_info', my ? my.l : 1, me.pt), x+22, y+72);
+  [['str',t('st_str'),t('d_str'),'#ff8a4a'],['hp',t('st_hp'),t('d_hp'),'#4be06f'],['spd',t('st_spd'),t('d_spd'),'#5fc8ff']].forEach((r,i) => {
     const ry = y + 100 + i*66;
     txt(r[1], x+22, ry+22, 20, '#fff', 'left');
     ctx.font = '13px Arial'; ctx.textAlign = 'left'; ctx.fillStyle = '#9fb0d8'; ctx.fillText(r[2], x+22, ry+42);
@@ -692,9 +782,9 @@ function drawPanel(){
     addHit(x+376, ry+2, 56, 40, () => { if (me.pt > 0) sendWs({ t:'spend', stat:r[0] }); });
   });
   ctx.font = '12px Arial'; ctx.textAlign = 'center'; ctx.fillStyle = '#7f8db0';
-  ctx.fillText('Очки нельзя сбросить — выбор окончательный', x+w/2, y+h-52);
+  ctx.fillText(t('no_reset'), x+w/2, y+h-52);
   ctx.fillStyle = 'rgba(120,40,40,0.8)'; rr(x+w/2-70, y+h-40, 140, 30, 8); ctx.fill();
-  txt('Выйти', x+w/2, y+h-19, 15, '#fff'); addHit(x+w/2-70, y+h-40, 140, 30, () => { stopRetry = true; logout(); });
+  txt(t('logout'), x+w/2, y+h-19, 15, '#fff'); addHit(x+w/2-70, y+h-40, 140, 30, () => { stopRetry = true; logout(); });
 }
 function drawInvite(){
   const v = ui.invite; if (!v) return;
@@ -702,11 +792,11 @@ function drawInvite(){
   ctx.fillStyle = 'rgba(8,8,16,0.95)'; rr(x, y, w, h, 14); ctx.fill();
   ctx.strokeStyle = '#ff9d5a'; ctx.lineWidth = 3; rr(x, y, w, h, 14); ctx.stroke();
   addHit(x, y, w, h, () => {});
-  txt('⚔ '+v.name+' вызывает тебя на дуэль', x+w/2, y+34, 20, '#fff', 'center', w-30);
+  txt(t('inv_title', v.name), x+w/2, y+34, 20, '#fff', 'center', w-30);
   bar(x+20, y+44, w-40, 8, v.t/10, '#ff9d5a');
-  ctx.fillStyle = '#2fae5c'; rr(x+20, y+62, 200, 38, 10); ctx.fill(); txt('Принять', x+120, y+88, 18, '#fff');
+  ctx.fillStyle = '#2fae5c'; rr(x+20, y+62, 200, 38, 10); ctx.fill(); txt(t('accept'), x+120, y+88, 18, '#fff');
   addHit(x+20, y+62, 200, 38, () => { sendWs({ t:'duel_ans', from:v.from, ok:true }); ui.invite = null; });
-  ctx.fillStyle = '#a33a3a'; rr(x+w-220, y+62, 200, 38, 10); ctx.fill(); txt('Отказаться', x+w-120, y+88, 18, '#fff');
+  ctx.fillStyle = '#a33a3a'; rr(x+w-220, y+62, 200, 38, 10); ctx.fill(); txt(t('decline'), x+w-120, y+88, 18, '#fff');
   addHit(x+w-220, y+62, 200, 38, () => { sendWs({ t:'duel_ans', from:v.from, ok:false }); ui.invite = null; });
 }
 function drawOverlays(){
@@ -717,7 +807,7 @@ function drawOverlays(){
   }
   if (ui.koText > 0){
     ctx.globalAlpha = Math.min(0.6, ui.koText/2); ctx.fillStyle = '#300'; ctx.fillRect(0, 0, CW, CH); ctx.globalAlpha = 1;
-    txt('НОКАУТ', CW/2, 340, 60, '#ff5a5a');
+    txt(t('ko'), CW/2, 340, 60, '#ff5a5a');
   }
   ui.toasts.forEach((t, i) => {
     ctx.font = 'bold 18px Arial'; const w = ctx.measureText(t.text).width + 36, y = 640 - i*40 - (ui.touch ? 0 : 20);
@@ -726,7 +816,7 @@ function drawOverlays(){
   });
   if (!connected){
     ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(0, 0, CW, CH);
-    txt('Подключение к миру…', CW/2, CH/2, 34, '#fff');
+    txt(t('connecting'), CW/2, CH/2, 34, '#fff');
   }
 }
 
@@ -744,17 +834,44 @@ function frame(now){
   requestAnimationFrame(frame);
 }
 
+// ═══════════════ НА ВЕСЬ ЭКРАН ═══════════════
+// Android/ПК: Fullscreen API. iPhone Safari его не поддерживает (запрет iOS) —
+// там показываем инструкцию «На экран Домой»: установленная иконка открывается без полосок.
+const fsBtn = $('fs'), docEl = document.documentElement;
+const reqFs = docEl.requestFullscreen || docEl.webkitRequestFullscreen;
+const exitFs = document.exitFullscreen || document.webkitExitFullscreen;
+const inFs = () => !!(document.fullscreenElement || document.webkitFullscreenElement);
+const standalone = navigator.standalone === true || matchMedia('(display-mode: fullscreen)').matches || matchMedia('(display-mode: standalone)').matches;
+if (standalone) fsBtn.hidden = true;
+fsBtn.addEventListener('click', async () => {
+  if (!reqFs){
+        showMsg(t('ios_help'), t('understood'));
+    return;
+  }
+  try {
+    if (inFs()) exitFs.call(document);
+    else { await reqFs.call(docEl); try { await screen.orientation.lock('landscape'); } catch(_){} }
+  } catch(_){}
+});
+['fullscreenchange', 'webkitfullscreenchange'].forEach(ev => document.addEventListener(ev, () => fsBtn.classList.toggle('on', inFs())));
+
 // ═══════════════ СТАРТ ═══════════════
-setMode('reg');
-(async () => {
-  if (!token) return;
+// Каждый заход начинается со стартовой страницы (баннер + выбор языка). Язык по умолчанию —
+// тот, что выбран раньше (или язык браузера); поменять его можно только здесь.
+document.querySelectorAll('.lang').forEach(b => b.onclick = () => { lang = b.dataset.lang; try { localStorage.setItem('world_lang', lang); } catch(_){} applyLang(); });
+applyLang(); setMode('reg');
+$('play').onclick = async () => {
+  try { localStorage.setItem('world_lang', lang); } catch(_){}
+  $('scrStart').hidden = true;
+  if (!token){ $('scrAuth').hidden = false; return; }
   try {
     const r = await api('me', null, true);
-    if (r.char) enterGame(); else { $('scrAuth').hidden = true; showCreate(); }
+    if (r.char) enterGame(); else showCreate();
   } catch(e){
     if (e.status === 401){ try { localStorage.removeItem('world_token'); } catch(_){} token = null; }
+    $('scrAuth').hidden = false;
   }
-})();
+};
 </script>
 </body>
 </html>

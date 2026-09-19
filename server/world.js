@@ -100,7 +100,7 @@ class FileStore {
 let store = null, secret = null, ready = false;
 
 // ═════════════════════════ АККАУНТЫ ═════════════════════════
-const NICK_RE = /^[A-Za-zА-Яа-яЁё0-9_]{3,16}$/;
+const NICK_RE = /^[A-Za-zА-Яа-яЁёІіЇїЄєҐґ0-9_]{3,16}$/;
 const RESERVED = ['admin', 'administrator', 'moderator', 'support', 'system', 'bot', 'gm', 'админ', 'модератор', 'поддержка', 'бот'];
 const TOKEN_TTL_MS = 90 * 24 * 3600 * 1000;   // «долгая сессия» — 90 дней
 
@@ -132,8 +132,8 @@ function verifyToken(token) {
   return +parts[0] || null;
 }
 function validateNick(nick) {
-  if (typeof nick !== 'string' || !NICK_RE.test(nick)) return 'Ник: 3–16 символов, только буквы, цифры и _';
-  if (RESERVED.includes(nick.toLowerCase())) return 'Этот ник зарезервирован';
+  if (typeof nick !== 'string' || !NICK_RE.test(nick)) return ['nick_bad', 'Ник: 3–16 символов, только буквы, цифры и _'];
+  if (RESERVED.includes(nick.toLowerCase())) return ['nick_reserved', 'Этот ник зарезервирован'];
   return null;
 }
 
@@ -151,35 +151,35 @@ const ipOf = req => String((req.headers['x-forwarded-for'] || req.socket.remoteA
 function attach(app) {
   const express = require('express');
   const json = express.json({ limit: '4kb' });
-  const guard = (req, res, next) => ready ? next() : res.status(503).json({ error: 'Мир временно недоступен, попробуй через минуту' });
+  const guard = (req, res, next) => ready ? next() : res.status(503).json({ code: 'unavailable', error: 'Мир временно недоступен, попробуй через минуту' });
   const auth = async (req, res, next) => {
     const id = verifyToken((req.headers.authorization || '').replace(/^Bearer /, ''));
-    if (!id) return res.status(401).json({ error: 'Нужно войти заново' });
+    if (!id) return res.status(401).json({ code: 'need_login', error: 'Нужно войти заново' });
     const acc = await store.findById(id);
-    if (!acc) return res.status(401).json({ error: 'Нужно войти заново' });
+    if (!acc) return res.status(401).json({ code: 'need_login', error: 'Нужно войти заново' });
     req.acc = acc; next();
   };
-  const wrap = fn => (req, res) => fn(req, res).catch(e => { console.error('[WORLD] api error:', e.message); res.status(500).json({ error: 'Ошибка сервера' }); });
+  const wrap = fn => (req, res) => fn(req, res).catch(e => { console.error('[WORLD] api error:', e.message); res.status(500).json({ code: 'server_error', error: 'Ошибка сервера' }); });
 
   app.get('/world-api/config', (req, res) => {
     res.json({ variants: VARIANTS, fighters: FIGHTER_KEYS.map(k => ({ type: k, name: FIGHTERS[k].name, stats: FIGHTERS[k].stats })) });
   });
   app.post('/world-api/register', json, guard, wrap(async (req, res) => {
-    if (rateLimited(ipOf(req), 15)) return res.status(429).json({ error: 'Слишком много попыток, подожди минуту' });
+    if (rateLimited(ipOf(req), 15)) return res.status(429).json({ code: 'too_many', error: 'Слишком много попыток, подожди минуту' });
     const { nick, pass } = req.body || {};
     const bad = validateNick(nick);
-    if (bad) return res.status(400).json({ error: bad });
-    if (typeof pass !== 'string' || pass.length < 6 || pass.length > 64) return res.status(400).json({ error: 'Пароль: от 6 до 64 символов' });
+    if (bad) return res.status(400).json({ code: bad[0], error: bad[1] });
+    if (typeof pass !== 'string' || pass.length < 6 || pass.length > 64) return res.status(400).json({ code: 'pass_bad', error: 'Пароль: от 6 до 64 символов' });
     let id;
     try { id = await store.createAccount(nick, nick.toLowerCase(), await hashPass(pass)); }
-    catch (e) { if (e.message === 'taken') return res.status(409).json({ error: 'Этот ник уже занят' }); throw e; }
+    catch (e) { if (e.message === 'taken') return res.status(409).json({ code: 'nick_taken', error: 'Этот ник уже занят' }); throw e; }
     res.json({ token: signToken(id), nick, hasChar: false });
   }));
   app.post('/world-api/login', json, guard, wrap(async (req, res) => {
-    if (rateLimited(ipOf(req), 30)) return res.status(429).json({ error: 'Слишком много попыток, подожди минуту' });
+    if (rateLimited(ipOf(req), 30)) return res.status(429).json({ code: 'too_many', error: 'Слишком много попыток, подожди минуту' });
     const { nick, pass } = req.body || {};
     const acc = (typeof nick === 'string' && typeof pass === 'string') ? await store.findByNick(nick.toLowerCase()) : null;
-    if (!acc || !(await checkPass(pass, acc.pass_hash))) return res.status(401).json({ error: 'Неверный ник или пароль' });
+    if (!acc || !(await checkPass(pass, acc.pass_hash))) return res.status(401).json({ code: 'bad_creds', error: 'Неверный ник или пароль' });
     res.json({ token: signToken(acc.id), nick: acc.nick, hasChar: !!(await store.getChar(acc.id)) });
   }));
   app.get('/world-api/me', guard, auth, wrap(async (req, res) => {
@@ -188,8 +188,8 @@ function attach(app) {
   }));
   app.post('/world-api/create', json, guard, auth, wrap(async (req, res) => {
     const { type, variant } = req.body || {};
-    if (!FIGHTERS[type] || !Number.isInteger(variant) || variant < 0 || variant >= VARIANTS) return res.status(400).json({ error: 'Неверный выбор бойца' });
-    if (await store.getChar(req.acc.id)) return res.status(409).json({ error: 'Персонаж уже создан' });
+    if (!FIGHTERS[type] || !Number.isInteger(variant) || variant < 0 || variant >= VARIANTS) return res.status(400).json({ code: 'bad_fighter', error: 'Неверный выбор бойца' });
+    if (await store.getChar(req.acc.id)) return res.status(409).json({ code: 'char_exists', error: 'Персонаж уже создан' });
     const s = FIGHTERS[type].stats;
     await store.insertChar(req.acc.id, { type, variant, level: 1, xp: 0, points: 0, str: s.str, hp: s.hp, spd: s.spd });
     res.json({ ok: true });
@@ -218,7 +218,7 @@ function makeEntity(kind, name, type, variant, x, y) {
     zone: 0, target: 0, wait: 0, tx: x, ty: y, cd: 0 };
 }
 function send(p, obj) { if (p.ws && p.ws.readyState === 1) { try { p.ws.send(JSON.stringify(obj)); } catch (_) {} } }
-function toast(p, text, color) { send(p, { t: 'toast', text, color }); }
+function toast(p, k, color, a) { send(p, { t: 'toast', k, a: a || [], color }); }
 
 function spawnBot(zone) {
   const zt = ZONE_TYPES[zone];
@@ -308,18 +308,18 @@ function resolveAttack(att) {
   }
   if (!hitAny && ruleBlocked && att.hintCd <= 0) {
     att.hintCd = 3;
-    toast(att, ZONE_TYPES[zoneAt(att.x)] === 'consent' ? 'Здесь бой только по вызову — нажми на игрока' : 'В этом районе драться нельзя', '#ffc933');
+    toast(att, ZONE_TYPES[zoneAt(att.x)] === 'consent' ? 'consent_only' : 'no_fight', '#ffc933');
   }
 }
 function killEntity(t, killer) {
   t.hp = 0; t.koT = t.kind === 'b' ? 1.5 : RESPAWN_MS / 1000; t.atk = null; t.blk = false; t.inx = t.iny = 0;
   if (t.kind === 'p') {
-    toast(t, 'Тебя вырубили — возрождение на площади', '#ff8a8a'); send(t, { t: 'ko' });
+    toast(t, 'ko_respawn', '#ff8a8a'); send(t, { t: 'ko' });
     endDuel(t, null);
     // награда за победу над игроком (не чаще раза в 10 минут за одного и того же)
     if (killer && killer.kind === 'p') {
       const last = killer.killedRecently.get(t.accountId) || 0;
-      if (Date.now() - last > 600000) { killer.killedRecently.set(t.accountId, Date.now()); gainXp(killer, 20 + t.level * 10); toast(killer, 'Победа над ' + t.name + '!', '#7dff9a'); }
+      if (Date.now() - last > 600000) { killer.killedRecently.set(t.accountId, Date.now()); gainXp(killer, 20 + t.level * 10); toast(killer, 'win_over', '#7dff9a', [t.name]); }
     }
   }
 }
@@ -337,14 +337,14 @@ function handleDuelRequest(p, toId) {
   const t = ents.get(toId);
   if (!t || t.kind !== 'p' || t === p) return;
   const z = zoneAt(p.x);
-  if (ZONE_TYPES[z] !== 'consent') return toast(p, 'Дуэль — только в районах «по согласию»', '#ffc933');
-  if (zoneAt(t.x) !== z) return toast(p, 'Игрок в другом районе', '#ffc933');
-  if (p.duel || t.duel) return toast(p, 'Кто-то из вас уже в дуэли', '#ffc933');
+  if (ZONE_TYPES[z] !== 'consent') return toast(p, 'duel_only_consent', '#ffc933');
+  if (zoneAt(t.x) !== z) return toast(p, 'other_zone', '#ffc933');
+  if (p.duel || t.duel) return toast(p, 'already_dueling', '#ffc933');
   if (p.koT > 0 || t.koT > 0) return;
-  if (invites.has(t.id) && invites.get(t.id).until > Date.now()) return toast(p, 'Игроку уже отправлен вызов', '#ffc933');
+  if (invites.has(t.id) && invites.get(t.id).until > Date.now()) return toast(p, 'already_invited', '#ffc933');
   invites.set(t.id, { from: p.id, until: Date.now() + DUEL_INVITE_SEC * 1000 });
   send(t, { t: 'duel_inv', from: p.id, name: p.name, sec: DUEL_INVITE_SEC });
-  toast(p, 'Вызов отправлен: ' + t.name, '#ffc933');
+  toast(p, 'invite_sent', '#ffc933', [t.name]);
 }
 function handleDuelAnswer(p, fromId, ok) {
   const inv = invites.get(p.id);
@@ -352,7 +352,7 @@ function handleDuelAnswer(p, fromId, ok) {
   invites.delete(p.id);
   const a = ents.get(fromId);
   if (!a) return;
-  if (!ok) return toast(a, p.name + ' отказался от дуэли', '#ffc933');
+  if (!ok) return toast(a, 'declined', '#ffc933', [p.name]);
   if (ZONE_TYPES[zoneAt(p.x)] !== 'consent' || zoneAt(a.x) !== zoneAt(p.x) || a.duel || p.duel || a.koT > 0 || p.koT > 0) return;
   a.duel = p.id; p.duel = a.id; a.duelStart = p.duelStart = Date.now();
   send(a, { t: 'duel_start', with: p.id, name: p.name }); send(p, { t: 'duel_start', with: a.id, name: a.name });
@@ -443,8 +443,8 @@ function tick() {
     // выход из района/затянувшаяся дуэль
     if (e.duel) {
       const o = ents.get(e.duel);
-      if (!o || zoneAt(o.x) !== zoneAt(e.x) || ZONE_TYPES[zoneAt(e.x)] !== 'consent') endDuel(e, 'Дуэль прервана');
-      else if (now - e.duelStart > DUEL_MAX_SEC * 1000) endDuel(e, 'Дуэль закончилась по времени');
+      if (!o || zoneAt(o.x) !== zoneAt(e.x) || ZONE_TYPES[zoneAt(e.x)] !== 'consent') endDuel(e, 'duel_interrupted');
+      else if (now - e.duelStart > DUEL_MAX_SEC * 1000) endDuel(e, 'duel_timeout');
     }
   }
   for (let i = botRespawns.length - 1; i >= 0; i--) if (botRespawns[i].at <= now) { spawnBot(botRespawns[i].zone); botRespawns.splice(i, 1); }
