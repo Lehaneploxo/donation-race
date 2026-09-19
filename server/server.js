@@ -7,6 +7,7 @@ const url       = require('url');
 const { connectToTikTok } = require('./tiktokConnector');
 const db                  = require('./db');
 const tamagotchiConfig    = require('./tamagotchiConfig');
+const world               = require('./world');   // /world — онлайн-мир, отдельно от TikTok-игр
 
 const PORT     = process.env.PORT || 3000;
 const DEFAULT_USERNAME = (process.argv[2] || process.env.TIKTOK_USERNAME || 'demo')
@@ -55,6 +56,9 @@ function serveHtml(file) {
 }
 
 app.get('/',            serveHtml('launcher.html'));
+// Онлайн-мир (19.09.2026): свои аккаунты и БД, REST /world-api/*, сокет /world-ws
+app.get('/world',       serveHtml('world.html'));
+world.attach(app);
 app.get('/game',        serveHtml('index.html'));
 app.get('/war',         serveHtml('war.html'));
 app.get('/arena',       serveHtml('arena.html'));
@@ -1461,6 +1465,7 @@ wss.on('error', (err) => {
 });
 
 wss.on('connection', (ws, req) => {
+  if (req.url && req.url.startsWith('/world-ws')) { world.handleConnection(ws, req); return; }
   const query    = url.parse(req.url, true).query;
   const username = (query.username || DEFAULT_USERNAME).replace(/^@/, '').trim();
 
@@ -1879,6 +1884,7 @@ server.on('error', (err) => {
 });
 
 db.init().catch(e => console.error('[DB] init error:', e.message));
+world.init();
 
 server.listen(PORT, () => {
   console.log(`[Server] Запущен: http://localhost:${PORT}/game?username=${DEFAULT_USERNAME}`);

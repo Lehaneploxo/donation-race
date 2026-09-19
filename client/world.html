@@ -1,0 +1,760 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Мир</title>
+<link rel="icon" href="data:,">
+<style>
+  html,body{margin:0;height:100%;background:#000;overflow:hidden;font-family:Arial,sans-serif;color:#fff;
+            -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}
+  #wrap{position:fixed;inset:0;display:flex;align-items:center;justify-content:center}
+  canvas{width:min(100vw, 100vh*16/9);height:auto;aspect-ratio:16/9;background:#000;display:block;touch-action:none}
+  #rot{display:none;position:fixed;inset:0;z-index:30;background:#05050c;align-items:center;justify-content:center;
+       flex-direction:column;text-align:center;font-size:22px;gap:14px}
+  #rot b{font-size:64px}
+  @media (orientation:portrait){ #rot{display:flex} }
+
+  /* экраны входа / создания персонажа */
+  #ov{position:fixed;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;
+      background:radial-gradient(ellipse at 50% 30%,#2a1140 0%,#08040f 70%);overflow:auto;padding:12px;box-sizing:border-box}
+  #ov[hidden]{display:none}
+  .box{background:rgba(12,10,24,.94);border:2px solid #6f4bd8;border-radius:16px;padding:22px 26px;
+       width:min(420px,100%);box-sizing:border-box;box-shadow:0 0 40px rgba(120,70,255,.35)}
+  .box.wide{width:min(900px,100%)}
+  h1{margin:0 0 4px;font-size:30px;text-align:center;letter-spacing:2px;color:#ffd23f;text-shadow:0 0 14px rgba(255,80,0,.6)}
+  .sub{text-align:center;color:#9fb0d8;font-size:13px;margin-bottom:14px}
+  .tabs{display:flex;gap:8px;margin-bottom:14px}
+  .tab{flex:1;padding:10px;text-align:center;border-radius:10px;background:#1a1730;color:#9fb0d8;cursor:pointer;font-weight:bold}
+  .tab.on{background:#6f4bd8;color:#fff}
+  label{display:block;font-size:13px;color:#b9c5e8;margin:10px 0 4px}
+  input{width:100%;box-sizing:border-box;padding:12px;border-radius:10px;border:2px solid #2b2650;background:#0a0818;color:#fff;
+        font-size:16px;outline:none;-webkit-user-select:text;user-select:text}
+  input:focus{border-color:#8a63ff}
+  .hint{font-size:12px;color:#8391b8;margin-top:5px}
+  .warn{font-size:13px;color:#ffc933;background:rgba(255,200,50,.08);border:1px solid rgba(255,200,50,.35);border-radius:8px;padding:8px 10px;margin-top:12px}
+  .err{min-height:20px;color:#ff7b7b;font-size:14px;margin-top:10px;text-align:center}
+  button.main{width:100%;padding:14px;margin-top:8px;border:0;border-radius:12px;background:linear-gradient(#ff7a3d,#e0472e);color:#fff;
+       font-size:18px;font-weight:bold;cursor:pointer}
+  button.main:disabled{opacity:.5;cursor:default}
+  .link{margin-top:12px;text-align:center;font-size:13px;color:#8391b8;cursor:pointer;text-decoration:underline}
+  .cards{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+  @media (max-width:760px){.cards{grid-template-columns:repeat(2,1fr)}}
+  .card{border:2px solid #2b2650;border-radius:12px;padding:10px;background:#0d0b1e;cursor:pointer;text-align:center}
+  .card.on{border-color:#ffd23f;box-shadow:0 0 16px rgba(255,210,63,.4)}
+  .card img{height:110px;image-rendering:pixelated}
+  .card .nm{font-weight:bold;margin:4px 0 6px}
+  .st{display:flex;align-items:center;gap:6px;font-size:12px;margin:3px 0;color:#c9d3f2}
+  .st span{width:60px;text-align:left}.st i{display:block;height:8px;border-radius:4px}
+  .sw{display:flex;justify-content:center;gap:6px;margin-top:6px}
+  .sw img{height:44px;border:2px solid transparent;border-radius:8px;padding:2px;background:#15122b}
+  .sw img.on{border-color:#ffd23f}
+  #msg{position:fixed;inset:0;z-index:25;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.75);
+       font-size:22px;text-align:center;padding:20px}
+  #msg[hidden]{display:none}
+  #msg button{margin-top:16px;padding:12px 26px;border:0;border-radius:10px;background:#6f4bd8;color:#fff;font-size:17px;font-weight:bold}
+</style>
+</head>
+<body>
+<div id="wrap"><canvas id="c" width="1280" height="720"></canvas></div>
+<div id="rot"><b>📱↻</b><div>Поверни телефон горизонтально</div></div>
+
+<div id="ov">
+  <!-- вход / регистрация -->
+  <div class="box" id="scrAuth">
+    <h1>МИР</h1><div class="sub">уличные бои онлайн</div>
+    <div class="tabs"><div class="tab on" id="tabReg">Регистрация</div><div class="tab" id="tabLog">Вход</div></div>
+    <label for="nick">Никнейм</label>
+    <input id="nick" maxlength="16" autocomplete="username" autocapitalize="off" spellcheck="false" placeholder="например Tiger_77">
+    <div class="hint" id="nickHint">3–16 символов: буквы, цифры и _ · ник уникальный</div>
+    <label for="pass">Пароль</label>
+    <input id="pass" type="password" maxlength="64" autocomplete="new-password" placeholder="от 6 символов">
+    <div class="warn" id="passWarn">⚠ Запомни пароль: без почты его нельзя восстановить.</div>
+    <div class="err" id="err"></div>
+    <button class="main" id="go">Создать аккаунт</button>
+  </div>
+  <!-- выбор бойца -->
+  <div class="box wide" id="scrCreate" hidden>
+    <h1>ВЫБЕРИ БОЙЦА</h1><div class="sub">Стартовые характеристики зависят от бойца. Выбор нельзя изменить позже.</div>
+    <div class="cards" id="cards"></div>
+    <div class="err" id="err2"></div>
+    <button class="main" id="start">В мир!</button>
+  </div>
+</div>
+<div id="msg" hidden><div><div id="msgText"></div><button id="msgBtn">Ок</button></div></div>
+
+<script>
+'use strict';
+// ═══════════════════════════════════════════════════════════════════════════
+//  МИР — клиент. Всё считает сервер (/world-ws), клиент рисует и шлёт ввод.
+// ═══════════════════════════════════════════════════════════════════════════
+const $ = id => document.getElementById(id);
+const canvas = $('c'), ctx = canvas.getContext('2d');
+const CW = canvas.width, CH = canvas.height;
+
+// ── сцена ──
+const S = 2.5, WALL_Y = 190, WALL_H = 96*S, ROAD_TOP = WALL_Y + WALL_H;
+let GROUND_MIN = 500, GROUND_MAX = 700, ZONE_W = 1800, WORLD_W = 1800*7;
+const TILESET = new Image(); TILESET.src = 'sprites/streets_of_fight/stage/tileset.png';
+const BACK    = new Image(); BACK.src    = 'sprites/streets_of_fight/stage/back.png';
+const FORE    = new Image(); FORE.src    = 'sprites/streets_of_fight/stage/fore.png';
+const T = {
+  pizza:{sx:0,sy:0,sw:224,sh:96}, window:{sx:288,sy:0,sw:224,sh:96},
+  brick:{sx:0,sy:112,sw:48,sh:96}, smallbrick:{sx:64,sy:112,sw:48,sh:96}, pipe:{sx:128,sy:112,sw:48,sh:96},
+  archwin:{sx:192,sy:112,sw:48,sh:96}, door:{sx:256,sy:112,sw:48,sh:96}, brick2:{sx:320,sy:112,sw:32,sh:96},
+  garageCar:{sx:176,sy:224,sw:112,sh:144}, garageShut:{sx:304,sy:224,sw:112,sh:144}, graffiti:{sx:432,sy:224,sw:96,sh:144},
+};
+const ROAD = {sx:48,sy:224,sw:112,sh:144}, LAMP = {sx:16,sy:0,sw:42,sh:144};
+const TYPES = {
+  hub:     { label:'БЕЗОПАСНО',   sub:'драться нельзя',                              color:'#3ddc84', tint:null },
+  safe:    { label:'БЕЗОПАСНО',   sub:'только боты, игроки не дерутся',              color:'#3ddc84', tint:null },
+  consent: { label:'ПО СОГЛАСИЮ', sub:'бой с игроком — только по принятому вызову',  color:'#ffc933', tint:'rgba(70,55,0,0.16)' },
+  danger:  { label:'ОПАСНО',      sub:'бой без правил — бить можно любого',          color:'#ff4a4a', tint:'rgba(110,0,0,0.26)' },
+};
+const ZONES = [
+  { name:'Тёмный переулок', type:'danger',  seq:['smallbrick','smallbrick','pipe','smallbrick','archwin','smallbrick','door','smallbrick','smallbrick'], tint:'rgba(20,40,20,0.28)' },
+  { name:'Кирпичная улица', type:'consent', seq:['brick','brick2','brick','archwin','brick2','brick','door'] },
+  { name:'Гараж',           type:'safe',    seq:['brick','garageCar','brick2','garageShut','brick','graffiti','smallbrick'] },
+  { name:'ПЛОЩАДЬ',         type:'hub',     seq:['window','pizza','window'] },
+  { name:'Пиццерия',        type:'safe',    seq:['pizza','window'] },
+  { name:'Улица с окнами',  type:'consent', seq:['window','window','archwin','window','window','door'] },
+  { name:'Ночной клуб',     type:'danger',  seq:['brick'], tint:'rgba(70,0,70,0.28)', neon:true },
+];
+const zoneAt = x => Math.max(0, Math.min(ZONES.length-1, Math.floor(x / ZONE_W)));
+
+// ── бойцы: [папка, префикс, кадров, fps] ──
+const A = {
+  brute_arms:   { base:'urban_brawlers',   name:'Качок',
+    idle:['Idle','idle',8,9],  walk:['Walk','walk',6,11], jab:['Jab','jab',7,14],  punch:['Punch','punch',5,16], kick:['Kick','kick',8,16],  hurt:['Hurt','hurt',4,12] },
+  bancho:       { base:'urban_brawlers',   name:'Хулиган',
+    idle:['Idle','idle',7,9],  walk:['Walk','walk',6,12], jab:['Jab','jab',9,18],  punch:['Punch','punch',7,18], kick:['Kick','kick',8,18],  hurt:['Hurt','hurt',4,12] },
+  batting_girl: { base:'urban_brawlers',   name:'Девушка с битой',
+    idle:['Idle','idle',15,10],walk:['Walk','walk',6,12], jab:['Jab','jab',5,18],  punch:['Punch','punch',8,18], kick:['Kick','kick',11,20], hurt:['Hurt','hurt',4,12] },
+  brawler_girl: { base:'streets_of_fight', name:'Уличная боец',
+    idle:['Idle','idle',4,8],  walk:['Walk','walk',10,12],jab:['Jab','jab',3,16],  punch:['Punch','punch',3,16], kick:['Kick','kick',5,16],  hurt:['Hurt','hurt',2,12] },
+};
+const VARIANT_DIRS = {
+  brute_arms:   ['brute_arms','brute_arms_v3_green','brute_arms_v5_blue'],
+  bancho:       ['bancho','bancho_v4_teal','bancho_v6_purple'],
+  batting_girl: ['batting_girl','batting_girl_v2_yellowgreen','batting_girl_v7_pink'],
+  brawler_girl: ['brawler_girl','brawler_girl_v5_blue','brawler_girl_v6_purple'],
+};
+const ST = { idle:0, walk:1, jab:2, punch:3, kick:4, hurt:5, ko:6, block:7 };
+const ST_ANIM = ['idle','walk','jab','punch','kick','hurt','hurt','idle'];
+const _fc = {};
+function framesOf(type, variant, anim){
+  const dir = VARIANT_DIRS[type][variant] || VARIANT_DIRS[type][0];
+  const k = dir+'|'+anim;
+  if (_fc[k]) return _fc[k];
+  const [folder, prefix, n] = A[type][anim], out = [];
+  for (let i=1;i<=n;i++){ const im = new Image(); im.src = `sprites/${A[type].base}/${dir}/${folder}/${prefix}${i}.png`; out.push(im); }
+  return _fc[k] = out;
+}
+const spriteUrl = (type, variant) => `sprites/${A[type].base}/${VARIANT_DIRS[type][variant]}/Idle/idle1.png`;
+
+// ═══════════════ ВХОД / РЕГИСТРАЦИЯ ═══════════════
+let mode = 'reg', token = null, cfg = null, pick = { type:null, variant:0 };
+try { token = localStorage.getItem('world_token'); } catch(_){}
+const api = async (path, body, auth) => {
+  const opt = { method: body ? 'POST' : 'GET', headers: {} };
+  if (body){ opt.headers['Content-Type'] = 'application/json'; opt.body = JSON.stringify(body); }
+  if (auth && token) opt.headers.Authorization = 'Bearer ' + token;
+  const r = await fetch('/world-api/' + path, opt);
+  let data = {}; try { data = await r.json(); } catch(_){}
+  if (!r.ok) { const e = new Error(data.error || 'Ошибка связи'); e.status = r.status; throw e; }
+  return data;
+};
+function setMode(m){
+  mode = m;
+  $('tabReg').classList.toggle('on', m==='reg'); $('tabLog').classList.toggle('on', m==='log');
+  $('go').textContent = m==='reg' ? 'Создать аккаунт' : 'Войти';
+  $('passWarn').style.display = $('nickHint').style.display = m==='reg' ? '' : 'none';
+  $('pass').autocomplete = m==='reg' ? 'new-password' : 'current-password';
+  $('err').textContent = '';
+}
+$('tabReg').onclick = () => setMode('reg'); $('tabLog').onclick = () => setMode('log');
+async function submitAuth(){
+  const nick = $('nick').value.trim(), pass = $('pass').value;
+  $('err').textContent = ''; $('go').disabled = true;
+  try {
+    const r = await api(mode==='reg' ? 'register' : 'login', { nick, pass });
+    token = r.token; try { localStorage.setItem('world_token', token); } catch(_){}
+    r.hasChar ? enterGame() : showCreate();
+  } catch(e){ $('err').textContent = e.message; }
+  $('go').disabled = false;
+}
+$('go').onclick = submitAuth;
+$('pass').addEventListener('keydown', e => { if (e.key === 'Enter') submitAuth(); });
+$('nick').addEventListener('keydown', e => { if (e.key === 'Enter') $('pass').focus(); });
+
+async function showCreate(){
+  $('scrAuth').hidden = true; $('scrCreate').hidden = false;
+  if (!cfg) cfg = await api('config');
+  const box = $('cards'); box.innerHTML = '';
+  const maxes = { str:10, hp:10, spd:10 };
+  cfg.fighters.forEach((f, i) => {
+    const el = document.createElement('div'); el.className = 'card' + (i===0 ? ' on' : '');
+    el.innerHTML = `<img src="${spriteUrl(f.type, 0)}"><div class="nm">${f.name}</div>
+      ${[['Сила','str','#ff8a4a'],['Здоровье','hp','#4be06f'],['Скорость','spd','#5fc8ff']].map(([n,k,c]) =>
+        `<div class="st"><span>${n}</span><i style="width:${f.stats[k]*8}px;background:${c}"></i>${f.stats[k]}</div>`).join('')}
+      <div class="sw">${[0,1,2].map(v => `<img data-v="${v}" class="${v===0?'on':''}" src="${spriteUrl(f.type, v)}">`).join('')}</div>`;
+    el.onclick = e => {
+      box.querySelectorAll('.card').forEach(c => c.classList.remove('on')); el.classList.add('on');
+      pick.type = f.type;
+      if (e.target.dataset && e.target.dataset.v !== undefined){
+        pick.variant = +e.target.dataset.v;
+        el.querySelectorAll('.sw img').forEach(im => im.classList.toggle('on', +im.dataset.v === pick.variant));
+      } else pick.variant = +(el.querySelector('.sw img.on').dataset.v);
+    };
+    box.appendChild(el);
+  });
+  pick = { type: cfg.fighters[0].type, variant: 0 };
+}
+$('start').onclick = async () => {
+  $('err2').textContent = ''; $('start').disabled = true;
+  try { await api('create', { type: pick.type, variant: pick.variant }, true); enterGame(); }
+  catch(e){ $('err2').textContent = e.message; if (e.status === 401) logout(); }
+  $('start').disabled = false;
+};
+function logout(){ try { localStorage.removeItem('world_token'); } catch(_){} location.reload(); }
+function showMsg(text, btn, fn){
+  $('msgText').textContent = text; $('msgBtn').textContent = btn || 'Ок'; $('msg').hidden = false;
+  $('msgBtn').onclick = fn || (() => { $('msg').hidden = true; });
+}
+
+// ═══════════════ СЕТЬ ═══════════════
+let ws = null, myId = 0, connected = false, retry = 0, gameStarted = false, stopRetry = false;
+const ents = new Map();            // id → сущность
+const me = { x:0, y:600, f:1, xp:0, need:50, pt:0, st:{str:1,hp:1,spd:1}, duel:0, sent:'', sentAt:0 };
+const ui = { hits:[], toasts:[], floaters:[], banner:null, card:null, panel:false, touch:false, koText:0, invite:null, duelName:'' };
+
+function enterGame(){
+  $('ov').hidden = true;
+  if (!gameStarted){ gameStarted = true; requestAnimationFrame(frame); }
+  connect();
+}
+function connect(){
+  ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/world-ws?token=' + encodeURIComponent(token));
+  ws.onopen = () => { retry = 0; };
+  ws.onmessage = ev => { let m; try { m = JSON.parse(ev.data); } catch(_){ return; } onServer(m); };
+  ws.onclose = ev => {
+    connected = false;
+    if (stopRetry) return;
+    if (ev.code === 4001){ showMsg('Нужно войти заново', 'Войти', logout); return; }
+    if (ev.code === 4002){ $('ov').hidden = false; $('scrAuth').hidden = true; showCreate(); return; }
+    if (ev.code === 4004){ stopRetry = true; showMsg('Ты зашёл в игру с другого устройства', 'Играть здесь', () => location.reload()); return; }
+    retry++; setTimeout(connect, Math.min(5000, 500 * retry));
+  };
+}
+function sendWs(o){ if (ws && ws.readyState === 1) ws.send(JSON.stringify(o)); }
+
+function onServer(m){
+  switch (m.t){
+    case 'hello':
+      myId = m.id; ZONE_W = m.zoneW; WORLD_W = m.world; GROUND_MIN = m.ground[0]; GROUND_MAX = m.ground[1];
+      for (let i=0;i<m.zones.length;i++) if (ZONES[i]) ZONES[i].type = m.zones[i];
+      ents.clear(); me.x = m.x; me.y = m.y; camX = Math.max(0, Math.min(WORLD_W-CW, me.x - CW/2)); connected = true; break;
+    case 'add':
+      for (const a of m.e){ const e = ents.get(a.id) || { id:a.id, rx:0, ry:0, x:0, y:0, f:1, s:0, ps:0, t:0, h:1, m:1, l:1, c:0, init:false };
+        e.n = a.n; e.ty = a.ty; e.v = a.v; e.k = a.k; ents.set(a.id, e); }
+      break;
+    case 's': {
+      for (const r of m.a){
+        const e = ents.get(r[0]); if (!e) continue;
+        e.x = r[1]; e.y = r[2]; e.f = r[3];
+        if (e.s !== r[4]){ e.s = r[4]; e.t = 0; }
+        e.h = r[5]; e.m = r[6]; e.l = r[7]; e.c = r[8];
+        if (!e.init){ e.rx = e.x; e.ry = e.y; e.init = true; }
+        if (e.id === myId){
+          const d = Math.hypot(e.x - me.x, e.y - me.y);
+          if (d > 160){ me.x = e.x; me.y = e.y; } else { me.x += (e.x - me.x) * 0.12; me.y += (e.y - me.y) * 0.12; }
+        }
+      }
+      for (const id of m.rm) ents.delete(id);
+      for (const v of m.ev){
+        const e = ents.get(v[0]); if (!e) continue;
+        floater(e, v[2] ? 'БЛОК −'+v[1] : '−'+v[1], v[2] ? '#7ec8ff' : (e.id === myId ? '#ff5a5a' : '#ffe14a'));
+      }
+      Object.assign(me, { xp:m.me.xp, need:m.me.need, pt:m.me.pt, st:m.me.st, duel:m.me.duel });
+      break;
+    }
+    case 'toast': toast(m.text, m.color); break;
+    case 'lvl': ui.banner = { text:'НОВЫЙ УРОВЕНЬ: '+m.level, sub:'+'+m.points+' очка характеристик', t:2.6 }; break;
+    case 'ko': ui.koText = 2; ui.card = null; ui.invite = null; break;
+    case 'card': ui.card = m; ui.panel = false; break;
+    case 'duel_inv': ui.invite = { from:m.from, name:m.name, t:m.sec }; break;
+    case 'duel_start': ui.duelName = m.name; ui.invite = null; ui.card = null; toast('Дуэль с '+m.name+'!', '#ff9d5a'); break;
+    case 'duel_end': ui.duelName = ''; break;
+    case 'kicked': break;
+  }
+}
+const myEnt = () => ents.get(myId);
+const inCombat = () => { const e = myEnt(); return !!(e && e.c); };
+const maxHpMe = () => { const e = myEnt(); return e ? e.m : 100; };
+
+// ═══════════════ ВВОД ═══════════════
+const keys = {};
+const joy = { active:false, id:-1, ox:0, oy:0, x:0, y:0, vx:0, vy:0 };
+const btns = [
+  { name:'hit',   x:1170, y:590, r:72, label:'УДАР',  col:'#ff6b3d', down:false },
+  { name:'kick',  x:1040, y:648, r:58, label:'ПИНОК', col:'#ffc933', down:false },
+  { name:'block', x:1180, y:452, r:54, label:'БЛОК',  col:'#4aa8ff', down:false },
+];
+let blockHeld = false;
+const KEY_ACTION = { KeyJ:'hit', KeyZ:'hit', KeyK:'kick', KeyX:'kick' };
+addEventListener('keydown', e => {
+  if (document.activeElement && document.activeElement.tagName === 'INPUT') return;
+  if (['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Space','Tab'].includes(e.code)) e.preventDefault();
+  if (e.repeat) return;
+  keys[e.code] = true;
+  if (KEY_ACTION[e.code]) doAction(KEY_ACTION[e.code]);
+  if (e.code === 'Tab') { ui.panel = !ui.panel; ui.card = null; }
+  if (e.code === 'KeyE'){
+    let best = null, bd = 240;
+    for (const a of ents.values()){ if (a.id === myId) continue; const d = Math.hypot(a.x-me.x, (a.y-me.y)*2); if (d < bd){ bd = d; best = a; } }
+    if (best) askCard(best); else toast('Рядом никого нет');
+  }
+});
+addEventListener('keyup', e => { keys[e.code] = false; });
+function doAction(n){ if (n === 'hit') sendWs({ t:'atk', k:'jab' }); else if (n === 'kick') sendWs({ t:'atk', k:'kick' }); }
+
+const toCanvas = e => { const r = canvas.getBoundingClientRect(); return { x:(e.clientX-r.left)*CW/r.width, y:(e.clientY-r.top)*CH/r.height }; };
+const ptrs = new Map();
+canvas.addEventListener('pointerdown', e => {
+  e.preventDefault();
+  try { canvas.setPointerCapture(e.pointerId); } catch(_){}
+  const p = toCanvas(e);
+  if (e.pointerType === 'touch') ui.touch = true;
+  for (let i = ui.hits.length-1; i>=0; i--){
+    const h = ui.hits[i];
+    if (p.x>=h.x && p.x<=h.x+h.w && p.y>=h.y && p.y<=h.y+h.h){ ptrs.set(e.pointerId, {kind:'ui'}); h.fn(); return; }
+  }
+  if (ui.touch || e.pointerType === 'mouse'){
+    for (const b of btns) if (Math.hypot(p.x-b.x, p.y-b.y) <= b.r*1.15){
+      b.down = true; ptrs.set(e.pointerId, {kind:'btn', b});
+      if (b.name === 'block') blockHeld = true; else doAction(b.name);
+      return;
+    }
+  }
+  if (e.pointerType !== 'mouse' && p.x < CW/2 && !joy.active){
+    Object.assign(joy, { active:true, id:e.pointerId, ox:p.x, oy:p.y, x:p.x, y:p.y, vx:0, vy:0 });
+    ptrs.set(e.pointerId, {kind:'joy', t0:performance.now(), p0:p}); return;
+  }
+  ptrs.set(e.pointerId, {kind:'tap', t0:performance.now(), p0:p});
+});
+canvas.addEventListener('pointermove', e => {
+  const s = ptrs.get(e.pointerId); if (!s || s.kind !== 'joy') return;
+  const p = toCanvas(e); joy.x = p.x; joy.y = p.y;
+  const dx = p.x-joy.ox, dy = p.y-joy.oy, len = Math.hypot(dx,dy), R = 70;
+  if (len < 10){ joy.vx = joy.vy = 0; } else { const m = Math.min(1, len/R); joy.vx = dx/len*m; joy.vy = dy/len*m; }
+});
+function endPointer(e){
+  const s = ptrs.get(e.pointerId); if (!s) return; ptrs.delete(e.pointerId);
+  const p = toCanvas(e), quick = performance.now()-s.t0 < 300 && s.p0 && Math.hypot(p.x-s.p0.x, p.y-s.p0.y) < 14;
+  if (s.kind === 'joy'){ joy.active = false; joy.vx = joy.vy = 0; if (quick) tapWorld(p.x, p.y); }
+  else if (s.kind === 'btn'){ s.b.down = false; if (s.b.name === 'block') blockHeld = false; }
+  else if (s.kind === 'tap' && quick) tapWorld(p.x, p.y);
+}
+canvas.addEventListener('pointerup', endPointer);
+canvas.addEventListener('pointercancel', endPointer);
+canvas.addEventListener('contextmenu', e => e.preventDefault());
+
+const actorK = e => 0.9 + 0.16 * (e.ry - GROUND_MIN) / (GROUND_MAX - GROUND_MIN);
+const FIGHTER_H = 160;
+function tapWorld(x, y){
+  let hit = null;
+  for (const a of ents.values()){
+    const k = actorK(a), h = FIGHTER_H*k, sx = a.rx - camX;
+    if (Math.abs(x-sx) < 55*k && y > a.ry-h-24 && y < a.ry+12 && (!hit || a.ry > hit.ry)) hit = a;
+  }
+  if (!hit){ ui.card = null; return; }
+  if (hit.id === myId){ ui.panel = true; return; }
+  askCard(hit);
+}
+function askCard(a){
+  if (inCombat()){ toast('В бою карточка недоступна', '#ffc933'); return; }
+  sendWs({ t:'inspect', id:a.id });
+}
+
+// ═══════════════ ЛОГИКА КАДРА ═══════════════
+let camX = 0;
+function toast(text, color){ ui.toasts.push({ text, color: color||'#fff', t:2.6 }); if (ui.toasts.length > 3) ui.toasts.shift(); }
+function floater(e, text, color){ ui.floaters.push({ e, text, color, t:0 }); }
+
+function update(dt){
+  const my = myEnt();
+  // ввод → сервер (20 раз/сек максимум, только при изменении; раз в секунду как пульс)
+  let dx = 0, dy = 0;
+  if (keys.ArrowLeft || keys.KeyA) dx -= 1;
+  if (keys.ArrowRight || keys.KeyD) dx += 1;
+  if (keys.ArrowUp || keys.KeyW) dy -= 1;
+  if (keys.ArrowDown || keys.KeyS) dy += 1;
+  let run = (keys.ShiftLeft || keys.ShiftRight) ? 1.6 : 1;
+  if (joy.active && (joy.vx || joy.vy)){ dx = joy.vx; dy = joy.vy; run = Math.hypot(dx,dy) > 0.9 ? 1.5 : 1; }
+  const blk = !!(keys.Space || blockHeld);
+  const inp = { t:'in', dx:+dx.toFixed(2), dy:+dy.toFixed(2), run, blk };
+  const sig = inp.dx+'|'+inp.dy+'|'+run+'|'+blk, now = performance.now();
+  if (connected && (sig !== me.sent && now - me.sentAt > 45 || now - me.sentAt > 1000)){ sendWs(inp); me.sent = sig; me.sentAt = now; }
+
+  // предсказание своей позиции (те же формулы, что на сервере)
+  if (my){
+    const s = my.s, locked = s === ST.hurt || s === ST.ko;
+    const slow = locked ? 0 : (s >= 2 && s <= 4) ? 0.15 : s === ST.block ? 0.35 : 1;
+    const len = Math.hypot(dx, dy) || 1, k = Math.min(1, len);
+    const sp = (200 + me.st.spd*10) * run * slow;
+    me.x = Math.max(60, Math.min(WORLD_W-60, me.x + dx/len*k*sp*dt));
+    me.y = Math.max(GROUND_MIN, Math.min(GROUND_MAX, me.y + dy/len*k*sp*0.6*dt));
+  }
+  // сглаживание чужих
+  const a = 1 - Math.exp(-dt*14);
+  for (const e of ents.values()){
+    e.t += dt;
+    if (e.id === myId){ e.rx = me.x; e.ry = me.y; } else { e.rx += (e.x - e.rx)*a; e.ry += (e.y - e.ry)*a; }
+  }
+  for (const f of ui.floaters) f.t += dt;
+  ui.floaters = ui.floaters.filter(f => f.t < 1.1);
+  for (const t of ui.toasts) t.t -= dt; ui.toasts = ui.toasts.filter(t => t.t > 0);
+  if (ui.banner){ ui.banner.t -= dt; if (ui.banner.t <= 0) ui.banner = null; }
+  if (ui.koText > 0) ui.koText -= dt;
+  if (ui.invite){ ui.invite.t -= dt; if (ui.invite.t <= 0) ui.invite = null; }
+  const target = Math.max(0, Math.min(WORLD_W-CW, me.x - CW/2));
+  camX += (target - camX) * Math.min(1, dt*8);
+}
+
+// ═══════════════ РИСОВАНИЕ ═══════════════
+function rr(x, y, w, h, r){
+  ctx.beginPath(); ctx.moveTo(x+r, y);
+  ctx.arcTo(x+w, y, x+w, y+h, r); ctx.arcTo(x+w, y+h, x, y+h, r); ctx.arcTo(x, y+h, x, y, r); ctx.arcTo(x, y, x+w, y, r); ctx.closePath();
+}
+function txt(s, x, y, size, color, align, maxW){
+  ctx.font = `bold ${size}px "Arial Black", Arial`; ctx.textAlign = align || 'center'; ctx.lineJoin = 'round';
+  ctx.strokeStyle = 'rgba(0,0,0,0.85)'; ctx.lineWidth = Math.max(3, size/6);
+  if (maxW){ ctx.strokeText(s, x, y, maxW); ctx.fillStyle = color; ctx.fillText(s, x, y, maxW); }
+  else { ctx.strokeText(s, x, y); ctx.fillStyle = color; ctx.fillText(s, x, y); }
+}
+function bar(x, y, w, h, frac, col){
+  ctx.fillStyle = 'rgba(0,0,0,0.6)'; rr(x, y, w, h, h/2); ctx.fill();
+  const fw = Math.max(0, Math.min(1, frac)) * w;
+  if (fw > 0){ ctx.fillStyle = col; rr(x, y, Math.max(h, fw), h, h/2); ctx.fill(); }
+}
+const addHit = (x, y, w, h, fn) => ui.hits.push({ x, y, w, h, fn });
+const ready = im => im.complete && im.naturalWidth;
+
+function drawSky(){
+  ctx.fillStyle = '#05010c'; ctx.fillRect(0, 0, CW, WALL_Y); ctx.fillStyle = '#fff';
+  for (let i=0;i<70;i++){
+    const x = ((i*911) % 2600) - camX*0.08, px = ((x % 2600) + 2600) % 2600 - 660;
+    ctx.globalAlpha = 0.35 + ((i*7)%10)/18; ctx.fillRect(px, ((i*53) % 60) + 6, 2, 2);
+  }
+  ctx.globalAlpha = 1;
+  if (ready(BACK)){
+    const sc = (WALL_Y - 30) / BACK.naturalHeight, tw = BACK.naturalWidth * sc, off = -((camX*0.35) % tw);
+    for (let x = off; x < CW; x += tw) ctx.drawImage(BACK, x, 30, tw, WALL_Y - 30);
+  }
+}
+function drawRoad(){
+  const tw = ROAD.sw*S, th = ROAD.sh*S, off = -(camX % tw);
+  ctx.save(); ctx.beginPath(); ctx.rect(0, ROAD_TOP, CW, CH-ROAD_TOP); ctx.clip();
+  if (ready(TILESET)) for (let x = off; x < CW; x += tw) ctx.drawImage(TILESET, ROAD.sx, ROAD.sy, ROAD.sw, ROAD.sh, x, ROAD_TOP, tw, th);
+  else { ctx.fillStyle = '#26364a'; ctx.fillRect(0, ROAD_TOP, CW, CH-ROAD_TOP); }
+  const g = ctx.createLinearGradient(0, ROAD_TOP, 0, CH); g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,0.4)');
+  ctx.fillStyle = g; ctx.fillRect(0, ROAD_TOP, CW, CH-ROAD_TOP); ctx.restore();
+}
+function drawWalls(){
+  const z0 = zoneAt(camX), z1 = zoneAt(camX + CW);
+  for (let z=z0; z<=z1; z++){
+    const zone = ZONES[z], zx = z*ZONE_W - camX;
+    ctx.save(); ctx.beginPath(); ctx.rect(zx, 0, ZONE_W, CH); ctx.clip();
+    let x = zx, i = 0;
+    while (x < zx + ZONE_W){
+      const tile = T[zone.seq[i % zone.seq.length]], tw = tile.sw*S, th = tile.sh*(WALL_H/96);
+      if (x + tw > 0 && x < CW && ready(TILESET)) ctx.drawImage(TILESET, tile.sx, tile.sy, tile.sw, tile.sh, x, WALL_Y, tw, th);
+      x += tw; i++;
+    }
+    ctx.fillStyle = '#2b2129'; ctx.fillRect(zx, WALL_Y-13, ZONE_W, 17);
+    ctx.fillStyle = '#6b5f68'; ctx.fillRect(zx, WALL_Y-13, ZONE_W, 4);
+    const tint = zone.tint || TYPES[zone.type].tint;
+    if (tint){ ctx.fillStyle = tint; ctx.fillRect(zx, WALL_Y, ZONE_W, CH-WALL_Y); }
+    ctx.restore();
+  }
+}
+function drawLamps(){
+  if (!ready(FORE)) return;
+  const fw = LAMP.sw*S, fh = LAMP.sh*S, first = Math.floor(camX/640) - 1, last = Math.ceil((camX+CW)/640) + 1;
+  for (let i=first; i<=last; i++) ctx.drawImage(FORE, LAMP.sx, LAMP.sy, LAMP.sw, LAMP.sh, i*640 + 320 - camX, WALL_Y - fh*0.35, fw, fh);
+}
+function drawNeon(zx){
+  const pulse = 0.55 + 0.35*Math.sin(performance.now()*0.004), cx = zx + ZONE_W/2;
+  ctx.save();
+  for (const [ox, col] of [[-380,'255,60,220'],[380,'80,220,255']]){
+    const g = ctx.createLinearGradient(0, WALL_Y-60, 0, ROAD_TOP);
+    g.addColorStop(0, `rgba(${col},${0.35*pulse})`); g.addColorStop(1, `rgba(${col},0)`); ctx.fillStyle = g;
+    ctx.beginPath(); ctx.moveTo(cx+ox-10, WALL_Y-60); ctx.lineTo(cx+ox+10, WALL_Y-60);
+    ctx.lineTo(cx+ox+(ox<0?150:-150)+60, ROAD_TOP); ctx.lineTo(cx+ox+(ox<0?150:-150)-60, ROAD_TOP); ctx.fill();
+  }
+  const dw = 150, dh = 200, dx = cx - dw/2, dy = ROAD_TOP - dh + 40;
+  ctx.fillStyle = '#12061a'; ctx.fillRect(dx, dy, dw, dh);
+  ctx.strokeStyle = `rgba(255,60,220,${0.6+0.4*pulse})`; ctx.lineWidth = 6; ctx.shadowColor = '#ff3cdc'; ctx.shadowBlur = 24; ctx.strokeRect(dx, dy, dw, dh);
+  ctx.restore();
+}
+function drawZoneDecor(){
+  const z0 = zoneAt(camX), z1 = zoneAt(camX + CW);
+  for (let z=z0; z<=z1; z++){
+    const zone = ZONES[z], ty = TYPES[zone.type], zx = z*ZONE_W - camX;
+    if (zone.neon) drawNeon(zx);
+    const cx = zx + ZONE_W/2;
+    if (cx > -300 && cx < CW+300){
+      const w = 420, h = 88, y = WALL_Y + 22;
+      ctx.save(); ctx.fillStyle = 'rgba(8,8,16,0.86)'; rr(cx-w/2, y, w, h, 12); ctx.fill();
+      ctx.strokeStyle = ty.color; ctx.lineWidth = 3; ctx.shadowColor = ty.color; ctx.shadowBlur = 14; rr(cx-w/2, y, w, h, 12); ctx.stroke(); ctx.restore();
+      txt(zone.name, cx, y+42, 34, '#fff'); txt(ty.label, cx, y+74, 22, ty.color);
+    }
+  }
+  const rank = k => ({hub:0,safe:1,consent:2,danger:3})[ZONES[k].type];
+  for (let z=1; z<ZONES.length; z++){
+    const bx = z*ZONE_W - camX;
+    if (bx < -300 || bx > CW+300) continue;
+    const col = TYPES[ZONES[rank(z-1) > rank(z) ? z-1 : z].type].color;
+    ctx.save(); ctx.beginPath(); ctx.rect(bx-7, ROAD_TOP, 14, CH-ROAD_TOP); ctx.clip();
+    for (let y=ROAD_TOP; y<CH; y+=26){ ctx.fillStyle = ((y-ROAD_TOP)/26)%2 ? '#111' : col; ctx.fillRect(bx-7, y, 14, 26); }
+    ctx.restore();
+    const w = 460, h = 40, y = ROAD_TOP - 6;
+    ctx.fillStyle = 'rgba(8,8,16,0.88)'; rr(bx-w/2, y, w, h, 8); ctx.fill();
+    ctx.strokeStyle = col; ctx.lineWidth = 2; rr(bx-w/2, y, w, h, 8); ctx.stroke();
+    txt('◀ '+ZONES[z-1].name, bx-12, y+27, 17, '#dfe6ff', 'right'); txt(ZONES[z].name+' ▶', bx+12, y+27, 17, '#dfe6ff', 'left');
+  }
+}
+
+function drawActor(e){
+  if (!A[e.ty]) return;
+  const k = actorK(e), h = FIGHTER_H*k, sx = e.rx - camX;
+  if (sx < -200 || sx > CW+200) return;
+  const anim = ST_ANIM[e.s] || 'idle', def = A[e.ty][anim];
+  const list = framesOf(e.ty, e.v, anim), n = list.length, fps = def[3];
+  let idx = Math.floor(e.t * fps);
+  idx = (anim === 'idle' || anim === 'walk') ? idx % n : Math.min(n-1, idx);
+  if (e.s === ST.ko) idx = n-1;
+  const frame = list[idx];
+
+  ctx.save(); ctx.globalAlpha = 0.28; ctx.fillStyle = '#000';
+  ctx.beginPath(); ctx.ellipse(sx, e.ry, 34*k, 8*k, 0, 0, Math.PI*2); ctx.fill(); ctx.restore();
+  if (ready(frame)){
+    let sc = h / frame.naturalHeight;
+    if (frame.naturalWidth*sc > h*1.55) sc = h*1.55 / frame.naturalWidth;
+    const dw = frame.naturalWidth*sc, dh = frame.naturalHeight*sc;
+    ctx.save(); ctx.translate(sx, e.ry);
+    if (e.f < 0) ctx.scale(-1, 1);
+    if (e.s === ST.ko){ ctx.rotate(-Math.min(1, e.t/0.4) * 1.35); ctx.globalAlpha = Math.max(0.2, 1 - Math.max(0, e.t-1.4)/0.6); }
+    ctx.drawImage(frame, -dw/2, -dh + 6, dw, dh);
+    ctx.restore();
+  }
+  if (e.s === ST.block){
+    ctx.save(); ctx.translate(sx, e.ry - h*0.5); ctx.scale(e.f, 1);
+    ctx.strokeStyle = 'rgba(110,190,255,0.85)'; ctx.lineWidth = 6; ctx.shadowColor = '#4aa8ff'; ctx.shadowBlur = 14;
+    ctx.beginPath(); ctx.arc(28*k, 0, h*0.42, -1.05, 1.05); ctx.stroke(); ctx.restore();
+  }
+  if (e.s === ST.ko) return;
+
+  const ny = e.ry - h - 6;
+  if (e.c) bar(sx-34, ny-24, 68, 8, e.h/e.m, e.h/e.m > 0.35 ? '#4be06f' : '#ff5a5a');
+  const isMe = e.id === myId, isBot = e.k === 'b';
+  const zt = ZONES[zoneAt(e.rx)].type;
+  ctx.font = 'bold 15px Arial';
+  const name = isBot ? '🤖 '+e.n : e.n, nameW = ctx.measureText(name).width;
+  const pill = 'ур.' + e.l, pw = ctx.measureText(pill).width + 10, total = pw + 6 + nameW, x0 = sx - total/2;
+  ctx.fillStyle = 'rgba(0,0,0,0.5)'; rr(x0-6, ny-15, total+12, 21, 6); ctx.fill();
+  ctx.fillStyle = isMe ? '#b8860b' : isBot ? '#7a2a2a' : '#3a4a8a'; rr(x0, ny-12, pw, 16, 5); ctx.fill();
+  ctx.textAlign = 'center'; ctx.fillStyle = '#fff'; ctx.fillText(pill, x0 + pw/2, ny);
+  ctx.textAlign = 'left'; ctx.fillStyle = isMe ? '#ffd23f' : (isBot || zt === 'danger') ? '#ff8a8a' : '#fff';
+  ctx.fillText(name, x0 + pw + 6, ny + 1);
+}
+function drawFloaters(){
+  for (const f of ui.floaters){
+    ctx.globalAlpha = Math.max(0, 1 - f.t/1.1);
+    txt(f.text, f.e.rx - camX, f.e.ry - FIGHTER_H - 30 - f.t*50, 24, f.color);
+  }
+  ctx.globalAlpha = 1;
+}
+
+function drawHUD(){
+  const my = myEnt(), zone = ZONES[zoneAt(me.x)], ty = TYPES[zone.type];
+  const hp = my ? my.h : 0, mx = my ? my.m : 100, lvl = my ? my.l : 1;
+  ctx.fillStyle = 'rgba(8,8,16,0.82)'; rr(16, 16, 330, 100, 12); ctx.fill();
+  ctx.strokeStyle = 'rgba(255,210,63,0.7)'; ctx.lineWidth = 2; rr(16, 16, 330, 100, 12); ctx.stroke();
+  ctx.fillStyle = '#b8860b'; ctx.beginPath(); ctx.arc(58, 66, 30, 0, Math.PI*2); ctx.fill();
+  ctx.strokeStyle = '#ffd23f'; ctx.lineWidth = 3; ctx.stroke();
+  txt(String(lvl), 58, 76, 26, '#fff'); txt('УР.', 58, 46, 11, '#ffe9a0');
+  txt(my ? my.n : '…', 100, 44, 20, '#ffd23f', 'left', 230);
+  bar(100, 54, 230, 16, hp/mx, hp/mx > 0.35 ? '#4be06f' : '#ff5a5a');
+  txt(hp+' / '+mx, 215, 67, 12, '#fff');
+  bar(100, 78, 230, 10, me.xp/me.need, '#5fa8ff');
+  txt('опыт '+Math.floor(me.xp)+' / '+me.need, 100, 106, 12, '#b8c8ee', 'left');
+
+  if (me.pt > 0){
+    ctx.globalAlpha = 0.75 + 0.25*Math.sin(performance.now()*0.008); ctx.fillStyle = '#ff9d2e'; rr(16, 124, 170, 34, 10); ctx.fill(); ctx.globalAlpha = 1;
+    txt('★ Очки: '+me.pt, 101, 148, 16, '#fff');
+    addHit(16, 124, 170, 34, () => { ui.panel = true; ui.card = null; });
+  }
+  if (ui.duelName){
+    ctx.fillStyle = 'rgba(200,60,30,0.85)'; rr(16, me.pt > 0 ? 166 : 124, 260, 30, 10); ctx.fill();
+    txt('⚔ Дуэль: '+ui.duelName, 146, (me.pt > 0 ? 166 : 124) + 21, 14, '#fff', 'center', 240);
+  }
+
+  ctx.fillStyle = 'rgba(8,8,16,0.82)'; rr(362, 16, 380, 70, 12); ctx.fill();
+  ctx.strokeStyle = ty.color; ctx.lineWidth = 2.5; rr(362, 16, 380, 70, 12); ctx.stroke();
+  txt(zone.name, 378, 44, 24, '#fff', 'left', 350); txt(ty.label, 378, 68, 16, ty.color, 'left');
+  ctx.font = 'bold 16px "Arial Black", Arial'; const lw = ctx.measureText(ty.label).width;
+  ctx.font = '13px Arial'; ctx.textAlign = 'left'; ctx.fillStyle = '#b8c0d8';
+  ctx.fillText(ty.sub, 378 + lw + 10, 68, 732 - (378 + lw + 10));
+
+  const cellW = 48, mapW = cellW*ZONES.length, mmx = CW - 16 - mapW, my2 = 16, mh = 18;
+  ctx.fillStyle = 'rgba(0,0,0,0.6)'; rr(mmx-6, my2-6, mapW+12, mh+12, 8); ctx.fill();
+  for (let z=0; z<ZONES.length; z++){
+    ctx.globalAlpha = (z === zoneAt(me.x)) ? 0.95 : 0.5; ctx.fillStyle = TYPES[ZONES[z].type].color; ctx.fillRect(mmx + z*cellW + 1, my2, cellW-2, mh);
+  }
+  ctx.globalAlpha = 1;
+  for (const e of ents.values()){
+    const px = mmx + (e.rx / WORLD_W) * mapW, self = e.id === myId;
+    ctx.fillStyle = self ? '#fff' : e.k === 'b' ? 'rgba(120,0,0,0.6)' : 'rgba(0,0,60,0.9)';
+    ctx.beginPath(); ctx.arc(px, my2 + mh/2, self ? 5 : 2.5, 0, Math.PI*2); ctx.fill();
+    if (self){ ctx.strokeStyle = '#000'; ctx.lineWidth = 2; ctx.stroke(); }
+  }
+  ctx.fillStyle = 'rgba(8,8,16,0.82)'; rr(CW-16-150, 50, 150, 34, 10); ctx.fill();
+  ctx.strokeStyle = 'rgba(140,170,255,0.6)'; ctx.lineWidth = 2; rr(CW-16-150, 50, 150, 34, 10); ctx.stroke();
+  txt('☰ Персонаж', CW-16-75, 73, 15, '#dfe6ff');
+  addHit(CW-16-150, 50, 150, 34, () => { ui.panel = !ui.panel; ui.card = null; });
+
+  if (!ui.touch){
+    ctx.font = '12px Arial'; ctx.textAlign = 'right'; ctx.fillStyle = 'rgba(210,220,245,0.9)';
+    ['← → ↑ ↓ / WASD — ходить, Shift — бежать', 'J — удар   K — пинок   Пробел — блок', 'E — игрок рядом   Tab — персонаж']
+      .forEach((s,i) => { ctx.strokeStyle='rgba(0,0,0,0.8)'; ctx.lineWidth=3; ctx.strokeText(s, CW-16, 106+i*17); ctx.fillText(s, CW-16, 106+i*17); });
+  }
+}
+function drawControls(){
+  if (!ui.touch) return;
+  if (joy.active){
+    ctx.globalAlpha = 0.28; ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(joy.ox, joy.oy, 70, 0, Math.PI*2); ctx.fill();
+    ctx.globalAlpha = 0.9; ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; ctx.stroke();
+    const dx = joy.x-joy.ox, dy = joy.y-joy.oy, len = Math.hypot(dx,dy) || 1, m = Math.min(len, 70);
+    ctx.globalAlpha = 0.6; ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(joy.ox + dx/len*m, joy.oy + dy/len*m, 30, 0, Math.PI*2); ctx.fill(); ctx.globalAlpha = 1;
+  } else {
+    ctx.globalAlpha = 0.16; ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(170, 590, 70, 0, Math.PI*2); ctx.stroke();
+    ctx.globalAlpha = 0.5; txt('ХОДЬБА', 170, 596, 14, '#fff'); ctx.globalAlpha = 1;
+  }
+  for (const b of btns){
+    const on = b.down;
+    ctx.globalAlpha = on ? 0.95 : 0.55; ctx.fillStyle = b.col; ctx.beginPath(); ctx.arc(b.x, b.y, b.r*(on?0.94:1), 0, Math.PI*2); ctx.fill();
+    ctx.globalAlpha = 0.9; ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; ctx.stroke(); ctx.globalAlpha = 1;
+    txt(b.label, b.x, b.y + 6, b.r > 60 ? 20 : 16, '#fff');
+  }
+}
+function drawCard(){
+  const a = ui.card; if (!a) return;
+  const w = 400, h = 290, x = (CW-w)/2, y = 150;
+  ctx.fillStyle = 'rgba(8,8,16,0.94)'; rr(x, y, w, h, 14); ctx.fill();
+  ctx.strokeStyle = '#8ab4ff'; ctx.lineWidth = 2.5; rr(x, y, w, h, 14); ctx.stroke();
+  addHit(x, y, w, h, () => {});
+  txt(a.name, x+20, y+40, 26, '#fff', 'left', 260); txt('ур. '+a.level, x+w-56, y+40, 22, '#ffd23f', 'right');
+  txt('✕', x+w-24, y+36, 24, '#ff8a8a'); addHit(x+w-50, y+6, 44, 44, () => { ui.card = null; });
+  ctx.font = '14px Arial'; ctx.textAlign = 'left'; ctx.fillStyle = '#9fb0d8';
+  ctx.fillText((a.kind === 'b' ? 'Бот · ' : '') + 'Боец: ' + (A[a.ty] ? A[a.ty].name : ''), x+20, y+62);
+  bar(x+20, y+76, w-40, 16, a.hp/a.max, '#4be06f'); txt(a.hp+' / '+a.max, x+w/2, y+89, 12, '#fff');
+  [['Сила', a.st.str, '#ff8a4a'], ['Здоровье', a.st.hp, '#4be06f'], ['Скорость', a.st.spd, '#5fc8ff']].forEach((r,i) => {
+    const ry = y + 118 + i*30;
+    txt(r[0], x+20, ry+10, 16, '#dfe6ff', 'left'); bar(x+130, ry-2, w-190, 14, r[1]/20, r[2]); txt(String(r[1]), x+w-24, ry+11, 16, '#fff', 'right');
+  });
+  const can = a.kind === 'p' && ZONES[zoneAt(me.x)].type === 'consent', by = y + h - 60;
+  ctx.fillStyle = can ? '#e0472e' : 'rgba(80,80,100,0.6)'; rr(x+20, by, w-40, 42, 10); ctx.fill();
+  txt(a.kind === 'b' ? 'Это бот — бей его!' : '⚔ Вызвать на дуэль', x+w/2, by+28, 18, can ? '#fff' : '#9a9ab0');
+  addHit(x+20, by, w-40, 42, () => {
+    if (can){ sendWs({ t:'duel', to:a.id }); ui.card = null; }
+    else if (a.kind === 'p') toast('Дуэль — только в районах «по согласию»', '#ffc933');
+  });
+}
+function drawPanel(){
+  if (!ui.panel) return;
+  const my = myEnt(), w = 460, h = 360, x = (CW-w)/2, y = 120;
+  ctx.fillStyle = 'rgba(8,8,16,0.95)'; rr(x, y, w, h, 14); ctx.fill();
+  ctx.strokeStyle = '#ffd23f'; ctx.lineWidth = 2.5; rr(x, y, w, h, 14); ctx.stroke();
+  addHit(x, y, w, h, () => {});
+  txt('Персонаж: '+(my && A[my.ty] ? A[my.ty].name : ''), x+22, y+40, 24, '#ffd23f', 'left', 340);
+  txt('✕', x+w-26, y+38, 24, '#ff8a8a'); addHit(x+w-52, y+6, 46, 46, () => { ui.panel = false; });
+  ctx.font = '16px Arial'; ctx.textAlign = 'left'; ctx.fillStyle = '#dfe6ff';
+  ctx.fillText('Уровень '+(my ? my.l : 1)+'    •    Свободных очков: '+me.pt, x+22, y+72);
+  [['str','Сила','урон ударов','#ff8a4a'],['hp','Здоровье','макс. здоровье','#4be06f'],['spd','Скорость','скорость ходьбы и бега','#5fc8ff']].forEach((r,i) => {
+    const ry = y + 100 + i*66;
+    txt(r[1], x+22, ry+22, 20, '#fff', 'left');
+    ctx.font = '13px Arial'; ctx.textAlign = 'left'; ctx.fillStyle = '#9fb0d8'; ctx.fillText(r[2], x+22, ry+42);
+    bar(x+190, ry+8, 150, 16, me.st[r[0]]/20, r[3]); txt(String(me.st[r[0]]), x+360, ry+24, 22, '#fff', 'right');
+    const can = me.pt > 0;
+    ctx.fillStyle = can ? '#ff9d2e' : 'rgba(80,80,100,0.6)'; rr(x+376, ry+2, 56, 40, 10); ctx.fill();
+    txt('+', x+404, ry+32, 28, can ? '#fff' : '#8a8aa0');
+    addHit(x+376, ry+2, 56, 40, () => { if (me.pt > 0) sendWs({ t:'spend', stat:r[0] }); });
+  });
+  ctx.font = '12px Arial'; ctx.textAlign = 'center'; ctx.fillStyle = '#7f8db0';
+  ctx.fillText('Очки нельзя сбросить — выбор окончательный', x+w/2, y+h-52);
+  ctx.fillStyle = 'rgba(120,40,40,0.8)'; rr(x+w/2-70, y+h-40, 140, 30, 8); ctx.fill();
+  txt('Выйти', x+w/2, y+h-19, 15, '#fff'); addHit(x+w/2-70, y+h-40, 140, 30, () => { stopRetry = true; logout(); });
+}
+function drawInvite(){
+  const v = ui.invite; if (!v) return;
+  const w = 460, h = 110, x = (CW-w)/2, y = 520;
+  ctx.fillStyle = 'rgba(8,8,16,0.95)'; rr(x, y, w, h, 14); ctx.fill();
+  ctx.strokeStyle = '#ff9d5a'; ctx.lineWidth = 3; rr(x, y, w, h, 14); ctx.stroke();
+  addHit(x, y, w, h, () => {});
+  txt('⚔ '+v.name+' вызывает тебя на дуэль', x+w/2, y+34, 20, '#fff', 'center', w-30);
+  bar(x+20, y+44, w-40, 8, v.t/10, '#ff9d5a');
+  ctx.fillStyle = '#2fae5c'; rr(x+20, y+62, 200, 38, 10); ctx.fill(); txt('Принять', x+120, y+88, 18, '#fff');
+  addHit(x+20, y+62, 200, 38, () => { sendWs({ t:'duel_ans', from:v.from, ok:true }); ui.invite = null; });
+  ctx.fillStyle = '#a33a3a'; rr(x+w-220, y+62, 200, 38, 10); ctx.fill(); txt('Отказаться', x+w-120, y+88, 18, '#fff');
+  addHit(x+w-220, y+62, 200, 38, () => { sendWs({ t:'duel_ans', from:v.from, ok:false }); ui.invite = null; });
+}
+function drawOverlays(){
+  if (ui.banner){
+    const b = ui.banner, a = Math.min(1, b.t/0.5);
+    ctx.globalAlpha = a*0.6; ctx.fillStyle = '#000'; ctx.fillRect(0, 300, CW, 110);
+    ctx.globalAlpha = a; txt(b.text, CW/2, 352, 40, '#ffd23f'); txt(b.sub, CW/2, 392, 20, '#fff'); ctx.globalAlpha = 1;
+  }
+  if (ui.koText > 0){
+    ctx.globalAlpha = Math.min(0.6, ui.koText/2); ctx.fillStyle = '#300'; ctx.fillRect(0, 0, CW, CH); ctx.globalAlpha = 1;
+    txt('НОКАУТ', CW/2, 340, 60, '#ff5a5a');
+  }
+  ui.toasts.forEach((t, i) => {
+    ctx.font = 'bold 18px Arial'; const w = ctx.measureText(t.text).width + 36, y = 640 - i*40 - (ui.touch ? 0 : 20);
+    ctx.globalAlpha = Math.min(1, t.t/0.4); ctx.fillStyle = 'rgba(8,8,16,0.88)'; rr(CW/2-w/2, y-24, w, 34, 10); ctx.fill();
+    ctx.textAlign = 'center'; ctx.fillStyle = t.color; ctx.fillText(t.text, CW/2, y); ctx.globalAlpha = 1;
+  });
+  if (!connected){
+    ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(0, 0, CW, CH);
+    txt('Подключение к миру…', CW/2, CH/2, 34, '#fff');
+  }
+}
+
+let last = performance.now();
+function frame(now){
+  const dt = Math.min(0.05, (now-last)/1000); last = now;
+  if (connected) update(dt); else camX += 0;
+  ui.hits = [];
+  ctx.clearRect(0, 0, CW, CH);
+  drawSky(); drawRoad(); drawWalls(); drawLamps(); drawZoneDecor();
+  [...ents.values()].sort((a,b) => a.ry - b.ry).forEach(drawActor);
+  drawFloaters();
+  if (connected){ drawHUD(); drawControls(); drawCard(); drawPanel(); drawInvite(); }
+  drawOverlays();
+  requestAnimationFrame(frame);
+}
+
+// ═══════════════ СТАРТ ═══════════════
+setMode('reg');
+(async () => {
+  if (!token) return;
+  try {
+    const r = await api('me', null, true);
+    if (r.char) enterGame(); else { $('scrAuth').hidden = true; showCreate(); }
+  } catch(e){
+    if (e.status === 401){ try { localStorage.removeItem('world_token'); } catch(_){} token = null; }
+  }
+})();
+</script>
+</body>
+</html>
