@@ -834,7 +834,7 @@ function changeRoom(r){ room = r; ui.fade = 0.6; ui.card = null; if (r === 'club
 // дверь: на улице у клуба — «Войти», внутри у нижнего выхода — «Выйти» (E или кнопка на телефоне)
 function doorState(){
   if (room === 'club') return (me.y >= 672 && me.x > 590 && me.x < 772) ? 'leave' : null;
-  return (Math.abs(me.x - CLUB_DOOR_X) < 110 && me.y < 560 && !inCombat()) ? 'enter' : null;
+  return (Math.abs(me.x - CLUB_DOOR_X) < 110 && me.y < 560) ? 'enter' : null;
 }
 function doorGo(ds){ sendWs({ t: ds === 'enter' ? 'enter' : 'leave', b: 'club' }); }
 function drawDoorPrompt(){

@@ -23,6 +23,7 @@ const zoneAt = x => clamp(Math.floor(x / ZONE_W), 0, N_ZONES - 1);
 // ── КЛУБ 21: вход на улице (зона 6, по центру), внутри — отдельная комната на один экран (1280x720). ──
 // Внутри драться нельзя, ботов нет, игроки видят только тех, кто внутри. Координаты — локальные (не карта мира).
 const CLUB_DOOR_X = 6 * ZONE_W + ZONE_W / 2;
+const CLUB_COMBAT_LOCK = 3;        // секунд после последнего удара, когда войти в клуб нельзя
 const CLUB = {
   x0: 34, x1: 1246, y0: 246, y1: 705, spawn: { x: 676, y: 668 }, exit: { x0: 590, x1: 772, y: 672 },
   stoolX: [126, 284, 482, 632, 814, 995], stoolY: 262,
@@ -617,6 +618,8 @@ function tick() {
     const minX = 60, maxX = WORLD_W - 60;
     if (e.room === 'club') { e.x += dx * sp * dt; e.y += dy * sp * 0.6 * dt; clubConstrain(e); }
     else { e.x = clamp(e.x + dx * sp * dt, minX, maxX); e.y = clamp(e.y + dy * sp * 0.6 * dt, GROUND_MIN, GROUND_MAX); }
+    // автовход в клуб: упёрся в дверь (у самой стены по центру двери) — заходишь сам; клавиша E и кнопка тоже работают
+    if (e.kind === 'p' && !e.room && e.koT <= 0 && Math.abs(e.x - CLUB_DOOR_X) < 75 && e.y <= GROUND_MIN + 14) enterClub(e);
     e.moving = !locked && (Math.abs(dx) + Math.abs(dy)) > 0.05;
     if (dx !== 0 && !locked && !e.atk) e.f = dx > 0 ? 1 : -1;
 
@@ -760,7 +763,7 @@ function onMessage(p, m) {
 function enterClub(p) {
   if (p.room || p.koT > 0) return;
   if (Math.abs(p.x - CLUB_DOOR_X) > 140 || p.y > 570) return;          // только вплотную к двери
-  if (p.combatT < COMBAT_COOLDOWN) return toast(p, 'no_enter_combat', '#ffc933');   // из боя в клуб не убежать
+  if (p.combatT < CLUB_COMBAT_LOCK) { if (p.hintCd <= 0) { p.hintCd = 2; toast(p, 'no_enter_combat', '#ffc933'); } return; }   // из боя в клуб не убежать (первые секунды после удара)
   p.room = 'club'; p.x = CLUB.spawn.x; p.y = CLUB.spawn.y; p.inx = p.iny = 0; p.atk = null; p.blk = false; p.hurtT = 0;
 }
 function leaveClub(p) {
