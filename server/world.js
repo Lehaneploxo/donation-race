@@ -15,7 +15,7 @@ const scrypt = promisify(crypto.scrypt);
 
 // ── геометрия мира (те же числа, что у клиента) ──
 const ZONE_W = 1800, N_ZONES = 7, WORLD_W = ZONE_W * N_ZONES, HUB = 3;
-const GROUND_MIN = 500, GROUND_MAX = 700;
+const GROUND_MIN = 450, GROUND_MAX = 700;   // верхний предел ходьбы поднят с 500 до 450 (почти до стены)
 const ZONE_TYPES = ['wild2', 'wild', 'safe', 'hub', 'safe', 'wild', 'wild2'];   // wild — ближний дикий, wild2 — самый дальний (жёстче)
 const clamp  = (v, a, b) => Math.max(a, Math.min(b, v));
 const zoneAt = x => clamp(Math.floor(x / ZONE_W), 0, N_ZONES - 1);

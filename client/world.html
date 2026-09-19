@@ -225,7 +225,7 @@ const CW = canvas.width, CH = canvas.height;
 // ── сцена ──
 const RX = 1280 - 16 - 56;   // правый край HUD (справа оставлено место под кнопку «на весь экран»)
 const S = 2.5, WALL_Y = 190, WALL_H = 96*S, ROAD_TOP = WALL_Y + WALL_H;
-let GROUND_MIN = 500, GROUND_MAX = 700, ZONE_W = 1800, WORLD_W = 1800*7;
+let GROUND_MIN = 450, GROUND_MAX = 700, ZONE_W = 1800, WORLD_W = 1800*7;
 const TILESET = new Image(); TILESET.src = 'sprites/streets_of_fight/stage/tileset.png';
 const BACK    = new Image(); BACK.src    = 'sprites/streets_of_fight/stage/back.png';
 const FORE    = new Image(); FORE.src    = 'sprites/streets_of_fight/stage/fore.png';
@@ -508,7 +508,7 @@ canvas.addEventListener('pointerup', endPointer);
 canvas.addEventListener('pointercancel', endPointer);
 canvas.addEventListener('contextmenu', e => e.preventDefault());
 
-const actorK = e => 0.9 + 0.16 * (e.ry - GROUND_MIN) / (GROUND_MAX - GROUND_MIN);
+const actorK = e => 0.9 + 0.16 * (e.ry - 500) / 200;   // перспектива: ниже по экрану — чуть крупнее (диапазон 500..700 как раньше, выше 500 — мельче)
 const FIGHTER_H = 160;
 function tapWorld(x, y){
   let hit = null;
