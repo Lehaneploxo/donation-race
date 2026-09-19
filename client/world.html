@@ -247,7 +247,7 @@ const A = {
   brawler_girl: { base:'streets_of_fight', get name(){ return t('f_brawler_girl'); },
     idle:['Idle','idle',4,8],  walk:['Walk','walk',10,12],jab:['Jab','jab',3,16],  punch:['Punch','punch',3,16], kick:['Kick','kick',5,16],  hurt:['Hurt','hurt',2,12] },
 };
-A.enemy_punk = { base:'streets_of_fight', left:true, get name(){ return t('f_enemy_punk'); },
+A.enemy_punk = { base:'streets_of_fight', left:true, lying:true, get name(){ return t('f_enemy_punk'); },
     idle:['Idle','idle',4,8], walk:['Walk','walk',4,10], jab:['Punch','punch',3,16], punch:['Punch','punch',3,16], kick:['Punch','punch',3,16], hurt:['Hurt','hurt',4,12] };
 const VARIANT_DIRS = {
   enemy_punk:   ['enemy_punk','enemy_punk_v4_teal','enemy_punk_v6_purple'],
@@ -660,18 +660,26 @@ function drawActor(e){
   const list = framesOf(e.ty, e.v, anim), n = list.length, fps = def[3];
   let idx = Math.floor(e.t * fps);
   idx = (anim === 'idle' || anim === 'walk') ? idx % n : Math.min(n-1, idx);
-  if (e.s === ST.ko) idx = n-1;
-  const frame = list[idx];
+  if (e.s === ST.ko) idx = A[e.ty].lying ? Math.min(n-1, Math.floor(e.t * 9)) : 0;   // панк: падает кадрами до «лежит»; остальные: стоячий кадр, кладём поворотом
+  // нокаут без готового «лежачего» кадра (все, кроме панка): берём СТОЯЧИЙ кадр и кладём поворотом на 90° (кадры удара у них уже наклонены)
+  const frame = (e.s === ST.ko && !A[e.ty].lying) ? framesOf(e.ty, e.v, 'idle')[0] : list[idx];
 
+  // нокаут: падает НАЗАД на спину и лежит ровно горизонтально (ровно 90°, плавное замедление к концу падения)
+  const koP = e.s === ST.ko ? (1 - Math.pow(1 - Math.min(1, e.t / 0.35), 2)) : 0;
   ctx.save(); ctx.globalAlpha = 0.28; ctx.fillStyle = '#000';
-  ctx.beginPath(); ctx.ellipse(sx, e.ry, 34*k, 8*k, 0, 0, Math.PI*2); ctx.fill(); ctx.restore();
+  ctx.beginPath(); ctx.ellipse(sx, e.ry, (34 + 46*koP)*k, (8 + 3*koP)*k, 0, 0, Math.PI*2); ctx.fill(); ctx.restore();
   if (ready(frame)){
     let sc = h / frame.naturalHeight;
     if (frame.naturalWidth*sc > h*1.55) sc = h*1.55 / frame.naturalWidth;
     const dw = frame.naturalWidth*sc, dh = frame.naturalHeight*sc;
-    ctx.save(); ctx.translate(sx, e.ry);
+    ctx.save();
+    if (e.s === ST.ko && !A[e.ty].lying){
+      // поворот делаем в координатах экрана ДО зеркалирования: голова уходит назад от взгляда, спина ложится на землю ровно (90°)
+      ctx.translate(sx, e.ry - dw*0.22*koP);
+      ctx.rotate(-e.f * koP * Math.PI / 2);
+    } else ctx.translate(sx, e.ry);
+    if (e.s === ST.ko) ctx.globalAlpha = Math.max(0.2, 1 - Math.max(0, e.t - 1.4) / 0.6);
     if ((e.f < 0) !== !!A[e.ty].left) ctx.scale(-1, 1);   // у панка исходный взгляд влево
-    if (e.s === ST.ko){ ctx.rotate(-Math.min(1, e.t/0.4) * 1.35); ctx.globalAlpha = Math.max(0.2, 1 - Math.max(0, e.t-1.4)/0.6); }
     ctx.drawImage(frame, -dw/2, -dh + 6, dw, dh);
     ctx.restore();
   }
