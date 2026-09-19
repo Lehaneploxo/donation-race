@@ -185,9 +185,9 @@ const L = {"ru":{"tagline":"Уличные бои онлайн","play":"ИГРА
 let lang = 'en';
 try { lang = localStorage.getItem('world_lang'); } catch(_){}
 if (!L[lang]){ const n = (navigator.language || '').toLowerCase(); lang = n.startsWith('uk') ? 'uk' : n.startsWith('ru') ? 'ru' : 'en'; }
-Object.assign(L.ru, { pass2:'Повтори пароль', pass2_ph:'ещё раз тот же пароль', err_pass_mismatch:'Пароли не совпадают', show_pass:'Показать пароль' });
-Object.assign(L.uk, { pass2:'Повтори пароль', pass2_ph:'ще раз той самий пароль', err_pass_mismatch:'Паролі не збігаються', show_pass:'Показати пароль' });
-Object.assign(L.en, { pass2:'Repeat password', pass2_ph:'same password again', err_pass_mismatch:'Passwords do not match', show_pass:'Show password' });
+Object.assign(L.ru, { f_enemy_punk:'Панк', pass2:'Повтори пароль', pass2_ph:'ещё раз тот же пароль', err_pass_mismatch:'Пароли не совпадают', show_pass:'Показать пароль' });
+Object.assign(L.uk, { f_enemy_punk:'Панк', pass2:'Повтори пароль', pass2_ph:'ще раз той самий пароль', err_pass_mismatch:'Паролі не збігаються', show_pass:'Показати пароль' });
+Object.assign(L.en, { f_enemy_punk:'Punk', pass2:'Repeat password', pass2_ph:'same password again', err_pass_mismatch:'Passwords do not match', show_pass:'Show password' });
 function t(k, ...a){
   let s = (L[lang] && k in L[lang]) ? L[lang][k] : (k in L.ru ? L.ru[k] : k);
   a.forEach((v, i) => { s = s.split('{' + i + '}').join(v); });
@@ -248,7 +248,10 @@ const A = {
   brawler_girl: { base:'streets_of_fight', get name(){ return t('f_brawler_girl'); },
     idle:['Idle','idle',4,8],  walk:['Walk','walk',10,12],jab:['Jab','jab',3,16],  punch:['Punch','punch',3,16], kick:['Kick','kick',5,16],  hurt:['Hurt','hurt',2,12] },
 };
+A.enemy_punk = { base:'streets_of_fight', left:true, get name(){ return t('f_enemy_punk'); },
+    idle:['Idle','idle',4,8], walk:['Walk','walk',4,10], jab:['Punch','punch',3,16], punch:['Punch','punch',3,16], kick:['Punch','punch',3,16], hurt:['Hurt','hurt',4,12] };
 const VARIANT_DIRS = {
+  enemy_punk:   ['enemy_punk','enemy_punk_v4_teal','enemy_punk_v6_purple'],
   brute_arms:   ['brute_arms','brute_arms_v3_green','brute_arms_v5_blue'],
   bancho:       ['bancho','bancho_v4_teal','bancho_v6_purple'],
   batting_girl: ['batting_girl','batting_girl_v2_yellowgreen','batting_girl_v7_pink'],
@@ -344,7 +347,7 @@ function showMsg(text, btn, fn){
 // ═══════════════ СЕТЬ ═══════════════
 let ws = null, myId = 0, connected = false, retry = 0, gameStarted = false, stopRetry = false;
 const ents = new Map();            // id → сущность
-const me = { x:0, y:600, f:1, xp:0, need:50, pt:0, st:{str:1,hp:1,spd:1}, duel:0, sent:'', sentAt:0 };
+const me = { sp:240, x:0, y:600, f:1, xp:0, need:50, pt:0, st:{str:1,hp:1,spd:1}, duel:0, sent:'', sentAt:0 };
 const ui = { hits:[], toasts:[], floaters:[], banner:null, card:null, panel:false, touch:false, koText:0, invite:null, duelName:'' };
 
 function enterGame(){
@@ -394,7 +397,7 @@ function onServer(m){
         const e = ents.get(v[0]); if (!e) continue;
         floater(e, v[2] ? t('block_dmg', v[1]) : '−'+v[1], v[2] ? '#7ec8ff' : (e.id === myId ? '#ff5a5a' : '#ffe14a'));
       }
-      Object.assign(me, { xp:m.me.xp, need:m.me.need, pt:m.me.pt, st:m.me.st, duel:m.me.duel });
+      Object.assign(me, { sp:m.me.sp, xp:m.me.xp, need:m.me.need, pt:m.me.pt, st:m.me.st, duel:m.me.duel });
       break;
     }
     case 'toast': toast(t('m_' + m.k, ...(m.a || [])), m.color); break;
@@ -520,7 +523,7 @@ function update(dt){
     const s = my.s, locked = s === ST.hurt || s === ST.ko;
     const slow = locked ? 0 : (s >= 2 && s <= 4) ? 0.15 : s === ST.block ? 0.35 : 1;
     const len = Math.hypot(dx, dy) || 1, k = Math.min(1, len);
-    const sp = (200 + me.st.spd*10) * run * slow;
+    const sp = me.sp * run * slow;
     me.x = Math.max(60, Math.min(WORLD_W-60, me.x + dx/len*k*sp*dt));
     me.y = Math.max(GROUND_MIN, Math.min(GROUND_MAX, me.y + dy/len*k*sp*0.6*dt));
   }
@@ -662,7 +665,7 @@ function drawActor(e){
     if (frame.naturalWidth*sc > h*1.55) sc = h*1.55 / frame.naturalWidth;
     const dw = frame.naturalWidth*sc, dh = frame.naturalHeight*sc;
     ctx.save(); ctx.translate(sx, e.ry);
-    if (e.f < 0) ctx.scale(-1, 1);
+    if ((e.f < 0) !== !!A[e.ty].left) ctx.scale(-1, 1);   // у панка исходный взгляд влево
     if (e.s === ST.ko){ ctx.rotate(-Math.min(1, e.t/0.4) * 1.35); ctx.globalAlpha = Math.max(0.2, 1 - Math.max(0, e.t-1.4)/0.6); }
     ctx.drawImage(frame, -dw/2, -dh + 6, dw, dh);
     ctx.restore();

@@ -28,18 +28,24 @@ const FIGHTERS = {
   brawler_girl: { name: 'Уличная боец',    stats: { str: 5, hp: 5, spd: 7 }, anim: { jab: [3, 16], punch: [3, 16], kick: [5, 16] } },
 };
 const FIGHTER_KEYS = Object.keys(FIGHTERS);
+// боты — только панки (для выбора игроками не доступны)
+const BOT_TYPES = { enemy_punk: { name: 'Панк', stats: { str: 6, hp: 5, spd: 4 }, anim: { punch: [3, 16] } } };
+const infoOf = type => FIGHTERS[type] || BOT_TYPES[type];
 const VARIANTS = 3;   // цветов на бойца
 
 // ── правила боя (черновые числа — крутятся здесь) ──
 const ATK = { jab: { mult: 0.7, range: 125 }, punch: { mult: 1.0, range: 135 }, kick: { mult: 1.3, range: 145 } };
 const POINTS_PER_LEVEL = 3, LEVEL_CAP = 100;
-const xpNeed   = lvl => 50 + 25 * lvl;
+const xpNeed   = lvl => Math.round(300 * Math.pow(lvl, 1.7));   // опыта до след. уровня: с 1-го 300, с 5-го ~4600, с 10-го ~15000, с 50-го ~232000
 const maxHpOf  = e => e.kind === 'b' ? 40 + e.level * 8 : 70 + e.stats.hp * 10;
-const speedOf  = e => 200 + e.stats.spd * 10;
+// скорость растёт с убывающей отдачей и упирается в потолок (~340 пикс/с при базовых ~240) — на высоких уровнях не «летают»
+const speedOf  = e => 230 + 110 * (1 - Math.exp(-e.stats.spd / 35));
 const baseDmg  = e => 6 + e.stats.str * 1.2;
 const ZONE_XP_MULT = { safe: 1, consent: 1.6, danger: 2.5 };   // опыт за урон по ботам
 const REGEN_HUB = 15, REGEN_FIELD = 3, COMBAT_COOLDOWN = 6;   // хп/сек, секунд «в бою»
-const RESPAWN_MS = 2000, BOT_RESPAWN_MS = 8000, BOTS_PER_ZONE = 5;
+const RESPAWN_MS = 2000, BOT_RESPAWN_MS = 8000;
+const BOTS_BY_TYPE = { safe: 3, consent: 6, danger: 10 };   // чем глубже, тем больше ботов (сила у всех одинаковая)
+const PUNK_LEVEL = 5;                                       // уровень панка (один на всех)
 const DUEL_INVITE_SEC = 10, DUEL_MAX_SEC = 300;
 const TICK_MS = 50, VIEW_RANGE = 1500;
 
@@ -209,7 +215,7 @@ const STATE = { idle: 0, walk: 1, jab: 2, punch: 3, kick: 4, hurt: 5, ko: 6, blo
 function makeEntity(kind, name, type, variant, x, y) {
   return { id: nextId++, kind, name, type, variant, x, y, f: 1,
     inx: 0, iny: 0, run: 1, blk: false, moving: false,
-    level: 1, xp: 0, points: 0, stats: { ...FIGHTERS[type].stats }, hp: 0,
+    level: 1, xp: 0, points: 0, stats: { ...infoOf(type).stats }, hp: 0,
     atk: null, rest: 0, hurtT: 0, stagImm: 0, koT: 0, combatT: 999,
     duel: 0, hintCd: 0,
     // игрок:
@@ -221,19 +227,20 @@ function send(p, obj) { if (p.ws && p.ws.readyState === 1) { try { p.ws.send(JSO
 function toast(p, k, color, a) { send(p, { t: 'toast', k, a: a || [], color }); }
 
 function spawnBot(zone) {
-  const zt = ZONE_TYPES[zone];
-  const lvl = zt === 'safe' ? Math.floor(rnd(1, 4)) : zt === 'consent' ? Math.floor(rnd(4, 9)) : Math.floor(rnd(9, 15));
-  const type = FIGHTER_KEYS[Math.floor(Math.random() * 4)];
-  const b = makeEntity('b', FIGHTERS[type].name, type, Math.floor(Math.random() * VARIANTS),
+  const type = 'enemy_punk';
+  const b = makeEntity('b', BOT_TYPES[type].name, type, Math.floor(Math.random() * VARIANTS),
     zone * ZONE_W + rnd(250, ZONE_W - 250), rnd(GROUND_MIN, GROUND_MAX));
-  b.zone = zone; b.level = lvl;
-  const base = FIGHTERS[type].stats;
-  b.stats = { str: Math.round(base.str * 0.6 + lvl * 0.5), hp: base.hp, spd: Math.round(base.spd * 0.7 + lvl * 0.1) };
+  b.zone = zone; b.level = PUNK_LEVEL;      // одинаковые характеристики везде
   b.hp = maxHpOf(b); b.run = 0.75; b.wait = rnd(0, 3);
   ents.set(b.id, b);
 }
 function spawnAllBots() {
-  for (let z = 0; z < N_ZONES; z++) if (ZONE_TYPES[z] !== 'hub') for (let i = 0; i < BOTS_PER_ZONE; i++) spawnBot(z);
+  for (let z = 0; z < N_ZONES; z++) for (let i = 0; i < (BOTS_BY_TYPE[ZONE_TYPES[z]] || 0); i++) spawnBot(z);
+}
+// опыт за урон по боту: чем выше игрок над уровнем панка, тем меньше отдача (не фармят одних панков вечно)
+function botXp(att, dmg, zone) {
+  const decay = clamp(1 - (att.level - PUNK_LEVEL) * 0.05, 0.25, 1);
+  return Math.max(1, Math.round(dmg * ZONE_XP_MULT[ZONE_TYPES[zone]] * decay));
 }
 
 function loadPlayer(accountId, nick, ch, ws) {
@@ -248,14 +255,15 @@ function loadPlayer(accountId, nick, ch, ws) {
 async function savePlayer(p) {
   if (!store || !p.accountId) return;
   p.dirty = false;
-  try { await store.saveChar(p.accountId, { level: p.level, xp: p.xp, points: p.points, str: p.stats.str, hp: p.stats.hp, spd: p.stats.spd }); }
+  const int = v => Math.max(0, Math.floor(Number(v)) || 0);
+  try { await store.saveChar(p.accountId, { level: int(p.level), xp: int(p.xp), points: int(p.points), str: int(p.stats.str), hp: int(p.stats.hp), spd: int(p.stats.spd) }); }
   catch (e) { console.error('[WORLD] save error:', e.message); p.dirty = true; }
 }
 
 // ── бой ──
 function startAttack(e, kind) {
   if (e.atk || e.blk || e.koT > 0 || e.hurtT > 0 || e.rest > 0) return false;
-  const [n, fps] = FIGHTERS[e.type].anim[kind];
+  const [n, fps] = infoOf(e.type).anim[kind];
   e.atk = { kind, t: 0, dur: n / fps, hit: false };
   return true;
 }
@@ -272,7 +280,7 @@ function canDamage(att, tgt) {
 }
 function gainXp(p, n) {
   if (p.level >= LEVEL_CAP) return;
-  p.xp += n; p.dirty = true;
+  p.xp = Math.floor(p.xp + n); p.dirty = true;
   let leveled = false;
   while (p.level < LEVEL_CAP && p.xp >= xpNeed(p.level)) {
     p.xp -= xpNeed(p.level); p.level++; p.points += POINTS_PER_LEVEL; leveled = true;
@@ -303,7 +311,7 @@ function resolveAttack(att) {
     t.hp -= dmg; t.combatT = 0; att.combatT = 0;
     evs.push([t.id, dmg, blocked ? 1 : 0]);
     if (t.kind === 'b') { t.target = att.id; t.f = -att.f; }
-    if (att.kind === 'p' && t.kind === 'b') gainXp(att, dmg * ZONE_XP_MULT[ZONE_TYPES[t.zone]]);
+    if (att.kind === 'p' && t.kind === 'b') gainXp(att, botXp(att, dmg, t.zone));
     if (t.hp <= 0) killEntity(t, att);
   }
   if (!hitAny && ruleBlocked && att.hintCd <= 0) {
@@ -452,7 +460,7 @@ function tick() {
 
   broadcast();
 
-  if (now - lastSave > 30000) { lastSave = now; for (const p of byAccount.values()) if (p.dirty) savePlayer(p); }
+  if (now - lastSave > 10000) { lastSave = now; for (const p of byAccount.values()) if (p.dirty) savePlayer(p); }
 }
 
 function stateCode(e) {
@@ -478,7 +486,7 @@ function broadcast() {
     for (const id of p.known) if (!vis.has(id)) { rm.push(id); p.known.delete(id); }
     if (add.length) send(p, { t: 'add', e: add });
     const ev = evs.filter(v => vis.has(v[0]));
-    send(p, { t: 's', a, rm, ev, me: { xp: p.xp, need: xpNeed(p.level), pt: p.points, st: p.stats, duel: p.duel } });
+    send(p, { t: 's', a, rm, ev, me: { sp: Math.round(speedOf(p)), xp: p.xp, need: xpNeed(p.level), pt: p.points, st: p.stats, duel: p.duel } });
   }
 }
 
@@ -488,12 +496,19 @@ async function handleConnection(ws, req) {
   const token = url.parse(req.url, true).query.token;
   const accId = verifyToken(token);
   const acc = accId ? await store.findById(accId) : null;
-  const ch = acc ? await store.getChar(acc.id) : null;
   if (!acc) { ws.send(JSON.stringify({ t: 'auth_fail' })); ws.close(4001, 'auth'); return; }
-  if (!ch) { ws.send(JSON.stringify({ t: 'no_char' })); ws.close(4002, 'no char'); return; }
 
+  // если аккаунт уже в игре (закрытая вкладка ещё не отвалилась) — сначала дожидаемся сохранения его прогресса,
+  // и только потом читаем персонажа из базы, иначе можно получить устаревший уровень и затереть свежий
   const old = byAccount.get(acc.id);
-  if (old) { send(old, { t: 'kicked' }); removePlayer(old, true); try { old.ws.close(4004, 'kicked'); } catch (_) {} }
+  if (old) {
+    send(old, { t: 'kicked' });
+    endDuel(old, null); ents.delete(old.id); byAccount.delete(old.accountId);
+    await savePlayer(old);
+    try { old.ws.close(4004, 'kicked'); } catch (_) {}
+  }
+  const ch = await store.getChar(acc.id);
+  if (!ch) { ws.send(JSON.stringify({ t: 'no_char' })); ws.close(4002, 'no char'); return; }
 
   const p = loadPlayer(acc.id, acc.nick, ch, ws);
   console.log(`[WORLD] +${acc.nick} (онлайн: ${byAccount.size})`);
@@ -564,6 +579,9 @@ async function init() {
         p.ws.isAlive = false; try { p.ws.ping(); } catch (_) {}
       }
     }, 30000).unref();
+    const flushAll = async sig => { console.log('[WORLD] ' + sig + ': сохраняю ' + byAccount.size + ' игроков'); await Promise.allSettled([...byAccount.values()].map(savePlayer)); process.exit(0); };
+    process.once('SIGTERM', () => flushAll('SIGTERM'));
+    process.once('SIGINT', () => flushAll('SIGINT'));
     ready = true;
     console.log('[WORLD] готов: ' + ents.size + ' ботов, район-площадь №' + HUB);
   } catch (e) {
