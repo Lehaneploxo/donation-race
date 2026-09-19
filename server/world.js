@@ -20,6 +20,21 @@ const ZONE_TYPES = ['wild2', 'wild', 'safe', 'hub', 'safe', 'wild', 'wild2'];   
 const clamp  = (v, a, b) => Math.max(a, Math.min(b, v));
 const zoneAt = x => clamp(Math.floor(x / ZONE_W), 0, N_ZONES - 1);
 
+// ── КЛУБ 21: вход на улице (зона 6, по центру), внутри — отдельная комната на один экран (1280x720). ──
+// Внутри драться нельзя, ботов нет, игроки видят только тех, кто внутри. Координаты — локальные (не карта мира).
+const CLUB_DOOR_X = 6 * ZONE_W + ZONE_W / 2;
+const CLUB = {
+  x0: 34, x1: 1246, y0: 246, y1: 705, spawn: { x: 676, y: 668 }, exit: { x0: 590, x1: 772, y: 672 },
+  stoolX: [126, 284, 482, 632, 814, 995], stoolY: 262,
+  tables: [{ x: 1098, y: 330 }, { x: 908, y: 431 }, { x: 1122, y: 494 }, { x: 1019, y: 616 }],
+};
+// границы комнаты, столики и барные стулья — твёрдые (клиент считает так же, чтобы движение совпадало)
+function clubConstrain(e) {
+  e.x = clamp(e.x, CLUB.x0, CLUB.x1); e.y = clamp(e.y, CLUB.y0, CLUB.y1);
+  for (const tb of CLUB.tables) { const dx = e.x - tb.x, dy = (e.y - tb.y) * 1.6, d = Math.hypot(dx, dy); if (d < 70) { e.x = tb.x + dx / (d || 1) * 70; e.y = tb.y + dy / (d || 1) * 70 / 1.6; } }
+  for (const sx of CLUB.stoolX) { const dx = e.x - sx, dy = (e.y - CLUB.stoolY) * 2.2, d = Math.hypot(dx, dy); if (d < 34) { e.x = sx + dx / (d || 1) * 34; e.y = CLUB.stoolY + dy / (d || 1) * 34 / 2.2; } }
+}
+
 // ── бойцы: стартовые характеристики (шкала 1-10) и длительность ударов (кадры/fps) ──
 const FIGHTERS = {
   brute_arms:   { name: 'Качок',           stats: { str: 8, hp: 8, spd: 4 }, anim: { jab: [7, 14], punch: [5, 16], kick: [8, 16] } },
@@ -342,7 +357,7 @@ function makeEntity(kind, name, type, variant, x, y) {
     inx: 0, iny: 0, run: 1, blk: false, moving: false,
     level: 1, xp: 0, points: 0, stats: { ...infoOf(type).stats }, hp: 0,
     atk: null, rest: 0, hurtT: 0, stagImm: 0, koT: 0, combatT: 999,
-    hintCd: 0, clanId: 0, clanTag: '', clanLeader: false, knownClans: new Set(),
+    room: '', hintCd: 0, clanId: 0, clanTag: '', clanLeader: false, knownClans: new Set(),
     // игрок:
     ws: null, accountId: 0, known: new Set(), dirty: false, msgs: 0, msgWindow: 0, killedRecently: new Map(),
     // бот:
@@ -399,6 +414,7 @@ function startAttack(e, kind) {
 }
 function canDamage(att, tgt) {
   if (att === tgt || tgt.koT > 0 || att.koT > 0) return false;
+  if (att.room !== tgt.room || att.room) return false;   // внутри клуба драться нельзя, через комнаты не бьют
   if (att.kind === 'b' && tgt.kind === 'b') return false;
   if (att.kind === 'b' || tgt.kind === 'b') return true;
   const z = zoneAt(tgt.x);
@@ -427,7 +443,7 @@ function resolveAttack(att) {
   const cfg = ATK[att.atk.kind];
   let hitAny = false, ruleBlocked = null;
   for (const t of ents.values()) {
-    if (t === att) continue;
+    if (t === att || t.room !== att.room) continue;
     const ddx = (t.x - att.x) * att.f;
     if (ddx <= 0 || ddx > cfg.range || Math.abs(t.y - att.y) > 45 || t.koT > 0) continue;
     if (!canDamage(att, t)) { if (att.kind === 'p' && t.kind === 'p') ruleBlocked = t; continue; }
@@ -501,7 +517,7 @@ async function clanCreate(p, name, tag) {
 async function clanInvite(p, toId) {
   if (!p.clanId || !p.clanLeader) return toast(p, 'clan_not_leader', '#ffc933');
   const t = ents.get(toId);
-  if (!t || t.kind !== 'p' || t === p || Math.abs(t.x - p.x) > 900) return;
+  if (!t || t.kind !== 'p' || t === p || t.room !== p.room || Math.abs(t.x - p.x) > 900) return;
   if (t.clanId === p.clanId) return toast(p, 'clan_already_member', '#ffc933', [t.name]);
   await store.createInvite(p.clanId, t.accountId, p.accountId);
   toast(p, 'clan_invite_sent', '#ffc933', [t.name]);
@@ -547,11 +563,11 @@ async function clanKick(p, acc) {
 function botAI(b, dt) {
   if (b.koT > 0) { b.inx = b.iny = 0; return; }
   let tgt = b.target ? ents.get(b.target) : null;
-  if (tgt && (tgt.koT > 0 || zoneAt(tgt.x) !== b.zone || Math.abs(tgt.x - b.x) > 700)) { tgt = null; b.target = 0; }
+  if (tgt && (tgt.koT > 0 || tgt.room || zoneAt(tgt.x) !== b.zone || Math.abs(tgt.x - b.x) > 700)) { tgt = null; b.target = 0; }
   if (!tgt) {
     let best = 1e9;
     for (const p of ents.values()) {
-      if (p.kind !== 'p' || p.koT > 0 || zoneAt(p.x) !== b.zone) continue;
+      if (p.kind !== 'p' || p.koT > 0 || p.room || zoneAt(p.x) !== b.zone) continue;
       const dx = Math.abs(p.x - b.x), dy = Math.abs(p.y - b.y);
       if (dx < 260 && dy < 140 && dx < best) { best = dx; tgt = p; }
     }
@@ -599,8 +615,8 @@ function tick() {
     const slow = locked ? 0 : e.atk ? 0.15 : e.blk ? 0.35 : 1;
     const sp = speedOf(e) * clamp(e.run, 0.5, 1.6) * slow;
     const minX = 60, maxX = WORLD_W - 60;
-    e.x = clamp(e.x + dx * sp * dt, minX, maxX);
-    e.y = clamp(e.y + dy * sp * 0.6 * dt, GROUND_MIN, GROUND_MAX);
+    if (e.room === 'club') { e.x += dx * sp * dt; e.y += dy * sp * 0.6 * dt; clubConstrain(e); }
+    else { e.x = clamp(e.x + dx * sp * dt, minX, maxX); e.y = clamp(e.y + dy * sp * 0.6 * dt, GROUND_MIN, GROUND_MAX); }
     e.moving = !locked && (Math.abs(dx) + Math.abs(dy)) > 0.05;
     if (dx !== 0 && !locked && !e.atk) e.f = dx > 0 ? 1 : -1;
 
@@ -613,14 +629,14 @@ function tick() {
     // восстановление здоровья вне боя (на площади быстрее)
     if (e.koT <= 0 && e.combatT > COMBAT_COOLDOWN) {
       const max = maxHpOf(e);
-      if (e.hp < max) e.hp = Math.min(max, e.hp + (e.kind === 'b' ? 8 : ZONE_TYPES[zoneAt(e.x)] === 'hub' ? REGEN_HUB : REGEN_FIELD) * dt);
+      if (e.hp < max) e.hp = Math.min(max, e.hp + (e.kind === 'b' ? 8 : (e.room || ZONE_TYPES[zoneAt(e.x)] === 'hub') ? REGEN_HUB : REGEN_FIELD) * dt);
     }
     // нокаут → возрождение
     if (e.koT > 0) {
       e.koT -= dt;
       if (e.koT <= 0) {
         if (e.kind === 'p') {
-          e.x = HUB * ZONE_W + ZONE_W / 2 + rnd(-300, 300); e.y = rnd(GROUND_MIN + 40, GROUND_MAX - 40);
+          e.room = ''; e.x = HUB * ZONE_W + ZONE_W / 2 + rnd(-300, 300); e.y = rnd(GROUND_MIN + 40, GROUND_MAX - 40);
           e.hp = maxHpOf(e); e.combatT = 999; e.hurtT = 0; e.atk = null;
         } else { ents.delete(e.id); botRespawns.push({ zone: e.zone, at: now + BOT_RESPAWN_MS }); }
       }
@@ -651,11 +667,11 @@ function broadcast() {
     if (!p.ws || p.ws.readyState !== 1) continue;
     const vis = new Set(), a = [], add = [];
     for (const e of list) {
-      if (Math.abs(e.x - p.x) > VIEW_RANGE) continue;
+      if (e.room !== p.room || (!p.room && Math.abs(e.x - p.x) > VIEW_RANGE)) continue;   // видим только свою комнату
       vis.add(e.id); a.push(rows.get(e.id));
       if (!p.known.has(e.id)) { p.known.add(e.id); add.push({ id: e.id, n: e.name, ty: e.type, v: e.variant, k: e.kind }); }
     }
-    if (sendMm) send(p, { t: 'mm', p: allPlayers.filter(q => q !== p).map(q => [Math.round(q.x), (p.clanId && q.clanId === p.clanId) ? 1 : 0]) });
+    if (sendMm) send(p, { t: 'mm', p: allPlayers.filter(q => q !== p).map(q => [Math.round(q.room ? CLUB_DOOR_X : q.x), (p.clanId && q.clanId === p.clanId) ? 1 : 0]) });
     const newClans = {};
     for (const r of a) { const cid = r[9]; if (cid && !p.knownClans.has(cid)) { p.knownClans.add(cid); newClans[cid] = clanTags.get(cid) || ''; } }
     if (Object.keys(newClans).length) send(p, { t: 'clans', m: newClans });
@@ -663,7 +679,7 @@ function broadcast() {
     for (const id of p.known) if (!vis.has(id)) { rm.push(id); p.known.delete(id); }
     if (add.length) send(p, { t: 'add', e: add });
     const ev = evs.filter(v => vis.has(v[0]));
-    send(p, { t: 's', a, rm, ev, me: { su: Math.max(0, Math.ceil(((superReady.get(p.accountId) || 0) - Date.now()) / 1000)), sp: Math.round(speedOf(p)), xp: p.xp, need: xpNeed(p.level), pt: p.points, st: p.stats } });
+    send(p, { t: 's', a, rm, ev, me: { rm: p.room, su: Math.max(0, Math.ceil(((superReady.get(p.accountId) || 0) - Date.now()) / 1000)), sp: Math.round(speedOf(p)), xp: p.xp, need: xpNeed(p.level), pt: p.points, st: p.stats } });
   }
 }
 
@@ -689,7 +705,7 @@ async function handleConnection(ws, req) {
 
   const p = loadPlayer(acc.id, acc.nick, ch, ws);
   console.log(`[WORLD] +${acc.nick} (онлайн: ${byAccount.size})`);
-  send(p, { t: 'hello', id: p.id, zones: ZONE_TYPES, zoneW: ZONE_W, ground: [GROUND_MIN, GROUND_MAX], world: WORLD_W, x: p.x, y: p.y });
+  send(p, { t: 'hello', id: p.id, zones: ZONE_TYPES, zoneW: ZONE_W, ground: [GROUND_MIN, GROUND_MAX], world: WORLD_W, x: p.x, y: p.y, club: CLUB, doorX: CLUB_DOOR_X });
   sendClanInfo(p).catch(clanErr);     // клан и приглашения игрока
 
   ws.isAlive = true;
@@ -726,9 +742,11 @@ function onMessage(p, m) {
       break;
     case 'inspect': {
       const t = ents.get(m.id);
-      if (t && Math.abs(t.x - p.x) < 900) send(p, { t: 'card', id: t.id, name: t.name, kind: t.kind, ty: t.type, level: t.level, hp: Math.ceil(t.hp), max: maxHpOf(t), st: t.stats, tag: t.clanTag || '', ally: !!(p.clanId && p.clanId === t.clanId), canInvite: !!(p.clanLeader && t.kind === 'p' && t.clanId !== p.clanId), inClan: !!p.clanId });
+      if (t && t.room === p.room && Math.abs(t.x - p.x) < 900) send(p, { t: 'card', id: t.id, name: t.name, kind: t.kind, ty: t.type, level: t.level, hp: Math.ceil(t.hp), max: maxHpOf(t), st: t.stats, tag: t.clanTag || '', ally: !!(p.clanId && p.clanId === t.clanId), canInvite: !!(p.clanLeader && t.kind === 'p' && t.clanId !== p.clanId), inClan: !!p.clanId });
       break;
     }
+    case 'enter': if (m.b === 'club') enterClub(p); break;
+    case 'leave': leaveClub(p); break;
     case 'clan_info': sendClanInfo(p).catch(clanErr); break;
     case 'clan_create': clanCreate(p, m.name, m.tag).catch(clanErr); break;
     case 'clan_invite': clanInvite(p, m.to).catch(clanErr); break;
@@ -737,6 +755,18 @@ function onMessage(p, m) {
     case 'clan_leave': clanLeave(p).catch(clanErr); break;
     case 'clan_kick': clanKick(p, m.acc).catch(clanErr); break;
   }
+}
+
+function enterClub(p) {
+  if (p.room || p.koT > 0) return;
+  if (Math.abs(p.x - CLUB_DOOR_X) > 140 || p.y > 570) return;          // только вплотную к двери
+  if (p.combatT < COMBAT_COOLDOWN) return toast(p, 'no_enter_combat', '#ffc933');   // из боя в клуб не убежать
+  p.room = 'club'; p.x = CLUB.spawn.x; p.y = CLUB.spawn.y; p.inx = p.iny = 0; p.atk = null; p.blk = false; p.hurtT = 0;
+}
+function leaveClub(p) {
+  if (p.room !== 'club' || p.koT > 0) return;
+  if (p.y < CLUB.exit.y || p.x < CLUB.exit.x0 || p.x > CLUB.exit.x1) return;   // только у выхода внизу
+  p.room = ''; p.x = CLUB_DOOR_X; p.y = 520; p.inx = p.iny = 0;
 }
 
 async function init() {

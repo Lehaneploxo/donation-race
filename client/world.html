@@ -207,6 +207,9 @@ Object.assign(L.en, { f_enemy_punk:'Punk', pass2:'Repeat password', pass2_ph:'sa
 Object.assign(L.ru, { btn_super:'СУПЕР', sec:'с', super_bar:'СУПЕР через {0}с', super_ready:'СУПЕР — ГОТОВО', hint2:'J — удар   K — суперсила   Пробел — блок', m_super_wait:'Суперсила заряжается: ещё {0} с' });
 Object.assign(L.uk, { btn_super:'СУПЕР', sec:'с', super_bar:'СУПЕР за {0}с', super_ready:'СУПЕР — ГОТОВО', hint2:'J — удар   K — суперсила   Пробіл — блок', m_super_wait:'Суперсила заряджається: ще {0} с' });
 Object.assign(L.en, { btn_super:'SUPER', sec:'s', super_bar:'SUPER in {0}s', super_ready:'SUPER — READY', hint2:'J — punch   K — super   Space — block', m_super_wait:'Super is charging: {0} s left' });
+Object.assign(L.ru, { door_enter:'Войти', door_exit:'Выйти', m_no_enter_combat:'В бою войти нельзя', hint3:'E — игрок рядом / дверь   Tab — персонаж' });
+Object.assign(L.uk, { door_enter:'Увійти', door_exit:'Вийти', m_no_enter_combat:'У бою увійти не можна', hint3:'E — гравець поруч / двері   Tab — персонаж' });
+Object.assign(L.en, { door_enter:'Enter', door_exit:'Exit', m_no_enter_combat:'Can’t enter during combat', hint3:'E — nearby player / door   Tab — character' });
 function t(k, ...a){
   let s = (L[lang] && k in L[lang]) ? L[lang][k] : (k in L.ru ? L.ru[k] : k);
   a.forEach((v, i) => { s = s.split('{' + i + '}').join(v); });
@@ -368,7 +371,7 @@ let ws = null, myId = 0, connected = false, retry = 0, gameStarted = false, stop
 const ents = new Map();            // id → сущность
 const SUPER_COOLDOWN = 60;                                        // секунд, как на сервере
 const me = { su:0, suStamp:0, sp:240, x:0, y:600, f:1, xp:0, need:50, pt:0, st:{str:1,hp:1,spd:1}, sent:'', sentAt:0 };
-const ui = { hits:[], toasts:[], floaters:[], banner:null, card:null, panel:false, touch:false, koText:0, clanPanel:false, clanScroll:0 };
+const ui = { hits:[], toasts:[], floaters:[], banner:null, card:null, panel:false, touch:false, koText:0, fade:0, clanPanel:false, clanScroll:0 };
 
 function enterGame(){
   $('ov').hidden = true; document.body.classList.add('ingame');
@@ -417,6 +420,7 @@ function onServer(m){
         const e = ents.get(v[0]); if (!e) continue;
         floater(e, v[2] ? t('block_dmg', v[1]) : '−'+v[1], v[2] ? '#7ec8ff' : (e.id === myId ? '#ff5a5a' : '#ffe14a'));
       }
+      if ((m.me.rm || '') !== room) changeRoom(m.me.rm || '');
       Object.assign(me, { su:m.me.su, suStamp:performance.now(), sp:m.me.sp, xp:m.me.xp, need:m.me.need, pt:m.me.pt, st:m.me.st });
       break;
     }
@@ -457,6 +461,7 @@ addEventListener('keydown', e => {
   if (KEY_ACTION[e.code]) doAction(KEY_ACTION[e.code]);
   if (e.code === 'Tab') { ui.panel = !ui.panel; ui.card = null; ui.clanPanel = false; }
   if (e.code === 'KeyE'){
+    const ds = doorState(); if (ds){ doorGo(ds); return; }
     let best = null, bd = 240;
     for (const a of ents.values()){ if (a.id === myId) continue; const d = Math.hypot(a.x-me.x, (a.y-me.y)*2); if (d < bd){ bd = d; best = a; } }
     if (best) askCard(best); else toast(t('nobody'));
@@ -512,7 +517,7 @@ canvas.addEventListener('pointerup', endPointer);
 canvas.addEventListener('pointercancel', endPointer);
 canvas.addEventListener('contextmenu', e => e.preventDefault());
 
-const actorK = e => 0.9 + 0.16 * (e.ry - 500) / 200;   // перспектива: ниже по экрану — чуть крупнее (диапазон 500..700 как раньше, выше 500 — мельче)
+const actorK = e => room === 'club' ? clubPersp(e.ry) : 0.9 + 0.16 * (e.ry - 500) / 200;   // перспектива: ниже по экрану — чуть крупнее (диапазон 500..700 как раньше, выше 500 — мельче)
 const FIGHTER_H = 160;
 function tapWorld(x, y){
   let hit = null;
@@ -605,6 +610,252 @@ function drawClanPanel(){
   addHit(x+w-200, y+h-54, 180, 38, () => sendWs({ t:'clan_leave' }));
 }
 
+// ═══════════════ КЛУБ 21 (внутри) ═══════════════
+// Вход — на улице, в дальнем диком районе (дверь «CLUB 21»). Внутри — отдельная комната на весь экран:
+// драться нельзя, ботов нет, видны только те, кто тоже внутри. Обстановка и танцовщицы — просто картинка (декор).
+// Планировка и столкновения должны совпадать с CLUB на сервере (server/world.js).
+const clubPersp = y => 0.62 + 0.43 * (Math.max(0, Math.min(1, (y - 215) / (700 - 215))));
+const CLUB_DOOR_X = 6 * 1800 + 900;        // где на улице дверь клуба (центр 7-го района)
+let room = '';                             // '' — улица, 'club' — внутри клуба
+const CLUB_STOOL_X = [126, 284, 482, 632, 814, 995];          // барные стулья (по рисунку — 6 штук)
+const CLUB_STOOL_Y = 262;                                     // стулья стоят перед стойкой
+const CLUB_BAR_BASE = 236;                                    // где стойка стоит на полу
+const CLUB_TABLES = [ { x:1098, y:330 }, { x:908, y:431 }, { x:1122, y:494 }, { x:1019, y:616 } ];
+const CLUB_DANCE = { x0:56, y0:300, x1:520, y1:690 };
+const CLUB_DJ = { x:96, y:452 };
+const CLUB_DOOR = { x0:590, x1:772 };                          // вход/выход снизу
+
+const CLUB_NPCS = [];
+// ── ТАНЦОРЫ: готовые CC0-спрайты «Dancing Girl» (Luis Zuno / Ansimuz, opengameart.org/content/dancing-girl-sprites),
+// 5 танцев по 8 кадров, лежат в sprites/club_npc/dancing_girl/. Всего ТРИ девушки — в разных частях танцпола,
+// у каждой свои цвета волос и платья: перекрашиваем ТОЧНО по палитре спрайта (кожа не трогается).
+const CLUB_DANCES = [['Balancing','balancing'], ['hips','hips'], ['Skip','skip'], ['slide','slide'], ['snap','snap']];
+// исходные цвета спрайта: волосы 206,32,56 / 138,11,65 (тень); платье 192,177,10 / 91,103,49 (тень); юбка/отделка 136,140,120 / 88,86,81
+const CLUB_PALETTES = [
+  { name:'красные волосы, синее платье', map:{ '192,177,10':[52,120,235], '91,103,49':[24,60,150], '136,140,120':[150,168,210], '88,86,81':[64,76,112] } },
+  { name:'чёрные волосы, розовое платье', map:{ '206,32,56':[46,36,58], '138,11,65':[24,18,32], '192,177,10':[240,72,160], '91,103,49':[150,26,92], '136,140,120':[232,176,208], '88,86,81':[122,62,92] } },
+  { name:'светлые волосы, изумрудное платье', map:{ '206,32,56':[246,206,92], '138,11,65':[192,142,46], '192,177,10':[30,190,120], '91,103,49':[14,108,70], '136,140,120':[168,224,198], '88,86,81':[58,108,88] } },
+];
+const _cdfr = {}, _crc = {};
+function clubDanceFrames(di){
+  if (_cdfr[di]) return _cdfr[di];
+  const [dir, pre] = CLUB_DANCES[di], out = [];
+  for (let i = 1; i <= 8; i++){ const im = new Image(); im.src = 'sprites/club_npc/dancing_girl/' + dir + '/' + pre + i + '.png'; out.push(im); }
+  return _cdfr[di] = out;
+}
+// перекрашенный кадр (кэш): заменяем только цвета волос/платья по таблице палитры
+function clubRecolored(pi, di, fi){
+  const key = pi + '|' + di + '|' + fi; if (_crc[key]) return _crc[key];
+  const im = clubDanceFrames(di)[fi]; if (!ready(im)) return null;
+  const c = document.createElement('canvas'); c.width = im.naturalWidth; c.height = im.naturalHeight;
+  const g = c.getContext('2d'); g.drawImage(im, 0, 0);
+  const id = g.getImageData(0, 0, c.width, c.height), d = id.data, map = CLUB_PALETTES[pi].map;
+  for (let o = 0; o < d.length; o += 4){ if (d[o+3] < 40) continue; const m = map[d[o] + ',' + d[o+1] + ',' + d[o+2]]; if (m){ d[o] = m[0]; d[o+1] = m[1]; d[o+2] = m[2]; } }
+  g.putImageData(id, 0, 0);
+  return _crc[key] = c;
+}
+// три девушки: разные части танцпола, разные танцы, разные палитры
+const CLUB_DANCERS = [ { x:190, y:400, di:1, pi:0, flip:false, ph:0.0 }, { x:415, y:490, di:4, pi:1, flip:true, ph:2.5 }, { x:250, y:625, di:0, pi:2, flip:false, ph:5.0 } ];
+CLUB_DANCERS.forEach(dn => {
+  CLUB_NPCS.push({ y: dn.y, draw(c, t){
+    const fi = Math.floor(t/1000*9 + dn.ph) % 8, img = clubRecolored(dn.pi, dn.di, fi);
+    if (!img) return;
+    const k = clubPersp(dn.y), h = 122 * k, sc = h / img.height, dw = img.width * sc;
+    c.save(); c.globalAlpha = 0.3; c.fillStyle = '#000'; c.beginPath(); c.ellipse(dn.x, dn.y, 26*k, 6*k, 0, 0, Math.PI*2); c.fill(); c.restore();
+    c.save(); c.imageSmoothingEnabled = false; c.translate(dn.x, dn.y); if (dn.flip) c.scale(-1, 1); c.drawImage(img, -dw/2, -h + 4, dw, h); c.restore();
+  }});
+});
+
+// ── пол, танцпол ──
+function clubFloor(t){
+  const g = ctx.createLinearGradient(0, 200, 0, CH); g.addColorStop(0, '#231524'); g.addColorStop(1, '#14101c');
+  ctx.fillStyle = g; ctx.fillRect(0, 200, CW, CH-200);
+  ctx.save(); ctx.beginPath(); ctx.rect(0, 200, CW, CH-200); ctx.clip();
+  ctx.strokeStyle = 'rgba(255,255,255,0.045)'; ctx.lineWidth = 2;
+  for (let y = 214; y < CH; y += 46){ ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(CW, y); ctx.stroke(); }
+  for (let row = 0, y = 214; y < CH; y += 46, row++) for (let x = (row%2)*60; x < CW; x += 120){ ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y+46); ctx.stroke(); }
+  ctx.restore();
+  // ковровая дорожка от входа
+  ctx.fillStyle = 'rgba(150,20,50,0.55)'; ctx.fillRect(CLUB_DOOR.x0+22, 560, CLUB_DOOR.x1-CLUB_DOOR.x0-44, CH-560);
+  ctx.strokeStyle = 'rgba(255,200,90,0.55)'; ctx.lineWidth = 3; ctx.strokeRect(CLUB_DOOR.x0+22, 560, CLUB_DOOR.x1-CLUB_DOOR.x0-44, CH-560);
+  // ТАНЦПОЛ: светящиеся плитки в ритме
+  const cols = 8, rows = 6, cw = (CLUB_DANCE.x1-CLUB_DANCE.x0)/cols, ch = (CLUB_DANCE.y1-CLUB_DANCE.y0)/rows;
+  ctx.save(); rr(CLUB_DANCE.x0-8, CLUB_DANCE.y0-8, CLUB_DANCE.x1-CLUB_DANCE.x0+16, CLUB_DANCE.y1-CLUB_DANCE.y0+16, 26); ctx.fillStyle = '#0a0612'; ctx.fill(); ctx.clip();
+  for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++){
+    const hue = (c*38 + r*52 + t*0.09) % 360, pulse = 0.35 + 0.35*Math.sin(t*0.006 + c*0.9 + r*1.3);
+    ctx.fillStyle = `hsla(${hue},90%,55%,${0.25 + pulse*0.5})`;
+    ctx.fillRect(CLUB_DANCE.x0 + c*cw + 2, CLUB_DANCE.y0 + r*ch + 2, cw-4, ch-4);
+  }
+  ctx.restore();
+  ctx.strokeStyle = 'rgba(255,120,220,0.9)'; ctx.lineWidth = 3; ctx.shadowColor = '#ff3cdc'; ctx.shadowBlur = 16;
+  rr(CLUB_DANCE.x0-8, CLUB_DANCE.y0-8, CLUB_DANCE.x1-CLUB_DANCE.x0+16, CLUB_DANCE.y1-CLUB_DANCE.y0+16, 26); ctx.stroke(); ctx.shadowBlur = 0;
+}
+
+// ── задняя стена и полки ──
+function clubWall(t){
+  const wg = ctx.createLinearGradient(0, 0, 0, 205); wg.addColorStop(0, '#0c0416'); wg.addColorStop(1, '#2a0d36');
+  ctx.fillStyle = wg; ctx.fillRect(0, 0, CW, 205);
+  ctx.save(); ctx.lineWidth = 4;
+  [['#ff2fb0', 24], ['#2fe0ff', 34]].forEach(([c, y], i) => { ctx.strokeStyle = c; ctx.shadowColor = c; ctx.shadowBlur = 14; ctx.globalAlpha = 0.7 + 0.3*Math.sin(t*0.004 + i); ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(CW, y); ctx.stroke(); });
+  ctx.restore();
+  for (let s = 0; s < 2; s++){
+    const sy = 102 + s*40;
+    ctx.fillStyle = '#3a2418'; ctx.fillRect(150, sy+22, 1010, 5);
+    for (let x = 160; x < 1150; x += 22){
+      const hue = (x*7 + s*90) % 360, h = 18 + ((x*13)%14);
+      ctx.fillStyle = `hsl(${hue},70%,50%)`; ctx.fillRect(x, sy+22-h, 9, h);
+      ctx.fillStyle = `hsl(${hue},70%,70%)`; ctx.fillRect(x+3, sy+22-h-6, 3, 6);
+    }
+  }
+  txt('BAR', 640, 44, 34, '#ffe789', 'center');
+  ctx.save(); ctx.shadowColor = '#ff2fb0'; ctx.shadowBlur = 18; txt('CLUB 21', 1090, 34, 22, '#ff8fe0'); ctx.restore();
+}
+// барная стойка: столешница + лицевая панель (рисуется один раз, ДО всех, кто стоит перед ней)
+function clubBar(){
+  // Высота от низа столешницы до неоновой линии у пола была 44px — теперь ровно вдвое меньше: 22px. Основание на CLUB_BAR_BASE не менялось.
+  const front = 22, lineY = CLUB_BAR_BASE - 4, topBottom = lineY - front, top = topBottom - 20;   // столешница толщиной 22 (top-2 .. top+20)
+  ctx.fillStyle = '#7a4a2a'; rr(40, top - 2, 1140, 22, 10); ctx.fill();                       // столешница
+  ctx.fillStyle = 'rgba(255,255,255,0.18)'; ctx.fillRect(56, top + 1, 1108, 3);
+  const fg = ctx.createLinearGradient(0, topBottom - 4, 0, CLUB_BAR_BASE); fg.addColorStop(0, '#2b1a12'); fg.addColorStop(1, '#170d09');
+  ctx.fillStyle = fg; rr(40, topBottom - 4, 1140, CLUB_BAR_BASE - topBottom + 4, 8); ctx.fill();   // передняя панель
+  ctx.strokeStyle = '#ff2fb0'; ctx.lineWidth = 3; ctx.shadowColor = '#ff2fb0'; ctx.shadowBlur = 12;
+  ctx.beginPath(); ctx.moveTo(52, lineY); ctx.lineTo(1168, lineY); ctx.stroke(); ctx.shadowBlur = 0;
+}
+// барный стул (пока пустой)
+function clubStool(x, y){
+  const k = clubPersp(y), sy = y - 42*k;
+  ctx.fillStyle = 'rgba(0,0,0,0.28)'; ctx.beginPath(); ctx.ellipse(x, y+2, 26*k, 7*k, 0, 0, Math.PI*2); ctx.fill();
+  ctx.strokeStyle = '#9aa0b8'; ctx.lineWidth = 2.2*k;
+  for (const ox of [-15, 15]){ ctx.beginPath(); ctx.moveTo(x + ox*0.7*k, sy + 5*k); ctx.lineTo(x + ox*1.4*k, y); ctx.stroke(); }
+  ctx.beginPath(); ctx.moveTo(x - 20*k, y - 14*k); ctx.lineTo(x + 20*k, y - 14*k); ctx.stroke();
+  ctx.fillStyle = '#a01830'; ctx.beginPath(); ctx.ellipse(x, sy, 26*k, 9*k, 0, 0, Math.PI*2); ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.lineWidth = 1.5; ctx.stroke();
+}
+
+// ── столики с выпивкой (свечей нет; у каждого стола свой набор) ──
+const CLUB_DRINKS = [ ['beer','cocktail','shots'], ['wine','bottle','tall'], ['tall','beer','beer'], ['cocktail','wine','shots'] ];
+function clubDrink(kind, x, y, k){
+  const u = k * 1.25; ctx.save(); ctx.translate(x, y); ctx.lineJoin = 'round';
+  ctx.fillStyle = 'rgba(0,0,0,0.28)'; ctx.beginPath(); ctx.ellipse(0, 1*u, 8*u, 3*u, 0, 0, Math.PI*2); ctx.fill();
+  if (kind === 'beer'){        // кружка пива с пеной и ручкой
+    ctx.fillStyle = '#e8a020'; ctx.fillRect(-6*u, -15*u, 12*u, 15*u); ctx.fillStyle = 'rgba(255,255,255,0.35)'; ctx.fillRect(-4.5*u, -14*u, 2*u, 12*u);
+    ctx.fillStyle = '#fff8e0'; ctx.beginPath(); ctx.ellipse(0, -15.5*u, 7*u, 3*u, 0, 0, Math.PI*2); ctx.fill();
+    ctx.strokeStyle = '#cfd6dc'; ctx.lineWidth = 2*u; ctx.beginPath(); ctx.arc(8*u, -8*u, 4*u, -1.3, 1.3); ctx.stroke();
+  } else if (kind === 'cocktail'){   // мартини-бокал с соломинкой и долькой лайма
+    ctx.fillStyle = '#ff4fa3'; ctx.beginPath(); ctx.moveTo(-9*u, -20*u); ctx.lineTo(9*u, -20*u); ctx.lineTo(0, -10*u); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = '#dfe8f0'; ctx.lineWidth = 1.5*u; ctx.beginPath(); ctx.moveTo(-9*u, -20*u); ctx.lineTo(0, -10*u); ctx.lineTo(9*u, -20*u); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, -10*u); ctx.lineTo(0, -1*u); ctx.moveTo(-5*u, -1*u); ctx.lineTo(5*u, -1*u); ctx.stroke();
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.6*u; ctx.beginPath(); ctx.moveTo(3*u, -19*u); ctx.lineTo(7*u, -28*u); ctx.stroke();
+    ctx.fillStyle = '#7bd94a'; ctx.beginPath(); ctx.arc(-8*u, -20*u, 3.2*u, 0, Math.PI*2); ctx.fill();
+  } else if (kind === 'wine'){       // бокал вина
+    ctx.fillStyle = '#a01838'; ctx.beginPath(); ctx.moveTo(-6*u, -22*u); ctx.quadraticCurveTo(-7*u, -12*u, 0, -11*u); ctx.quadraticCurveTo(7*u, -12*u, 6*u, -22*u); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = '#dfe8f0'; ctx.lineWidth = 1.5*u; ctx.beginPath(); ctx.moveTo(-6*u, -22*u); ctx.quadraticCurveTo(-7*u, -12*u, 0, -11*u); ctx.quadraticCurveTo(7*u, -12*u, 6*u, -22*u); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, -11*u); ctx.lineTo(0, -1*u); ctx.moveTo(-5*u, -1*u); ctx.lineTo(5*u, -1*u); ctx.stroke();
+  } else if (kind === 'bottle'){     // бутылка
+    ctx.fillStyle = '#1f6b3a'; ctx.fillRect(-4*u, -18*u, 8*u, 18*u); ctx.fillRect(-2*u, -28*u, 4*u, 10*u);
+    ctx.fillStyle = '#e8e0c0'; ctx.fillRect(-4*u, -12*u, 8*u, 6*u); ctx.fillStyle = 'rgba(255,255,255,0.3)'; ctx.fillRect(-3*u, -17*u, 1.5*u, 15*u);
+  } else if (kind === 'tall'){       // высокий стакан (мохито): лайм, соломинка
+    ctx.fillStyle = 'rgba(160,240,190,0.85)'; ctx.fillRect(-5*u, -22*u, 10*u, 22*u); ctx.strokeStyle = '#dfe8f0'; ctx.lineWidth = 1.5*u; ctx.strokeRect(-5*u, -22*u, 10*u, 22*u);
+    ctx.fillStyle = '#7bd94a'; ctx.beginPath(); ctx.arc(-4*u, -22*u, 3.4*u, 0, Math.PI*2); ctx.fill();
+    ctx.strokeStyle = '#ff5a7a'; ctx.lineWidth = 1.8*u; ctx.beginPath(); ctx.moveTo(2*u, -20*u); ctx.lineTo(6*u, -31*u); ctx.stroke();
+  } else if (kind === 'shots'){      // три рюмки
+    [-9, 0, 9].forEach((ox, i) => { ctx.fillStyle = ['#ffd23f','#7fe3ff','#ff8a4a'][i]; ctx.fillRect(ox*u - 3*u, -9*u, 6*u, 9*u);
+      ctx.strokeStyle = '#dfe8f0'; ctx.lineWidth = 1.2*u; ctx.strokeRect(ox*u - 3*u, -9*u, 6*u, 9*u); });
+  }
+  ctx.restore();
+}
+function clubTable(tb){
+  const k = clubPersp(tb.y), r = 52*k, ti = CLUB_TABLES.indexOf(tb), ty = tb.y - 44*k;
+  ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.beginPath(); ctx.ellipse(tb.x, tb.y+4, r*1.05, r*0.36, 0, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#2a2a34'; ctx.fillRect(tb.x - 5*k, ty, 10*k, 44*k);
+  ctx.fillStyle = '#3d2618'; ctx.beginPath(); ctx.ellipse(tb.x, ty, r, r*0.36, 0, 0, Math.PI*2); ctx.fill();
+  ctx.strokeStyle = '#ff9d2e'; ctx.lineWidth = 2; ctx.stroke();
+  const set = CLUB_DRINKS[ti % CLUB_DRINKS.length], offs = [[-24, 3], [4, 8], [26, 1]];
+  set.forEach((kind, i) => clubDrink(kind, tb.x + offs[i][0]*k, ty + offs[i][1]*k, k));
+}
+
+// ── колонки по краям танцпола (пульт диджея убран) ──
+function clubSpeakers(t){
+  for (const sy of [CLUB_DJ.y - 110, CLUB_DJ.y + 70]){
+    ctx.fillStyle = '#15151c'; rr(14, sy, 54, 92, 6); ctx.fill(); ctx.strokeStyle = '#3a3a46'; ctx.lineWidth = 2; ctx.stroke();
+    for (const [cy, r] of [[sy+26, 15], [sy+64, 19]]){
+      const beat = 1 + 0.08*Math.sin(t*0.02);
+      ctx.fillStyle = '#0a0a0e'; ctx.beginPath(); ctx.arc(41, cy, r*beat, 0, Math.PI*2); ctx.fill(); ctx.strokeStyle = '#ff2fb0'; ctx.stroke();
+    }
+  }
+}
+
+// ── свет: диско-шар, лучи, блики ──
+function clubLights(t){
+  const bx = (CLUB_DANCE.x0 + CLUB_DANCE.x1)/2;
+  ctx.strokeStyle = '#888'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(bx, 0); ctx.lineTo(bx, 60); ctx.stroke();
+  const gr = ctx.createRadialGradient(bx-8, 58, 3, bx, 68, 24); gr.addColorStop(0, '#fff'); gr.addColorStop(1, '#8a8aa0');
+  ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(bx, 70, 22, 0, Math.PI*2); ctx.fill();
+  ctx.save(); ctx.globalCompositeOperation = 'lighter';
+  for (let i = 0; i < 3; i++){
+    const a = t*0.0011 + i*2.1, tx = bx + Math.sin(a)*190, ty = 470 + Math.cos(a*1.3)*110, hue = (i*120 + t*0.05) % 360;
+    const g = ctx.createRadialGradient(tx, ty, 0, tx, ty, 130); g.addColorStop(0, `hsla(${hue},100%,60%,0.35)`); g.addColorStop(1, `hsla(${hue},100%,60%,0)`);
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(tx, ty, 130, 0, Math.PI*2); ctx.fill();
+    ctx.strokeStyle = `hsla(${hue},100%,70%,0.16)`; ctx.lineWidth = 6; ctx.beginPath(); ctx.moveTo(bx, 78); ctx.lineTo(tx, ty); ctx.stroke();
+  }
+  ctx.restore();
+  for (let i = 0; i < 26; i++){ const a = i*2.4 + t*0.0004*(1+(i%3)), x = bx + Math.cos(a)*(90 + (i*37)%200), y = 330 + Math.sin(a*1.7)*(100 + (i*23)%140);
+    ctx.fillStyle = `rgba(255,255,255,${0.15 + 0.3*Math.abs(Math.sin(t*0.003 + i))})`; ctx.fillRect(x, y, 3, 3); }
+}
+function clubExit(t){
+  ctx.fillStyle = '#05030a'; ctx.fillRect(CLUB_DOOR.x0, CH-30, CLUB_DOOR.x1-CLUB_DOOR.x0, 30);
+  ctx.save(); ctx.strokeStyle = '#3dff9a'; ctx.lineWidth = 4; ctx.shadowColor = '#3dff9a'; ctx.shadowBlur = 16; ctx.globalAlpha = 0.75 + 0.25*Math.sin(t*0.006);
+  ctx.strokeRect(CLUB_DOOR.x0, CH-30, CLUB_DOOR.x1-CLUB_DOOR.x0, 34); ctx.restore();
+  txt('EXIT', (CLUB_DOOR.x0+CLUB_DOOR.x1)/2, CH-8, 16, '#3dff9a');
+}
+
+
+function clubConstrainMe(){
+  me.x = Math.max(34, Math.min(1246, me.x)); me.y = Math.max(246, Math.min(705, me.y));
+  for (const tb of CLUB_TABLES){ const dx = me.x - tb.x, dy = (me.y - tb.y) * 1.6, d = Math.hypot(dx, dy); if (d < 70){ me.x = tb.x + dx/(d||1)*70; me.y = tb.y + dy/(d||1)*70/1.6; } }
+  for (const sx of CLUB_STOOL_X){ const dx = me.x - sx, dy = (me.y - CLUB_STOOL_Y) * 2.2, d = Math.hypot(dx, dy); if (d < 34){ me.x = sx + dx/(d||1)*34; me.y = CLUB_STOOL_Y + dy/(d||1)*34/2.2; } }
+}
+function drawClubScene(){
+  const tm = performance.now();
+  clubFloor(tm); clubWall(tm); clubBar(); clubSpeakers(tm);
+  // всё на полу — по глубине: стулья, столики, танцовщицы (декор) и настоящие игроки внутри
+  const items = [];
+  CLUB_STOOL_X.forEach(x => items.push({ y: CLUB_STOOL_Y, fn: () => clubStool(x, CLUB_STOOL_Y) }));
+  CLUB_TABLES.forEach(tb => items.push({ y: tb.y, fn: () => clubTable(tb) }));
+  CLUB_NPCS.forEach(n => items.push({ y: n.y, fn: () => n.draw(ctx, tm) }));
+  for (const e of ents.values()) items.push({ y: e.ry, fn: () => drawActor(e) });
+  items.sort((a, b) => a.y - b.y).forEach(it => it.fn());
+  clubExit(tm); clubLights(tm);
+  const vg = ctx.createRadialGradient(CW/2, CH/2, 250, CW/2, CH/2, 760); vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,0.5)');
+  ctx.fillStyle = vg; ctx.fillRect(0, 0, CW, CH);
+}
+function changeRoom(r){ room = r; ui.fade = 0.6; ui.card = null; if (r === 'club') camX = 0; }   // плавное появление из чёрного
+
+// дверь: на улице у клуба — «Войти», внутри у нижнего выхода — «Выйти» (E или кнопка на телефоне)
+function doorState(){
+  if (room === 'club') return (me.y >= 672 && me.x > 590 && me.x < 772) ? 'leave' : null;
+  return (Math.abs(me.x - CLUB_DOOR_X) < 110 && me.y < 560 && !inCombat()) ? 'enter' : null;
+}
+function doorGo(ds){ sendWs({ t: ds === 'enter' ? 'enter' : 'leave', b: 'club' }); }
+function drawDoorPrompt(){
+  const ds = doorState(); if (!ds) return;
+  const label = t(ds === 'enter' ? 'door_enter' : 'door_exit');
+  if (ui.touch){                                                                    // телефон: круглая кнопка над «Блоком»
+    const bx = 1180, by = 318, br = 46;
+    ctx.fillStyle = '#2fae5c'; ctx.globalAlpha = 0.85; ctx.beginPath(); ctx.arc(bx, by, br, 0, Math.PI*2); ctx.fill(); ctx.globalAlpha = 1;
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; ctx.stroke();
+    txt('🚪', bx, by - 2, 26, '#fff'); txt(label, bx, by + 24, 13, '#fff', 'center', 80);
+    addHit(bx - br, by - br, br*2, br*2, () => doorGo(ds));
+  } else {                                                                          // компьютер: подсказка над дверью / у выхода
+    const px = room === 'club' ? CW/2 : CLUB_DOOR_X - camX, py = room === 'club' ? CH - 74 : 236;
+    const w = 250, h = 44;
+    ctx.fillStyle = 'rgba(8,8,16,0.88)'; rr(px - w/2, py - h/2, w, h, 12); ctx.fill();
+    ctx.strokeStyle = '#3dff9a'; ctx.lineWidth = 2.5; rr(px - w/2, py - h/2, w, h, 12); ctx.stroke();
+    txt('🚪 ' + label + '  [E]', px, py + 7, 19, '#3dff9a');
+    addHit(px - w/2, py - h/2, w, h, () => doorGo(ds));
+  }
+}
+
 // ═══════════════ ЛОГИКА КАДРА ═══════════════
 let camX = 0;
 function toast(text, color){ ui.toasts.push({ text, color: color||'#fff', t:2.6 }); if (ui.toasts.length > 3) ui.toasts.shift(); }
@@ -631,8 +882,11 @@ function update(dt){
     const slow = locked ? 0 : (s >= 2 && s <= 4) ? 0.15 : s === ST.block ? 0.35 : 1;
     const len = Math.hypot(dx, dy) || 1, k = Math.min(1, len);
     const sp = me.sp * run * slow;
-    me.x = Math.max(60, Math.min(WORLD_W-60, me.x + dx/len*k*sp*dt));
-    me.y = Math.max(GROUND_MIN, Math.min(GROUND_MAX, me.y + dy/len*k*sp*0.6*dt));
+    if (room === 'club'){ me.x += dx/len*k*sp*dt; me.y += dy/len*k*sp*0.6*dt; clubConstrainMe(); }
+    else {
+      me.x = Math.max(60, Math.min(WORLD_W-60, me.x + dx/len*k*sp*dt));
+      me.y = Math.max(GROUND_MIN, Math.min(GROUND_MAX, me.y + dy/len*k*sp*0.6*dt));
+    }
   }
   // сглаживание чужих
   const a = 1 - Math.exp(-dt*14);
@@ -645,8 +899,9 @@ function update(dt){
   for (const t of ui.toasts) t.t -= dt; ui.toasts = ui.toasts.filter(t => t.t > 0);
   if (ui.banner){ ui.banner.t -= dt; if (ui.banner.t <= 0) ui.banner = null; }
   if (ui.koText > 0) ui.koText -= dt;
-  const target = Math.max(0, Math.min(WORLD_W-CW, me.x - CW/2));
-  camX += (target - camX) * Math.min(1, dt*8);
+  if (ui.fade > 0) ui.fade -= dt;
+  if (room === 'club') camX = 0;
+  else { const target = Math.max(0, Math.min(WORLD_W-CW, me.x - CW/2)); camX += (target - camX) * Math.min(1, dt*8); }
 }
 
 // ═══════════════ РИСОВАНИЕ ═══════════════
@@ -853,7 +1108,7 @@ function drawActor(e){
   const ny = e.ry - h - 6;
   if (e.c) bar(sx-34, ny-24, 68, 8, e.h/e.m, e.h/e.m > 0.35 ? '#4be06f' : '#ff5a5a');
   const isMe = e.id === myId, isBot = e.k === 'b';
-  const zt = ZONES[zoneAt(e.rx)].type;
+  const zt = room === 'club' ? 'hub' : ZONES[zoneAt(e.rx)].type;
   ctx.font = 'bold 15px Arial';
   const name = isBot ? '🤖 '+t('f_'+e.ty) : ((e.cl && clanTags[e.cl]) ? '['+clanTags[e.cl]+'] ' : '') + e.n, nameW = ctx.measureText(name).width;
   const pill = t('pill') + e.l, pw = ctx.measureText(pill).width + 10, total = pw + 6 + nameW, x0 = sx - total/2;
@@ -895,6 +1150,7 @@ function drawHUD(){
     addHit(16, 152, 170, 34, () => { ui.panel = true; ui.card = null; });
   }
 
+  if (room !== 'club') {
   const cellW = 48, mapW = cellW*ZONES.length, mmx = RX - mapW, my2 = 16, mh = 18;
   ctx.fillStyle = 'rgba(0,0,0,0.6)'; rr(mmx-6, my2-6, mapW+12, mh+12, 8); ctx.fill();
   for (let z=0; z<ZONES.length; z++){
@@ -905,6 +1161,7 @@ function drawHUD(){
   const dot = (px, col, r) => { ctx.beginPath(); ctx.arc(px, my2 + mh/2, r, 0, Math.PI*2); ctx.fillStyle = col; ctx.fill(); ctx.strokeStyle = 'rgba(0,0,0,0.9)'; ctx.lineWidth = 1.5; ctx.stroke(); };
   for (const q of miniPlayers) dot(mmx + (q[0] / WORLD_W) * mapW, q[1] ? '#2bff6b' : '#ff3b3b', 3.5);
   dot(mmx + (me.x / WORLD_W) * mapW, '#ffffff', 5);
+  }
   ctx.fillStyle = 'rgba(8,8,16,0.82)'; rr(RX-150, 50, 150, 34, 10); ctx.fill();
   ctx.strokeStyle = 'rgba(140,170,255,0.6)'; ctx.lineWidth = 2; rr(RX-150, 50, 150, 34, 10); ctx.stroke();
   txt(t('menu'), RX-75, 73, 15, '#dfe6ff');
@@ -1031,6 +1288,7 @@ function drawOverlays(){
     ctx.globalAlpha = Math.min(1, t.t/0.4); ctx.fillStyle = 'rgba(8,8,16,0.88)'; rr(CW/2-w/2, y-24, w, 34, 10); ctx.fill();
     ctx.textAlign = 'center'; ctx.fillStyle = t.color; ctx.fillText(t.text, CW/2, y); ctx.globalAlpha = 1;
   });
+  if (ui.fade > 0){ ctx.globalAlpha = Math.min(1, ui.fade / 0.6); ctx.fillStyle = '#000'; ctx.fillRect(0, 0, CW, CH); ctx.globalAlpha = 1; }
   if (!connected){
     ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(0, 0, CW, CH);
     txt(t('connecting'), CW/2, CH/2, 34, '#fff');
@@ -1043,10 +1301,10 @@ function frame(now){
   if (connected) update(dt); else camX += 0;
   ui.hits = [];
   ctx.clearRect(0, 0, CW, CH);
-  drawSky(); drawRoad(); drawWalls(); drawLamps(); drawZoneDecor();
-  [...ents.values()].sort((a,b) => a.ry - b.ry).forEach(drawActor);
+  if (room === 'club') drawClubScene();
+  else { drawSky(); drawRoad(); drawWalls(); drawLamps(); drawZoneDecor(); [...ents.values()].sort((a,b) => a.ry - b.ry).forEach(drawActor); }
   drawFloaters();
-  if (connected){ drawHUD(); drawControls(); drawCard(); drawPanel(); drawClanPanel(); }
+  if (connected){ drawHUD(); drawControls(); drawDoorPrompt(); drawCard(); drawPanel(); drawClanPanel(); }
   drawOverlays();
   requestAnimationFrame(frame);
 }
