@@ -42,15 +42,12 @@ const FIGHTERS = {
   bancho:       { name: 'Хулиган',         stats: { str: 7, hp: 6, spd: 5 }, anim: { jab: [9, 18], punch: [7, 18], kick: [8, 18] } },
   batting_girl: { name: 'Девушка с битой', stats: { str: 9, hp: 4, spd: 5 }, anim: { jab: [5, 18], punch: [8, 18], kick: [11, 20] } },
   brawler_girl: { name: 'Уличная боец',    stats: { str: 5, hp: 5, spd: 7 }, anim: { jab: [3, 16], punch: [3, 16], kick: [5, 16] } },
-  // 5-й боец — боксёр из Boxing Arena (CC0): быстрый, средний по здоровью; удары — punch1 / punch2 / punch3 (по 8 кадров)
-  boxer:        { name: 'Боксёр',          stats: { str: 6, hp: 6, spd: 8 }, anim: { jab: [8, 18], punch: [8, 18], kick: [8, 18] } },
 };
 const FIGHTER_KEYS = Object.keys(FIGHTERS);
 // боты — только панки (для выбора игроками не доступны)
 const BOT_TYPES = { enemy_punk: { name: 'Панк', stats: { str: 6, hp: 5, spd: 4 }, anim: { punch: [3, 16] } } };
 const infoOf = type => FIGHTERS[type] || BOT_TYPES[type];
-const VARIANTS = 3;   // цветов на бойца (у панков-ботов)
-const variantsOf = type => type === 'boxer' ? 7 : VARIANTS;   // у боксёра 7 готовых цветов
+const VARIANTS = 3;   // цветов на бойца
 
 // ── правила боя (черновые числа — крутятся здесь) ──
 // super — «Суперсила» (бывший пинок): ровно ×2 от «Удара» (jab), заряжается SUPER_COOLDOWN_MS, ничего не отнимает
@@ -313,7 +310,7 @@ function attach(app) {
   const wrap = fn => (req, res) => fn(req, res).catch(e => { console.error('[WORLD] api error:', e.message); res.status(500).json({ code: 'server_error', error: 'Ошибка сервера' }); });
 
   app.get('/world-api/config', (req, res) => {
-    res.json({ variants: VARIANTS, fighters: FIGHTER_KEYS.map(k => ({ type: k, name: FIGHTERS[k].name, stats: FIGHTERS[k].stats, variants: variantsOf(k) })) });
+    res.json({ variants: VARIANTS, fighters: FIGHTER_KEYS.map(k => ({ type: k, name: FIGHTERS[k].name, stats: FIGHTERS[k].stats })) });
   });
   app.post('/world-api/register', json, guard, wrap(async (req, res) => {
     if (rateLimited(ipOf(req), 15)) return res.status(429).json({ code: 'too_many', error: 'Слишком много попыток, подожди минуту' });
@@ -339,7 +336,7 @@ function attach(app) {
   }));
   app.post('/world-api/create', json, guard, auth, wrap(async (req, res) => {
     const { type, variant } = req.body || {};
-    if (!FIGHTERS[type] || !Number.isInteger(variant) || variant < 0 || variant >= variantsOf(type)) return res.status(400).json({ code: 'bad_fighter', error: 'Неверный выбор бойца' });
+    if (!FIGHTERS[type] || !Number.isInteger(variant) || variant < 0 || variant >= VARIANTS) return res.status(400).json({ code: 'bad_fighter', error: 'Неверный выбор бойца' });
     if (await store.getChar(req.acc.id)) return res.status(409).json({ code: 'char_exists', error: 'Персонаж уже создан' });
     const s = FIGHTERS[type].stats;
     await store.insertChar(req.acc.id, { type, variant, level: 1, xp: 0, points: 0, str: s.str, hp: s.hp, spd: s.spd });
