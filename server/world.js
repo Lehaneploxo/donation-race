@@ -16,7 +16,7 @@ const scrypt = promisify(crypto.scrypt);
 // ── геометрия мира (те же числа, что у клиента) ──
 const ZONE_W = 1800, N_ZONES = 7, WORLD_W = ZONE_W * N_ZONES, HUB = 3;
 const GROUND_MIN = 500, GROUND_MAX = 700;
-const ZONE_TYPES = ['danger', 'consent', 'safe', 'hub', 'safe', 'consent', 'danger'];
+const ZONE_TYPES = ['wild2', 'wild', 'safe', 'hub', 'safe', 'wild', 'wild2'];   // wild — ближний дикий, wild2 — самый дальний (жёстче)
 const clamp  = (v, a, b) => Math.max(a, Math.min(b, v));
 const zoneAt = x => clamp(Math.floor(x / ZONE_W), 0, N_ZONES - 1);
 
@@ -41,12 +41,11 @@ const maxHpOf  = e => e.kind === 'b' ? 40 + e.level * 8 : 70 + e.stats.hp * 10;
 // скорость растёт с убывающей отдачей и упирается в потолок (~340 пикс/с при базовых ~240) — на высоких уровнях не «летают»
 const speedOf  = e => 230 + 110 * (1 - Math.exp(-e.stats.spd / 35));
 const baseDmg  = e => 6 + e.stats.str * 1.2;
-const ZONE_XP_MULT = { safe: 1, consent: 1.6, danger: 2.5 };   // опыт за урон по ботам
+const ZONE_XP_MULT = { safe: 1, wild: 1.6, wild2: 2.5 };   // опыт за урон по ботам
 const REGEN_HUB = 15, REGEN_FIELD = 3, COMBAT_COOLDOWN = 6;   // хп/сек, секунд «в бою»
 const RESPAWN_MS = 2000, BOT_RESPAWN_MS = 8000;
-const BOTS_BY_TYPE = { safe: 3, consent: 6, danger: 10 };   // чем глубже, тем больше ботов (сила у всех одинаковая)
+const BOTS_BY_TYPE = { safe: 3, wild: 6, wild2: 10 };   // чем глубже, тем больше ботов (сила у всех одинаковая)
 const PUNK_LEVEL = 5;                                       // уровень панка (один на всех)
-const DUEL_INVITE_SEC = 10, DUEL_MAX_SEC = 300;
 const TICK_MS = 50, VIEW_RANGE = 1500;
 
 // ═════════════════════════ ХРАНИЛИЩЕ ═════════════════════════
@@ -65,6 +64,7 @@ class PgStore {
       str INTEGER NOT NULL, hp INTEGER NOT NULL, spd INTEGER NOT NULL,
       updated_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
     await q(`CREATE TABLE IF NOT EXISTS world_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)`);
+    await this.initClans();
   }
   async getMeta(k) { const r = await this.pool.query('SELECT value FROM world_meta WHERE key=$1', [k]); return r.rows[0] ? r.rows[0].value : null; }
   async setMeta(k, v) { await this.pool.query('INSERT INTO world_meta(key,value) VALUES($1,$2) ON CONFLICT (key) DO NOTHING', [k, v]); }
@@ -88,7 +88,7 @@ class PgStore {
 }
 class FileStore {
   constructor(file) { this.file = file; this.d = { nextId: 1, accounts: [], chars: {}, meta: {} }; this.timer = null; }
-  async init() { try { this.d = JSON.parse(fs.readFileSync(this.file, 'utf8')); } catch (_) {} }
+  async init() { try { this.d = JSON.parse(fs.readFileSync(this.file, 'utf8')); } catch (_) {} await this.initClans(); }
   _save() { if (this.timer) return; this.timer = setTimeout(() => { this.timer = null; try { fs.writeFileSync(this.file, JSON.stringify(this.d)); } catch (_) {} }, 300); }
   async getMeta(k) { return this.d.meta[k] || null; }
   async setMeta(k, v) { if (!this.d.meta[k]) { this.d.meta[k] = v; this._save(); } }
@@ -102,6 +102,128 @@ class FileStore {
   async insertChar(id, c) { if (!this.d.chars[id]) { this.d.chars[id] = { ...c }; this._save(); } }
   async saveChar(id, c) { if (this.d.chars[id]) { Object.assign(this.d.chars[id], c); this._save(); } }
 }
+
+// ── кланы: хранилище (Postgres и локальный файл) ──
+// world_clans: клан (название/тег уникальны без учёта регистра, leader_id — текущий лидер)
+// world_clan_members: один аккаунт — максимум один клан
+// world_clan_invites: приглашения ХРАНЯТСЯ без срока (можно принять хоть через неделю)
+Object.assign(PgStore.prototype, {
+  async initClans() {
+    const q = s => this.pool.query(s);
+    await q(`CREATE TABLE IF NOT EXISTS world_clans (
+      id SERIAL PRIMARY KEY, name TEXT NOT NULL, name_lower TEXT NOT NULL UNIQUE,
+      tag TEXT NOT NULL, tag_lower TEXT NOT NULL UNIQUE, leader_id INTEGER NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
+    await q(`CREATE TABLE IF NOT EXISTS world_clan_members (
+      account_id INTEGER PRIMARY KEY REFERENCES world_accounts(id) ON DELETE CASCADE,
+      clan_id INTEGER NOT NULL REFERENCES world_clans(id) ON DELETE CASCADE,
+      joined_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
+    await q(`CREATE TABLE IF NOT EXISTS world_clan_invites (
+      id SERIAL PRIMARY KEY, clan_id INTEGER NOT NULL REFERENCES world_clans(id) ON DELETE CASCADE,
+      to_id INTEGER NOT NULL REFERENCES world_accounts(id) ON DELETE CASCADE, from_id INTEGER NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(), UNIQUE (clan_id, to_id))`);
+  },
+  async createClan(name, tag, leaderId) {
+    let id;
+    try {
+      const r = await this.pool.query('INSERT INTO world_clans(name,name_lower,tag,tag_lower,leader_id) VALUES($1,$2,$3,$4,$5) RETURNING id',
+        [name, name.toLowerCase(), tag, tag.toLowerCase(), leaderId]);
+      id = r.rows[0].id;
+    } catch (e) {
+      if (e.code === '23505') throw new Error(/tag/.test(e.constraint || e.detail || '') ? 'tag_taken' : 'name_taken');
+      throw e;
+    }
+    await this.pool.query('INSERT INTO world_clan_members(account_id,clan_id) VALUES($1,$2)', [leaderId, id]);
+    return id;
+  },
+  async getClanOf(accId) {
+    const r = await this.pool.query('SELECT c.id, c.name, c.tag, c.leader_id FROM world_clan_members m JOIN world_clans c ON c.id = m.clan_id WHERE m.account_id = $1', [accId]);
+    return r.rows[0] || null;
+  },
+  async getClanMembers(clanId) {
+    const r = await this.pool.query(`SELECT m.account_id, a.nick, COALESCE(ch.level, 1) AS level, m.joined_at
+      FROM world_clan_members m JOIN world_accounts a ON a.id = m.account_id LEFT JOIN world_chars ch ON ch.account_id = m.account_id
+      WHERE m.clan_id = $1 ORDER BY m.joined_at ASC, m.account_id ASC`, [clanId]);
+    return r.rows;
+  },
+  async joinClan(clanId, accId) {
+    await this.pool.query('INSERT INTO world_clan_members(account_id,clan_id) VALUES($1,$2) ON CONFLICT (account_id) DO UPDATE SET clan_id = EXCLUDED.clan_id, joined_at = now()', [accId, clanId]);
+  },
+  // выйти из клана: если он опустел — клан удаляется; если ушёл лидер — лидером становится самый старый участник
+  async leaveClan(accId) {
+    const cur = await this.getClanOf(accId);
+    if (!cur) return null;
+    await this.pool.query('DELETE FROM world_clan_members WHERE account_id = $1', [accId]);
+    const rest = await this.getClanMembers(cur.id);
+    const res = { clanId: cur.id, deleted: false, newLeader: 0 };
+    if (!rest.length) { await this.pool.query('DELETE FROM world_clans WHERE id = $1', [cur.id]); res.deleted = true; }
+    else if (cur.leader_id === accId) { res.newLeader = rest[0].account_id; await this.pool.query('UPDATE world_clans SET leader_id = $2 WHERE id = $1', [cur.id, res.newLeader]); }
+    return res;
+  },
+  async createInvite(clanId, toId, fromId) {
+    const r = await this.pool.query('INSERT INTO world_clan_invites(clan_id,to_id,from_id) VALUES($1,$2,$3) ON CONFLICT (clan_id,to_id) DO UPDATE SET from_id = EXCLUDED.from_id RETURNING id', [clanId, toId, fromId]);
+    return r.rows[0].id;
+  },
+  async getInvites(toId) {
+    const r = await this.pool.query(`SELECT i.id, c.id AS clan_id, c.name, c.tag, a.nick AS from_nick
+      FROM world_clan_invites i JOIN world_clans c ON c.id = i.clan_id LEFT JOIN world_accounts a ON a.id = i.from_id
+      WHERE i.to_id = $1 ORDER BY i.created_at DESC LIMIT 50`, [toId]);
+    return r.rows;
+  },
+  async getInvite(id) { const r = await this.pool.query('SELECT id, clan_id, to_id, from_id FROM world_clan_invites WHERE id = $1', [id]); return r.rows[0] || null; },
+  async deleteInvite(id) { await this.pool.query('DELETE FROM world_clan_invites WHERE id = $1', [id]); },
+});
+
+Object.assign(FileStore.prototype, {
+  async initClans() {
+    const d = this.d;
+    d.clans = d.clans || []; d.members = d.members || {}; d.invites = d.invites || [];
+    d.nextClanId = d.nextClanId || 1; d.nextInviteId = d.nextInviteId || 1;
+  },
+  async createClan(name, tag, leaderId) {
+    const d = this.d;
+    if (d.clans.some(c => c.name_lower === name.toLowerCase())) throw new Error('name_taken');
+    if (d.clans.some(c => c.tag_lower === tag.toLowerCase())) throw new Error('tag_taken');
+    const id = d.nextClanId++;
+    d.clans.push({ id, name, name_lower: name.toLowerCase(), tag, tag_lower: tag.toLowerCase(), leader_id: leaderId });
+    d.members[leaderId] = { clan_id: id, joined_at: Date.now() };
+    this._save(); return id;
+  },
+  async getClanOf(accId) {
+    const m = this.d.members[accId]; if (!m) return null;
+    const c = this.d.clans.find(x => x.id === m.clan_id);
+    return c ? { id: c.id, name: c.name, tag: c.tag, leader_id: c.leader_id } : null;
+  },
+  async getClanMembers(clanId) {
+    return Object.entries(this.d.members).filter(([, m]) => m.clan_id === clanId)
+      .sort((a, b) => a[1].joined_at - b[1].joined_at || +a[0] - +b[0])
+      .map(([acc, m]) => { const a = this.d.accounts.find(x => x.id === +acc); const ch = this.d.chars[acc];
+        return { account_id: +acc, nick: a ? a.nick : '?', level: ch ? ch.level : 1, joined_at: m.joined_at }; });
+  },
+  async joinClan(clanId, accId) { this.d.members[accId] = { clan_id: clanId, joined_at: Date.now() }; this._save(); },
+  async leaveClan(accId) {
+    const cur = await this.getClanOf(accId); if (!cur) return null;
+    delete this.d.members[accId];
+    const rest = await this.getClanMembers(cur.id);
+    const res = { clanId: cur.id, deleted: false, newLeader: 0 };
+    if (!rest.length) { this.d.clans = this.d.clans.filter(c => c.id !== cur.id); this.d.invites = this.d.invites.filter(i => i.clan_id !== cur.id); res.deleted = true; }
+    else if (cur.leader_id === accId) { const c = this.d.clans.find(x => x.id === cur.id); c.leader_id = rest[0].account_id; res.newLeader = c.leader_id; }
+    this._save(); return res;
+  },
+  async createInvite(clanId, toId, fromId) {
+    let inv = this.d.invites.find(i => i.clan_id === clanId && i.to_id === toId);
+    if (inv) inv.from_id = fromId; else { inv = { id: this.d.nextInviteId++, clan_id: clanId, to_id: toId, from_id: fromId, created_at: Date.now() }; this.d.invites.push(inv); }
+    this._save(); return inv.id;
+  },
+  async getInvites(toId) {
+    return this.d.invites.filter(i => i.to_id === toId).sort((a, b) => b.created_at - a.created_at).slice(0, 50).map(i => {
+      const c = this.d.clans.find(x => x.id === i.clan_id), a = this.d.accounts.find(x => x.id === i.from_id);
+      return { id: i.id, clan_id: i.clan_id, name: c ? c.name : '?', tag: c ? c.tag : '?', from_nick: a ? a.nick : '' };
+    });
+  },
+  async getInvite(id) { return this.d.invites.find(i => i.id === id) || null; },
+  async deleteInvite(id) { this.d.invites = this.d.invites.filter(i => i.id !== id); this._save(); },
+});
 
 let store = null, secret = null, ready = false;
 
@@ -217,7 +339,7 @@ function makeEntity(kind, name, type, variant, x, y) {
     inx: 0, iny: 0, run: 1, blk: false, moving: false,
     level: 1, xp: 0, points: 0, stats: { ...infoOf(type).stats }, hp: 0,
     atk: null, rest: 0, hurtT: 0, stagImm: 0, koT: 0, combatT: 999,
-    duel: 0, hintCd: 0,
+    hintCd: 0, clanId: 0, clanTag: '', clanLeader: false, knownClans: new Set(),
     // игрок:
     ws: null, accountId: 0, known: new Set(), dirty: false, msgs: 0, msgWindow: 0, killedRecently: new Map(),
     // бот:
@@ -274,9 +396,8 @@ function canDamage(att, tgt) {
   const z = zoneAt(tgt.x);
   if (zoneAt(att.x) !== z) return false;
   const zt = ZONE_TYPES[z];
-  if (zt === 'danger') return true;
-  if (zt === 'consent') return att.duel === tgt.id && tgt.duel === att.id;
-  return false;
+  if (att.clanId && att.clanId === tgt.clanId) return false;   // соклановцы друг друга не бьют
+  return zt === 'wild' || zt === 'wild2';
 }
 function gainXp(p, n) {
   if (p.level >= LEVEL_CAP) return;
@@ -316,14 +437,13 @@ function resolveAttack(att) {
   }
   if (!hitAny && ruleBlocked && att.hintCd <= 0) {
     att.hintCd = 3;
-    toast(att, ZONE_TYPES[zoneAt(att.x)] === 'consent' ? 'consent_only' : 'no_fight', '#ffc933');
+    toast(att, (ruleBlocked.clanId && ruleBlocked.clanId === att.clanId) ? 'clanmate' : 'no_fight', '#ffc933');
   }
 }
 function killEntity(t, killer) {
   t.hp = 0; t.koT = t.kind === 'b' ? 1.5 : RESPAWN_MS / 1000; t.atk = null; t.blk = false; t.inx = t.iny = 0;
   if (t.kind === 'p') {
     toast(t, 'ko_respawn', '#ff8a8a'); send(t, { t: 'ko' });
-    endDuel(t, null);
     // награда за победу над игроком (не чаще раза в 10 минут за одного и того же)
     if (killer && killer.kind === 'p') {
       const last = killer.killedRecently.get(t.accountId) || 0;
@@ -332,38 +452,87 @@ function killEntity(t, killer) {
   }
 }
 
-// ── дуэли ──
-const invites = new Map();   // targetId → { from, until }
-function endDuel(p, reason) {
-  if (!p.duel) return;
-  const o = ents.get(p.duel);
-  p.duel = 0;
-  if (o) { o.duel = 0; send(o, { t: 'duel_end' }); if (reason) toast(o, reason, '#ffc933'); }
-  send(p, { t: 'duel_end' }); if (reason) toast(p, reason, '#ffc933');
+// ── кланы ──
+// Клан постоянный (в БД). Соклановцы друг друга не бьют (см. canDamage). Создать клан может любой игрок.
+// Приглашает только лидер; приглашения хранятся в БД без срока. Выход — в любой момент, без ограничений.
+// Лидер вышел → лидером становится самый старый участник; вышел последний → клан удаляется.
+const CLAN_NAME_RE = /^[A-Za-zА-Яа-яЁёІіЇїЄєҐґ0-9_]+( [A-Za-zА-Яа-яЁёІіЇїЄєҐґ0-9_]+)*$/;
+const CLAN_TAG_RE = /^[A-Za-zА-Яа-яЁёІіЇїЄєҐґ0-9]{2,4}$/;
+const clanTags = new Map();   // clanId → тег (рассылается клиентам, чтобы рисовать [ТЕГ] над ником)
+const clanErr = e => console.error('[WORLD] clan error:', e.message);
+
+// перечитывает клан игрока из БД (роль лидера/тег) и отправляет ему актуальное состояние: клан, участники, приглашения
+async function sendClanInfo(p) {
+  const c = await store.getClanOf(p.accountId);
+  p.clanId = c ? c.id : 0; p.clanTag = c ? c.tag : ''; p.clanLeader = !!(c && c.leader_id === p.accountId);
+  if (c) clanTags.set(c.id, c.tag);
+  let clan = null;
+  if (c) {
+    const ms = await store.getClanMembers(c.id);
+    clan = { id: c.id, name: c.name, tag: c.tag, leader: p.clanLeader,
+      members: ms.map(m => ({ acc: m.account_id, nick: m.nick, lvl: m.level, on: byAccount.has(m.account_id), lead: m.account_id === c.leader_id })) };
+  }
+  const inv = await store.getInvites(p.accountId);
+  send(p, { t: 'clan', clan, invites: inv.map(i => ({ id: i.id, name: i.name, tag: i.tag, from: i.from_nick || '' })) });
 }
-function handleDuelRequest(p, toId) {
+function refreshClanMembers(clanId) {
+  for (const q of byAccount.values()) if (q.clanId === clanId) sendClanInfo(q).catch(clanErr);
+}
+async function clanCreate(p, name, tag) {
+  if (p.clanId) return toast(p, 'clan_in_clan', '#ffc933');
+  name = String(name || '').trim().replace(/\s+/g, ' '); tag = String(tag || '').trim();
+  if (name.length < 3 || name.length > 20 || !CLAN_NAME_RE.test(name) || RESERVED.includes(name.toLowerCase())) return send(p, { t: 'clan_err', code: 'clan_name_bad' });
+  if (!CLAN_TAG_RE.test(tag) || RESERVED.includes(tag.toLowerCase())) return send(p, { t: 'clan_err', code: 'clan_tag_bad' });
+  tag = tag.toUpperCase();
+  try { await store.createClan(name, tag, p.accountId); }
+  catch (e) { if (e.message === 'name_taken' || e.message === 'tag_taken') return send(p, { t: 'clan_err', code: 'clan_' + e.message }); throw e; }
+  await sendClanInfo(p);
+  toast(p, 'clan_created', '#7dff9a', [tag]);
+  send(p, { t: 'clan_ok' });
+}
+async function clanInvite(p, toId) {
+  if (!p.clanId || !p.clanLeader) return toast(p, 'clan_not_leader', '#ffc933');
   const t = ents.get(toId);
-  if (!t || t.kind !== 'p' || t === p) return;
-  const z = zoneAt(p.x);
-  if (ZONE_TYPES[z] !== 'consent') return toast(p, 'duel_only_consent', '#ffc933');
-  if (zoneAt(t.x) !== z) return toast(p, 'other_zone', '#ffc933');
-  if (p.duel || t.duel) return toast(p, 'already_dueling', '#ffc933');
-  if (p.koT > 0 || t.koT > 0) return;
-  if (invites.has(t.id) && invites.get(t.id).until > Date.now()) return toast(p, 'already_invited', '#ffc933');
-  invites.set(t.id, { from: p.id, until: Date.now() + DUEL_INVITE_SEC * 1000 });
-  send(t, { t: 'duel_inv', from: p.id, name: p.name, sec: DUEL_INVITE_SEC });
-  toast(p, 'invite_sent', '#ffc933', [t.name]);
+  if (!t || t.kind !== 'p' || t === p || Math.abs(t.x - p.x) > 900) return;
+  if (t.clanId === p.clanId) return toast(p, 'clan_already_member', '#ffc933', [t.name]);
+  await store.createInvite(p.clanId, t.accountId, p.accountId);
+  toast(p, 'clan_invite_sent', '#ffc933', [t.name]);
+  toast(t, 'clan_invited', '#7dc8ff', [p.clanTag, p.name]);
+  sendClanInfo(t).catch(clanErr);           // у приглашённого появляется пометка о приглашении
 }
-function handleDuelAnswer(p, fromId, ok) {
-  const inv = invites.get(p.id);
-  if (!inv || inv.from !== fromId || inv.until < Date.now()) return;
-  invites.delete(p.id);
-  const a = ents.get(fromId);
-  if (!a) return;
-  if (!ok) return toast(a, 'declined', '#ffc933', [p.name]);
-  if (ZONE_TYPES[zoneAt(p.x)] !== 'consent' || zoneAt(a.x) !== zoneAt(p.x) || a.duel || p.duel || a.koT > 0 || p.koT > 0) return;
-  a.duel = p.id; p.duel = a.id; a.duelStart = p.duelStart = Date.now();
-  send(a, { t: 'duel_start', with: p.id, name: p.name }); send(p, { t: 'duel_start', with: a.id, name: a.name });
+async function clanAccept(p, invId) {
+  if (!Number.isInteger(invId)) return;
+  const inv = await store.getInvite(invId);
+  if (!inv || inv.to_id !== p.accountId) return;
+  if (p.clanId === inv.clan_id) { await store.deleteInvite(invId); return sendClanInfo(p); }
+  const left = await store.leaveClan(p.accountId);       // если был в другом клане — выходим оттуда (без ограничений)
+  await store.joinClan(inv.clan_id, p.accountId);
+  await store.deleteInvite(invId);
+  await sendClanInfo(p);
+  toast(p, 'clan_joined', '#7dff9a', [p.clanTag]);
+  refreshClanMembers(inv.clan_id);
+  if (left && !left.deleted) refreshClanMembers(left.clanId);
+}
+async function clanDecline(p, invId) {
+  if (!Number.isInteger(invId)) return;
+  const inv = await store.getInvite(invId);
+  if (inv && inv.to_id === p.accountId) await store.deleteInvite(invId);
+  await sendClanInfo(p);
+}
+async function clanLeave(p) {
+  const left = await store.leaveClan(p.accountId);
+  await sendClanInfo(p);
+  if (left) toast(p, 'clan_left', '#ffc933');
+  if (left && !left.deleted) refreshClanMembers(left.clanId);
+}
+async function clanKick(p, acc) {
+  if (!p.clanId || !p.clanLeader || !Number.isInteger(acc) || acc === p.accountId) return;
+  const mate = await store.getClanOf(acc);
+  if (!mate || mate.id !== p.clanId) return;
+  await store.leaveClan(acc);
+  const q = byAccount.get(acc);
+  if (q) { toast(q, 'clan_kicked', '#ff8a8a', [p.clanTag]); sendClanInfo(q).catch(clanErr); }
+  refreshClanMembers(p.clanId);
 }
 
 // ── боты ──
@@ -448,15 +617,8 @@ function tick() {
         } else { ents.delete(e.id); botRespawns.push({ zone: e.zone, at: now + BOT_RESPAWN_MS }); }
       }
     }
-    // выход из района/затянувшаяся дуэль
-    if (e.duel) {
-      const o = ents.get(e.duel);
-      if (!o || zoneAt(o.x) !== zoneAt(e.x) || ZONE_TYPES[zoneAt(e.x)] !== 'consent') endDuel(e, 'duel_interrupted');
-      else if (now - e.duelStart > DUEL_MAX_SEC * 1000) endDuel(e, 'duel_timeout');
-    }
   }
   for (let i = botRespawns.length - 1; i >= 0; i--) if (botRespawns[i].at <= now) { spawnBot(botRespawns[i].zone); botRespawns.splice(i, 1); }
-  for (const [k, v] of invites) if (v.until < now) invites.delete(k);
 
   broadcast();
 
@@ -473,7 +635,7 @@ function stateCode(e) {
 function broadcast() {
   const list = [...ents.values()];
   const rows = new Map();
-  for (const e of list) rows.set(e.id, [e.id, Math.round(e.x), Math.round(e.y), e.f, stateCode(e), Math.ceil(e.hp), maxHpOf(e), e.level, e.combatT < COMBAT_COOLDOWN ? 1 : 0]);
+  for (const e of list) rows.set(e.id, [e.id, Math.round(e.x), Math.round(e.y), e.f, stateCode(e), Math.ceil(e.hp), maxHpOf(e), e.level, e.combatT < COMBAT_COOLDOWN ? 1 : 0, e.clanId || 0]);
   for (const p of byAccount.values()) {
     if (!p.ws || p.ws.readyState !== 1) continue;
     const vis = new Set(), a = [], add = [];
@@ -482,11 +644,14 @@ function broadcast() {
       vis.add(e.id); a.push(rows.get(e.id));
       if (!p.known.has(e.id)) { p.known.add(e.id); add.push({ id: e.id, n: e.name, ty: e.type, v: e.variant, k: e.kind }); }
     }
+    const newClans = {};
+    for (const r of a) { const cid = r[9]; if (cid && !p.knownClans.has(cid)) { p.knownClans.add(cid); newClans[cid] = clanTags.get(cid) || ''; } }
+    if (Object.keys(newClans).length) send(p, { t: 'clans', m: newClans });
     const rm = [];
     for (const id of p.known) if (!vis.has(id)) { rm.push(id); p.known.delete(id); }
     if (add.length) send(p, { t: 'add', e: add });
     const ev = evs.filter(v => vis.has(v[0]));
-    send(p, { t: 's', a, rm, ev, me: { sp: Math.round(speedOf(p)), xp: p.xp, need: xpNeed(p.level), pt: p.points, st: p.stats, duel: p.duel } });
+    send(p, { t: 's', a, rm, ev, me: { sp: Math.round(speedOf(p)), xp: p.xp, need: xpNeed(p.level), pt: p.points, st: p.stats } });
   }
 }
 
@@ -503,7 +668,7 @@ async function handleConnection(ws, req) {
   const old = byAccount.get(acc.id);
   if (old) {
     send(old, { t: 'kicked' });
-    endDuel(old, null); ents.delete(old.id); byAccount.delete(old.accountId);
+    ents.delete(old.id); byAccount.delete(old.accountId);
     await savePlayer(old);
     try { old.ws.close(4004, 'kicked'); } catch (_) {}
   }
@@ -513,6 +678,7 @@ async function handleConnection(ws, req) {
   const p = loadPlayer(acc.id, acc.nick, ch, ws);
   console.log(`[WORLD] +${acc.nick} (онлайн: ${byAccount.size})`);
   send(p, { t: 'hello', id: p.id, zones: ZONE_TYPES, zoneW: ZONE_W, ground: [GROUND_MIN, GROUND_MAX], world: WORLD_W, x: p.x, y: p.y });
+  sendClanInfo(p).catch(clanErr);     // клан и приглашения игрока
 
   ws.isAlive = true;
   ws.on('pong', () => { ws.isAlive = true; });
@@ -521,7 +687,6 @@ async function handleConnection(ws, req) {
   ws.on('error', () => {});
 }
 function removePlayer(p, keepSocket) {
-  endDuel(p, null);
   ents.delete(p.id); if (byAccount.get(p.accountId) === p) byAccount.delete(p.accountId);
   savePlayer(p);
 }
@@ -529,7 +694,7 @@ function onMessage(p, m) {
   const now = Date.now();
   if (now - p.msgWindow > 1000) { p.msgWindow = now; p.msgs = 0; }
   if (++p.msgs > 60) return;               // защита от флуда
-  if (p.koT > 0 && m.t !== 'in') return;
+  if (p.koT > 0 && m.t !== 'in' && !String(m.t).startsWith('clan_')) return;
   switch (m.t) {
     case 'in': {
       const num = v => (typeof v === 'number' && isFinite(v)) ? v : 0;
@@ -549,11 +714,16 @@ function onMessage(p, m) {
       break;
     case 'inspect': {
       const t = ents.get(m.id);
-      if (t && Math.abs(t.x - p.x) < 900) send(p, { t: 'card', id: t.id, name: t.name, kind: t.kind, ty: t.type, level: t.level, hp: Math.ceil(t.hp), max: maxHpOf(t), st: t.stats });
+      if (t && Math.abs(t.x - p.x) < 900) send(p, { t: 'card', id: t.id, name: t.name, kind: t.kind, ty: t.type, level: t.level, hp: Math.ceil(t.hp), max: maxHpOf(t), st: t.stats, tag: t.clanTag || '', ally: !!(p.clanId && p.clanId === t.clanId), canInvite: !!(p.clanLeader && t.kind === 'p' && t.clanId !== p.clanId), inClan: !!p.clanId });
       break;
     }
-    case 'duel': handleDuelRequest(p, m.to); break;
-    case 'duel_ans': handleDuelAnswer(p, m.from, !!m.ok); break;
+    case 'clan_info': sendClanInfo(p).catch(clanErr); break;
+    case 'clan_create': clanCreate(p, m.name, m.tag).catch(clanErr); break;
+    case 'clan_invite': clanInvite(p, m.to).catch(clanErr); break;
+    case 'clan_accept': clanAccept(p, m.id).catch(clanErr); break;
+    case 'clan_decline': clanDecline(p, m.id).catch(clanErr); break;
+    case 'clan_leave': clanLeave(p).catch(clanErr); break;
+    case 'clan_kick': clanKick(p, m.acc).catch(clanErr); break;
   }
 }
 

@@ -107,6 +107,8 @@
   .eye .e-off{display:none}.eye.on{color:#ffd23f}.eye.on .e-on{display:none}.eye.on .e-off{display:block}
   .pwrow{display:flex;flex-direction:column}
   @media (max-height:520px){ .pwrow{flex-direction:row;gap:8px}.pwcol{flex:1;min-width:0} }
+  #clanForm{position:fixed;inset:0;z-index:26;display:flex;background:rgba(0,0,0,.72);padding:10px;overflow:auto}
+  #clanForm[hidden]{display:none}
   #msg button{margin-top:16px;padding:12px 26px;border:0;border-radius:10px;background:#6f4bd8;color:#fff;font-size:17px;font-weight:bold}
 </style>
 </head>
@@ -173,6 +175,18 @@
   <svg class="ic-on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>
   <svg class="ic-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/></svg>
 </button>
+<div id="clanForm" hidden>
+  <div class="box">
+    <h1 data-i="clan_form_title"></h1>
+    <label for="cName" data-i="clan_name"></label>
+    <input id="cName" maxlength="20" autocomplete="off" spellcheck="false" data-ph="clan_name_ph">
+    <label for="cTag" data-i="clan_tag"></label>
+    <input id="cTag" maxlength="4" autocomplete="off" autocapitalize="characters" spellcheck="false" data-ph="clan_tag_ph">
+    <div class="err" id="cErr"></div>
+    <button class="main" id="cGo" data-i="clan_create_go"></button>
+    <div class="link" id="cCancel" data-i="cancel"></div>
+  </div>
+</div>
 <div id="msg" hidden><div><div id="msgText"></div><button id="msgBtn">Ок</button></div></div>
 
 <script>
@@ -184,8 +198,11 @@ const L = {"ru":{"tagline":"Уличные бои онлайн","play":"ИГРА
 let lang = 'en';
 try { lang = localStorage.getItem('world_lang'); } catch(_){}
 if (!L[lang]){ const n = (navigator.language || '').toLowerCase(); lang = n.startsWith('uk') ? 'uk' : n.startsWith('ru') ? 'ru' : 'en'; }
+Object.assign(L.ru, {"lbl_wild":"ДИКИЙ","lbl_wild2":"ДИКИЙ · ЖЁСТКИЙ","sub_wild":"бей любого, кроме своего клана","sub_wild2":"то же, но панков и опыта больше","clan_btn":"🛡 Клан","clan_title":"Клан","clan_none":"Ты пока не в клане","clan_create_btn":"Создать клан","clan_form_title":"СОЗДАНИЕ КЛАНА","clan_name":"Название клана","clan_name_ph":"например Legion","clan_tag":"Тег (2–4 символа)","clan_tag_ph":"LNG","clan_create_go":"Создать","cancel":"Отмена","clan_members":"Участники: {0}","clan_leave_btn":"Выйти из клана","clan_hint_invite":"Пригласить: нажми на игрока → «Пригласить в клан»","clan_invites":"Приглашения: {0}","clan_more":"ещё +{0}","clan_invite_btn":"🛡 Пригласить в клан","clan_card_ally":"Твой клан","clan_card_hint_noclan":"Создай клан в меню «🛡 Клан»","clan_card_hint_noleader":"Приглашать может лидер клана","ce_clan_name_bad":"Название: 3–20 символов — буквы, цифры, _ и пробел","ce_clan_tag_bad":"Тег: 2–4 символа, только буквы и цифры","ce_clan_name_taken":"Такое название уже занято","ce_clan_tag_taken":"Такой тег уже занят","m_clanmate":"Это твой клан — соклановцев бить нельзя","m_clan_in_clan":"Ты уже в клане","m_clan_not_leader":"Приглашать может только лидер клана","m_clan_already_member":"{0} уже в твоём клане","m_clan_invite_sent":"Приглашение отправлено: {0}","m_clan_invited":"[{0}] {1} приглашает тебя в клан — открой «🛡 Клан»","m_clan_joined":"Ты вступил в клан [{0}]","m_clan_left":"Ты вышел из клана","m_clan_kicked":"Тебя исключили из клана [{0}]","m_clan_created":"Клан [{0}] создан!","m_clan_pending":"Приглашений в клан: {0} — открой «🛡 Клан»"});
 Object.assign(L.ru, { f_enemy_punk:'Панк', pass2:'Повтори пароль', pass2_ph:'ещё раз тот же пароль', err_pass_mismatch:'Пароли не совпадают', show_pass:'Показать пароль' });
+Object.assign(L.uk, {"lbl_wild":"ДИКИЙ","lbl_wild2":"ДИКИЙ · ЖОРСТКИЙ","sub_wild":"бий будь-кого, крім свого клану","sub_wild2":"те саме, але більше панків і досвіду","clan_btn":"🛡 Клан","clan_title":"Клан","clan_none":"Ти поки не в клані","clan_create_btn":"Створити клан","clan_form_title":"СТВОРЕННЯ КЛАНУ","clan_name":"Назва клану","clan_name_ph":"наприклад Legion","clan_tag":"Тег (2–4 символи)","clan_tag_ph":"LNG","clan_create_go":"Створити","cancel":"Скасувати","clan_members":"Учасники: {0}","clan_leave_btn":"Вийти з клану","clan_hint_invite":"Запросити: натисни на гравця → «Запросити в клан»","clan_invites":"Запрошення: {0}","clan_more":"ще +{0}","clan_invite_btn":"🛡 Запросити в клан","clan_card_ally":"Твій клан","clan_card_hint_noclan":"Створи клан у меню «🛡 Клан»","clan_card_hint_noleader":"Запрошувати може лідер клану","ce_clan_name_bad":"Назва: 3–20 символів — літери, цифри, _ та пробіл","ce_clan_tag_bad":"Тег: 2–4 символи, лише літери та цифри","ce_clan_name_taken":"Така назва вже зайнята","ce_clan_tag_taken":"Такий тег уже зайнятий","m_clanmate":"Це твій клан — соклановців бити не можна","m_clan_in_clan":"Ти вже в клані","m_clan_not_leader":"Запрошувати може лише лідер клану","m_clan_already_member":"{0} уже у твоєму клані","m_clan_invite_sent":"Запрошення надіслано: {0}","m_clan_invited":"[{0}] {1} запрошує тебе в клан — відкрий «🛡 Клан»","m_clan_joined":"Ти вступив у клан [{0}]","m_clan_left":"Ти вийшов з клану","m_clan_kicked":"Тебе виключили з клану [{0}]","m_clan_created":"Клан [{0}] створено!","m_clan_pending":"Запрошень у клан: {0} — відкрий «🛡 Клан»"});
 Object.assign(L.uk, { f_enemy_punk:'Панк', pass2:'Повтори пароль', pass2_ph:'ще раз той самий пароль', err_pass_mismatch:'Паролі не збігаються', show_pass:'Показати пароль' });
+Object.assign(L.en, {"lbl_wild":"WILD","lbl_wild2":"WILD · HARSH","sub_wild":"attack anyone except your clan","sub_wild2":"same rules, but more punks and XP","clan_btn":"🛡 Clan","clan_title":"Clan","clan_none":"You are not in a clan yet","clan_create_btn":"Create a clan","clan_form_title":"CREATE A CLAN","clan_name":"Clan name","clan_name_ph":"e.g. Legion","clan_tag":"Tag (2–4 characters)","clan_tag_ph":"LNG","clan_create_go":"Create","cancel":"Cancel","clan_members":"Members: {0}","clan_leave_btn":"Leave clan","clan_hint_invite":"To invite: tap a player → “Invite to clan”","clan_invites":"Invitations: {0}","clan_more":"+{0} more","clan_invite_btn":"🛡 Invite to clan","clan_card_ally":"Your clan","clan_card_hint_noclan":"Create a clan in the “🛡 Clan” menu","clan_card_hint_noleader":"Only the clan leader can invite","ce_clan_name_bad":"Name: 3–20 characters — letters, digits, _ and space","ce_clan_tag_bad":"Tag: 2–4 characters, letters and digits only","ce_clan_name_taken":"This name is taken","ce_clan_tag_taken":"This tag is taken","m_clanmate":"That’s your clan — you can’t hit clanmates","m_clan_in_clan":"You are already in a clan","m_clan_not_leader":"Only the clan leader can invite","m_clan_already_member":"{0} is already in your clan","m_clan_invite_sent":"Invitation sent: {0}","m_clan_invited":"[{0}] {1} invites you to a clan — open “🛡 Clan”","m_clan_joined":"You joined clan [{0}]","m_clan_left":"You left the clan","m_clan_kicked":"You were removed from clan [{0}]","m_clan_created":"Clan [{0}] created!","m_clan_pending":"Clan invitations: {0} — open “🛡 Clan”"});
 Object.assign(L.en, { f_enemy_punk:'Punk', pass2:'Repeat password', pass2_ph:'same password again', err_pass_mismatch:'Passwords do not match', show_pass:'Show password' });
 function t(k, ...a){
   let s = (L[lang] && k in L[lang]) ? L[lang][k] : (k in L.ru ? L.ru[k] : k);
@@ -222,17 +239,17 @@ const ROAD = {sx:48,sy:224,sw:112,sh:144}, LAMP = {sx:16,sy:0,sw:42,sh:144};
 const TYPES = {
   hub:     { get label(){ return t('lbl_safe'); },    get sub(){ return t('sub_hub'); },     color:'#3ddc84', tint:null },
   safe:    { get label(){ return t('lbl_safe'); },    get sub(){ return t('sub_safe'); },    color:'#3ddc84', tint:null },
-  consent: { get label(){ return t('lbl_consent'); }, get sub(){ return t('sub_consent'); }, color:'#ffc933', tint:'rgba(70,55,0,0.16)' },
-  danger:  { get label(){ return t('lbl_danger'); },  get sub(){ return t('sub_danger'); },  color:'#ff4a4a', tint:'rgba(110,0,0,0.26)' },
+  wild:    { get label(){ return t('lbl_wild'); },    get sub(){ return t('sub_wild'); },    color:'#ff9d2e', tint:'rgba(90,50,0,0.18)' },
+  wild2:   { get label(){ return t('lbl_wild2'); },   get sub(){ return t('sub_wild2'); },   color:'#ff4a4a', tint:'rgba(110,0,0,0.26)' },
 };
 const ZONES = [
-  { get name(){ return t('z0'); }, type:'danger',  seq:['smallbrick','smallbrick','pipe','smallbrick','archwin','smallbrick','door','smallbrick','smallbrick'], tint:'rgba(20,40,20,0.28)' },
-  { get name(){ return t('z1'); }, type:'consent', seq:['brick','brick2','brick','archwin','brick2','brick','door'] },
+  { get name(){ return t('z0'); }, type:'wild2',   seq:['smallbrick','smallbrick','pipe','smallbrick','archwin','smallbrick','door','smallbrick','smallbrick'], tint:'rgba(20,40,20,0.28)' },
+  { get name(){ return t('z1'); }, type:'wild',    seq:['brick','brick2','brick','archwin','brick2','brick','door'] },
   { get name(){ return t('z2'); },           type:'safe',    seq:['brick','garageCar','brick2','garageShut','brick','graffiti','smallbrick'] },
   { get name(){ return t('z3'); },         type:'hub',     seq:['window','pizza','window'] },
   { get name(){ return t('z4'); },        type:'safe',    seq:['pizza','window'] },
-  { get name(){ return t('z5'); },  type:'consent', seq:['window','window','archwin','window','window','door'] },
-  { get name(){ return t('z6'); },     type:'danger',  seq:['brick'], tint:'rgba(70,0,70,0.28)', neon:true },
+  { get name(){ return t('z5'); },  type:'wild',    seq:['window','window','archwin','window','window','door'] },
+  { get name(){ return t('z6'); },     type:'wild2',   seq:['brick'], tint:'rgba(70,0,70,0.28)', neon:true },
 ];
 const zoneAt = x => Math.max(0, Math.min(ZONES.length-1, Math.floor(x / ZONE_W)));
 
@@ -346,8 +363,8 @@ function showMsg(text, btn, fn){
 // ═══════════════ СЕТЬ ═══════════════
 let ws = null, myId = 0, connected = false, retry = 0, gameStarted = false, stopRetry = false;
 const ents = new Map();            // id → сущность
-const me = { sp:240, x:0, y:600, f:1, xp:0, need:50, pt:0, st:{str:1,hp:1,spd:1}, duel:0, sent:'', sentAt:0 };
-const ui = { hits:[], toasts:[], floaters:[], banner:null, card:null, panel:false, touch:false, koText:0, invite:null, duelName:'' };
+const me = { sp:240, x:0, y:600, f:1, xp:0, need:50, pt:0, st:{str:1,hp:1,spd:1}, sent:'', sentAt:0 };
+const ui = { hits:[], toasts:[], floaters:[], banner:null, card:null, panel:false, touch:false, koText:0, clanPanel:false, clanScroll:0 };
 
 function enterGame(){
   $('ov').hidden = true; document.body.classList.add('ingame');
@@ -384,7 +401,7 @@ function onServer(m){
         const e = ents.get(r[0]); if (!e) continue;
         e.x = r[1]; e.y = r[2]; e.f = r[3];
         if (e.s !== r[4]){ e.s = r[4]; e.t = 0; }
-        e.h = r[5]; e.m = r[6]; e.l = r[7]; e.c = r[8];
+        e.h = r[5]; e.m = r[6]; e.l = r[7]; e.c = r[8]; e.cl = r[9] || 0;
         if (!e.init){ e.rx = e.x; e.ry = e.y; e.init = true; }
         if (e.id === myId){
           const d = Math.hypot(e.x - me.x, e.y - me.y);
@@ -396,16 +413,20 @@ function onServer(m){
         const e = ents.get(v[0]); if (!e) continue;
         floater(e, v[2] ? t('block_dmg', v[1]) : '−'+v[1], v[2] ? '#7ec8ff' : (e.id === myId ? '#ff5a5a' : '#ffe14a'));
       }
-      Object.assign(me, { sp:m.me.sp, xp:m.me.xp, need:m.me.need, pt:m.me.pt, st:m.me.st, duel:m.me.duel });
+      Object.assign(me, { sp:m.me.sp, xp:m.me.xp, need:m.me.need, pt:m.me.pt, st:m.me.st });
       break;
     }
     case 'toast': toast(t('m_' + m.k, ...(m.a || [])), m.color); break;
     case 'lvl': ui.banner = { text:t('lvlup', m.level), sub:t('lvlup_sub', m.points), t:2.6 }; break;
-    case 'ko': ui.koText = 2; ui.card = null; ui.invite = null; break;
+    case 'ko': ui.koText = 2; ui.card = null; break;
     case 'card': ui.card = m; ui.panel = false; break;
-    case 'duel_inv': ui.invite = { from:m.from, name:m.name, t:m.sec }; break;
-    case 'duel_start': ui.duelName = m.name; ui.invite = null; ui.card = null; toast(t('duel_with', m.name), '#ff9d5a'); break;
-    case 'duel_end': ui.duelName = ''; break;
+    case 'clans': Object.assign(clanTags, m.m); break;
+    case 'clan':
+      clanState.clan = m.clan; clanState.invites = m.invites;
+      if (clanState.first){ clanState.first = false; if (m.invites.length) toast(t('m_clan_pending', m.invites.length), '#7dc8ff'); }
+      break;
+    case 'clan_err': $('cErr').textContent = t('ce_' + m.code); $('cGo').disabled = false; break;
+    case 'clan_ok': $('clanForm').hidden = true; break;
     case 'kicked': break;
   }
 }
@@ -429,7 +450,7 @@ addEventListener('keydown', e => {
   if (e.repeat) return;
   keys[e.code] = true;
   if (KEY_ACTION[e.code]) doAction(KEY_ACTION[e.code]);
-  if (e.code === 'Tab') { ui.panel = !ui.panel; ui.card = null; }
+  if (e.code === 'Tab') { ui.panel = !ui.panel; ui.card = null; ui.clanPanel = false; }
   if (e.code === 'KeyE'){
     let best = null, bd = 240;
     for (const a of ents.values()){ if (a.id === myId) continue; const d = Math.hypot(a.x-me.x, (a.y-me.y)*2); if (d < bd){ bd = d; best = a; } }
@@ -503,6 +524,81 @@ function askCard(a){
   sendWs({ t:'inspect', id:a.id });
 }
 
+// ── КЛАН: состояние и панель ──
+// Клан постоянный. Создаёт любой; приглашает только лидер (нажать на игрока → «Пригласить в клан»);
+// приглашения хранятся на сервере без срока — принять можно когда угодно (красная точка на кнопке «Клан»).
+const clanState = { clan:null, invites:[], first:true };
+const clanTags = {};                                   // clanId → тег (приходит от сервера)
+const myClanId = () => clanState.clan ? clanState.clan.id : 0;
+function openClanPanel(){ ui.clanPanel = true; ui.panel = false; ui.card = null; ui.clanScroll = 0; sendWs({ t:'clan_info' }); }
+function openClanForm(){ $('cErr').textContent = ''; $('cGo').disabled = false; $('clanForm').hidden = false; setTimeout(() => $('cName').focus(), 50); }
+$('cCancel').onclick = () => { $('clanForm').hidden = true; };
+$('cGo').onclick = () => { $('cErr').textContent = ''; $('cGo').disabled = true; sendWs({ t:'clan_create', name:$('cName').value, tag:$('cTag').value }); };
+$('cTag').addEventListener('keydown', e => { if (e.key === 'Enter') $('cGo').click(); });
+canvas.addEventListener('wheel', e => { if (ui.clanPanel){ ui.clanScroll += e.deltaY > 0 ? 1 : -1; e.preventDefault(); } }, { passive:false });
+
+function drawClanPanel(){
+  if (!ui.clanPanel) return;
+  const w = 720, h = 480, x = (CW-w)/2, y = 84, c = clanState.clan, inv = clanState.invites;
+  ctx.fillStyle = 'rgba(8,8,16,0.96)'; rr(x, y, w, h, 14); ctx.fill();
+  ctx.strokeStyle = '#7dc8ff'; ctx.lineWidth = 2.5; rr(x, y, w, h, 14); ctx.stroke();
+  addHit(x, y, w, h, () => {});
+  txt(c ? '['+c.tag+'] '+c.name : '🛡 '+t('clan_title'), x+22, y+40, 26, '#7dc8ff', 'left', w-120);
+  txt('✕', x+w-26, y+38, 24, '#ff8a8a'); addHit(x+w-52, y+6, 46, 46, () => { ui.clanPanel = false; });
+  let cy = y + 58;
+
+  // приглашения (их может быть несколько, хранятся без срока)
+  if (inv.length){
+    txt(t('clan_invites', inv.length), x+22, cy+16, 16, '#ffd23f', 'left');
+    inv.slice(0, 3).forEach((iv, i) => {
+      const ry = cy + 26 + i*42;
+      ctx.fillStyle = 'rgba(60,90,140,0.35)'; rr(x+18, ry, w-36, 36, 8); ctx.fill();
+      txt('['+iv.tag+'] '+iv.name+(iv.from ? '  ·  '+iv.from : ''), x+30, ry+25, 16, '#fff', 'left', w-300);
+      ctx.fillStyle = '#2fae5c'; rr(x+w-238, ry+3, 130, 30, 8); ctx.fill(); txt('✔ '+t('accept'), x+w-173, ry+24, 15, '#fff');
+      addHit(x+w-238, ry+3, 130, 30, () => sendWs({ t:'clan_accept', id:iv.id }));
+      ctx.fillStyle = '#a33a3a'; rr(x+w-100, ry+3, 74, 30, 8); ctx.fill(); txt('✕', x+w-63, ry+25, 17, '#fff');
+      addHit(x+w-100, ry+3, 74, 30, () => sendWs({ t:'clan_decline', id:iv.id }));
+    });
+    cy += 26 + Math.min(3, inv.length)*42;
+    if (inv.length > 3){ txt(t('clan_more', inv.length-3), x+w/2, cy+10, 13, '#9fb0d8'); cy += 18; }
+    cy += 6;
+  }
+
+  if (!c){
+    txt(t('clan_none'), x+w/2, cy+60, 22, '#b8c8ee');
+    ctx.fillStyle = '#2f7fd0'; rr(x+w/2-140, cy+92, 280, 52, 12); ctx.fill();
+    txt(t('clan_create_btn'), x+w/2, cy+126, 20, '#fff');
+    addHit(x+w/2-140, cy+92, 280, 52, openClanForm);
+    return;
+  }
+  // участники
+  txt(t('clan_members', c.members.length), x+22, cy+20, 17, '#dfe6ff', 'left');
+  const listY = cy + 32, rowH = 34, listH = (y + h - 66) - listY, vis = Math.max(1, Math.floor(listH / rowH));
+  const maxScroll = Math.max(0, c.members.length - vis);
+  ui.clanScroll = Math.max(0, Math.min(maxScroll, ui.clanScroll || 0));
+  for (let i = 0; i < vis; i++){
+    const m = c.members[ui.clanScroll + i]; if (!m) break;
+    const ry = listY + i*rowH;
+    ctx.fillStyle = i % 2 ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.07)'; rr(x+18, ry, w-76, rowH-4, 6); ctx.fill();
+    ctx.fillStyle = m.on ? '#4be06f' : '#5b6480'; ctx.beginPath(); ctx.arc(x+36, ry+15, 6, 0, Math.PI*2); ctx.fill();
+    txt((m.lead ? '👑 ' : '')+m.nick, x+52, ry+21, 16, m.lead ? '#ffd23f' : '#fff', 'left', 380);
+    txt(t('lvl_word', m.lvl), x+w-160, ry+21, 15, '#9fb0d8', 'right');
+    if (c.leader && !m.lead){
+      ctx.fillStyle = 'rgba(163,58,58,0.85)'; rr(x+w-140, ry+2, 48, 26, 6); ctx.fill(); txt('✕', x+w-116, ry+22, 15, '#fff');
+      addHit(x+w-140, ry+2, 48, 26, () => sendWs({ t:'clan_kick', acc:m.acc }));
+    }
+  }
+  if (maxScroll > 0){
+    ctx.fillStyle = 'rgba(80,110,170,0.8)';
+    rr(x+w-50, listY, 34, 34, 6); ctx.fill(); txt('▲', x+w-33, listY+24, 16, '#fff'); addHit(x+w-50, listY, 34, 34, () => { ui.clanScroll--; });
+    rr(x+w-50, listY+40, 34, 34, 6); ctx.fill(); txt('▼', x+w-33, listY+64, 16, '#fff'); addHit(x+w-50, listY+40, 34, 34, () => { ui.clanScroll++; });
+  }
+  if (c.leader){ ctx.font = '12px Arial'; ctx.textAlign = 'left'; ctx.fillStyle = '#7f8db0'; ctx.fillText(t('clan_hint_invite'), x+22, y+h-28, w-260); }
+  ctx.fillStyle = 'rgba(120,40,40,0.85)'; rr(x+w-200, y+h-54, 180, 38, 10); ctx.fill();
+  txt(t('clan_leave_btn'), x+w-110, y+h-28, 15, '#fff', 'center', 170);
+  addHit(x+w-200, y+h-54, 180, 38, () => sendWs({ t:'clan_leave' }));
+}
+
 // ═══════════════ ЛОГИКА КАДРА ═══════════════
 let camX = 0;
 function toast(text, color){ ui.toasts.push({ text, color: color||'#fff', t:2.6 }); if (ui.toasts.length > 3) ui.toasts.shift(); }
@@ -543,7 +639,6 @@ function update(dt){
   for (const t of ui.toasts) t.t -= dt; ui.toasts = ui.toasts.filter(t => t.t > 0);
   if (ui.banner){ ui.banner.t -= dt; if (ui.banner.t <= 0) ui.banner = null; }
   if (ui.koText > 0) ui.koText -= dt;
-  if (ui.invite){ ui.invite.t -= dt; if (ui.invite.t <= 0) ui.invite = null; }
   const target = Math.max(0, Math.min(WORLD_W-CW, me.x - CW/2));
   camX += (target - camX) * Math.min(1, dt*8);
 }
@@ -637,7 +732,7 @@ function drawZoneDecor(){
       txt(zone.name, cx, y+42, 34, '#fff'); txt(ty.label, cx, y+74, 22, ty.color);
     }
   }
-  const rank = k => ({hub:0,safe:1,consent:2,danger:3})[ZONES[k].type];
+  const rank = k => ({hub:0,safe:1,wild:2,wild2:3})[ZONES[k].type];
   for (let z=1; z<ZONES.length; z++){
     const bx = z*ZONE_W - camX;
     if (bx < -300 || bx > CW+300) continue;
@@ -695,12 +790,13 @@ function drawActor(e){
   const isMe = e.id === myId, isBot = e.k === 'b';
   const zt = ZONES[zoneAt(e.rx)].type;
   ctx.font = 'bold 15px Arial';
-  const name = isBot ? '🤖 '+t('f_'+e.ty) : e.n, nameW = ctx.measureText(name).width;
+  const name = isBot ? '🤖 '+t('f_'+e.ty) : ((e.cl && clanTags[e.cl]) ? '['+clanTags[e.cl]+'] ' : '') + e.n, nameW = ctx.measureText(name).width;
   const pill = t('pill') + e.l, pw = ctx.measureText(pill).width + 10, total = pw + 6 + nameW, x0 = sx - total/2;
   ctx.fillStyle = 'rgba(0,0,0,0.5)'; rr(x0-6, ny-15, total+12, 21, 6); ctx.fill();
   ctx.fillStyle = isMe ? '#b8860b' : isBot ? '#7a2a2a' : '#3a4a8a'; rr(x0, ny-12, pw, 16, 5); ctx.fill();
   ctx.textAlign = 'center'; ctx.fillStyle = '#fff'; ctx.fillText(pill, x0 + pw/2, ny);
-  ctx.textAlign = 'left'; ctx.fillStyle = isMe ? '#ffd23f' : (isBot || zt === 'danger') ? '#ff8a8a' : '#fff';
+  ctx.textAlign = 'left'; const mate = !isMe && !isBot && e.cl && e.cl === myClanId();
+  ctx.fillStyle = isMe ? '#ffd23f' : mate ? '#7fe3ff' : (isBot || zt === 'wild' || zt === 'wild2') ? '#ff8a8a' : '#fff';
   ctx.fillText(name, x0 + pw + 6, ny + 1);
 }
 function drawFloaters(){
@@ -730,10 +826,6 @@ function drawHUD(){
     txt(t('points', me.pt), 101, 148, 16, '#fff');
     addHit(16, 124, 170, 34, () => { ui.panel = true; ui.card = null; });
   }
-  if (ui.duelName){
-    ctx.fillStyle = 'rgba(200,60,30,0.85)'; rr(16, me.pt > 0 ? 166 : 124, 260, 30, 10); ctx.fill();
-    txt(t('duel_hud', ui.duelName), 146, (me.pt > 0 ? 166 : 124) + 21, 14, '#fff', 'center', 240);
-  }
 
   ctx.fillStyle = 'rgba(8,8,16,0.82)'; rr(362, 16, 380, 70, 12); ctx.fill();
   ctx.strokeStyle = ty.color; ctx.lineWidth = 2.5; rr(362, 16, 380, 70, 12); ctx.stroke();
@@ -750,14 +842,20 @@ function drawHUD(){
   ctx.globalAlpha = 1;
   for (const e of ents.values()){
     const px = mmx + (e.rx / WORLD_W) * mapW, self = e.id === myId;
-    ctx.fillStyle = self ? '#fff' : e.k === 'b' ? 'rgba(120,0,0,0.6)' : 'rgba(0,0,60,0.9)';
+    ctx.fillStyle = self ? '#fff' : e.k === 'b' ? 'rgba(120,0,0,0.6)' : (e.cl && e.cl === myClanId()) ? '#19c3ff' : 'rgba(0,0,60,0.9)';
     ctx.beginPath(); ctx.arc(px, my2 + mh/2, self ? 5 : 2.5, 0, Math.PI*2); ctx.fill();
     if (self){ ctx.strokeStyle = '#000'; ctx.lineWidth = 2; ctx.stroke(); }
   }
   ctx.fillStyle = 'rgba(8,8,16,0.82)'; rr(RX-150, 50, 150, 34, 10); ctx.fill();
   ctx.strokeStyle = 'rgba(140,170,255,0.6)'; ctx.lineWidth = 2; rr(RX-150, 50, 150, 34, 10); ctx.stroke();
   txt(t('menu'), RX-75, 73, 15, '#dfe6ff');
-  addHit(RX-150, 50, 150, 34, () => { ui.panel = !ui.panel; ui.card = null; });
+  addHit(RX-150, 50, 150, 34, () => { ui.panel = !ui.panel; ui.card = null; ui.clanPanel = false; });
+  { const bx = RX-150-8-104, hasInv = clanState.invites.length > 0;
+    ctx.fillStyle = 'rgba(8,8,16,0.82)'; rr(bx, 50, 104, 34, 10); ctx.fill();
+    ctx.strokeStyle = hasInv ? '#ffd23f' : 'rgba(125,200,255,0.6)'; ctx.lineWidth = 2; rr(bx, 50, 104, 34, 10); ctx.stroke();
+    txt(t('clan_btn'), bx+52, 73, 15, '#dfe6ff', 'center', 96);
+    if (hasInv){ ctx.fillStyle = '#ff3b3b'; ctx.beginPath(); ctx.arc(bx+100, 54, 9, 0, Math.PI*2); ctx.fill(); txt(String(clanState.invites.length), bx+100, 59, 11, '#fff'); }
+    addHit(bx, 50, 104, 34, () => { if (ui.clanPanel) ui.clanPanel = false; else openClanPanel(); }); }
 
   if (!ui.touch){
     ctx.font = '12px Arial'; ctx.textAlign = 'right'; ctx.fillStyle = 'rgba(210,220,245,0.9)';
@@ -789,7 +887,7 @@ function drawCard(){
   ctx.fillStyle = 'rgba(8,8,16,0.94)'; rr(x, y, w, h, 14); ctx.fill();
   ctx.strokeStyle = '#8ab4ff'; ctx.lineWidth = 2.5; rr(x, y, w, h, 14); ctx.stroke();
   addHit(x, y, w, h, () => {});
-  txt(a.kind === 'b' ? t('f_'+a.ty) : a.name, x+20, y+40, 26, '#fff', 'left', 260); txt(t('lvl_word', a.level), x+w-56, y+40, 22, '#ffd23f', 'right');
+  txt(a.kind === 'b' ? t('f_'+a.ty) : ((a.tag ? '['+a.tag+'] ' : '') + a.name), x+20, y+40, 26, a.ally ? '#7fe3ff' : '#fff', 'left', 260); txt(t('lvl_word', a.level), x+w-56, y+40, 22, '#ffd23f', 'right');
   txt('✕', x+w-24, y+36, 24, '#ff8a8a'); addHit(x+w-50, y+6, 44, 44, () => { ui.card = null; });
   ctx.font = '14px Arial'; ctx.textAlign = 'left'; ctx.fillStyle = '#9fb0d8';
   ctx.fillText((a.kind === 'b' ? t('bot_prefix') : '') + t('fighter_lbl') + (A[a.ty] ? A[a.ty].name : ''), x+20, y+62);
@@ -798,12 +896,18 @@ function drawCard(){
     const ry = y + 118 + i*30;
     txt(r[0], x+20, ry+10, 16, '#dfe6ff', 'left'); bar(x+130, ry-2, w-190, 14, r[1]/20, r[2]); txt(String(r[1]), x+w-24, ry+11, 16, '#fff', 'right');
   });
-  const can = a.kind === 'p' && ZONES[zoneAt(me.x)].type === 'consent', by = y + h - 60;
-  ctx.fillStyle = can ? '#e0472e' : 'rgba(80,80,100,0.6)'; rr(x+20, by, w-40, 42, 10); ctx.fill();
-  txt(a.kind === 'b' ? t('card_bot') : t('duel_btn'), x+w/2, by+28, 18, can ? '#fff' : '#9a9ab0');
+  const by = y + h - 60;
+  let label, canDo = false;
+  if (a.kind === 'b') label = t('card_bot');
+  else if (a.ally) label = '🛡 ' + t('clan_card_ally');
+  else if (a.canInvite){ label = t('clan_invite_btn'); canDo = true; }
+  else if (!a.inClan) label = t('clan_card_hint_noclan');
+  else label = t('clan_card_hint_noleader');
+  ctx.fillStyle = canDo ? '#2f7fd0' : 'rgba(80,80,100,0.6)'; rr(x+20, by, w-40, 42, 10); ctx.fill();
+  txt(label, x+w/2, by+28, canDo ? 18 : 15, canDo ? '#fff' : '#b8c0d8', 'center', w-56);
   addHit(x+20, by, w-40, 42, () => {
-    if (can){ sendWs({ t:'duel', to:a.id }); ui.card = null; }
-    else if (a.kind === 'p') toast(t('m_duel_only_consent'), '#ffc933');
+    if (canDo){ sendWs({ t:'clan_invite', to:a.id }); ui.card = null; }
+    else if (a.kind === 'p' && !a.ally && !a.inClan){ openClanPanel(); }
   });
 }
 function drawPanel(){
@@ -830,19 +934,6 @@ function drawPanel(){
   ctx.fillText(t('no_reset'), x+w/2, y+h-52);
   ctx.fillStyle = 'rgba(120,40,40,0.8)'; rr(x+w/2-70, y+h-40, 140, 30, 8); ctx.fill();
   txt(t('logout'), x+w/2, y+h-19, 15, '#fff'); addHit(x+w/2-70, y+h-40, 140, 30, () => { stopRetry = true; logout(); });
-}
-function drawInvite(){
-  const v = ui.invite; if (!v) return;
-  const w = 460, h = 110, x = (CW-w)/2, y = 520;
-  ctx.fillStyle = 'rgba(8,8,16,0.95)'; rr(x, y, w, h, 14); ctx.fill();
-  ctx.strokeStyle = '#ff9d5a'; ctx.lineWidth = 3; rr(x, y, w, h, 14); ctx.stroke();
-  addHit(x, y, w, h, () => {});
-  txt(t('inv_title', v.name), x+w/2, y+34, 20, '#fff', 'center', w-30);
-  bar(x+20, y+44, w-40, 8, v.t/10, '#ff9d5a');
-  ctx.fillStyle = '#2fae5c'; rr(x+20, y+62, 200, 38, 10); ctx.fill(); txt(t('accept'), x+120, y+88, 18, '#fff');
-  addHit(x+20, y+62, 200, 38, () => { sendWs({ t:'duel_ans', from:v.from, ok:true }); ui.invite = null; });
-  ctx.fillStyle = '#a33a3a'; rr(x+w-220, y+62, 200, 38, 10); ctx.fill(); txt(t('decline'), x+w-120, y+88, 18, '#fff');
-  addHit(x+w-220, y+62, 200, 38, () => { sendWs({ t:'duel_ans', from:v.from, ok:false }); ui.invite = null; });
 }
 function drawOverlays(){
   if (ui.banner){
@@ -874,7 +965,7 @@ function frame(now){
   drawSky(); drawRoad(); drawWalls(); drawLamps(); drawZoneDecor();
   [...ents.values()].sort((a,b) => a.ry - b.ry).forEach(drawActor);
   drawFloaters();
-  if (connected){ drawHUD(); drawControls(); drawCard(); drawPanel(); drawInvite(); }
+  if (connected){ drawHUD(); drawControls(); drawCard(); drawPanel(); drawClanPanel(); }
   drawOverlays();
   requestAnimationFrame(frame);
 }
