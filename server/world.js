@@ -23,7 +23,7 @@ const zoneAt = x => clamp(Math.floor(x / ZONE_W), 0, N_ZONES - 1);
 // ── КЛУБ 21: вход на улице (зона 6, по центру), внутри — отдельная комната на один экран (1280x720). ──
 // Внутри драться нельзя, ботов нет, игроки видят только тех, кто внутри. Координаты — локальные (не карта мира).
 const CLUB_DOOR_X = 6 * ZONE_W + ZONE_W / 2;
-const CLUB_COMBAT_LOCK = 3;        // секунд после последнего удара, когда войти в клуб нельзя
+const CLUB_COMBAT_LOCK = 3;        // секунд после последнего удара ПО ИГРОКУ/ОТ ИГРОКА, когда войти в клуб нельзя (боты не мешают)
 const CLUB = {
   x0: 34, x1: 1246, y0: 246, y1: 705, spawn: { x: 676, y: 668 }, exit: { x0: 590, x1: 772, y: 672 },
   stoolX: [126, 284, 482, 632, 814, 995], stoolY: 262,
@@ -358,7 +358,7 @@ function makeEntity(kind, name, type, variant, x, y) {
     inx: 0, iny: 0, run: 1, blk: false, moving: false,
     level: 1, xp: 0, points: 0, stats: { ...infoOf(type).stats }, hp: 0,
     atk: null, rest: 0, hurtT: 0, stagImm: 0, koT: 0, combatT: 999,
-    room: '', hintCd: 0, clanId: 0, clanTag: '', clanLeader: false, knownClans: new Set(),
+    room: '', pvpT: 999, hintCd: 0, clanId: 0, clanTag: '', clanLeader: false, knownClans: new Set(),
     // игрок:
     ws: null, accountId: 0, known: new Set(), dirty: false, msgs: 0, msgWindow: 0, killedRecently: new Map(),
     // бот:
@@ -455,6 +455,7 @@ function resolveAttack(att) {
     else if (t.stagImm <= 0) { t.hurtT = 0.35; t.stagImm = 0.9; t.atk = null; }
     dmg = Math.max(1, Math.round(dmg));
     t.hp -= dmg; t.combatT = 0; att.combatT = 0;
+    if (att.kind === 'p' && t.kind === 'p') { att.pvpT = 0; t.pvpT = 0; }   // драка с игроком (боты в клуб не мешают войти)
     evs.push([t.id, dmg, blocked ? 1 : 0]);
     if (t.kind === 'b') { t.target = att.id; t.f = -att.f; }
     if (att.kind === 'p' && t.kind === 'b') gainXp(att, botXp(att, dmg, t.zone));
@@ -607,7 +608,7 @@ function tick() {
     if (e.hurtT > 0) e.hurtT -= dt;
     if (e.stagImm > 0) e.stagImm -= dt;
     if (e.hintCd > 0) e.hintCd -= dt;
-    e.combatT += dt;
+    e.combatT += dt; e.pvpT += dt;
 
     // движение
     let dx = e.inx, dy = e.iny; const len = Math.hypot(dx, dy);
@@ -763,7 +764,7 @@ function onMessage(p, m) {
 function enterClub(p) {
   if (p.room || p.koT > 0) return;
   if (Math.abs(p.x - CLUB_DOOR_X) > 140 || p.y > 570) return;          // только вплотную к двери
-  if (p.combatT < CLUB_COMBAT_LOCK) { if (p.hintCd <= 0) { p.hintCd = 2; toast(p, 'no_enter_combat', '#ffc933'); } return; }   // из боя в клуб не убежать (первые секунды после удара)
+  if (p.pvpT < CLUB_COMBAT_LOCK) { if (p.hintCd <= 0) { p.hintCd = 2; toast(p, 'no_enter_combat', '#ffc933'); } return; }   // из боя в клуб не убежать (первые секунды после удара)
   p.room = 'club'; p.x = CLUB.spawn.x; p.y = CLUB.spawn.y; p.inx = p.iny = 0; p.atk = null; p.blk = false; p.hurtT = 0;
 }
 function leaveClub(p) {

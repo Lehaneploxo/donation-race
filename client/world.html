@@ -207,9 +207,9 @@ Object.assign(L.en, { f_enemy_punk:'Punk', pass2:'Repeat password', pass2_ph:'sa
 Object.assign(L.ru, { btn_super:'СУПЕР', sec:'с', super_bar:'СУПЕР через {0}с', super_ready:'СУПЕР — ГОТОВО', hint2:'J — удар   K — суперсила   Пробел — блок', m_super_wait:'Суперсила заряжается: ещё {0} с' });
 Object.assign(L.uk, { btn_super:'СУПЕР', sec:'с', super_bar:'СУПЕР за {0}с', super_ready:'СУПЕР — ГОТОВО', hint2:'J — удар   K — суперсила   Пробіл — блок', m_super_wait:'Суперсила заряджається: ще {0} с' });
 Object.assign(L.en, { btn_super:'SUPER', sec:'s', super_bar:'SUPER in {0}s', super_ready:'SUPER — READY', hint2:'J — punch   K — super   Space — block', m_super_wait:'Super is charging: {0} s left' });
-Object.assign(L.ru, { door_enter:'Войти', door_exit:'Выйти', m_no_enter_combat:'В бою войти нельзя', hint3:'E — игрок рядом / дверь   Tab — персонаж' });
-Object.assign(L.uk, { door_enter:'Увійти', door_exit:'Вийти', m_no_enter_combat:'У бою увійти не можна', hint3:'E — гравець поруч / двері   Tab — персонаж' });
-Object.assign(L.en, { door_enter:'Enter', door_exit:'Exit', m_no_enter_combat:'Can’t enter during combat', hint3:'E — nearby player / door   Tab — character' });
+Object.assign(L.ru, { door_enter:'Войти', door_exit:'Выйти', m_no_enter_combat:'Пока идёт драка с игроком, войти нельзя', hint3:'E — игрок рядом / дверь   Tab — персонаж' });
+Object.assign(L.uk, { door_enter:'Увійти', door_exit:'Вийти', m_no_enter_combat:'Поки триває бійка з гравцем, увійти не можна', hint3:'E — гравець поруч / двері   Tab — персонаж' });
+Object.assign(L.en, { door_enter:'Enter', door_exit:'Exit', m_no_enter_combat:'Can’t enter while fighting another player', hint3:'E — nearby player / door   Tab — character' });
 function t(k, ...a){
   let s = (L[lang] && k in L[lang]) ? L[lang][k] : (k in L.ru ? L.ru[k] : k);
   a.forEach((v, i) => { s = s.split('{' + i + '}').join(v); });
