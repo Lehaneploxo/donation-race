@@ -46,7 +46,7 @@
        font-size:18px;font-weight:bold;cursor:pointer}
   button.main:disabled{opacity:.5;cursor:default}
   .link{margin-top:12px;text-align:center;font-size:13px;color:#8391b8;cursor:pointer;text-decoration:underline}
-  .cards{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+  .cards{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}
   @media (max-width:760px){.cards{grid-template-columns:repeat(2,1fr)}}
   .card{border:2px solid #2b2650;border-radius:12px;padding:10px;background:#0d0b1e;cursor:pointer;text-align:center}
   .card.on{border-color:#ffd23f;box-shadow:0 0 16px rgba(255,210,63,.4)}
@@ -54,7 +54,7 @@
   .card .nm{font-weight:bold;margin:4px 0 6px}
   .st{display:flex;align-items:center;gap:6px;font-size:12px;margin:3px 0;color:#c9d3f2}
   .st span{width:60px;text-align:left}.st i{display:block;height:8px;border-radius:4px}
-  .sw{display:flex;justify-content:center;gap:6px;margin-top:6px}
+  .sw{display:flex;flex-wrap:wrap;justify-content:center;gap:6px;margin-top:6px}
   .sw img{height:44px;border:2px solid transparent;border-radius:8px;padding:2px;background:#15122b}
   .sw img.on{border-color:#ffd23f}
   #msg{position:fixed;inset:0;z-index:25;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.75);
@@ -199,11 +199,11 @@ let lang = 'en';
 try { lang = localStorage.getItem('world_lang'); } catch(_){}
 if (!L[lang]){ const n = (navigator.language || '').toLowerCase(); lang = n.startsWith('uk') ? 'uk' : n.startsWith('ru') ? 'ru' : 'en'; }
 Object.assign(L.ru, {"lbl_wild":"ДИКИЙ","lbl_wild2":"ДИКИЙ · ЖЁСТКИЙ","sub_wild":"бей любого, кроме своего клана","sub_wild2":"то же, но панков и опыта больше","clan_btn":"🛡 Клан","clan_title":"Клан","clan_none":"Ты пока не в клане","clan_create_btn":"Создать клан","clan_form_title":"СОЗДАНИЕ КЛАНА","clan_name":"Название клана","clan_name_ph":"например Legion","clan_tag":"Тег (2–4 символа)","clan_tag_ph":"LNG","clan_create_go":"Создать","cancel":"Отмена","clan_members":"Участники: {0}","clan_leave_btn":"Выйти из клана","clan_hint_invite":"Пригласить: нажми на игрока → «Пригласить в клан»","clan_invites":"Приглашения: {0}","clan_more":"ещё +{0}","clan_invite_btn":"🛡 Пригласить в клан","clan_card_ally":"Твой клан","clan_card_hint_noclan":"Создай клан в меню «🛡 Клан»","clan_card_hint_noleader":"Приглашать может лидер клана","ce_clan_name_bad":"Название: 3–20 символов — буквы, цифры, _ и пробел","ce_clan_tag_bad":"Тег: 2–4 символа, только буквы и цифры","ce_clan_name_taken":"Такое название уже занято","ce_clan_tag_taken":"Такой тег уже занят","m_clanmate":"Это твой клан — соклановцев бить нельзя","m_clan_in_clan":"Ты уже в клане","m_clan_not_leader":"Приглашать может только лидер клана","m_clan_already_member":"{0} уже в твоём клане","m_clan_invite_sent":"Приглашение отправлено: {0}","m_clan_invited":"[{0}] {1} приглашает тебя в клан — открой «🛡 Клан»","m_clan_joined":"Ты вступил в клан [{0}]","m_clan_left":"Ты вышел из клана","m_clan_kicked":"Тебя исключили из клана [{0}]","m_clan_created":"Клан [{0}] создан!","m_clan_pending":"Приглашений в клан: {0} — открой «🛡 Клан»"});
-Object.assign(L.ru, { f_enemy_punk:'Панк', pass2:'Повтори пароль', pass2_ph:'ещё раз тот же пароль', err_pass_mismatch:'Пароли не совпадают', show_pass:'Показать пароль' });
+Object.assign(L.ru, { f_boxer:'Боксёр', f_enemy_punk:'Панк', pass2:'Повтори пароль', pass2_ph:'ещё раз тот же пароль', err_pass_mismatch:'Пароли не совпадают', show_pass:'Показать пароль' });
 Object.assign(L.uk, {"lbl_wild":"ДИКИЙ","lbl_wild2":"ДИКИЙ · ЖОРСТКИЙ","sub_wild":"бий будь-кого, крім свого клану","sub_wild2":"те саме, але більше панків і досвіду","clan_btn":"🛡 Клан","clan_title":"Клан","clan_none":"Ти поки не в клані","clan_create_btn":"Створити клан","clan_form_title":"СТВОРЕННЯ КЛАНУ","clan_name":"Назва клану","clan_name_ph":"наприклад Legion","clan_tag":"Тег (2–4 символи)","clan_tag_ph":"LNG","clan_create_go":"Створити","cancel":"Скасувати","clan_members":"Учасники: {0}","clan_leave_btn":"Вийти з клану","clan_hint_invite":"Запросити: натисни на гравця → «Запросити в клан»","clan_invites":"Запрошення: {0}","clan_more":"ще +{0}","clan_invite_btn":"🛡 Запросити в клан","clan_card_ally":"Твій клан","clan_card_hint_noclan":"Створи клан у меню «🛡 Клан»","clan_card_hint_noleader":"Запрошувати може лідер клану","ce_clan_name_bad":"Назва: 3–20 символів — літери, цифри, _ та пробіл","ce_clan_tag_bad":"Тег: 2–4 символи, лише літери та цифри","ce_clan_name_taken":"Така назва вже зайнята","ce_clan_tag_taken":"Такий тег уже зайнятий","m_clanmate":"Це твій клан — соклановців бити не можна","m_clan_in_clan":"Ти вже в клані","m_clan_not_leader":"Запрошувати може лише лідер клану","m_clan_already_member":"{0} уже у твоєму клані","m_clan_invite_sent":"Запрошення надіслано: {0}","m_clan_invited":"[{0}] {1} запрошує тебе в клан — відкрий «🛡 Клан»","m_clan_joined":"Ти вступив у клан [{0}]","m_clan_left":"Ти вийшов з клану","m_clan_kicked":"Тебе виключили з клану [{0}]","m_clan_created":"Клан [{0}] створено!","m_clan_pending":"Запрошень у клан: {0} — відкрий «🛡 Клан»"});
-Object.assign(L.uk, { f_enemy_punk:'Панк', pass2:'Повтори пароль', pass2_ph:'ще раз той самий пароль', err_pass_mismatch:'Паролі не збігаються', show_pass:'Показати пароль' });
+Object.assign(L.uk, { f_boxer:'Боксер', f_enemy_punk:'Панк', pass2:'Повтори пароль', pass2_ph:'ще раз той самий пароль', err_pass_mismatch:'Паролі не збігаються', show_pass:'Показати пароль' });
 Object.assign(L.en, {"lbl_wild":"WILD","lbl_wild2":"WILD · HARSH","sub_wild":"attack anyone except your clan","sub_wild2":"same rules, but more punks and XP","clan_btn":"🛡 Clan","clan_title":"Clan","clan_none":"You are not in a clan yet","clan_create_btn":"Create a clan","clan_form_title":"CREATE A CLAN","clan_name":"Clan name","clan_name_ph":"e.g. Legion","clan_tag":"Tag (2–4 characters)","clan_tag_ph":"LNG","clan_create_go":"Create","cancel":"Cancel","clan_members":"Members: {0}","clan_leave_btn":"Leave clan","clan_hint_invite":"To invite: tap a player → “Invite to clan”","clan_invites":"Invitations: {0}","clan_more":"+{0} more","clan_invite_btn":"🛡 Invite to clan","clan_card_ally":"Your clan","clan_card_hint_noclan":"Create a clan in the “🛡 Clan” menu","clan_card_hint_noleader":"Only the clan leader can invite","ce_clan_name_bad":"Name: 3–20 characters — letters, digits, _ and space","ce_clan_tag_bad":"Tag: 2–4 characters, letters and digits only","ce_clan_name_taken":"This name is taken","ce_clan_tag_taken":"This tag is taken","m_clanmate":"That’s your clan — you can’t hit clanmates","m_clan_in_clan":"You are already in a clan","m_clan_not_leader":"Only the clan leader can invite","m_clan_already_member":"{0} is already in your clan","m_clan_invite_sent":"Invitation sent: {0}","m_clan_invited":"[{0}] {1} invites you to a clan — open “🛡 Clan”","m_clan_joined":"You joined clan [{0}]","m_clan_left":"You left the clan","m_clan_kicked":"You were removed from clan [{0}]","m_clan_created":"Clan [{0}] created!","m_clan_pending":"Clan invitations: {0} — open “🛡 Clan”"});
-Object.assign(L.en, { f_enemy_punk:'Punk', pass2:'Repeat password', pass2_ph:'same password again', err_pass_mismatch:'Passwords do not match', show_pass:'Show password' });
+Object.assign(L.en, { f_boxer:'Boxer', f_enemy_punk:'Punk', pass2:'Repeat password', pass2_ph:'same password again', err_pass_mismatch:'Passwords do not match', show_pass:'Show password' });
 Object.assign(L.ru, { btn_super:'СУПЕР', sec:'с', super_bar:'СУПЕР через {0}с', super_ready:'СУПЕР — ГОТОВО', hint2:'J — удар   K — суперсила   Пробел — блок', m_super_wait:'Суперсила заряжается: ещё {0} с' });
 Object.assign(L.uk, { btn_super:'СУПЕР', sec:'с', super_bar:'СУПЕР за {0}с', super_ready:'СУПЕР — ГОТОВО', hint2:'J — удар   K — суперсила   Пробіл — блок', m_super_wait:'Суперсила заряджається: ще {0} с' });
 Object.assign(L.en, { btn_super:'SUPER', sec:'s', super_bar:'SUPER in {0}s', super_ready:'SUPER — READY', hint2:'J — punch   K — super   Space — block', m_super_wait:'Super is charging: {0} s left' });
@@ -270,9 +270,15 @@ const A = {
   brawler_girl: { base:'streets_of_fight', get name(){ return t('f_brawler_girl'); },
     idle:['Idle','idle',4,8],  walk:['Walk','walk',10,12],jab:['Jab','jab',3,16],  punch:['Punch','punch',3,16], kick:['Kick','kick',5,16],  hurt:['Hurt','hurt',2,12] },
 };
+A.boxer = { root:true, left:true, lying:true, get name(){ return t('f_boxer'); },
+    // замеры по кадрам: ступни на y=638 из 711, фигура 517 px высотой, центр тела x=285 из 744 (см. замер в разработке); лежа (KO) ниже
+    fit:{ vis:517/711, foot:638/711, koFoot:668/711, cx:285/744 }, thumb:{ x0:70, y0:110, x1:500, y1:645 },
+    idle:['idle','__Boxer2_Idle_',10,8], walk:['walk_fwd','__Boxer2_Forward_',10,10], jab:['punch1','__Boxer2_Punch1_',8,18], punch:['punch2','__Boxer2_Punch2_',8,18],
+    kick:['punch3','__Boxer2_Punch3_',8,18], hurt:['hurt/1-Hurt','__Boxer2_Hurt1_',8,14], ko:['ko','__Boxer2_KO_',8,10] };
 A.enemy_punk = { base:'streets_of_fight', left:true, lying:true, get name(){ return t('f_enemy_punk'); },
     idle:['Idle','idle',4,8], walk:['Walk','walk',4,10], jab:['Punch','punch',3,16], punch:['Punch','punch',3,16], kick:['Punch','punch',3,16], hurt:['Hurt','hurt',4,12] };
 const VARIANT_DIRS = {
+  boxer:        ['boxer_v1_red','boxer_v2_blue','boxer_v3_green','boxer_v4_purple','boxer_v5_gold','boxer_v6_cyan','boxer_v7_pink'],
   enemy_punk:   ['enemy_punk','enemy_punk_v4_teal','enemy_punk_v6_purple'],
   brute_arms:   ['brute_arms','brute_arms_v3_green','brute_arms_v5_blue'],
   bancho:       ['bancho','bancho_v4_teal','bancho_v6_purple'],
@@ -287,10 +293,26 @@ function framesOf(type, variant, anim){
   const k = dir+'|'+anim;
   if (_fc[k]) return _fc[k];
   const [folder, prefix, n] = A[type][anim], out = [];
-  for (let i=1;i<=n;i++){ const im = new Image(); im.src = `sprites/${A[type].base}/${dir}/${folder}/${prefix}${i}.png`; out.push(im); }
+  for (let i=1;i<=n;i++){
+    const im = new Image();
+    im.src = A[type].root ? `sprites/${dir}/${folder}/${prefix}${String(i-1).padStart(3,'0')}.png` : `sprites/${A[type].base}/${dir}/${folder}/${prefix}${i}.png`;
+    out.push(im);
+  }
   return _fc[k] = out;
 }
-const spriteUrl = (type, variant) => `sprites/${A[type].base}/${VARIANT_DIRS[type][variant]}/Idle/idle1.png`;
+const _thumbCache = {};
+// миниатюра боксёра: вырезаем фигуру из большого кадра (иначе в карточке был бы крошечный человечек посреди пустого поля)
+function thumbUrl(type, v, h){
+  const k = type + '|' + v + '|' + h; if (_thumbCache[k]) return _thumbCache[k];
+  return _thumbCache[k] = new Promise(res => {
+    const im = new Image(); const T = A[type].thumb;
+    im.onload = () => { const sc = h / (T.y1 - T.y0), c = document.createElement('canvas'); c.height = h; c.width = Math.round((T.x1 - T.x0) * sc);
+      const g = c.getContext('2d'); g.imageSmoothingEnabled = false; g.drawImage(im, T.x0, T.y0, T.x1 - T.x0, T.y1 - T.y0, 0, 0, c.width, c.height); res(c.toDataURL()); };
+    im.onerror = () => res('');
+    im.src = 'sprites/' + VARIANT_DIRS[type][v] + '/idle/__Boxer2_Idle_000.png';
+  });
+}
+const spriteUrl = (type, variant) => A[type].root ? '' : `sprites/${A[type].base}/${VARIANT_DIRS[type][variant]}/Idle/idle1.png`;
 
 // ═══════════════ ВХОД / РЕГИСТРАЦИЯ ═══════════════
 let mode = 'reg', token = null, cfg = null, pick = { type:null, variant:0 };
@@ -338,10 +360,11 @@ async function showCreate(){
   const maxes = { str:10, hp:10, spd:10 };
   cfg.fighters.forEach((f, i) => {
     const el = document.createElement('div'); el.className = 'card' + (i===0 ? ' on' : '');
-    el.innerHTML = `<img src="${spriteUrl(f.type, 0)}"><div class="nm">${t('f_' + f.type)}</div>
+    el.innerHTML = `<img ${A[f.type].root ? 'data-thumb="'+f.type+'|0|110"' : ''} src="${spriteUrl(f.type, 0)}"><div class="nm">${t('f_' + f.type)}</div>
       ${[[t('st_str'),'str','#ff8a4a'],[t('st_hp'),'hp','#4be06f'],[t('st_spd'),'spd','#5fc8ff']].map(([n,k,c]) =>
         `<div class="st"><span>${n}</span><i style="width:${f.stats[k]*8}px;background:${c}"></i>${f.stats[k]}</div>`).join('')}
-      <div class="sw">${[0,1,2].map(v => `<img data-v="${v}" class="${v===0?'on':''}" src="${spriteUrl(f.type, v)}">`).join('')}</div>`;
+      <div class="sw">${Array.from({length: f.variants || 3}, (_, v) => v).map(v => `<img data-v="${v}" ${A[f.type].root ? 'data-thumb="'+f.type+'|'+v+'|44"' : ''} class="${v===0?'on':''}" src="${spriteUrl(f.type, v)}">`).join('')}</div>`;
+    el.querySelectorAll('img[data-thumb]').forEach(async im => { const [ty, v, hh] = im.dataset.thumb.split('|'); im.src = await thumbUrl(ty, +v, +hh); });
     el.onclick = e => {
       box.querySelectorAll('.card').forEach(c => c.classList.remove('on')); el.classList.add('on');
       pick.type = f.type;
@@ -1072,7 +1095,7 @@ function drawActor(e){
   if (!A[e.ty]) return;
   const k = actorK(e), h = FIGHTER_H*k, sx = e.rx - camX;
   if (sx < -200 || sx > CW+200) return;
-  const anim = ST_ANIM[e.s] || 'idle', def = A[e.ty][anim];
+  const anim = (e.s === ST.ko && A[e.ty].ko) ? 'ko' : (ST_ANIM[e.s] || 'idle'), def = A[e.ty][anim];
   const list = framesOf(e.ty, e.v, anim), n = list.length, fps = def[3];
   let idx = Math.floor(e.t * fps);
   idx = (anim === 'idle' || anim === 'walk') ? idx % n : Math.min(n-1, idx);
@@ -1085,8 +1108,9 @@ function drawActor(e){
   ctx.save(); ctx.globalAlpha = 0.28; ctx.fillStyle = '#000';
   ctx.beginPath(); ctx.ellipse(sx, e.ry, (34 + 46*koP)*k, (8 + 3*koP)*k, 0, 0, Math.PI*2); ctx.fill(); ctx.restore();
   if (ready(frame)){
-    let sc = h / frame.naturalHeight;
-    if (frame.naturalWidth*sc > h*1.55) sc = h*1.55 / frame.naturalWidth;
+    const fit = A[e.ty].fit;                                   // у кадров с большими полями (боксёр) — масштаб и опора по замеру
+    let sc = fit ? 0.73 * h / (frame.naturalHeight * fit.vis) : h / frame.naturalHeight;
+    if (!fit && frame.naturalWidth*sc > h*1.55) sc = h*1.55 / frame.naturalWidth;
     const dw = frame.naturalWidth*sc, dh = frame.naturalHeight*sc;
     ctx.save();
     if (e.s === ST.ko && !A[e.ty].lying){
@@ -1096,7 +1120,8 @@ function drawActor(e){
     } else ctx.translate(sx, e.ry);
     if (e.s === ST.ko) ctx.globalAlpha = Math.max(0.2, 1 - Math.max(0, e.t - 1.4) / 0.6);
     if ((e.f < 0) !== !!A[e.ty].left) ctx.scale(-1, 1);   // у панка исходный взгляд влево
-    ctx.drawImage(frame, -dw/2, -dh + 6, dw, dh);
+    if (fit) ctx.drawImage(frame, -dw*fit.cx, -dh*(e.s === ST.ko ? fit.koFoot : fit.foot) + 6, dw, dh);
+    else ctx.drawImage(frame, -dw/2, -dh + 6, dw, dh);
     ctx.restore();
   }
   if (e.s === ST.block){
