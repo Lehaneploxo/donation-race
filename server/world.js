@@ -631,8 +631,8 @@ function tick() {
     const minX = 60, maxX = WORLD_W - 60;
     if (e.room === 'club') { e.x += dx * sp * dt; e.y += dy * sp * 0.6 * dt; clubConstrain(e); }
     else { e.x = clamp(e.x + dx * sp * dt, minX, maxX); e.y = clamp(e.y + dy * sp * 0.6 * dt, GROUND_MIN, GROUND_MAX); }
-    // автовход в клуб: упёрся в дверь (у самой стены по центру двери) — заходишь сам; клавиша E и кнопка тоже работают
-    if (e.kind === 'p' && !e.room && e.koT <= 0 && Math.abs(e.x - CLUB_DOOR_X) < 75 && e.y <= GROUND_MIN + 14) enterClub(e);
+    // автовход в клуб: упёрся в дверь снизу (идёшь вверх у самой стены по центру двери) — заходишь сам; клавиша E и кнопка тоже работают
+    if (e.kind === 'p' && !e.room && e.koT <= 0 && e.iny < -0.3 && Math.abs(e.x - CLUB_DOOR_X) < 75 && e.y <= GROUND_MIN + 14) enterClub(e);   // только если идёшь вверх В дверь (не пробегаешь вдоль стены)
     e.moving = !locked && (Math.abs(dx) + Math.abs(dy)) > 0.05;
     if (dx !== 0 && !locked && !e.atk) e.f = dx > 0 ? 1 : -1;
 
