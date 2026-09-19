@@ -204,6 +204,9 @@ Object.assign(L.uk, {"lbl_wild":"ДИКИЙ","lbl_wild2":"ДИКИЙ · ЖОРС
 Object.assign(L.uk, { f_enemy_punk:'Панк', pass2:'Повтори пароль', pass2_ph:'ще раз той самий пароль', err_pass_mismatch:'Паролі не збігаються', show_pass:'Показати пароль' });
 Object.assign(L.en, {"lbl_wild":"WILD","lbl_wild2":"WILD · HARSH","sub_wild":"attack anyone except your clan","sub_wild2":"same rules, but more punks and XP","clan_btn":"🛡 Clan","clan_title":"Clan","clan_none":"You are not in a clan yet","clan_create_btn":"Create a clan","clan_form_title":"CREATE A CLAN","clan_name":"Clan name","clan_name_ph":"e.g. Legion","clan_tag":"Tag (2–4 characters)","clan_tag_ph":"LNG","clan_create_go":"Create","cancel":"Cancel","clan_members":"Members: {0}","clan_leave_btn":"Leave clan","clan_hint_invite":"To invite: tap a player → “Invite to clan”","clan_invites":"Invitations: {0}","clan_more":"+{0} more","clan_invite_btn":"🛡 Invite to clan","clan_card_ally":"Your clan","clan_card_hint_noclan":"Create a clan in the “🛡 Clan” menu","clan_card_hint_noleader":"Only the clan leader can invite","ce_clan_name_bad":"Name: 3–20 characters — letters, digits, _ and space","ce_clan_tag_bad":"Tag: 2–4 characters, letters and digits only","ce_clan_name_taken":"This name is taken","ce_clan_tag_taken":"This tag is taken","m_clanmate":"That’s your clan — you can’t hit clanmates","m_clan_in_clan":"You are already in a clan","m_clan_not_leader":"Only the clan leader can invite","m_clan_already_member":"{0} is already in your clan","m_clan_invite_sent":"Invitation sent: {0}","m_clan_invited":"[{0}] {1} invites you to a clan — open “🛡 Clan”","m_clan_joined":"You joined clan [{0}]","m_clan_left":"You left the clan","m_clan_kicked":"You were removed from clan [{0}]","m_clan_created":"Clan [{0}] created!","m_clan_pending":"Clan invitations: {0} — open “🛡 Clan”"});
 Object.assign(L.en, { f_enemy_punk:'Punk', pass2:'Repeat password', pass2_ph:'same password again', err_pass_mismatch:'Passwords do not match', show_pass:'Show password' });
+Object.assign(L.ru, { btn_super:'СУПЕР', sec:'с', super_bar:'СУПЕР через {0}с', super_ready:'СУПЕР — ГОТОВО', hint2:'J — удар   K — суперсила   Пробел — блок', m_super_wait:'Суперсила заряжается: ещё {0} с' });
+Object.assign(L.uk, { btn_super:'СУПЕР', sec:'с', super_bar:'СУПЕР за {0}с', super_ready:'СУПЕР — ГОТОВО', hint2:'J — удар   K — суперсила   Пробіл — блок', m_super_wait:'Суперсила заряджається: ще {0} с' });
+Object.assign(L.en, { btn_super:'SUPER', sec:'s', super_bar:'SUPER in {0}s', super_ready:'SUPER — READY', hint2:'J — punch   K — super   Space — block', m_super_wait:'Super is charging: {0} s left' });
 function t(k, ...a){
   let s = (L[lang] && k in L[lang]) ? L[lang][k] : (k in L.ru ? L.ru[k] : k);
   a.forEach((v, i) => { s = s.split('{' + i + '}').join(v); });
@@ -363,7 +366,8 @@ function showMsg(text, btn, fn){
 // ═══════════════ СЕТЬ ═══════════════
 let ws = null, myId = 0, connected = false, retry = 0, gameStarted = false, stopRetry = false;
 const ents = new Map();            // id → сущность
-const me = { sp:240, x:0, y:600, f:1, xp:0, need:50, pt:0, st:{str:1,hp:1,spd:1}, sent:'', sentAt:0 };
+const SUPER_COOLDOWN = 60;                                        // секунд, как на сервере
+const me = { su:0, suStamp:0, sp:240, x:0, y:600, f:1, xp:0, need:50, pt:0, st:{str:1,hp:1,spd:1}, sent:'', sentAt:0 };
 const ui = { hits:[], toasts:[], floaters:[], banner:null, card:null, panel:false, touch:false, koText:0, clanPanel:false, clanScroll:0 };
 
 function enterGame(){
@@ -413,7 +417,7 @@ function onServer(m){
         const e = ents.get(v[0]); if (!e) continue;
         floater(e, v[2] ? t('block_dmg', v[1]) : '−'+v[1], v[2] ? '#7ec8ff' : (e.id === myId ? '#ff5a5a' : '#ffe14a'));
       }
-      Object.assign(me, { sp:m.me.sp, xp:m.me.xp, need:m.me.need, pt:m.me.pt, st:m.me.st });
+      Object.assign(me, { su:m.me.su, suStamp:performance.now(), sp:m.me.sp, xp:m.me.xp, need:m.me.need, pt:m.me.pt, st:m.me.st });
       break;
     }
     case 'toast': toast(t('m_' + m.k, ...(m.a || [])), m.color); break;
@@ -440,11 +444,11 @@ const keys = {};
 const joy = { active:false, id:-1, ox:0, oy:0, x:0, y:0, vx:0, vy:0 };
 const btns = [
   { name:'hit',   x:1170, y:590, r:72, get label(){ return t('btn_hit'); },  col:'#ff6b3d', down:false },
-  { name:'kick',  x:1040, y:648, r:58, get label(){ return t('btn_kick'); }, col:'#ffc933', down:false },
+  { name:'super', x:1040, y:648, r:58, get label(){ return t('btn_super'); }, col:'#ffc933', down:false },
   { name:'block', x:1180, y:452, r:54, get label(){ return t('btn_block'); },  col:'#4aa8ff', down:false },
 ];
 let blockHeld = false;
-const KEY_ACTION = { KeyJ:'hit', KeyZ:'hit', KeyK:'kick', KeyX:'kick' };
+const KEY_ACTION = { KeyJ:'hit', KeyZ:'hit', KeyK:'super', KeyX:'super' };
 addEventListener('keydown', e => {
   if (document.activeElement && document.activeElement.tagName === 'INPUT') return;
   if (['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Space','Tab'].includes(e.code)) e.preventDefault();
@@ -459,7 +463,7 @@ addEventListener('keydown', e => {
   }
 });
 addEventListener('keyup', e => { keys[e.code] = false; });
-function doAction(n){ if (n === 'hit') sendWs({ t:'atk', k:'jab' }); else if (n === 'kick') sendWs({ t:'atk', k:'kick' }); }
+function doAction(n){ if (n === 'hit') sendWs({ t:'atk', k:'jab' }); else if (n === 'super') sendWs({ t:'atk', k:'super' }); }
 
 const isRotated = () => document.body.classList.contains('ingame') && matchMedia('(orientation: portrait)').matches;
 const toCanvas = e => {
@@ -871,8 +875,8 @@ function drawFloaters(){
 function drawHUD(){
   const my = myEnt(), zone = ZONES[zoneAt(me.x)], ty = TYPES[zone.type];
   const hp = my ? my.h : 0, mx = my ? my.m : 100, lvl = my ? my.l : 1;
-  ctx.fillStyle = 'rgba(8,8,16,0.82)'; rr(16, 16, 330, 100, 12); ctx.fill();
-  ctx.strokeStyle = 'rgba(255,210,63,0.7)'; ctx.lineWidth = 2; rr(16, 16, 330, 100, 12); ctx.stroke();
+  ctx.fillStyle = 'rgba(8,8,16,0.82)'; rr(16, 16, 330, 128, 12); ctx.fill();
+  ctx.strokeStyle = 'rgba(255,210,63,0.7)'; ctx.lineWidth = 2; rr(16, 16, 330, 128, 12); ctx.stroke();
   ctx.fillStyle = '#b8860b'; ctx.beginPath(); ctx.arc(58, 66, 30, 0, Math.PI*2); ctx.fill();
   ctx.strokeStyle = '#ffd23f'; ctx.lineWidth = 3; ctx.stroke();
   txt(String(lvl), 58, 76, 26, '#fff'); txt(t('lvl_big'), 58, 46, 11, '#ffe9a0');
@@ -881,11 +885,14 @@ function drawHUD(){
   txt(hp+' / '+mx, 215, 67, 12, '#fff');
   bar(100, 78, 230, 10, me.xp/me.need, '#5fa8ff');
   txt(t('xp', Math.floor(me.xp), me.need), 100, 106, 12, '#b8c8ee', 'left');
+  { const rem = superRemain(), ready = rem <= 0.05, fr = 1 - Math.min(1, rem / SUPER_COOLDOWN);
+    bar(100, 114, 230, 14, fr, ready ? '#ffd23f' : '#d8912a');
+    txt(ready ? t('super_ready') : t('super_bar', Math.ceil(rem)), 215, 125, 11, '#fff'); }
 
   if (me.pt > 0){
-    ctx.globalAlpha = 0.75 + 0.25*Math.sin(performance.now()*0.008); ctx.fillStyle = '#ff9d2e'; rr(16, 124, 170, 34, 10); ctx.fill(); ctx.globalAlpha = 1;
-    txt(t('points', me.pt), 101, 148, 16, '#fff');
-    addHit(16, 124, 170, 34, () => { ui.panel = true; ui.card = null; });
+    ctx.globalAlpha = 0.75 + 0.25*Math.sin(performance.now()*0.008); ctx.fillStyle = '#ff9d2e'; rr(16, 152, 170, 34, 10); ctx.fill(); ctx.globalAlpha = 1;
+    txt(t('points', me.pt), 101, 176, 16, '#fff');
+    addHit(16, 152, 170, 34, () => { ui.panel = true; ui.card = null; });
   }
 
   const cellW = 48, mapW = cellW*ZONES.length, mmx = RX - mapW, my2 = 16, mh = 18;
@@ -915,6 +922,27 @@ function drawHUD(){
       .forEach((s,i) => { ctx.strokeStyle='rgba(0,0,0,0.8)'; ctx.lineWidth=3; ctx.strokeText(s, RX, 106+i*17); ctx.fillText(s, RX, 106+i*17); });
   }
 }
+// ── «Суперсила»: заряжается раз в минуту; кнопка заполняется снизу вверх, готовая — светится ──
+const superRemain = () => Math.max(0, (me.su || 0) - (performance.now() - (me.suStamp || 0)) / 1000);
+function drawSuperButton(b){
+  const rem = superRemain(), frac = 1 - Math.min(1, rem / SUPER_COOLDOWN), ready = rem <= 0.05, pulse = 0.6 + 0.4*Math.sin(performance.now()*0.008);
+  ctx.save();
+  ctx.globalAlpha = 0.85; ctx.fillStyle = '#2a2233'; ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI*2); ctx.fill();          // основа
+  ctx.beginPath(); ctx.arc(b.x, b.y, b.r-3, 0, Math.PI*2); ctx.clip();                                                            // «жидкость» внутри круга
+  ctx.fillStyle = ready ? '#ffc933' : '#c98a1a'; ctx.globalAlpha = ready ? 0.7 + 0.25*pulse : 0.85;
+  ctx.fillRect(b.x - b.r, b.y + b.r - 2*b.r*frac, 2*b.r, 2*b.r*frac);
+  ctx.restore();
+  ctx.save();
+  ctx.lineWidth = 5; ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.beginPath(); ctx.arc(b.x, b.y, b.r-2, 0, Math.PI*2); ctx.stroke();
+  ctx.strokeStyle = ready ? '#fff2a8' : '#ffe066';                                                                                 // кольцо-индикатор по часовой
+  if (ready){ ctx.shadowColor = '#ffd23f'; ctx.shadowBlur = 18 + 14*pulse; }
+  ctx.beginPath(); ctx.arc(b.x, b.y, b.r-2, -Math.PI/2, -Math.PI/2 + Math.PI*2*frac); ctx.stroke();
+  ctx.restore();
+  ctx.globalAlpha = (b.down && ready) ? 1 : 0.95;
+  txt(b.label, b.x, b.y + (ready ? 6 : 0), 16, ready ? '#fff' : '#f2e6c8');
+  if (!ready) txt(Math.ceil(rem) + t('sec'), b.x, b.y + 22, 14, '#fff');
+  ctx.globalAlpha = 1;
+}
 function drawControls(){
   if (!ui.touch) return;
   if (joy.active){
@@ -927,6 +955,7 @@ function drawControls(){
     ctx.globalAlpha = 0.5; txt(t('walk'), 170, 596, 14, '#fff'); ctx.globalAlpha = 1;
   }
   for (const b of btns){
+    if (b.name === 'super'){ drawSuperButton(b); continue; }
     const on = b.down;
     ctx.globalAlpha = on ? 0.95 : 0.55; ctx.fillStyle = b.col; ctx.beginPath(); ctx.arc(b.x, b.y, b.r*(on?0.94:1), 0, Math.PI*2); ctx.fill();
     ctx.globalAlpha = 0.9; ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; ctx.stroke(); ctx.globalAlpha = 1;

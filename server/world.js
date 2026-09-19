@@ -34,7 +34,9 @@ const infoOf = type => FIGHTERS[type] || BOT_TYPES[type];
 const VARIANTS = 3;   // цветов на бойца
 
 // ── правила боя (черновые числа — крутятся здесь) ──
-const ATK = { jab: { mult: 0.7, range: 125 }, punch: { mult: 1.0, range: 135 }, kick: { mult: 1.3, range: 145 } };
+// super — «Суперсила» (бывший пинок): ровно ×2 от «Удара» (jab), заряжается SUPER_COOLDOWN_MS, ничего не отнимает
+const ATK = { jab: { mult: 0.7, range: 125 }, punch: { mult: 1.0, range: 135 }, kick: { mult: 1.3, range: 145 }, super: { mult: 1.4, range: 145 } };
+const SUPER_COOLDOWN_MS = 60000;
 const POINTS_PER_LEVEL = 3, LEVEL_CAP = 100;
 const xpNeed   = lvl => Math.round(300 * Math.pow(lvl, 1.7));   // опыта до след. уровня: с 1-го 300, с 5-го ~4600, с 10-го ~15000, с 50-го ~232000
 const maxHpOf  = e => e.kind === 'b' ? 40 + e.level * 8 : 70 + e.stats.hp * 10;
@@ -329,7 +331,8 @@ let nextId = 1;
 const ents = new Map();          // id → сущность (игрок или бот)
 const byAccount = new Map();     // accountId → игрок
 const botRespawns = [];          // { zone, at }
-const evs = [];                  // события тика (цифры урона)
+const evs = [];
+const superReady = new Map();      // accountId → когда суперсила снова готова (живёт в памяти, перезаход заряд не сбрасывает)                  // события тика (цифры урона)
 const rnd = (a, b) => a + Math.random() * (b - a);
 
 const STATE = { idle: 0, walk: 1, jab: 2, punch: 3, kick: 4, hurt: 5, ko: 6, block: 7 };
@@ -385,7 +388,12 @@ async function savePlayer(p) {
 // ── бой ──
 function startAttack(e, kind) {
   if (e.atk || e.blk || e.koT > 0 || e.hurtT > 0 || e.rest > 0) return false;
-  const [n, fps] = infoOf(e.type).anim[kind];
+  if (kind === 'super') {
+    const now = Date.now(), ready = superReady.get(e.accountId) || 0;
+    if (now < ready) { if (e.hintCd <= 0) { e.hintCd = 1.5; toast(e, 'super_wait', '#ffc933', [Math.ceil((ready - now) / 1000)]); } return false; }
+    superReady.set(e.accountId, now + SUPER_COOLDOWN_MS);
+  }
+  const [n, fps] = infoOf(e.type).anim[kind === 'super' ? 'kick' : kind];
   e.atk = { kind, t: 0, dur: n / fps, hit: false };
   return true;
 }
@@ -628,7 +636,7 @@ function tick() {
 function stateCode(e) {
   if (e.koT > 0) return STATE.ko;
   if (e.hurtT > 0) return STATE.hurt;
-  if (e.atk) return STATE[e.atk.kind];
+  if (e.atk) return STATE[e.atk.kind === 'super' ? 'kick' : e.atk.kind];
   if (e.blk) return STATE.block;
   return e.moving ? STATE.walk : STATE.idle;
 }
@@ -655,7 +663,7 @@ function broadcast() {
     for (const id of p.known) if (!vis.has(id)) { rm.push(id); p.known.delete(id); }
     if (add.length) send(p, { t: 'add', e: add });
     const ev = evs.filter(v => vis.has(v[0]));
-    send(p, { t: 's', a, rm, ev, me: { sp: Math.round(speedOf(p)), xp: p.xp, need: xpNeed(p.level), pt: p.points, st: p.stats } });
+    send(p, { t: 's', a, rm, ev, me: { su: Math.max(0, Math.ceil(((superReady.get(p.accountId) || 0) - Date.now()) / 1000)), sp: Math.round(speedOf(p)), xp: p.xp, need: xpNeed(p.level), pt: p.points, st: p.stats } });
   }
 }
 
@@ -709,7 +717,7 @@ function onMessage(p, m) {
       if (p.koT > 0) { p.inx = p.iny = 0; }
       break;
     }
-    case 'atk': if (m.k === 'jab' || m.k === 'kick') startAttack(p, m.k); break;
+    case 'atk': if (m.k === 'jab') startAttack(p, 'jab'); else if (m.k === 'super' || m.k === 'kick') startAttack(p, 'super'); break;
     case 'spend':
       if (p.points > 0 && (m.stat === 'str' || m.stat === 'hp' || m.stat === 'spd')) {
         p.points--; p.stats[m.stat]++; p.dirty = true;
