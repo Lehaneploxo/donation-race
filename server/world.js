@@ -101,6 +101,7 @@ class PgStore {
     await this.pool.query('INSERT INTO world_chars(account_id,type,variant,level,xp,points,str,hp,spd) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT DO NOTHING',
       [id, c.type, c.variant, c.level, c.xp, c.points, c.str, c.hp, c.spd]);
   }
+  async setFighter(id, type, variant) { await this.pool.query('UPDATE world_chars SET type=$2, variant=$3 WHERE account_id=$1', [id, type, variant]); }
   async saveChar(id, c) {
     await this.pool.query('UPDATE world_chars SET level=$2,xp=$3,points=$4,str=$5,hp=$6,spd=$7,money=$8,updated_at=now() WHERE account_id=$1',
       [id, c.level, c.xp, c.points, c.str, c.hp, c.spd, c.money | 0]);
@@ -121,6 +122,7 @@ class FileStore {
   async getChar(id) { return this.d.chars[id] || null; }
   async insertChar(id, c) { if (!this.d.chars[id]) { this.d.chars[id] = { ...c }; this._save(); } }
   async saveChar(id, c) { if (this.d.chars[id]) { Object.assign(this.d.chars[id], c); this._save(); } }
+  async setFighter(id, type, variant) { if (this.d.chars[id]) { this.d.chars[id].type = type; this.d.chars[id].variant = variant; this._save(); } }
 }
 
 // ── кланы: хранилище (Postgres и локальный файл) ──
@@ -717,6 +719,8 @@ async function handleConnection(ws, req) {
     try { old.ws.close(4004, 'kicked'); } catch (_) {}
   }
   const ch = await store.getChar(acc.id);
+  // защита: если у аккаунта боец, которого больше нет в игре (например, убранный боксёр) — выдаём Хулигана, чтобы аккаунт заходил
+  if (ch && !FIGHTERS[ch.type]) { console.log('[WORLD] боец «' + ch.type + '» убран из игры — аккаунт ' + acc.nick + ' получает Хулигана'); ch.type = 'bancho'; ch.variant = 0; await store.setFighter(acc.id, ch.type, ch.variant); }
   if (!ch) { ws.send(JSON.stringify({ t: 'no_char' })); ws.close(4002, 'no char'); return; }
 
   const p = loadPlayer(acc.id, acc.nick, ch, ws);
