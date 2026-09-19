@@ -421,6 +421,7 @@ function onServer(m){
     case 'ko': ui.koText = 2; ui.card = null; break;
     case 'card': ui.card = m; ui.panel = false; break;
     case 'clans': Object.assign(clanTags, m.m); break;
+    case 'mm': miniPlayers = m.p; break;
     case 'clan':
       clanState.clan = m.clan; clanState.invites = m.invites;
       if (clanState.first){ clanState.first = false; if (m.invites.length) toast(t('m_clan_pending', m.invites.length), '#7dc8ff'); }
@@ -528,6 +529,7 @@ function askCard(a){
 // Клан постоянный. Создаёт любой; приглашает только лидер (нажать на игрока → «Пригласить в клан»);
 // приглашения хранятся на сервере без срока — принять можно когда угодно (красная точка на кнопке «Клан»).
 const clanState = { clan:null, invites:[], first:true };
+let miniPlayers = [];                                  // положения всех остальных игроков для мини-карты: [x, соклановец?]
 const clanTags = {};                                   // clanId → тег (приходит от сервера)
 const myClanId = () => clanState.clan ? clanState.clan.id : 0;
 function openClanPanel(){ ui.clanPanel = true; ui.panel = false; ui.card = null; ui.clanScroll = 0; sendWs({ t:'clan_info' }); }
@@ -840,12 +842,10 @@ function drawHUD(){
     ctx.globalAlpha = (z === zoneAt(me.x)) ? 0.95 : 0.5; ctx.fillStyle = TYPES[ZONES[z].type].color; ctx.fillRect(mmx + z*cellW + 1, my2, cellW-2, mh);
   }
   ctx.globalAlpha = 1;
-  for (const e of ents.values()){
-    const px = mmx + (e.rx / WORLD_W) * mapW, self = e.id === myId;
-    ctx.fillStyle = self ? '#fff' : e.k === 'b' ? 'rgba(120,0,0,0.6)' : (e.cl && e.cl === myClanId()) ? '#19c3ff' : 'rgba(0,0,60,0.9)';
-    ctx.beginPath(); ctx.arc(px, my2 + mh/2, self ? 5 : 2.5, 0, Math.PI*2); ctx.fill();
-    if (self){ ctx.strokeStyle = '#000'; ctx.lineWidth = 2; ctx.stroke(); }
-  }
+  // мини-карта: только реальные игроки (боты не показываются). Зелёные — соклановцы, красные — остальные, ты — белая
+  const dot = (px, col, r) => { ctx.beginPath(); ctx.arc(px, my2 + mh/2, r, 0, Math.PI*2); ctx.fillStyle = col; ctx.fill(); ctx.strokeStyle = 'rgba(0,0,0,0.9)'; ctx.lineWidth = 1.5; ctx.stroke(); };
+  for (const q of miniPlayers) dot(mmx + (q[0] / WORLD_W) * mapW, q[1] ? '#2bff6b' : '#ff3b3b', 3.5);
+  dot(mmx + (me.x / WORLD_W) * mapW, '#ffffff', 5);
   ctx.fillStyle = 'rgba(8,8,16,0.82)'; rr(RX-150, 50, 150, 34, 10); ctx.fill();
   ctx.strokeStyle = 'rgba(140,170,255,0.6)'; ctx.lineWidth = 2; rr(RX-150, 50, 150, 34, 10); ctx.stroke();
   txt(t('menu'), RX-75, 73, 15, '#dfe6ff');

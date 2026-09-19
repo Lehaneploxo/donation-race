@@ -632,8 +632,11 @@ function stateCode(e) {
   if (e.blk) return STATE.block;
   return e.moving ? STATE.walk : STATE.idle;
 }
+let mmTick = 0;
 function broadcast() {
   const list = [...ents.values()];
+  // мини-карта: раз в 0.5 с каждому игроку шлём положение всех остальных ИГРОКОВ (боты не показываются): [x, 1 если соклановец]
+  const sendMm = (++mmTick % 10) === 0, allPlayers = sendMm ? [...byAccount.values()] : null;
   const rows = new Map();
   for (const e of list) rows.set(e.id, [e.id, Math.round(e.x), Math.round(e.y), e.f, stateCode(e), Math.ceil(e.hp), maxHpOf(e), e.level, e.combatT < COMBAT_COOLDOWN ? 1 : 0, e.clanId || 0]);
   for (const p of byAccount.values()) {
@@ -644,6 +647,7 @@ function broadcast() {
       vis.add(e.id); a.push(rows.get(e.id));
       if (!p.known.has(e.id)) { p.known.add(e.id); add.push({ id: e.id, n: e.name, ty: e.type, v: e.variant, k: e.kind }); }
     }
+    if (sendMm) send(p, { t: 'mm', p: allPlayers.filter(q => q !== p).map(q => [Math.round(q.x), (p.clanId && q.clanId === p.clanId) ? 1 : 0]) });
     const newClans = {};
     for (const r of a) { const cid = r[9]; if (cid && !p.knownClans.has(cid)) { p.knownClans.add(cid); newClans[cid] = clanTags.get(cid) || ''; } }
     if (Object.keys(newClans).length) send(p, { t: 'clans', m: newClans });
