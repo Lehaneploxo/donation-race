@@ -62,6 +62,7 @@ const baseDmg  = e => 6 + e.stats.str * 1.2;
 const ZONE_XP_MULT = { safe: 1, wild: 1.6, wild2: 2.5 };   // опыт за урон по ботам
 const REGEN_HUB = 15, REGEN_FIELD = 3, COMBAT_COOLDOWN = 6;   // хп/сек, секунд «в бою»
 const RESPAWN_MS = 2000, BOT_RESPAWN_MS = 8000;
+const DEATH_MONEY_PENALTY = 10;   // $ теряет игрок за свою смерть (ниже нуля не уходит)
 const BOTS_BY_TYPE = { safe: 3, wild: 6, wild2: 10 };   // чем глубже, тем больше ботов (сила у всех одинаковая)
 const PUNK_LEVEL = 5;                                       // уровень панка (один на всех)
 const TICK_MS = 50, VIEW_RANGE = 1500;
@@ -81,6 +82,7 @@ class PgStore {
       level INTEGER NOT NULL DEFAULT 1, xp INTEGER NOT NULL DEFAULT 0, points INTEGER NOT NULL DEFAULT 0,
       str INTEGER NOT NULL, hp INTEGER NOT NULL, spd INTEGER NOT NULL,
       updated_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
+    await q(`ALTER TABLE world_chars ADD COLUMN IF NOT EXISTS money INTEGER NOT NULL DEFAULT 0`);
     await q(`CREATE TABLE IF NOT EXISTS world_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)`);
     await this.initClans();
   }
@@ -94,14 +96,14 @@ class PgStore {
       return r.rows[0].id;
     } catch (e) { if (e.code === '23505') throw new Error('taken'); throw e; }
   }
-  async getChar(id) { const r = await this.pool.query('SELECT type,variant,level,xp,points,str,hp,spd FROM world_chars WHERE account_id=$1', [id]); return r.rows[0] || null; }
+  async getChar(id) { const r = await this.pool.query('SELECT type,variant,level,xp,points,str,hp,spd,money FROM world_chars WHERE account_id=$1', [id]); return r.rows[0] || null; }
   async insertChar(id, c) {
     await this.pool.query('INSERT INTO world_chars(account_id,type,variant,level,xp,points,str,hp,spd) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT DO NOTHING',
       [id, c.type, c.variant, c.level, c.xp, c.points, c.str, c.hp, c.spd]);
   }
   async saveChar(id, c) {
-    await this.pool.query('UPDATE world_chars SET level=$2,xp=$3,points=$4,str=$5,hp=$6,spd=$7,updated_at=now() WHERE account_id=$1',
-      [id, c.level, c.xp, c.points, c.str, c.hp, c.spd]);
+    await this.pool.query('UPDATE world_chars SET level=$2,xp=$3,points=$4,str=$5,hp=$6,spd=$7,money=$8,updated_at=now() WHERE account_id=$1',
+      [id, c.level, c.xp, c.points, c.str, c.hp, c.spd, c.money | 0]);
   }
 }
 class FileStore {
@@ -360,7 +362,7 @@ function makeEntity(kind, name, type, variant, x, y) {
     atk: null, rest: 0, hurtT: 0, stagImm: 0, koT: 0, combatT: 999,
     room: '', pvpT: 999, hintCd: 0, clanId: 0, clanTag: '', clanLeader: false, knownClans: new Set(),
     // игрок:
-    ws: null, accountId: 0, known: new Set(), dirty: false, msgs: 0, msgWindow: 0, killedRecently: new Map(),
+    ws: null, accountId: 0, known: new Set(), dirty: false, msgs: 0, msgWindow: 0, killedRecently: new Map(), money: 0,
     // бот:
     zone: 0, target: 0, wait: 0, tx: x, ty: y, cd: 0 };
 }
@@ -387,7 +389,7 @@ function botXp(att, dmg, zone) {
 function loadPlayer(accountId, nick, ch, ws) {
   const p = makeEntity('p', nick, ch.type, ch.variant, HUB * ZONE_W + ZONE_W / 2 + rnd(-300, 300), rnd(GROUND_MIN + 40, GROUND_MAX - 40));
   p.accountId = accountId; p.ws = ws;
-  p.level = ch.level; p.xp = ch.xp; p.points = ch.points;
+  p.level = ch.level; p.xp = ch.xp; p.points = ch.points; p.money = ch.money | 0;
   p.stats = { str: ch.str, hp: ch.hp, spd: ch.spd };
   p.hp = maxHpOf(p);
   ents.set(p.id, p); byAccount.set(accountId, p);
@@ -397,7 +399,7 @@ async function savePlayer(p) {
   if (!store || !p.accountId) return;
   p.dirty = false;
   const int = v => Math.max(0, Math.floor(Number(v)) || 0);
-  try { await store.saveChar(p.accountId, { level: int(p.level), xp: int(p.xp), points: int(p.points), str: int(p.stats.str), hp: int(p.stats.hp), spd: int(p.stats.spd) }); }
+  try { await store.saveChar(p.accountId, { level: int(p.level), xp: int(p.xp), points: int(p.points), str: int(p.stats.str), hp: int(p.stats.hp), spd: int(p.stats.spd), money: int(p.money) }); }
   catch (e) { console.error('[WORLD] save error:', e.message); p.dirty = true; }
 }
 
@@ -468,6 +470,16 @@ function resolveAttack(att) {
 }
 function killEntity(t, killer) {
   t.hp = 0; t.koT = t.kind === 'b' ? 1.5 : RESPAWN_MS / 1000; t.atk = null; t.blk = false; t.inx = t.iny = 0;
+  // ДЕНЬГИ: нокаут (бот или игрок) — тому, кто нанёс последний удар, столько $, каков уровень нокаутированного. Без ограничений.
+  // За свою смерть игрок теряет $10 (ниже нуля не уходит).
+  if (killer && killer.kind === 'p' && killer !== t) {
+    const gain = Math.max(1, Math.floor(t.level)); killer.money += gain; killer.dirty = true;
+    send(killer, { t: 'money', d: gain, id: t.id });
+  }
+  if (t.kind === 'p') {
+    const lost = Math.min(DEATH_MONEY_PENALTY, t.money);
+    if (lost > 0) { t.money -= lost; t.dirty = true; send(t, { t: 'money', d: -lost, id: t.id }); }
+  }
   if (t.kind === 'p') {
     toast(t, 'ko_respawn', '#ff8a8a'); send(t, { t: 'ko' });
     // награда за победу над игроком (не чаще раза в 10 минут за одного и того же)
@@ -683,7 +695,7 @@ function broadcast() {
     for (const id of p.known) if (!vis.has(id)) { rm.push(id); p.known.delete(id); }
     if (add.length) send(p, { t: 'add', e: add });
     const ev = evs.filter(v => vis.has(v[0]));
-    send(p, { t: 's', a, rm, ev, me: { rm: p.room, su: Math.max(0, Math.ceil(((superReady.get(p.accountId) || 0) - Date.now()) / 1000)), sp: Math.round(speedOf(p)), xp: p.xp, need: xpNeed(p.level), pt: p.points, st: p.stats } });
+    send(p, { t: 's', a, rm, ev, me: { mo: p.money, rm: p.room, su: Math.max(0, Math.ceil(((superReady.get(p.accountId) || 0) - Date.now()) / 1000)), sp: Math.round(speedOf(p)), xp: p.xp, need: xpNeed(p.level), pt: p.points, st: p.stats } });
   }
 }
 

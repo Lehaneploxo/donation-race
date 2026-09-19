@@ -370,7 +370,7 @@ function showMsg(text, btn, fn){
 let ws = null, myId = 0, connected = false, retry = 0, gameStarted = false, stopRetry = false;
 const ents = new Map();            // id → сущность
 const SUPER_COOLDOWN = 60;                                        // секунд, как на сервере
-const me = { su:0, suStamp:0, sp:240, x:0, y:600, f:1, xp:0, need:50, pt:0, st:{str:1,hp:1,spd:1}, sent:'', sentAt:0 };
+const me = { mo:0, su:0, suStamp:0, sp:240, x:0, y:600, f:1, xp:0, need:50, pt:0, st:{str:1,hp:1,spd:1}, sent:'', sentAt:0 };
 const ui = { hits:[], toasts:[], floaters:[], banner:null, card:null, panel:false, touch:false, koText:0, fade:0, clanPanel:false, clanScroll:0 };
 
 function enterGame(){
@@ -421,9 +421,10 @@ function onServer(m){
         floater(e, v[2] ? t('block_dmg', v[1]) : '−'+v[1], v[2] ? '#7ec8ff' : (e.id === myId ? '#ff5a5a' : '#ffe14a'));
       }
       if ((m.me.rm || '') !== room) changeRoom(m.me.rm || '');
-      Object.assign(me, { su:m.me.su, suStamp:performance.now(), sp:m.me.sp, xp:m.me.xp, need:m.me.need, pt:m.me.pt, st:m.me.st });
+      Object.assign(me, { mo:m.me.mo, su:m.me.su, suStamp:performance.now(), sp:m.me.sp, xp:m.me.xp, need:m.me.need, pt:m.me.pt, st:m.me.st });
       break;
     }
+    case 'money': { const e = ents.get(m.id) || myEnt(); if (e) floater(e, (m.d > 0 ? '+$' : '−$') + Math.abs(m.d), m.d > 0 ? '#7dff9a' : '#ff5a5a'); break; }
     case 'toast': toast(t('m_' + m.k, ...(m.a || [])), m.color); break;
     case 'lvl': ui.banner = { text:t('lvlup', m.level), sub:t('lvlup_sub', m.points), t:2.6 }; break;
     case 'ko': ui.koText = 2; ui.card = null; break;
@@ -1140,6 +1141,7 @@ function drawHUD(){
   txt(hp+' / '+mx, 215, 67, 12, '#fff');
   bar(100, 78, 230, 10, me.xp/me.need, '#5fa8ff');
   txt(t('xp', Math.floor(me.xp), me.need), 100, 106, 12, '#b8c8ee', 'left');
+  txt('$ ' + (me.mo || 0), 338, 106, 15, '#7dff9a', 'right');
   { const rem = superRemain(), ready = rem <= 0.05, fr = 1 - Math.min(1, rem / SUPER_COOLDOWN);
     bar(100, 114, 230, 14, fr, ready ? '#ffd23f' : '#d8912a');
     txt(ready ? t('super_ready') : t('super_bar', Math.ceil(rem)), 215, 125, 11, '#fff'); }
