@@ -1230,13 +1230,14 @@ function drawHUD(){
   }
 
   // Чат — кнопка слева под основной плашкой (перенесена сюда с правого верхнего угла по просьбе
-  // пользователя); прямо под ней всплывают последние реплики (см. drawOverlays/ui.chatFeed)
-  { const hasUnread = chatUnread > 0;
-    ctx.fillStyle = 'rgba(8,8,16,0.82)'; rr(16, 172, 170, 34, 10); ctx.fill();
-    ctx.strokeStyle = hasUnread ? '#ffd23f' : 'rgba(125,200,255,0.6)'; ctx.lineWidth = 2; rr(16, 172, 170, 34, 10); ctx.stroke();
-    txt(t('chat_btn'), 101, 195, 15, '#dfe6ff');
-    if (hasUnread){ ctx.fillStyle = '#ff3b3b'; ctx.beginPath(); ctx.arc(178, 176, 9, 0, Math.PI*2); ctx.fill(); txt(String(Math.min(9,chatUnread)) + (chatUnread>9?'+':''), 178, 181, 11, '#fff'); }
-    addHit(16, 172, 170, 34, () => openChat()); }
+  // пользователя); прямо под ней всплывают последние реплики (см. drawOverlays/ui.chatFeed).
+  // Если плашки "★ Очки" сейчас нет — кнопка поднимается на её место, чтобы не было пустого зазора
+  { const hasUnread = chatUnread > 0, cy = me.pt > 0 ? 172 : 132;
+    ctx.fillStyle = 'rgba(8,8,16,0.82)'; rr(16, cy, 170, 34, 10); ctx.fill();
+    ctx.strokeStyle = hasUnread ? '#ffd23f' : 'rgba(125,200,255,0.6)'; ctx.lineWidth = 2; rr(16, cy, 170, 34, 10); ctx.stroke();
+    txt(t('chat_btn'), 101, cy+23, 15, '#dfe6ff');
+    if (hasUnread){ ctx.fillStyle = '#ff3b3b'; ctx.beginPath(); ctx.arc(178, cy+4, 9, 0, Math.PI*2); ctx.fill(); txt(String(Math.min(9,chatUnread)) + (chatUnread>9?'+':''), 178, cy+9, 11, '#fff'); }
+    addHit(16, cy, 170, 34, () => openChat()); }
 
   if (room !== 'club') {
   const cellW = 48, mapW = cellW*ZONES.length, mmx = RX - mapW, my2 = 16, mh = 18;
@@ -1401,9 +1402,10 @@ function drawOverlays(){
   // всплывающие реплики общего чата — прямо под кнопкой "Чат" слева (см. drawHUD), чтобы видеть
   // сообщения на бегу, не открывая само окно. Специально НЕ внизу экрана — там на телефоне
   // джойстик и кнопки боя, лента бы их перекрывала
+  const chatFeedBaseY = (me.pt > 0 ? 172 : 132) + 60;   // сразу под кнопкой "Чат" — та тоже "плавает" в зависимости от плашки "★ Очки"
   ui.chatFeed.forEach((c, i) => {
     const short = c.text.length > 60 ? c.text.slice(0, 60) + '…' : c.text;
-    const y = 232 + i * 30;
+    const y = chatFeedBaseY + i * 30;
     ctx.font = '17px Arial'; const full = c.u + ': ' + short, w = Math.min(640, ctx.measureText(full).width + 24);
     ctx.globalAlpha = Math.min(1, c.t); ctx.fillStyle = 'rgba(8,8,16,0.75)'; rr(20, y-21, w, 30, 8); ctx.fill();
     ctx.textAlign = 'left'; ctx.fillStyle = '#ffd23f'; ctx.fillText(c.u + ':', 30, y);
