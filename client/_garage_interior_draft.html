@@ -31,8 +31,8 @@ const nearDoor = () => me.y > Y_MAX - 20 && me.x > DOOR.x0 && me.x < DOOR.x1;
 // невидимые "стены" — чтобы не проходить сквозь верстак/шины/шкафы слева и машину справа
 // (сама картинка не трогается, это просто зоны-заглушки поверх неё, прикидочно по глазу)
 const BLOCKS = [
-  { x0:0,   x1:660,  y0:Y_MIN, y1:470 },   // верстак / полки / шины / красные шкафы — левая стена
-  { x0:930, x1:1280, y0:Y_MIN, y1:480 },   // машина — правая стена
+  { x0:0,   x1:660,  y0:Y_MIN, y1:410 },   // верстак / полки / шины / красные шкафы — левая стена (по линии, что нарисовал пользователь)
+  { x0:930, x1:1280, y0:Y_MIN, y1:415 },   // машина — правая стена
 ];
 function pushOutOfBlocks(){
   for (const b of BLOCKS){
@@ -79,6 +79,36 @@ function txt(s, x, y, size, color, align){
 }
 function rr(x, y, w, h, r){ ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
 
+// ── свет: подсвечиваем лампы/неон, которые уже нарисованы на картинке — сама картинка
+// не трогается, поверх неё рисуется мягкое цветное свечение (аддитивно), с лёгким мерцанием
+const LAMPS = [ [96,121], [361,161], [524,138], [946,161], [1090,119] ];          // тёплые подвесные лампы
+const NEONS = [ [467,40], [268,90], [769,40], [987,90] ];                          // синие неоновые трубки на потолке
+const STRIPS = [ [298,225,90,14], [207,248,110,14] ];                              // жёлтые лампы дневного света над столами
+function drawLights(t){
+  ctx.save(); ctx.globalCompositeOperation = 'lighter';
+  const flick = 0.85 + 0.15*Math.sin(t*0.02);
+  LAMPS.forEach(([x,y], i) => {
+    const f = flick * (0.9 + 0.1*Math.sin(t*0.015 + i));
+    const g = ctx.createRadialGradient(x,y,2,x,y+70,150);
+    g.addColorStop(0, `rgba(255,205,120,${0.55*f})`); g.addColorStop(0.4, `rgba(255,160,70,${0.16*f})`); g.addColorStop(1,'rgba(255,160,70,0)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x,y+40,150,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle = `rgba(255,240,210,${0.9*f})`; ctx.beginPath(); ctx.arc(x,y,5,0,Math.PI*2); ctx.fill();
+  });
+  NEONS.forEach(([x,y], i) => {
+    const f = flick * (0.9 + 0.1*Math.sin(t*0.02 + i*1.7));
+    const g = ctx.createRadialGradient(x,y,2,x,y,80);
+    g.addColorStop(0, `rgba(140,210,255,${0.5*f})`); g.addColorStop(1,'rgba(140,210,255,0)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x,y,80,0,Math.PI*2); ctx.fill();
+  });
+  STRIPS.forEach(([x,y,w,h], i) => {
+    const f = flick * (0.9 + 0.1*Math.sin(t*0.018 + i*2.2));
+    const g = ctx.createRadialGradient(x+w/2,y+h/2,4,x+w/2,y+h/2,w*0.9);
+    g.addColorStop(0, `rgba(255,230,160,${0.45*f})`); g.addColorStop(1,'rgba(255,230,160,0)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.ellipse(x+w/2,y+h/2,w*0.9,w*0.6,0,0,Math.PI*2); ctx.fill();
+  });
+  ctx.restore();
+}
+
 function drawPlayer(){
   const k = persp(me.y), h = FIGHTER_H * k;
   const anim = me.moving ? 'walk' : 'idle', list = frames('bancho', anim), fps = CH_DEF.bancho[anim][1];
@@ -99,6 +129,7 @@ function frame(now){
   ctx.clearRect(0,0,CW,CH);
   if (ready(BG)) ctx.drawImage(BG, 0, 0, CW, CH);
   else { ctx.fillStyle = '#111'; ctx.fillRect(0,0,CW,CH); txt('Загрузка фона…', CW/2, CH/2, 24, '#fff'); }
+  drawLights(now);
   drawPlayer();
   // ОТЛАДКА: границы зоны ходьбы (зелёная рамка) и невидимых стен-заглушек (красные) — видно только в черновике
   ctx.save();
