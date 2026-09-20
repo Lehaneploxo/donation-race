@@ -210,9 +210,9 @@ Object.assign(L.en, { btn_super:'SUPER', sec:'s', hint2:'J — punch   K — sup
 Object.assign(L.ru, { door_enter:'Войти', door_exit:'Выйти', m_no_enter_combat:'Пока идёт драка с игроком, войти нельзя', hint3:'E — игрок рядом / дверь   Tab — персонаж' });
 Object.assign(L.uk, { door_enter:'Увійти', door_exit:'Вийти', m_no_enter_combat:'Поки триває бійка з гравцем, увійти не можна', hint3:'E — гравець поруч / двері   Tab — персонаж' });
 Object.assign(L.en, { door_enter:'Enter', door_exit:'Exit', m_no_enter_combat:'Can’t enter while fighting another player', hint3:'E — nearby player / door   Tab — character' });
-Object.assign(L.ru, { dmg_hint:'удар ~{0}   ·   супер ~{1}' });
-Object.assign(L.uk, { dmg_hint:'удар ~{0}   ·   супер ~{1}' });
-Object.assign(L.en, { dmg_hint:'hit ~{0}   ·   super ~{1}' });
+Object.assign(L.ru, { dmg_hint:'удар ~{0}   ·   супер ~{1}', lbl_str:'СИЛА', lbl_hp:'ЗДОРОВЬЕ {0} / {1}', lbl_run:'БЕГ {0} / {1}' });
+Object.assign(L.uk, { dmg_hint:'удар ~{0}   ·   супер ~{1}', lbl_str:'СИЛА', lbl_hp:'ЗДОРОВʼЯ {0} / {1}', lbl_run:'БІГ {0} / {1}' });
+Object.assign(L.en, { dmg_hint:'hit ~{0}   ·   super ~{1}', lbl_str:'STRENGTH', lbl_hp:'HEALTH {0} / {1}', lbl_run:'RUN {0} / {1}' });
 function t(k, ...a){
   let s = (L[lang] && k in L[lang]) ? L[lang][k] : (k in L.ru ? L.ru[k] : k);
   a.forEach((v, i) => { s = s.split('{' + i + '}').join(v); });
@@ -1145,14 +1145,16 @@ function drawHUD(){
   ctx.fillStyle = '#b8860b'; ctx.beginPath(); ctx.arc(58, 66, 30, 0, Math.PI*2); ctx.fill();
   ctx.strokeStyle = '#ffd23f'; ctx.lineWidth = 3; ctx.stroke();
   txt(String(lvl), 58, 76, 26, '#fff'); txt(t('lvl_big'), 58, 46, 11, '#ffe9a0');
+  // сила — под кружком уровня, чтобы была видна и без открытия панели персонажа
+  txt(t('lbl_str'), 58, 107, 10, '#ffb37a'); txt(String(me.st.str||0), 58, 122, 18, '#ff8a4a');
   txt(my ? my.n : '…', 100, 44, 20, '#ffd23f', 'left', 180);
   txt('$ ' + (me.mo || 0), 338, 44, 15, '#7dff9a', 'right');
-  // 1) здоровье
+  // 1) здоровье — подпись прямо на шкале, чтобы было однозначно видно, что это
   bar(100, 54, 230, 16, hp/mx, hp/mx > 0.35 ? '#4be06f' : '#ff5a5a');
-  txt(hp+' / '+mx, 215, 67, 12, '#fff');
+  txt(t('lbl_hp', hp, mx), 215, 67, 12, '#fff');
   // 2) шкала бега — тратится, пока держишь бег, восстанавливается на шаге
   bar(100, 76, 230, 14, stm/100, stm > 25 ? '#ffb347' : '#ff6b3d');
-  txt(Math.round(stm)+' / 100', 215, 88, 11, '#fff');
+  txt(t('lbl_run', Math.round(stm), 100), 215, 88, 11, '#fff');
   // 3) опыт — подпись прямо внутри шкалы
   bar(100, 96, 230, 14, me.xp/me.need, '#5fa8ff');
   txt(t('xp', Math.floor(me.xp), me.need), 215, 108, 11, '#fff');
