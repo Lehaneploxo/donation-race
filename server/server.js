@@ -6,7 +6,6 @@ const url       = require('url');
 
 const { connectToTikTok } = require('./tiktokConnector');
 const db                  = require('./db');
-const tamagotchiConfig    = require('./tamagotchiConfig');
 const world               = require('./world');   // /world — онлайн-мир, отдельно от TikTok-игр
 
 const PORT     = process.env.PORT || 3000;
@@ -60,10 +59,8 @@ app.get('/',            serveHtml('launcher.html'));
 app.get('/world',       serveHtml('world.html'));
 world.attach(app);
 app.get('/game',        serveHtml('index.html'));
-app.get('/war',         serveHtml('war.html'));
 app.get('/arena',       serveHtml('arena.html'));
 app.get('/arena2',      serveHtml('arena2.html'));
-app.get('/arena3',      serveHtml('arena3.html'));
 app.get('/civilization',serveHtml('civilization.html'));
 app.get('/boxing',      serveHtml('boxing_arena.html'));
 app.get('/boxing-db',   serveHtml('boxing_db.html'));
@@ -81,9 +78,6 @@ app.get('/fantasyarenatv-db', serveHtml('fantasy_arena_tv_db.html'));
 app.get('/fishing',    serveHtml('fishing.html'));
 app.get('/fishing-db', serveHtml('fishing_db.html'));
 app.get('/vzaimki',    serveHtml('vzaimki.html'));
-app.get('/tamagotchi', serveHtml('tamagotchi.html'));
-app.get('/razgon',     serveHtml('razgon.html'));
-app.get('/avatarwar',  serveHtml('avatar_war.html'));
 
 // Локальный no-op сервис подписи — возвращает URL без изменений
 // Библиотека tiktok-live-connector использует его вместо eulerstream
@@ -717,27 +711,6 @@ const STATE_RESTORE_TYPE = {
   fantasyarenatv: 'fantasyarenatv_state_restore',
 };
 
-// ─── Тамагочи-девушка ───────────────────────────────────────────────────────
-// см. девушкатамагочи.txt (ТЗ) — единое непрерывное состояние на комнату,
-// тикает раз в TAMAGOTCHI_TICK_MS, персистится в game_state_snapshots
-// (game='tamagotchi'). Все константы ниже — единственное место, где крутить
-// скорость процессов (п.9 ТЗ).
-const TAMAGOTCHI_TICK_MS               = 5000;
-const TAMAGOTCHI_MAX_OFFLINE_MS        = 6 * 60 * 60 * 1000; // не досчитывать голод/настроение дальше чем на 6ч простоя
-const TAMAGOTCHI_HUNGER_PER_MIN        = 0.5;   // голод: 0→100% примерно за 3.3 часа без еды
-const TAMAGOTCHI_MOOD_DECAY_PER_MIN    = 0.3;   // настроение: 100→0% примерно за 5.5 часов без внимания
-const TAMAGOTCHI_WEIGHT_BASELINE       = 0.4;   // вес, к которому тело плавно дрейфует само по себе
-const TAMAGOTCHI_WEIGHT_TRAIN_STEP     = 0.03;  // похудение за один тик (5с) активной тренировки
-const TAMAGOTCHI_WEIGHT_IDLE_STEP      = 0.003; // лёгкий естественный дрейф веса к baseline за тик
-const TAMAGOTCHI_OVERFEED_WEIGHT_STEP  = 0.03;  // прирост веса за лишний подарок-еду, когда уже сыта
-const TAMAGOTCHI_MOOD_GIFT_AMOUNT      = 15;
-const TAMAGOTCHI_TRAIN_DURATION_MS     = 20000; // сколько длится "тренируется" после подарка-тренировки
-const TAMAGOTCHI_ACTION_DURATION_MS    = 4000;  // сколько длится одноразовая анимация (ест/радуется/переодевается)
-const TAMAGOTCHI_STATE_DB_SAVE_MIN_INTERVAL_MS = 60 * 1000;
-
-function clamp(min, max, v) { return Math.min(max, Math.max(min, v)); }
-function clamp01(v) { return clamp(0, 1, v); }
-
 class Room {
   constructor(username) {
     this.username   = username;
@@ -754,176 +727,20 @@ class Room {
     // см. _stateDbSavedAt/saveStateSnapshot ниже.
     this._stateSnapshots = {};
     this._stateDbSavedAt = {};
-    // Тамагочи-девушка: null пока не загрузилась из БД (см. _loadTamagotchi).
-    this._tamagotchi           = null;
-    this._tamagotchiLoading    = false;
-    this._tamagotchiDbSavedAt  = 0;
-    this._tamagotchiTickIv     = null;
-    this._loadTamagotchi();
-    // Цивилизация: население/эпоха/донатеры — та же схема снапшота, что у
-    // Тамагочи (game_state_snapshots), только без фонового тика — цифры не
-    // должны "дрейфовать" сами по себе, пока никто не смотрит игру, поэтому
-    // грузим лениво по первому запросу клиента (см. sendCivState).
+    // Цивилизация: население/эпоха/донатеры — снапшот в game_state_snapshots,
+    // без фонового тика — цифры не должны "дрейфовать" сами по себе, пока
+    // никто не смотрит игру, поэтому грузим лениво по первому запросу клиента
+    // (см. sendCivState).
     this._civ          = null;
     this._civLoading    = false;
     this._civDbSavedAt  = 0;
     this._connect();
   }
 
-  _defaultTamagotchiState(now) {
-    return {
-      hunger: 30,
-      weight: TAMAGOTCHI_WEIGHT_BASELINE,
-      mood: 70,
-      activity: 'idle',
-      activityUntil: 0,
-      clothing: { upper: 'tshirt', lower: 'jeans', shoes: 'sneakers', accessory: null, dress: null },
-      updatedAt: now,
-    };
-  }
-
-  // Досчитать пассивный дрейф (голод/настроение) за время, что комната была
-  // без сервера (рестарт/redeploy) — capped, чтобы многодневный простой не
-  // давал абсурдных значений. Вес за оффлайн-время не трогаем — он меняется
-  // только от реальных подарков (еда/тренировка), а не сам по себе.
-  _applyTamagotchiOfflineDrift(state, elapsedMs) {
-    const minutes = Math.max(0, elapsedMs) / 60000;
-    const s = { ...state, clothing: { ...(state.clothing || {}) } };
-    s.hunger = clamp(0, 100, (typeof s.hunger === 'number' ? s.hunger : 30) + TAMAGOTCHI_HUNGER_PER_MIN * minutes);
-    s.mood   = clamp(0, 100, (typeof s.mood === 'number' ? s.mood : 70) - TAMAGOTCHI_MOOD_DECAY_PER_MIN * minutes);
-    if (typeof s.weight !== 'number') s.weight = TAMAGOTCHI_WEIGHT_BASELINE;
-    s.activity = 'idle';
-    s.activityUntil = 0;
-    return s;
-  }
-
-  async _loadTamagotchi() {
-    if (this._tamagotchi || this._tamagotchiLoading) return;
-    this._tamagotchiLoading = true;
-    let stored = null;
-    try {
-      stored = await db.getGameStateSnapshot('tamagotchi', this.username);
-    } catch (e) {
-      console.error('[DB] tamagotchi load error:', e.message);
-    }
-    const now = Date.now();
-    let state;
-    if (stored && typeof stored === 'object' && !Array.isArray(stored)) {
-      const elapsedMs = Math.min(now - (stored.updatedAt || now), TAMAGOTCHI_MAX_OFFLINE_MS);
-      state = this._applyTamagotchiOfflineDrift(stored, elapsedMs);
-    } else {
-      state = this._defaultTamagotchiState(now);
-    }
-    state.updatedAt = now;
-    this._tamagotchi = state;
-    this._tamagotchiLoading = false;
-    this._tamagotchiTickIv = setInterval(() => this._tickTamagotchi(), TAMAGOTCHI_TICK_MS);
-    this.broadcast({ type: 'tamagotchi_state', ...state });
-  }
-
-  _tickTamagotchi() {
-    const s = this._tamagotchi;
-    if (!s) return;
-    const now = Date.now();
-    const minutes = TAMAGOTCHI_TICK_MS / 60000;
-
-    s.hunger = clamp(0, 100, s.hunger + TAMAGOTCHI_HUNGER_PER_MIN * minutes);
-    s.mood   = clamp(0, 100, s.mood - TAMAGOTCHI_MOOD_DECAY_PER_MIN * minutes);
-
-    const isTraining = s.activity === 'training' && now < s.activityUntil;
-    if (isTraining) {
-      s.weight = clamp01(s.weight - TAMAGOTCHI_WEIGHT_TRAIN_STEP);
-    } else if (s.weight > TAMAGOTCHI_WEIGHT_BASELINE) {
-      s.weight = clamp01(s.weight - TAMAGOTCHI_WEIGHT_IDLE_STEP);
-    }
-
-    if (s.activity !== 'idle' && s.activityUntil && now >= s.activityUntil) {
-      s.activity = 'idle';
-      s.activityUntil = 0;
-    }
-
-    s.updatedAt = now;
-    this.broadcast({ type: 'tamagotchi_state', ...s });
-    this.saveTamagotchiState();
-  }
-
-  // Подарок TikTok → действие девушки, по server/tamagotchiConfig.js.
-  // Реагирует и на demo-режим (см. вызов в onGift выше) — так фичу можно
-  // проверить локально без реального TikTok-аккаунта.
-  handleTamagotchiGift(giftName, username) {
-    if (!this._tamagotchi) { this._loadTamagotchi(); return; }
-    const nameLower = (giftName || '').trim().toLowerCase();
-    if (!nameLower) return;
-    const s = this._tamagotchi;
-    const now = Date.now();
-
-    const isFood     = tamagotchiConfig.FOOD.some(g => g.toLowerCase() === nameLower);
-    const isTraining = tamagotchiConfig.TRAINING.some(g => g.toLowerCase() === nameLower);
-    const isMood     = tamagotchiConfig.MOOD.some(g => g.toLowerCase() === nameLower);
-    const clothingKey = Object.keys(tamagotchiConfig.CLOTHING)
-      .find(g => g.toLowerCase() === nameLower);
-
-    if (isFood) {
-      // ЕДА → сначала убирает ГОЛОД → после полного насыщения доп. еда идёт в ВЕС
-      if (s.hunger > 0) {
-        s.hunger = 0;
-      } else {
-        s.weight = clamp01(s.weight + TAMAGOTCHI_OVERFEED_WEIGHT_STEP);
-      }
-      s.activity = 'eating';
-      s.activityUntil = now + TAMAGOTCHI_ACTION_DURATION_MS;
-      this.broadcast({ type: 'tamagotchi_action', action: 'eat', username: username || '' });
-    } else if (isTraining) {
-      s.activity = 'training';
-      s.activityUntil = now + TAMAGOTCHI_TRAIN_DURATION_MS;
-      this.broadcast({ type: 'tamagotchi_action', action: 'train', username: username || '' });
-    } else if (isMood) {
-      s.mood = clamp(0, 100, s.mood + TAMAGOTCHI_MOOD_GIFT_AMOUNT);
-      s.activity = 'happy';
-      s.activityUntil = now + TAMAGOTCHI_ACTION_DURATION_MS;
-      this.broadcast({ type: 'tamagotchi_action', action: 'happy', username: username || '' });
-    } else if (clothingKey) {
-      const { slot, item } = tamagotchiConfig.CLOTHING[clothingKey];
-      s.clothing = { ...s.clothing, [slot]: item };
-      s.activity = 'dressing';
-      s.activityUntil = now + TAMAGOTCHI_ACTION_DURATION_MS;
-      this.broadcast({ type: 'tamagotchi_action', action: 'dress', slot, item, username: username || '' });
-    } else {
-      return; // подарок не сматчился ни на одно действие — игнор
-    }
-
-    s.updatedAt = now;
-    this.broadcast({ type: 'tamagotchi_state', ...s });
-    this.saveTamagotchiState();
-  }
-
-  saveTamagotchiState() {
-    if (!this._tamagotchi) return;
-    const now = Date.now();
-    if (now - this._tamagotchiDbSavedAt < TAMAGOTCHI_STATE_DB_SAVE_MIN_INTERVAL_MS) return;
-    this._tamagotchiDbSavedAt = now;
-    db.saveGameStateSnapshot('tamagotchi', this.username, this._tamagotchi)
-      .catch(e => console.error('[DB] tamagotchi_state save error:', e.message));
-  }
-
-  sendTamagotchiState(ws) {
-    if (this._tamagotchi) {
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: 'tamagotchi_state_restore', ...this._tamagotchi }));
-      }
-      return;
-    }
-    this._loadTamagotchi().then(() => {
-      if (this._tamagotchi && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: 'tamagotchi_state_restore', ...this._tamagotchi }));
-      }
-    });
-  }
-
   // Цивилизация: сохранить снапшот {civPop, eraIdx, donors} — в память сразу
   // (клиент шлёт каждые ~15 сек, см. civilization.html), в БД не чаще раза в
   // минуту на комнату (резерв на случай рестарта сервера), та же схема
-  // троттлинга, что у saveStateSnapshot/saveTamagotchiState выше.
+  // троттлинга, что у saveStateSnapshot выше.
   saveCivState(state) {
     if (!state || typeof state !== 'object') return;
     const donors = {};
@@ -990,8 +807,6 @@ class Room {
           // Взаимки: тот же принцип, что и civ_gift — только реальные донаты,
           // демо-боты не должны красить рейтинг подставными подарками
           this.broadcast({ type: 'vzaimki_gift', username: data.username, userId: data.userId, avatarUrl: data.avatarUrl, giftName: data.giftName, coins: data.coins });
-          // Разнос: донат даёт приоритет в очереди по монетам, без проверки подписки
-          this.broadcast({ type: 'razgon_gift', username: data.username, userId: data.userId, avatarUrl: data.avatarUrl, giftName: data.giftName, coins: data.coins });
         }
 
         const giftLower = (data.giftName || '').toLowerCase();
@@ -1011,10 +826,6 @@ class Room {
           console.log(`[WarGift] ${data.username} → ${warUnit} for ${warTeam} (gift="${data.giftName}")`);
           this.broadcast({ type: 'war_gift', team: warTeam, unitType: warUnit, username: data.username });
         }
-
-        // Avatar War: любой донат — юнит-аватарка донатера (команда/сумма
-        // считаются на клиенте, тут просто пробрасываем сырое событие)
-        this.broadcast({ type: 'avatarwar_gift', userId: data.userId, username: data.username, avatarUrl: data.avatarUrl, coins: data.coins });
 
         // Arena game: any gift spawns/upgrades warrior with coin value
         this._giftCount++;
@@ -1046,11 +857,6 @@ class Room {
             .then(top => { if (top) this.broadcast({ type: 'update', topDonations: top }); })
             .catch(() => {});
         }
-
-        // Тамагочи-девушка: реагирует на все подарки, включая demo-режим
-        // (нужно, чтобы фичу можно было тестировать локально без реального
-        // TikTok-аккаунта — так же, как arena_gift выше)
-        this.handleTamagotchiGift(data.giftName, data.username);
       },
       // onStatus — состояние подключения
       (status) => this.broadcast({ type: 'status', ...status }),
@@ -1070,15 +876,8 @@ class Room {
         if (this.connection?._tiktokMode === 'tiktok') {
           this.broadcast({ type: 'civ_like', likes: data.likes || 1, username: data.username });
           this.broadcast({ type: 'vzaimki_like', likes: data.likes || 1, username: data.username, userId: data.userId, avatarUrl: data.avatarUrl });
-          // Разнос: та же защита от демо-ботов — лайк засчитывается только в реальном эфире
-          this.broadcast({ type: 'razgon_like', likes: data.likes || 1, username: data.username, userId: data.userId, avatarUrl: data.avatarUrl, followRole: data.followRole });
         }
-        // War game: broadcast raw like count regardless of race state
-        this.broadcast({ type: 'war_like', likes: data.likes || 0, username: data.username });
         this.broadcast({ type: 'arena_like', likes: data.likes || 0, username: data.username });
-        // Avatar War: лайк разгоняет скорость команды лайкнувшего (если он
-        // уже выбрал команду — считается на клиенте по userId)
-        this.broadcast({ type: 'avatarwar_like', userId: data.userId, username: data.username, likes: data.likes || 1 });
         this.broadcast({ type: 'arena_member', username: data.username });
 
         // Race game: 1 лайк = 1 метр пробега (в рейтинг очков не идёт)
@@ -1102,23 +901,6 @@ class Room {
         // Civilization game: broadcast raw chat so client can react to keywords
         this.broadcast({ type: 'chat', uniqueId: data.userId, username: data.username, comment: msg });
 
-        // Разнос: команда "разнеси" — только из реального эфира, демо-боты
-        // не должны наполнять очередь на разнос
-        if (this.connection?._tiktokMode === 'tiktok') {
-          this.broadcast({ type: 'razgon_chat', userId: data.userId, username: data.username, avatarUrl: data.avatarUrl, message: msg, followRole: data.followRole });
-        }
-
-        // War game: broadcast team command to all clients
-        if (msg === 'blue' || msg === 'red') {
-          this.broadcast({ type: 'war_chat', team: msg, username: data.username });
-        }
-
-        // Avatar War: "1"/"2" в чате — разовый выбор команды (залипает на
-        // клиенте по userId, повторные цифры от того же зрителя игнорируются)
-        if (msg === '1' || msg === '2') {
-          this.broadcast({ type: 'avatarwar_chat', userId: data.userId, username: data.username, team: msg });
-        }
-
         // Arena game: any chat → try spawn if not on arena
         this.broadcast({ type: 'arena_member', username: data.username });
 
@@ -1132,11 +914,6 @@ class Room {
         if (msgLower === 'team2') {
           this.broadcast({ type: 'arena_team', team: 2, username: data.username });
         }
-        // Arena 3: "war" command — player also starts fighting other players, not just bosses
-        if (msgLower === 'war') {
-          this.broadcast({ type: 'arena_warmode', username: data.username });
-        }
-
         // Arena cheat codes — only for the game creator
         if (msg === 'power' || msg === 'super power') {
           console.log(`[CHEAT] username="${data.username}" msg="${msg}"`);
@@ -1318,7 +1095,6 @@ class Room {
       (data) => {
         if (this.connection?._tiktokMode === 'tiktok') {
           this.broadcast({ type: 'vzaimki_follow', username: data.username, userId: data.userId, avatarUrl: data.avatarUrl });
-          this.broadcast({ type: 'razgon_follow', username: data.username, userId: data.userId, avatarUrl: data.avatarUrl });
         }
       }
     );
@@ -1381,10 +1157,6 @@ class Room {
       if (players) db.saveGameStateSnapshot(game, this.username, players).catch(() => {});
     }
 
-    clearInterval(this._tamagotchiTickIv);
-    if (this._tamagotchi) {
-      db.saveGameStateSnapshot('tamagotchi', this.username, this._tamagotchi).catch(() => {});
-    }
     if (this._civ) {
       db.saveGameStateSnapshot('civilization', this.username, this._civ).catch(() => {});
     }
@@ -1632,26 +1404,6 @@ wss.on('connection', (ws, req) => {
             room.broadcast({ type: 'fantasyarenatv_tier_info', username: msg.username, lifetimeStolen: 0, chosenSkin: null });
           });
       }
-      if (msg.type === 'avatarwar_stolen' && msg.username && msg.amount) {
-        db.addAvatarWarStolen(msg.username, msg.amount)
-          .then(() => db.getTopAvatarWarStolen(5))
-          .then(top => {
-            room.broadcast({ type: 'top_avatarwar', data: top });
-          })
-          .catch(e => console.error('[DB] avatarwar_stolen error:', e.message));
-      }
-      if (msg.type === 'avatarwar_ko' && msg.username) {
-        db.addAvatarWarKO(msg.username).catch(e => console.error('[DB] avatarwar_ko error:', e.message));
-      }
-      if (msg.type === 'avatarwar_tier_request' && msg.username) {
-        db.getUserAvatarWarRank(msg.username)
-          .then(rank => {
-            room.broadcast({ type: 'avatarwar_tier_info', username: msg.username, lifetimeStolen: rank ? rank.lifetime_stolen : 0 });
-          })
-          .catch(() => {
-            room.broadcast({ type: 'avatarwar_tier_info', username: msg.username, lifetimeStolen: 0 });
-          });
-      }
       if (msg.type === 'fantasyarena_state_save') {
         room.saveStateSnapshot('fantasyarena', msg.players);
       }
@@ -1663,9 +1415,6 @@ wss.on('connection', (ws, req) => {
       }
       if (msg.type === 'fantasyarenatv_state_request') {
         room.sendStateSnapshot(ws, 'fantasyarenatv');
-      }
-      if (msg.type === 'tamagotchi_state_request') {
-        room.sendTamagotchiState(ws);
       }
       if (msg.type === 'civ_state_save' && msg.state) {
         room.saveCivState(msg.state);
@@ -1833,26 +1582,6 @@ async function checkFantasyArenaTvWeeklyReset() {
 }
 setInterval(() => { checkFantasyArenaTvWeeklyReset().catch(e => console.error('[FANTASYARENATV] weekly-check error:', e.message)); }, 10*60*1000);
 setTimeout(() => { checkFantasyArenaTvWeeklyReset().catch(e => console.error('[FANTASYARENATV] weekly-check (startup) error:', e.message)); }, 15*1000);
-
-// ─── Avatar War: ЕЖЕДНЕВНЫЙ сброс рейтинга (полночь по Киеву) ─────
-// 1-в-1 паттерн Street Fighter/Fantasy Arena выше (см. комментарий там).
-async function checkAvatarWarWeeklyReset() {
-  const result = await db.performAvatarWarWeeklyResetIfNeeded();
-  if (result) {
-    console.log('[AVATARWAR] Рассылаю обновлённый топ и нового командира дня во все активные комнаты после сброса');
-    for (const room of rooms.values()) {
-      db.getTopAvatarWarStolen(5)
-        .then(top => room.broadcast({ type: 'top_avatarwar', data: top }))
-        .catch(e => console.error('[AVATARWAR] Ошибка рассылки топа после сброса:', e.message));
-      db.getLastAvatarWarWeeklyChampion()
-        .then(champion => room.broadcast({ type: 'avatarwar_weekly_champion', champion }))
-        .catch(e => console.error('[AVATARWAR] Ошибка рассылки чемпиона после сброса:', e.message));
-    }
-  }
-  return result;
-}
-setInterval(() => { checkAvatarWarWeeklyReset().catch(e => console.error('[AVATARWAR] weekly-check error:', e.message)); }, 10*60*1000);
-setTimeout(() => { checkAvatarWarWeeklyReset().catch(e => console.error('[AVATARWAR] weekly-check (startup) error:', e.message)); }, 15*1000);
 
 // ─── Рыбалка: ежедневный сброс "ТОП ЗА СЕГОДНЯ" (полночь по Киеву) ─────
 async function checkFishingDailyReset() {
