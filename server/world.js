@@ -70,7 +70,7 @@ const maxHpOf  = e => e.kind === 'b' ? 40 + e.level * 8 : 70 + e.stats.hp * 10;
 const speedOf  = e => 150 + 52.5 * (1 - Math.exp(-e.stats.spd / 55));
 const RUN_CAP  = 1.3;   // множитель бега — раньше был 1.6, тоже разгонял сильнее, чем нужно
 const SPD_CAP  = 100;   // скорость (стата) качается только до 100, дальше очки — только в силу/здоровье
-const FIGHTER_CHANGE_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;   // смена бойца — раз в 7 дней; уровень/статы/деньги не трогает, только внешность
+const FIGHTER_CHANGE_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;   // смена бойца — раз в 7 дней; уровень/статы/деньги не трогает, только внешность (у DEBUG_OWNER_NICK — без ограничения)
 // Шкала бега (20.09.2026): бег больше не бесконечный — тратит шкалу, которая
 // восстанавливается, когда игрок не бежит (даже если просто идёт или дерётся).
 const STAMINA_MAX = 100, STAMINA_DRAIN_PER_SEC = STAMINA_MAX / 6, STAMINA_REGEN_PER_SEC = STAMINA_MAX / 12;
@@ -795,7 +795,8 @@ function onMessage(p, m) {
     case 'change_fighter': {
       const info = FIGHTERS[m.type];
       if (!info || !Number.isInteger(m.variant) || m.variant < 0 || m.variant >= VARIANTS) { send(p, { t: 'fighter_change_err', code: 'bad' }); break; }
-      const wait = FIGHTER_CHANGE_COOLDOWN_MS - (Date.now() - (p.fighterChangedAt || 0));
+      const isOwner = (p.name || '').toLowerCase() === DEBUG_OWNER_NICK;   // владельцу — без кулдауна, для теста
+      const wait = isOwner ? 0 : FIGHTER_CHANGE_COOLDOWN_MS - (Date.now() - (p.fighterChangedAt || 0));
       if (wait > 0) { send(p, { t: 'fighter_change_err', code: 'cooldown', days: Math.ceil(wait / 86400000) }); break; }
       p.type = m.type; p.variant = m.variant; p.fighterChangedAt = Date.now();
       for (const q of byAccount.values()) q.known.delete(p.id);   // форсим всем клиентам заново прислать 'add' с новым видом (тип/вариант шлются только там)
