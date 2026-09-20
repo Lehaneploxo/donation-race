@@ -100,6 +100,13 @@ function frame(now){
   if (ready(BG)) ctx.drawImage(BG, 0, 0, CW, CH);
   else { ctx.fillStyle = '#111'; ctx.fillRect(0,0,CW,CH); txt('Загрузка фона…', CW/2, CH/2, 24, '#fff'); }
   drawPlayer();
+  // ОТЛАДКА: границы зоны ходьбы (зелёная рамка) и невидимых стен-заглушек (красные) — видно только в черновике
+  ctx.save();
+  ctx.strokeStyle = '#3dff6a'; ctx.lineWidth = 3; ctx.setLineDash([10,6]); ctx.strokeRect(X_MIN, Y_MIN, X_MAX-X_MIN, Y_MAX-Y_MIN);
+  ctx.strokeStyle = '#ff3d3d'; ctx.lineWidth = 3;
+  BLOCKS.forEach(b => ctx.strokeRect(b.x0, b.y0, b.x1-b.x0, b.y1-b.y0));
+  ctx.strokeStyle = '#3dd0ff'; ctx.strokeRect(DOOR.x0, Y_MAX-20, DOOR.x1-DOOR.x0, 20);
+  ctx.restore();
   ctx.fillStyle = 'rgba(8,8,16,0.8)'; rr(16,16,360,44,10); ctx.fill(); ctx.strokeStyle = '#ff5a3d'; ctx.lineWidth = 2; rr(16,16,360,44,10); ctx.stroke();
   txt('ГАРАЖ · ЧЕРНОВИК v4 (фон-картинка)', 30, 46, 16, '#ffb38a', 'left');
   ctx.font = '13px Arial'; ctx.fillStyle = 'rgba(220,226,250,0.9)';
