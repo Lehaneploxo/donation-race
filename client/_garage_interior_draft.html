@@ -103,6 +103,17 @@ function drawLights(t){
   ctx.restore();
 }
 
+// вывеска EXIT над выходом — видна издалека, не только когда игрок рядом
+function drawExitSign(t){
+  const cx = (DOOR.x0+DOOR.x1)/2, y = Y_MAX - 34;
+  ctx.save(); ctx.strokeStyle = '#3dff9a'; ctx.lineWidth = 3; ctx.shadowColor = '#3dff9a'; ctx.shadowBlur = 16;
+  ctx.globalAlpha = 0.8 + 0.2*Math.sin(t*0.006);
+  ctx.strokeRect(DOOR.x0, Y_MAX-4, DOOR.x1-DOOR.x0, 6);
+  ctx.restore();
+  ctx.save(); ctx.shadowColor = '#3dff9a'; ctx.shadowBlur = 14;
+  txt('EXIT', cx, y, 22, '#3dff9a');
+  ctx.restore();
+}
 function drawPlayer(){
   const k = persp(me.y), h = FIGHTER_H * k;
   const anim = me.moving ? 'walk' : 'idle', list = frames('bancho', anim), fps = CH_DEF.bancho[anim][1];
@@ -124,6 +135,7 @@ function frame(now){
   if (ready(BG)) ctx.drawImage(BG, 0, 0, CW, CH);
   else { ctx.fillStyle = '#111'; ctx.fillRect(0,0,CW,CH); txt('Загрузка фона…', CW/2, CH/2, 24, '#fff'); }
   drawLights(now);
+  drawExitSign(now);
   drawPlayer();
   // ОТЛАДКА: границы зоны ходьбы (зелёная рамка) и невидимых стен-заглушек (красные) — видно только в черновике
   ctx.save();
