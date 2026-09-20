@@ -61,16 +61,14 @@
        font-size:22px;text-align:center;padding:20px}
   #msg[hidden]{display:none}
   #msgText{white-space:pre-line;line-height:1.5;max-width:520px}
-  #fs{position:fixed;top:calc(8px + env(safe-area-inset-top,0px));right:calc(8px + env(safe-area-inset-right,0px));z-index:40;
-      width:40px;height:40px;padding:0;border-radius:10px;border:1px solid rgba(255,255,255,.25);background:rgba(10,10,24,.55);
-      color:#fff;opacity:.5;display:flex;align-items:center;justify-content:center;cursor:pointer}
-  #fs:hover,#fs:active{opacity:1}
+  #topRightBtns{position:fixed;top:calc(8px + env(safe-area-inset-top,0px));right:calc(8px + env(safe-area-inset-right,0px));
+      z-index:40;display:flex;flex-direction:column;gap:8px}
+  #fs,#snd{position:static;width:40px;height:40px;padding:0;border-radius:10px;border:1px solid rgba(255,255,255,.25);
+      background:rgba(10,10,24,.55);color:#fff;opacity:.5;display:flex;align-items:center;justify-content:center;cursor:pointer}
+  #fs:hover,#fs:active,#snd:hover,#snd:active{opacity:1}
   #fs svg{width:22px;height:22px}
   #fs .ic-off{display:none}#fs.on .ic-on{display:none}#fs.on .ic-off{display:block}
-  #snd{position:fixed;top:calc(56px + env(safe-area-inset-top,0px));right:calc(8px + env(safe-area-inset-right,0px));z-index:40;
-      width:40px;height:40px;padding:0;border-radius:10px;border:1px solid rgba(255,255,255,.25);background:rgba(10,10,24,.55);
-      color:#fff;opacity:.5;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:20px}
-  #snd:hover,#snd:active{opacity:1}
+  #snd{font-size:20px}
   @media (max-height:520px){
     #ov{padding:8px}
     .box{padding:12px 18px}
@@ -184,11 +182,13 @@
     <div class="link" id="createCancel" data-i="cancel" hidden></div>
   </div>
 </div>
-<button id="fs" data-title="fs_title">
-  <svg class="ic-on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>
-  <svg class="ic-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/></svg>
-</button>
-<button id="snd" data-title="snd_title">🔊</button>
+<div id="topRightBtns">
+  <button id="fs" data-title="fs_title">
+    <svg class="ic-on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>
+    <svg class="ic-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/></svg>
+  </button>
+  <button id="snd" data-title="snd_title">🔊</button>
+</div>
 <div id="clanForm" hidden>
   <div class="box">
     <h1 data-i="clan_form_title"></h1>
