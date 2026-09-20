@@ -665,7 +665,7 @@ canvas.addEventListener('pointerup', endPointer);
 canvas.addEventListener('pointercancel', endPointer);
 canvas.addEventListener('contextmenu', e => e.preventDefault());
 
-const actorK = e => room === 'club' ? clubPersp(e.ry) : room === 'garage' ? garagePersp(e.ry) : 0.9 + 0.16 * (e.ry - 500) / 200;   // перспектива: ниже по экрану — чуть крупнее (диапазон 500..700 как раньше, выше 500 — мельче)
+const actorK = e => room === 'club' ? clubPersp(e.ry) : room === 'garage' ? garagePersp(e.ry) : room === 'pizzeria' ? pizzeriaPersp(e.ry) : 0.9 + 0.16 * (e.ry - 500) / 200;   // перспектива: ниже по экрану — чуть крупнее (диапазон 500..700 как раньше, выше 500 — мельче)
 const FIGHTER_H = 160;
 function tapWorld(x, y){
   let hit = null;
@@ -864,6 +864,70 @@ function drawGarageScene(){
   for (const e of ents.values()) drawActor(e);   // единственные "жители" гаража — настоящие игроки, порядок по глубине не критичен (нет мебели-игроков рядом)
   const vg = ctx.createRadialGradient(CW/2, CH/2, 260, CW/2, CH/2, 780); vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,0.5)');
   ctx.fillStyle = vg; ctx.fillRect(0, 0, CW, CH);
+}
+
+// ═══════════════ ПИЦЦЕРИЯ (внутри) ═══════════════
+// Вход — на улице в районе «Пиццерия» (зона 4). Внутри — фон-картинка, как в гараже, поверх только
+// настоящие игроки. Планировка/столкновения должны совпадать с PIZZERIA на сервере (server/world.js).
+const PIZZERIA_DOOR_X = 4 * 1800 + 280;   // тайл "pizza" ближе к хабу
+const pizzeriaPersp = y => 0.72 + 0.28 * (Math.max(0, Math.min(1, (y - 331) / (700 - 331))));
+const PIZZERIA_X0 = 40, PIZZERIA_X1 = 1240, PIZZERIA_Y0 = 331, PIZZERIA_Y1 = 700;
+const PIZZERIA_DOOR = { x0:560, x1:760 };
+const PIZZERIA_BLOCKS = [ { x0:0, x1:230, y0:PIZZERIA_Y0, y1:390 }, { x0:1050, x1:1280, y0:PIZZERIA_Y0, y1:390 } ];
+const PIZZERIA_LAMPS = [ [173,44],[330,85],[338,101],[567,74],[798,71],[998,56],[1128,88],[1222,76],[628,174],[785,162] ];
+const PIZZERIA_NEONS_RED = [ [678,94],[134,126],[323,159],[1195,158] ];   // главная вывеска PIZZA, OPEN, левая и правая настенные
+const PIZZERIA_NEONS_BLUE = [ [1246,57] ];                                // "PIZZA LIFE" справа
+const PIZZERIA_BG = new Image(); PIZZERIA_BG.src = 'sprites/room_bg/pizzeria_bg.png';
+function pizzeriaConstrainMe(){
+  me.x = Math.max(PIZZERIA_X0, Math.min(PIZZERIA_X1, me.x)); me.y = Math.max(PIZZERIA_Y0, Math.min(PIZZERIA_Y1, me.y));
+  for (const b of PIZZERIA_BLOCKS){
+    if (me.x > b.x0 && me.x < b.x1 && me.y > b.y0 && me.y < b.y1){
+      const dl=me.x-b.x0, dr=b.x1-me.x, dt=me.y-b.y0, db=b.y1-me.y, m=Math.min(dl,dr,dt,db);
+      if (m===dt) me.y=b.y0; else if (m===db) me.y=b.y1; else if (m===dl) me.x=b.x0; else me.x=b.x1;
+    }
+  }
+}
+function drawPizzeriaLights(t){
+  ctx.save(); ctx.globalCompositeOperation = 'lighter';
+  const flick = 0.85 + 0.15*Math.sin(t*0.02);
+  PIZZERIA_LAMPS.forEach(([x,y], i) => {
+    const f = flick * (0.9 + 0.1*Math.sin(t*0.015 + i));
+    const g = ctx.createRadialGradient(x,y,2,x,y+55,150);
+    g.addColorStop(0, `rgba(255,220,150,${0.8*f})`); g.addColorStop(0.35, `rgba(255,175,90,${0.3*f})`); g.addColorStop(1,'rgba(255,175,90,0)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x,y+30,150,0,Math.PI*2); ctx.fill();
+  });
+  PIZZERIA_NEONS_RED.forEach(([x,y], i) => {
+    const f = flick * (0.9 + 0.1*Math.sin(t*0.02 + i*1.7));
+    const g = ctx.createRadialGradient(x,y,2,x,y,130);
+    g.addColorStop(0, `rgba(255,80,80,${0.85*f})`); g.addColorStop(0.4, `rgba(255,50,60,${0.3*f})`); g.addColorStop(1,'rgba(255,50,60,0)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x,y,130,0,Math.PI*2); ctx.fill();
+  });
+  PIZZERIA_NEONS_BLUE.forEach(([x,y], i) => {
+    const f = flick * (0.9 + 0.1*Math.sin(t*0.025 + i*2.1));
+    const g = ctx.createRadialGradient(x,y,2,x,y,120);
+    g.addColorStop(0, `rgba(120,190,255,${0.8*f})`); g.addColorStop(0.4, `rgba(100,170,255,${0.28*f})`); g.addColorStop(1,'rgba(100,170,255,0)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x,y,120,0,Math.PI*2); ctx.fill();
+  });
+  ctx.restore();
+}
+function pizzeriaExit(t){
+  ctx.save(); ctx.strokeStyle = '#3dff9a'; ctx.lineWidth = 3; ctx.shadowColor = '#3dff9a'; ctx.shadowBlur = 16;
+  ctx.globalAlpha = 0.8 + 0.2*Math.sin(t*0.006);
+  ctx.strokeRect(PIZZERIA_DOOR.x0, PIZZERIA_Y1-4, PIZZERIA_DOOR.x1-PIZZERIA_DOOR.x0, 6);
+  ctx.restore();
+  ctx.save(); ctx.shadowColor = '#3dff9a'; ctx.shadowBlur = 14;
+  txt('EXIT', (PIZZERIA_DOOR.x0+PIZZERIA_DOOR.x1)/2, PIZZERIA_Y1-34, 22, '#3dff9a');
+  ctx.restore();
+}
+function drawPizzeriaScene(){
+  const tm = performance.now();
+  if (ready(PIZZERIA_BG)) ctx.drawImage(PIZZERIA_BG, 0, 0, CW, CH);
+  else { ctx.fillStyle = '#111'; ctx.fillRect(0,0,CW,CH); }
+  drawPizzeriaLights(tm);
+  pizzeriaExit(tm);
+  for (const e of ents.values()) drawActor(e);
+  const vg2 = ctx.createRadialGradient(CW/2, CH/2, 260, CW/2, CH/2, 780); vg2.addColorStop(0, 'rgba(0,0,0,0)'); vg2.addColorStop(1, 'rgba(0,0,0,0.5)');
+  ctx.fillStyle = vg2; ctx.fillRect(0, 0, CW, CH);
 }
 const CLUB_STOOL_X = [126, 284, 482, 632, 814, 995];          // барные стулья (по рисунку — 6 штук)
 const CLUB_STOOL_Y = 262;                                     // стулья стоят перед стойкой
@@ -1077,19 +1141,21 @@ function drawClubScene(){
   const vg = ctx.createRadialGradient(CW/2, CH/2, 250, CW/2, CH/2, 760); vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,0.5)');
   ctx.fillStyle = vg; ctx.fillRect(0, 0, CW, CH);
 }
-function changeRoom(r){ room = r; ui.fade = 0.6; ui.card = null; if (r === 'club' || r === 'garage') camX = 0; }   // плавное появление из чёрного
+function changeRoom(r){ room = r; ui.fade = 0.6; ui.card = null; if (r === 'club' || r === 'garage' || r === 'pizzeria') camX = 0; }   // плавное появление из чёрного
 
-// дверь: на улице у клуба/гаража — «Войти», внутри у нижнего выхода — «Выйти» (E или кнопка на телефоне)
+// дверь: на улице у клуба/гаража/пиццерии — «Войти», внутри у нижнего выхода — «Выйти» (E или кнопка на телефоне)
 function doorState(){
   if (room === 'club') return (me.y >= 672 && me.x > 590 && me.x < 772) ? 'leave' : null;
   if (room === 'garage') return (me.y >= GARAGE_Y1 - 20 && me.x > GARAGE_DOOR.x0 && me.x < GARAGE_DOOR.x1) ? 'leave' : null;
+  if (room === 'pizzeria') return (me.y >= PIZZERIA_Y1 - 20 && me.x > PIZZERIA_DOOR.x0 && me.x < PIZZERIA_DOOR.x1) ? 'leave' : null;
   if (Math.abs(me.x - CLUB_DOOR_X) < 90 && me.y < GROUND_MIN + 30) return 'enter_club';
   if (Math.abs(me.x - GARAGE_DOOR_X) < 90 && me.y < GROUND_MIN + 30) return 'enter_garage';
+  if (Math.abs(me.x - PIZZERIA_DOOR_X) < 90 && me.y < GROUND_MIN + 30) return 'enter_pizzeria';
   return null;
 }
 function doorGo(ds){
   if (ds === 'leave') sendWs({ t:'leave', b: room });
-  else sendWs({ t:'enter', b: ds === 'enter_club' ? 'club' : 'garage' });
+  else sendWs({ t:'enter', b: ds === 'enter_club' ? 'club' : ds === 'enter_garage' ? 'garage' : 'pizzeria' });
 }
 function drawDoorPrompt(){
   const ds = doorState(); if (!ds) return;
@@ -1101,8 +1167,8 @@ function drawDoorPrompt(){
     txt('🚪', bx, by - 2, 26, '#fff'); txt(label, bx, by + 24, 13, '#fff', 'center', 80);
     addHit(bx - br, by - br, br*2, br*2, () => doorGo(ds));
   } else {                                                                          // компьютер: подсказка над дверью / у выхода
-    const doorX = ds === 'enter_garage' ? GARAGE_DOOR_X : CLUB_DOOR_X;
-    const px = (room === 'club' || room === 'garage') ? CW/2 : doorX - camX, py = (room === 'club' || room === 'garage') ? CH - 74 : 236;
+    const doorX = ds === 'enter_garage' ? GARAGE_DOOR_X : ds === 'enter_pizzeria' ? PIZZERIA_DOOR_X : CLUB_DOOR_X;
+    const px = (room === 'club' || room === 'garage' || room === 'pizzeria') ? CW/2 : doorX - camX, py = (room === 'club' || room === 'garage' || room === 'pizzeria') ? CH - 74 : 236;
     const w = 250, h = 44;
     ctx.fillStyle = 'rgba(8,8,16,0.88)'; rr(px - w/2, py - h/2, w, h, 12); ctx.fill();
     ctx.strokeStyle = '#3dff9a'; ctx.lineWidth = 2.5; rr(px - w/2, py - h/2, w, h, 12); ctx.stroke();
@@ -1249,6 +1315,7 @@ function update(dt){
     const sp = me.sp * run * slow;
     if (room === 'club'){ me.x += dx/len*k*sp*dt; me.y += dy/len*k*sp*0.6*dt; clubConstrainMe(); }
     else if (room === 'garage'){ me.x += dx/len*k*sp*dt; me.y += dy/len*k*sp*0.6*dt; garageConstrainMe(); }
+    else if (room === 'pizzeria'){ me.x += dx/len*k*sp*dt; me.y += dy/len*k*sp*0.6*dt; pizzeriaConstrainMe(); }
     else {
       me.x = Math.max(60, Math.min(WORLD_W-60, me.x + dx/len*k*sp*dt));
       me.y = Math.max(GROUND_MIN, Math.min(GROUND_MAX, me.y + dy/len*k*sp*0.6*dt));
@@ -1272,7 +1339,7 @@ function update(dt){
   if (ui.banner){ ui.banner.t -= dt; if (ui.banner.t <= 0) ui.banner = null; }
   if (ui.koText > 0) ui.koText -= dt;
   if (ui.fade > 0) ui.fade -= dt;
-  if (room === 'club' || room === 'garage') camX = 0;
+  if (room === 'club' || room === 'garage' || room === 'pizzeria') camX = 0;
   else { const target = Math.max(0, Math.min(WORLD_W-CW, me.x - CW/2)); camX += (target - camX) * Math.min(1, dt*8); }
 }
 
@@ -1480,7 +1547,7 @@ function drawActor(e){
   const ny = e.ry - h - 6;
   if (e.c) bar(sx-34, ny-24, 68, 8, e.h/e.m, e.h/e.m > 0.35 ? '#4be06f' : '#ff5a5a');
   const isMe = e.id === myId, isBot = e.k === 'b';
-  const zt = (room === 'club' || room === 'garage') ? 'hub' : ZONES[zoneAt(e.rx)].type;
+  const zt = (room === 'club' || room === 'garage' || room === 'pizzeria') ? 'hub' : ZONES[zoneAt(e.rx)].type;
   ctx.font = 'bold 15px Arial';
   // у бота под ним и так видно, что это бот (нет ника/тега) — незачем подписывать ещё и "Панк"
   const name = isBot ? '' : ((e.cl && clanTags[e.cl]) ? '['+clanTags[e.cl]+'] ' : '') + e.n, nameW = isBot ? 0 : ctx.measureText(name).width;
@@ -1541,7 +1608,7 @@ function drawHUD(){
     if (hasUnread){ ctx.fillStyle = '#ff3b3b'; ctx.beginPath(); ctx.arc(178, cy+4, 9, 0, Math.PI*2); ctx.fill(); txt(String(Math.min(9,chatUnread)) + (chatUnread>9?'+':''), 178, cy+9, 11, '#fff'); }
     addHit(16, cy, 170, 34, () => openChat()); }
 
-  if (room !== 'club' && room !== 'garage') {
+  if (room !== 'club' && room !== 'garage' && room !== 'pizzeria') {
   const cellW = 48, mapW = cellW*ZONES.length, mmx = RX - mapW, my2 = 16, mh = 18;
   ctx.fillStyle = 'rgba(0,0,0,0.6)'; rr(mmx-6, my2-6, mapW+12, mh+12, 8); ctx.fill();
   for (let z=0; z<ZONES.length; z++){
@@ -1736,6 +1803,7 @@ function frame(now){
   ctx.clearRect(0, 0, CW, CH);
   if (room === 'club') drawClubScene();
   else if (room === 'garage') drawGarageScene();
+  else if (room === 'pizzeria') drawPizzeriaScene();
   else { drawSky(); drawRoad(); drawWalls(); drawLamps(); drawZoneDecor(); [...ents.values()].sort((a,b) => a.ry - b.ry).forEach(drawActor); }
   drawFloaters();
   if (connected){ drawHUD(); drawControls(); drawDoorPrompt(); drawCard(); drawPanel(); drawClanPanel(); }

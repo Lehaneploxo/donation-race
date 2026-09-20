@@ -55,6 +55,23 @@ function garageConstrain(e) {
   }
 }
 
+// ── ПИЦЦЕРИЯ: вход на улице (зона 4, у первого тайла "pizza" сразу после площади) — комната с
+// картинкой-фоном, тот же принцип, что и гараж.
+const PIZZERIA_DOOR_X = 4 * ZONE_W + 280;
+const PIZZERIA = {
+  x0: 40, x1: 1240, y0: 331, y1: 700, spawn: { x: 640, y: 600 }, exit: { x0: 560, x1: 760, y: 680 },
+  blocks: [ { x0: 0, x1: 230, y0: 331, y1: 390 }, { x0: 1050, x1: 1280, y0: 331, y1: 390 } ],
+};
+function pizzeriaConstrain(e) {
+  e.x = clamp(e.x, PIZZERIA.x0, PIZZERIA.x1); e.y = clamp(e.y, PIZZERIA.y0, PIZZERIA.y1);
+  for (const b of PIZZERIA.blocks) {
+    if (e.x > b.x0 && e.x < b.x1 && e.y > b.y0 && e.y < b.y1) {
+      const dl = e.x - b.x0, dr = b.x1 - e.x, dt = e.y - b.y0, db = b.y1 - e.y, m = Math.min(dl, dr, dt, db);
+      if (m === dt) e.y = b.y0; else if (m === db) e.y = b.y1; else if (m === dl) e.x = b.x0; else e.x = b.x1;
+    }
+  }
+}
+
 // ── бойцы: стартовые характеристики (шкала 1-10) и длительность ударов (кадры/fps) ──
 const FIGHTERS = {
   brute_arms:   { name: 'Качок',           stats: { str: 8, hp: 8, spd: 4 }, anim: { jab: [7, 14], punch: [5, 16], kick: [8, 16] } },
@@ -714,6 +731,7 @@ function tick() {
     const minX = 60, maxX = WORLD_W - 60;
     if (e.room === 'club') { e.x += dx * sp * dt; e.y += dy * sp * 0.6 * dt; clubConstrain(e); }
     else if (e.room === 'garage') { e.x += dx * sp * dt; e.y += dy * sp * 0.6 * dt; garageConstrain(e); }
+    else if (e.room === 'pizzeria') { e.x += dx * sp * dt; e.y += dy * sp * 0.6 * dt; pizzeriaConstrain(e); }
     else { e.x = clamp(e.x + dx * sp * dt, minX, maxX); e.y = clamp(e.y + dy * sp * 0.6 * dt, GROUND_MIN, GROUND_MAX); }
     // вход в клуб/гараж — только по кнопке/клавише E (case 'enter' ниже), один в один как выход;
     // автовхода простой ходьбой в дверь больше нет — по прямой просьбе пользователя
@@ -771,7 +789,7 @@ function broadcast() {
       vis.add(e.id); a.push(rows.get(e.id));
       if (!p.known.has(e.id)) { p.known.add(e.id); add.push({ id: e.id, n: e.name, ty: e.type, v: e.variant, k: e.kind }); }
     }
-    if (sendMm) send(p, { t: 'mm', p: allPlayers.filter(q => q !== p).map(q => [Math.round(q.room === 'club' ? CLUB_DOOR_X : q.room === 'garage' ? GARAGE_DOOR_X : q.x), (p.clanId && q.clanId === p.clanId) ? 1 : 0]) });
+    if (sendMm) send(p, { t: 'mm', p: allPlayers.filter(q => q !== p).map(q => [Math.round(q.room === 'club' ? CLUB_DOOR_X : q.room === 'garage' ? GARAGE_DOOR_X : q.room === 'pizzeria' ? PIZZERIA_DOOR_X : q.x), (p.clanId && q.clanId === p.clanId) ? 1 : 0]) });
     const newClans = {};
     for (const r of a) { const cid = r[9]; if (cid && !p.knownClans.has(cid)) { p.knownClans.add(cid); newClans[cid] = clanTags.get(cid) || ''; } }
     if (Object.keys(newClans).length) send(p, { t: 'clans', m: newClans });
@@ -810,7 +828,7 @@ async function handleConnection(ws, req) {
 
   const p = loadPlayer(acc.id, acc.nick, ch, ws);
   console.log(`[WORLD] +${acc.nick} (онлайн: ${byAccount.size})`);
-  send(p, { t: 'hello', id: p.id, zones: ZONE_TYPES, zoneW: ZONE_W, ground: [GROUND_MIN, GROUND_MAX], world: WORLD_W, x: p.x, y: p.y, club: CLUB, doorX: CLUB_DOOR_X, garage: GARAGE, garageDoorX: GARAGE_DOOR_X });
+  send(p, { t: 'hello', id: p.id, zones: ZONE_TYPES, zoneW: ZONE_W, ground: [GROUND_MIN, GROUND_MAX], world: WORLD_W, x: p.x, y: p.y, club: CLUB, doorX: CLUB_DOOR_X, garage: GARAGE, garageDoorX: GARAGE_DOOR_X, pizzeria: PIZZERIA, pizzeriaDoorX: PIZZERIA_DOOR_X });
   sendClanInfo(p).catch(clanErr);     // клан и приглашения игрока
   send(p, { t: 'chat_history', list: chatLog });
 
@@ -907,8 +925,8 @@ function onMessage(p, m) {
       if (t && t.room === p.room && Math.abs(t.x - p.x) < 900) send(p, { t: 'card', id: t.id, name: t.name, kind: t.kind, ty: t.type, level: t.level, hp: Math.ceil(t.hp), max: maxHpOf(t), st: t.stats, tag: t.clanTag || '', ally: !!(p.clanId && p.clanId === t.clanId), canInvite: !!(p.clanLeader && t.kind === 'p' && t.clanId !== p.clanId), inClan: !!p.clanId, canMod: isModeratorNick(p.name) && t.kind === 'p' && !isModeratorNick(t.name) });
       break;
     }
-    case 'enter': if (m.b === 'club') enterClub(p); else if (m.b === 'garage') enterGarage(p); break;
-    case 'leave': if (p.room === 'club') leaveClub(p); else if (p.room === 'garage') leaveGarage(p); break;
+    case 'enter': if (m.b === 'club') enterClub(p); else if (m.b === 'garage') enterGarage(p); else if (m.b === 'pizzeria') enterPizzeria(p); break;
+    case 'leave': if (p.room === 'club') leaveClub(p); else if (p.room === 'garage') leaveGarage(p); else if (p.room === 'pizzeria') leavePizzeria(p); break;
     case 'clan_info': sendClanInfo(p).catch(clanErr); break;
     case 'clan_create': clanCreate(p, m.name, m.tag).catch(clanErr); break;
     case 'clan_invite': clanInvite(p, m.to).catch(clanErr); break;
@@ -940,6 +958,17 @@ function leaveGarage(p) {
   if (p.room !== 'garage' || p.koT > 0) return;
   if (p.y < GARAGE.exit.y || p.x < GARAGE.exit.x0 || p.x > GARAGE.exit.x1) return;
   p.room = ''; p.x = GARAGE_DOOR_X; p.y = 520; p.inx = p.iny = 0;
+}
+function enterPizzeria(p) {
+  if (p.room || p.koT > 0) return;
+  if (Math.abs(p.x - PIZZERIA_DOOR_X) > 140 || p.y > 570) return;
+  if (p.pvpT < CLUB_COMBAT_LOCK) { if (p.hintCd <= 0) { p.hintCd = 2; toast(p, 'no_enter_combat', '#ffc933'); } return; }
+  p.room = 'pizzeria'; p.x = PIZZERIA.spawn.x; p.y = PIZZERIA.spawn.y; p.inx = p.iny = 0; p.atk = null; p.blk = false; p.hurtT = 0;
+}
+function leavePizzeria(p) {
+  if (p.room !== 'pizzeria' || p.koT > 0) return;
+  if (p.y < PIZZERIA.exit.y || p.x < PIZZERIA.exit.x0 || p.x > PIZZERIA.exit.x1) return;
+  p.room = ''; p.x = PIZZERIA_DOOR_X; p.y = 520; p.inx = p.iny = 0;
 }
 
 async function init() {
