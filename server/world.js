@@ -70,6 +70,7 @@ const maxHpOf  = e => e.kind === 'b' ? 40 + e.level * 8 : 70 + e.stats.hp * 10;
 const speedOf  = e => 150 + 52.5 * (1 - Math.exp(-e.stats.spd / 55));
 const RUN_CAP  = 1.3;   // множитель бега — раньше был 1.6, тоже разгонял сильнее, чем нужно
 const SPD_CAP  = 100;   // скорость (стата) качается только до 100, дальше очки — только в силу/здоровье
+const FIGHTER_CHANGE_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;   // смена бойца — раз в 7 дней; уровень/статы/деньги не трогает, только внешность
 // Шкала бега (20.09.2026): бег больше не бесконечный — тратит шкалу, которая
 // восстанавливается, когда игрок не бежит (даже если просто идёт или дерётся).
 const STAMINA_MAX = 100, STAMINA_DRAIN_PER_SEC = STAMINA_MAX / 6, STAMINA_REGEN_PER_SEC = STAMINA_MAX / 12;
@@ -98,6 +99,7 @@ class PgStore {
       str INTEGER NOT NULL, hp INTEGER NOT NULL, spd INTEGER NOT NULL,
       updated_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
     await q(`ALTER TABLE world_chars ADD COLUMN IF NOT EXISTS money INTEGER NOT NULL DEFAULT 0`);
+    await q(`ALTER TABLE world_chars ADD COLUMN IF NOT EXISTS fighter_changed_at TIMESTAMPTZ`);
     await q(`CREATE TABLE IF NOT EXISTS world_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)`);
     await this.initClans();
   }
@@ -111,12 +113,14 @@ class PgStore {
       return r.rows[0].id;
     } catch (e) { if (e.code === '23505') throw new Error('taken'); throw e; }
   }
-  async getChar(id) { const r = await this.pool.query('SELECT type,variant,level,xp,points,str,hp,spd,money FROM world_chars WHERE account_id=$1', [id]); return r.rows[0] || null; }
+  async getChar(id) { const r = await this.pool.query('SELECT type,variant,level,xp,points,str,hp,spd,money,fighter_changed_at FROM world_chars WHERE account_id=$1', [id]); return r.rows[0] || null; }
   async insertChar(id, c) {
     await this.pool.query('INSERT INTO world_chars(account_id,type,variant,level,xp,points,str,hp,spd) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT DO NOTHING',
       [id, c.type, c.variant, c.level, c.xp, c.points, c.str, c.hp, c.spd]);
   }
   async setFighter(id, type, variant) { await this.pool.query('UPDATE world_chars SET type=$2, variant=$3 WHERE account_id=$1', [id, type, variant]); }
+  // смена бойца по желанию игрока (в отличие от setFighter выше — системной подмены, если боец убран из игры) — метит время, чтобы работал кулдаун
+  async changeFighter(id, type, variant) { await this.pool.query('UPDATE world_chars SET type=$2, variant=$3, fighter_changed_at=now() WHERE account_id=$1', [id, type, variant]); }
   async saveChar(id, c) {
     await this.pool.query('UPDATE world_chars SET level=$2,xp=$3,points=$4,str=$5,hp=$6,spd=$7,money=$8,updated_at=now() WHERE account_id=$1',
       [id, c.level, c.xp, c.points, c.str, c.hp, c.spd, c.money | 0]);
@@ -138,6 +142,7 @@ class FileStore {
   async insertChar(id, c) { if (!this.d.chars[id]) { this.d.chars[id] = { ...c }; this._save(); } }
   async saveChar(id, c) { if (this.d.chars[id]) { Object.assign(this.d.chars[id], c); this._save(); } }
   async setFighter(id, type, variant) { if (this.d.chars[id]) { this.d.chars[id].type = type; this.d.chars[id].variant = variant; this._save(); } }
+  async changeFighter(id, type, variant) { if (this.d.chars[id]) { this.d.chars[id].type = type; this.d.chars[id].variant = variant; this.d.chars[id].fighter_changed_at = new Date().toISOString(); this._save(); } }
 }
 
 // ── кланы: хранилище (Postgres и локальный файл) ──
@@ -409,6 +414,7 @@ function loadPlayer(accountId, nick, ch, ws) {
   p.level = ch.level; p.xp = ch.xp; p.points = ch.points; p.money = ch.money | 0;
   p.stats = { str: ch.str, hp: ch.hp, spd: ch.spd };
   p.hp = maxHpOf(p);
+  p.fighterChangedAt = ch.fighter_changed_at ? new Date(ch.fighter_changed_at).getTime() : 0;
   ents.set(p.id, p); byAccount.set(accountId, p);
   return p;
 }
@@ -786,6 +792,17 @@ function onMessage(p, m) {
         if (m.stat === 'hp') p.hp += 10;
       }
       break;
+    case 'change_fighter': {
+      const info = FIGHTERS[m.type];
+      if (!info || !Number.isInteger(m.variant) || m.variant < 0 || m.variant >= VARIANTS) { send(p, { t: 'fighter_change_err', code: 'bad' }); break; }
+      const wait = FIGHTER_CHANGE_COOLDOWN_MS - (Date.now() - (p.fighterChangedAt || 0));
+      if (wait > 0) { send(p, { t: 'fighter_change_err', code: 'cooldown', days: Math.ceil(wait / 86400000) }); break; }
+      p.type = m.type; p.variant = m.variant; p.fighterChangedAt = Date.now();
+      for (const q of byAccount.values()) q.known.delete(p.id);   // форсим всем клиентам заново прислать 'add' с новым видом (тип/вариант шлются только там)
+      store.changeFighter(p.accountId, p.type, p.variant).catch(e => console.error('[DB] change_fighter error:', e.message));
+      send(p, { t: 'fighter_change_ok' });
+      break;
+    }
     case 'debug_stat': {
       if ((p.name || '').toLowerCase() !== DEBUG_OWNER_NICK) break;
       if ((m.stat === 'str' || m.stat === 'hp' || m.stat === 'spd') && Number.isFinite(m.delta)) {

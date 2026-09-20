@@ -163,12 +163,13 @@
     <div class="err" id="err"></div>
     <button class="main" id="go"></button>
   </div>
-  <!-- выбор бойца -->
+  <!-- выбор бойца (тот же экран — и при регистрации, и при смене бойца в игре) -->
   <div class="box wide" id="scrCreate" hidden>
-    <h1 data-i="choose_title"></h1><div class="sub" data-i="choose_sub"></div>
+    <h1 id="createTitle" data-i="choose_title"></h1><div class="sub" id="createSub" data-i="choose_sub"></div>
     <div class="cards" id="cards"></div>
     <div class="err" id="err2"></div>
     <button class="main" id="start" data-i="go_world"></button>
+    <div class="link" id="createCancel" data-i="cancel" hidden></div>
   </div>
 </div>
 <button id="fs" data-title="fs_title">
@@ -213,6 +214,9 @@ Object.assign(L.en, { door_enter:'Enter', door_exit:'Exit', m_no_enter_combat:'C
 Object.assign(L.ru, { dmg_hint:'удар ~{0}   ·   супер ~{1}', lbl_str:'СИЛА', lbl_hp:'ЗДОРОВЬЕ {0} / {1}', lbl_run:'БЕГ {0} / {1}' });
 Object.assign(L.uk, { dmg_hint:'удар ~{0}   ·   супер ~{1}', lbl_str:'СИЛА', lbl_hp:'ЗДОРОВʼЯ {0} / {1}', lbl_run:'БІГ {0} / {1}' });
 Object.assign(L.en, { dmg_hint:'hit ~{0}   ·   super ~{1}', lbl_str:'STRENGTH', lbl_hp:'HEALTH {0} / {1}', lbl_run:'RUN {0} / {1}' });
+Object.assign(L.ru, { change_fighter_btn:'Сменить бойца', choose_sub_switch:'Уровень, опыт и характеристики остаются прежними — меняется только внешность. Следующая смена станет доступна через 7 дней.', btn_switch_go:'Сменить', err_fighter_cooldown:'Сменить бойца можно раз в 7 дней — осталось {0} дн.' });
+Object.assign(L.uk, { change_fighter_btn:'Змінити бійця', choose_sub_switch:'Рівень, досвід і характеристики лишаються ті самі — змінюється лише зовнішність. Наступна зміна стане доступна через 7 днів.', btn_switch_go:'Змінити', err_fighter_cooldown:'Змінювати бійця можна раз на 7 днів — лишилось {0} дн.' });
+Object.assign(L.en, { change_fighter_btn:'Change fighter', choose_sub_switch:'Level, XP and stats stay the same — only the look changes. Next change will be available in 7 days.', btn_switch_go:'Change', err_fighter_cooldown:'You can change fighter once every 7 days — {0} day(s) left' });
 function t(k, ...a){
   let s = (L[lang] && k in L[lang]) ? L[lang][k] : (k in L.ru ? L.ru[k] : k);
   a.forEach((v, i) => { s = s.split('{' + i + '}').join(v); });
@@ -296,7 +300,7 @@ function framesOf(type, variant, anim){
 const spriteUrl = (type, variant) => `sprites/${A[type].base}/${VARIANT_DIRS[type][variant]}/Idle/idle1.png`;
 
 // ═══════════════ ВХОД / РЕГИСТРАЦИЯ ═══════════════
-let mode = 'reg', token = null, cfg = null, pick = { type:null, variant:0 };
+let mode = 'reg', token = null, cfg = null, pick = { type:null, variant:0 }, switchingFighter = false;
 try { token = localStorage.getItem('world_token'); } catch(_){}
 const api = async (path, body, auth) => {
   const opt = { method: body ? 'POST' : 'GET', headers: {} };
@@ -336,15 +340,21 @@ $('nick').addEventListener('keydown', e => { if (e.key === 'Enter') $('pass').fo
 
 async function showCreate(){
   $('scrAuth').hidden = true; $('scrCreate').hidden = false;
+  $('createCancel').hidden = !switchingFighter;
+  $('createTitle').textContent = switchingFighter ? t('change_fighter_btn') : t('choose_title');
+  $('createSub').textContent = switchingFighter ? t('choose_sub_switch') : t('choose_sub');
+  $('start').textContent = switchingFighter ? t('btn_switch_go') : t('go_world');
   if (!cfg) cfg = await api('config');
   const box = $('cards'); box.innerHTML = '';
-  const maxes = { str:10, hp:10, spd:10 };
+  const my = switchingFighter ? myEnt() : null;
+  const curType = my ? my.ty : cfg.fighters[0].type, curVar = my ? (my.v || 0) : 0;
   cfg.fighters.forEach((f, i) => {
-    const el = document.createElement('div'); el.className = 'card' + (i===0 ? ' on' : '');
+    const on = f.type === curType;
+    const el = document.createElement('div'); el.className = 'card' + (on ? ' on' : '');
     el.innerHTML = `<img src="${spriteUrl(f.type, 0)}"><div class="nm">${t('f_' + f.type)}</div>
       ${[[t('st_str'),'str','#ff8a4a'],[t('st_hp'),'hp','#4be06f'],[t('st_spd'),'spd','#5fc8ff']].map(([n,k,c]) =>
         `<div class="st"><span>${n}</span><i style="width:${f.stats[k]*8}px;background:${c}"></i>${f.stats[k]}</div>`).join('')}
-      <div class="sw">${[0,1,2].map(v => `<img data-v="${v}" class="${v===0?'on':''}" src="${spriteUrl(f.type, v)}">`).join('')}</div>`;
+      <div class="sw">${[0,1,2].map(v => `<img data-v="${v}" class="${v===(on?curVar:0)?'on':''}" src="${spriteUrl(f.type, v)}">`).join('')}</div>`;
     el.onclick = e => {
       box.querySelectorAll('.card').forEach(c => c.classList.remove('on')); el.classList.add('on');
       pick.type = f.type;
@@ -355,10 +365,13 @@ async function showCreate(){
     };
     box.appendChild(el);
   });
-  pick = { type: cfg.fighters[0].type, variant: 0 };
+  pick = { type: curType, variant: curVar };
 }
+function openFighterSwitch(){ switchingFighter = true; $('ov').hidden = false; showCreate(); }
+$('createCancel').onclick = () => { switchingFighter = false; $('ov').hidden = true; };
 $('start').onclick = async () => {
   $('err2').textContent = ''; $('start').disabled = true;
+  if (switchingFighter){ sendWs({ t:'change_fighter', type:pick.type, variant:pick.variant }); return; }   // ответ — case 'fighter_change_ok'/'fighter_change_err'
   try { await api('create', { type: pick.type, variant: pick.variant }, true); enterGame(); }
   catch(e){ $('err2').textContent = errText(e); if (e.status === 401) logout(); }
   $('start').disabled = false;
@@ -440,6 +453,8 @@ function onServer(m){
       break;
     case 'clan_err': $('cErr').textContent = t('ce_' + m.code); $('cGo').disabled = false; break;
     case 'clan_ok': $('clanForm').hidden = true; break;
+    case 'fighter_change_ok': switchingFighter = false; $('ov').hidden = true; $('start').disabled = false; break;
+    case 'fighter_change_err': $('err2').textContent = m.code === 'cooldown' ? t('err_fighter_cooldown', m.days) : t('err_bad_fighter'); $('start').disabled = false; break;
     case 'kicked': break;
   }
 }
@@ -1266,7 +1281,7 @@ function drawCard(){
 function drawPanel(){
   if (!ui.panel) return;
   const dbg = isDebugOwner();
-  const my = myEnt(), w = 460, h = dbg ? 424 : 360, x = (CW-w)/2, y = 120;
+  const my = myEnt(), w = 460, h = (dbg ? 424 : 360) + 44, x = (CW-w)/2, y = 120;
   ctx.fillStyle = 'rgba(8,8,16,0.95)'; rr(x, y, w, h, 14); ctx.fill();
   ctx.strokeStyle = '#ffd23f'; ctx.lineWidth = 2.5; rr(x, y, w, h, 14); ctx.stroke();
   addHit(x, y, w, h, () => {});
@@ -1303,6 +1318,8 @@ function drawPanel(){
       addHit(cx+66, dy+20, 60, 32, () => sendWs({ t:'debug_stat', stat:r[0], delta:10 }));
     });
   }
+  ctx.fillStyle = '#3a3a55'; rr(x+w/2-110, y+h-96, 220, 34, 10); ctx.fill();
+  txt(t('change_fighter_btn'), x+w/2, y+h-73, 15, '#dfe6ff'); addHit(x+w/2-110, y+h-96, 220, 34, () => { ui.panel = false; openFighterSwitch(); });
   ctx.font = '12px Arial'; ctx.textAlign = 'center'; ctx.fillStyle = '#7f8db0';
   ctx.fillText(t('no_reset'), x+w/2, y+h-52);
   ctx.fillStyle = 'rgba(120,40,40,0.8)'; rr(x+w/2-70, y+h-40, 140, 30, 8); ctx.fill();
