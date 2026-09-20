@@ -812,7 +812,7 @@ let room = '';                             // '' — улица, 'club' — вн
 // Вход — на улице в районе «Гараж» (зона 2, центр). Внутри — фон-картинка (не тайлы/рисование, как
 // в клубе), поверх неё только настоящие игроки. Планировка/столкновения должны совпадать с GARAGE
 // на сервере (server/world.js).
-const GARAGE_DOOR_X = 2 * 1800 + 900;
+const GARAGE_DOOR_X = 2 * 1800 + 1500;   // ровно у тайла "открытый гараж со светящейся машиной" на фасаде (не просто центр района)
 const garagePersp = y => 0.72 + 0.28 * (Math.max(0, Math.min(1, (y - 380) / (700 - 380))));
 const GARAGE_X0 = 40, GARAGE_X1 = 1240, GARAGE_Y0 = 380, GARAGE_Y1 = 700;
 const GARAGE_DOOR = { x0:560, x1:760 };
@@ -1422,6 +1422,20 @@ function drawNeon(zx){
   drawVelvetRope(-45, 45, 2, 30);
   ctx.restore();
 }
+// Постоянно светящаяся подсказка "ВОЙТИ" над дверью на улице — видна издалека, не только когда
+// подошёл вплотную (та подсказка [E] остаётся, эта — просто маячок, что здесь вход). Тот же приём,
+// что и у EXIT внутри комнат.
+function drawEntranceGlow(doorX, now){
+  const sx = doorX - camX; if (sx < -150 || sx > CW+150) return;
+  const y = ROAD_TOP - 14;
+  ctx.save(); ctx.strokeStyle = '#3dff9a'; ctx.lineWidth = 3; ctx.shadowColor = '#3dff9a'; ctx.shadowBlur = 16;
+  ctx.globalAlpha = 0.8 + 0.2*Math.sin(now*0.006);
+  ctx.strokeRect(sx-90, y-3, 180, 5);
+  ctx.restore();
+  ctx.save(); ctx.shadowColor = '#3dff9a'; ctx.shadowBlur = 14;
+  txt(t('door_enter').toUpperCase(), sx, y-16, 18, '#3dff9a');
+  ctx.restore();
+}
 function drawZoneDecor(){
   const z0 = zoneAt(camX), z1 = zoneAt(camX + CW);
   for (let z=z0; z<=z1; z++){
@@ -1736,7 +1750,7 @@ function frame(now){
   ctx.clearRect(0, 0, CW, CH);
   if (room === 'club') drawClubScene();
   else if (room === 'garage') drawGarageScene();
-  else { drawSky(); drawRoad(); drawWalls(); drawLamps(); drawZoneDecor(); [...ents.values()].sort((a,b) => a.ry - b.ry).forEach(drawActor); }
+  else { drawSky(); drawRoad(); drawWalls(); drawLamps(); drawZoneDecor(); drawEntranceGlow(CLUB_DOOR_X, now); drawEntranceGlow(GARAGE_DOOR_X, now); [...ents.values()].sort((a,b) => a.ry - b.ry).forEach(drawActor); }
   drawFloaters();
   if (connected){ drawHUD(); drawControls(); drawDoorPrompt(); drawCard(); drawPanel(); drawClanPanel(); }
   drawOverlays();
