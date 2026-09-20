@@ -1398,14 +1398,19 @@ function drawOverlays(){
   // всплывающие реплики общего чата — короткая живая лента слева под HUD, чтобы видеть сообщения
   // на бегу, не открывая само окно чата (см. openChat/#chatForm). Специально НЕ внизу экрана —
   // там на телефоне джойстик и кнопки боя, лента бы их перекрывала
+  if (ui.chatFeed.length){
+    ctx.globalAlpha = Math.min(1, ui.chatFeed[ui.chatFeed.length-1].t);
+    ctx.font = '20px Arial'; ctx.textAlign = 'left'; ctx.fillStyle = '#dfe6ff'; ctx.fillText(t('chat_btn'), 20, 205);
+    ctx.globalAlpha = 1;
+  }
   ui.chatFeed.forEach((c, i) => {
     const short = c.text.length > 60 ? c.text.slice(0, 60) + '…' : c.text;
-    const y = 210 + i * 26;
-    ctx.font = '14px Arial'; const full = c.u + ': ' + short, w = Math.min(600, ctx.measureText(full).width + 20);
-    ctx.globalAlpha = Math.min(1, c.t); ctx.fillStyle = 'rgba(8,8,16,0.72)'; rr(20, y-18, w, 25, 7); ctx.fill();
-    ctx.textAlign = 'left'; ctx.fillStyle = '#ffd23f'; ctx.fillText(c.u + ':', 28, y);
+    const y = 228 + i * 30;
+    ctx.font = '17px Arial'; const full = c.u + ': ' + short, w = Math.min(640, ctx.measureText(full).width + 24);
+    ctx.globalAlpha = Math.min(1, c.t); ctx.fillStyle = 'rgba(8,8,16,0.75)'; rr(20, y-21, w, 30, 8); ctx.fill();
+    ctx.textAlign = 'left'; ctx.fillStyle = '#ffd23f'; ctx.fillText(c.u + ':', 30, y);
     const nw = ctx.measureText(c.u + ':').width;
-    ctx.fillStyle = '#fff'; ctx.fillText(' ' + short, 28 + nw, y);
+    ctx.fillStyle = '#fff'; ctx.fillText(' ' + short, 30 + nw, y);
     ctx.globalAlpha = 1;
   });
   if (ui.fade > 0){ ctx.globalAlpha = Math.min(1, ui.fade / 0.6); ctx.fillStyle = '#000'; ctx.fillRect(0, 0, CW, CH); ctx.globalAlpha = 1; }
