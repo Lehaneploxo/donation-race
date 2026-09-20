@@ -1083,8 +1083,8 @@ function changeRoom(r){ room = r; ui.fade = 0.6; ui.card = null; if (r === 'club
 function doorState(){
   if (room === 'club') return (me.y >= 672 && me.x > 590 && me.x < 772) ? 'leave' : null;
   if (room === 'garage') return (me.y >= GARAGE_Y1 - 20 && me.x > GARAGE_DOOR.x0 && me.x < GARAGE_DOOR.x1) ? 'leave' : null;
-  if (Math.abs(me.x - CLUB_DOOR_X) < 110 && me.y < 560) return 'enter_club';
-  if (Math.abs(me.x - GARAGE_DOOR_X) < 110 && me.y < 560) return 'enter_garage';
+  if (Math.abs(me.x - CLUB_DOOR_X) < 90 && me.y < GROUND_MIN + 30) return 'enter_club';
+  if (Math.abs(me.x - GARAGE_DOOR_X) < 90 && me.y < GROUND_MIN + 30) return 'enter_garage';
   return null;
 }
 function doorGo(ds){
