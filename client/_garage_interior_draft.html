@@ -13,34 +13,33 @@
 <body>
 <div id="wrap"><canvas id="c" width="1280" height="720"></canvas></div>
 <script>
-// ═══ ЧЕРНОВИК: ГАРАЖ ВНУТРИ (одна комната на весь экран) ═══
-// Раскладка: вход — внизу по центру (как в клубе), машина на подъёмнике — по центру сзади,
-// верстак с инструментами — слева, стеллаж с шинами и инструментальный шкаф — справа.
-// Механика пока НЕТ — сюда встанет готовый спрайт (как бармен/танцоры в клубе).
-// Здесь только макет: ходить можно, драться нельзя.
+// ═══ ЧЕРНОВИК v2: ГАРАЖ ВНУТРИ — тот же визуальный язык, что в клубе (неон, свет, тени) ═══
 const canvas = document.getElementById('c'), ctx = canvas.getContext('2d');
-const CW = 1280, CH = 720;
+const CW = 1280, CH = 720, FIGHTER_H = 160;
 
-// зона ходьбы (ступни)
 const Y_MIN = 260, Y_MAX = 705, X_MIN = 34, X_MAX = 1246;
 const persp = y => 0.62 + 0.43 * (Math.max(0, Math.min(1, (y - 230) / (700 - 230))));
+const ready = im => im && im.complete && im.naturalWidth;
 
-const DOOR = { x0:590, x1:772 };                    // вход/выход снизу — тот же проём, что в клубе
-const LIFT = { x:640, y:330 };                      // машина на подъёмнике, по центру сзади
-const BENCH = { x0:70, y0:300, x1:330, y1:420 };    // верстак слева
-const TIRES = { x:1040, y:420 };                    // стопка шин справа
-const CABINET = { x:1150, y:330 };                  // инструментальный шкаф у стены
+const DOOR = { x0:590, x1:772 };
+const LIFT = { x:640, y:340 };
+const BENCH = { x0:70, y0:300, x1:330, y1:420 };
+const TIRES = { x:1040, y:420 };
+const CABINET = { x:1150, y:330 };
 
-// игрок — переиспользуем спрайт «Хулиган» (bancho), как в клубе
-const CH_DEF = { bancho: { base:'urban_brawlers', idle:[7,9], walk:[6,12] } };
+// реальный тайлсет игры (тот же, что на улице) — кирпич стен и рифлёный пол переиспользуем
+const TILESET = new Image(); TILESET.src = 'sprites/streets_of_fight/stage/tileset.png';
+const BRICK = { sx:0, sy:112, sw:48, sh:96 };
+
+// игрок — тот же приём, что в клубе: одна раскраска, зеркалим через ctx.scale, НЕ отдельные лево/право папки
+const CH_DEF = { bancho: { base:'urban_brawlers', variant:'bancho_v4_teal', idle:[7,9], walk:[6,12] } };
 const _fc = {};
-function frames(type, dir, anim){
-  const k = dir + '|' + anim; if (_fc[k]) return _fc[k];
-  const d = CH_DEF[type], n = d[anim][0], out = [];
-  for (let i=1;i<=n;i++){ const im = new Image(); im.src = `sprites/${d.base}/${dir}/${anim==='idle'?'Idle':'Walk'}/${anim}${i}.png`; out.push(im); }
+function frames(type, anim){
+  const d = CH_DEF[type], k = type+'|'+anim; if (_fc[k]) return _fc[k];
+  const n = d[anim][0], out = [];
+  for (let i=1;i<=n;i++){ const im = new Image(); im.src = `sprites/${d.base}/${d.variant}/${anim==='idle'?'Idle':'Walk'}/${anim}${i}.png`; out.push(im); }
   return _fc[k] = out;
 }
-const ready = im => im && im.complete && im.naturalWidth;
 const me = { x:676, y:668, face:1, t:0, moving:false };
 
 const keys = {};
@@ -59,12 +58,11 @@ function update(dt){
   if (dx) me.face = dx > 0 ? 1 : -1;
   me.x += dx/len * 240 * run * dt; me.y += dy/len * 150 * run * dt;
   me.x = Math.max(X_MIN, Math.min(X_MAX, me.x)); me.y = Math.max(Y_MIN, Math.min(Y_MAX, me.y));
-  // твёрдые препятствия: подъёмник с машиной, стопка шин, шкаф, верстак
   const block = (bx, by, r, ry) => { const ddx = me.x-bx, ddy=(me.y-by)*(ry||1.6), d=Math.hypot(ddx,ddy); if (d<r){ me.x=bx+ddx/(d||1)*r; me.y=by+ddy/(d||1)*r/(ry||1.6); } };
-  block(LIFT.x, LIFT.y+70, 130, 2.6);
+  block(LIFT.x, LIFT.y+80, 130, 2.6);
   block(TIRES.x, TIRES.y+40, 60, 1.8);
   block(CABINET.x, CABINET.y+40, 46, 1.8);
-  if (me.y > BENCH.y0-10 && me.y < BENCH.y1+40 && me.x > BENCH.x0-10 && me.x < BENCH.x1+10 && me.y < BENCH.y1+10) me.y = BENCH.y1+40;
+  if (me.y > BENCH.y0-10 && me.y < BENCH.y1+40 && me.x > BENCH.x0-10 && me.x < BENCH.x1+10) me.y = BENCH.y1+40;
   me.t += dt;
   if (note){ note.t -= dt; if (note.t <= 0) note = null; }
 }
@@ -75,102 +73,156 @@ function txt(s, x, y, size, color, align){
   ctx.strokeStyle = 'rgba(0,0,0,0.85)'; ctx.lineWidth = Math.max(3, size/6); ctx.strokeText(s, x, y); ctx.fillStyle = color; ctx.fillText(s, x, y);
 }
 
-function drawFloor(){
-  const g = ctx.createLinearGradient(0, 205, 0, CH); g.addColorStop(0, '#2a2a2e'); g.addColorStop(1, '#17171a');
-  ctx.fillStyle = g; ctx.fillRect(0, 205, CW, CH-205);
-  // бетонные плиты пола
-  ctx.save(); ctx.beginPath(); ctx.rect(0, 205, CW, CH-205); ctx.clip();
-  ctx.strokeStyle = 'rgba(255,255,255,0.05)'; ctx.lineWidth = 2;
-  for (let y = 220; y < CH; y += 60){ ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(CW, y); ctx.stroke(); }
-  for (let x = 0; x < CW; x += 120){ ctx.beginPath(); ctx.moveTo(x, 205); ctx.lineTo(x, CH); ctx.stroke(); }
+// ── стена: настоящий кирпич из тайлсета + неоновая вывеска ──
+function drawWall(t){
+  const wg = ctx.createLinearGradient(0,0,0,205); wg.addColorStop(0,'#241014'); wg.addColorStop(1,'#150a10');
+  ctx.fillStyle = wg; ctx.fillRect(0,0,CW,205);
+  if (ready(TILESET)){
+    ctx.save(); ctx.imageSmoothingEnabled = false; ctx.globalAlpha = 0.85;
+    const tw = 64, th = 128;
+    for (let x = 0; x < CW; x += tw) ctx.drawImage(TILESET, BRICK.sx, BRICK.sy, BRICK.sw, BRICK.sh, x, 205-th, tw, th);
+    ctx.restore();
+    ctx.fillStyle = 'rgba(20,8,14,0.55)'; ctx.fillRect(0,0,CW,205);
+  }
+  // неоновая труба-полоса под потолком (как в клубе)
+  ctx.save(); ctx.lineWidth = 4; ctx.strokeStyle = '#ff5a3d'; ctx.shadowColor = '#ff5a3d'; ctx.shadowBlur = 16;
+  ctx.globalAlpha = 0.75 + 0.25*Math.sin(t*0.004);
+  ctx.beginPath(); ctx.moveTo(0,18); ctx.lineTo(CW,18); ctx.stroke(); ctx.restore();
+  // вывеска GARAGE с сильным неоновым свечением
+  ctx.save(); ctx.shadowColor = '#ffcc33'; ctx.shadowBlur = 22 + 6*Math.sin(t*0.006);
+  txt('GARAGE', 130, 78, 40, '#ffdd55', 'left'); ctx.restore();
+  ctx.save(); ctx.shadowColor = '#ff5a3d'; ctx.shadowBlur = 14; txt('24/7 TUNING', 1150, 46, 18, '#ff8a5a', 'right'); ctx.restore();
+}
+
+// ── свет: лампа над машиной + тёплый световой конус (тот же приём, что диско-свет в клубе) ──
+function drawLamp(t){
+  const bx = LIFT.x;
+  ctx.strokeStyle = '#666'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(bx,0); ctx.lineTo(bx,70); ctx.stroke();
+  ctx.fillStyle = '#2a2a2e'; rr(bx-30,66,60,16,4); ctx.fill();
+  const flick = 0.85 + 0.15*Math.sin(t*0.02);
+  ctx.save(); ctx.globalCompositeOperation = 'lighter';
+  const g = ctx.createRadialGradient(bx,90,10,bx,330,340);
+  g.addColorStop(0, `rgba(255,210,120,${0.55*flick})`); g.addColorStop(0.5, 'rgba(255,150,60,0.16)'); g.addColorStop(1,'rgba(255,150,60,0)');
+  ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(bx-24,82); ctx.lineTo(bx+24,82); ctx.lineTo(bx+230,620); ctx.lineTo(bx-230,620); ctx.closePath(); ctx.fill();
   ctx.restore();
-  // масляное пятно под подъёмником
-  ctx.save(); ctx.globalAlpha = 0.35; ctx.fillStyle = '#050505';
-  ctx.beginPath(); ctx.ellipse(LIFT.x, LIFT.y+150, 150, 34, 0, 0, Math.PI*2); ctx.fill(); ctx.restore();
-  // жёлто-чёрная разметка у входа
-  ctx.fillStyle = 'rgba(20,20,20,0.6)'; ctx.fillRect(DOOR.x0+10, 600, DOOR.x1-DOOR.x0-20, CH-600);
-  ctx.strokeStyle = '#ffcc33'; ctx.lineWidth = 4; ctx.setLineDash([14,10]);
-  ctx.strokeRect(DOOR.x0+10, 600, DOOR.x1-DOOR.x0-20, CH-600); ctx.setLineDash([]);
+  ctx.fillStyle = `rgba(255,240,200,${0.9*flick})`; ctx.beginPath(); ctx.arc(bx,84,9,0,Math.PI*2); ctx.fill();
+  // пыль/искры в луче света
+  for (let i=0;i<14;i++){ const a=i*1.7+t*0.0006, r=(i*29)%210, x=bx+Math.sin(a)*r*0.5, y=140+((i*53+t*0.02)%420);
+    ctx.fillStyle = `rgba(255,220,160,${0.25+0.25*Math.sin(t*0.004+i)})`; ctx.fillRect(x,y,2,2); }
 }
 
-function drawWall(){
-  const wg = ctx.createLinearGradient(0, 0, 0, 205); wg.addColorStop(0, '#1c1e22'); wg.addColorStop(1, '#33363c');
-  ctx.fillStyle = wg; ctx.fillRect(0, 0, CW, 205);
-  // кирпич по низу стены
-  ctx.fillStyle = 'rgba(0,0,0,0.25)';
-  for (let row=0, y=170; y<205; y+=18, row++) for (let x=(row%2)*40; x<CW; x+=80) ctx.fillRect(x, y, 76, 14);
-  txt('GARAGE', 130, 60, 34, '#ffcc33', 'left');
-  ctx.save(); ctx.shadowColor = '#ff5a3d'; ctx.shadowBlur = 16; txt('24/7 TUNING', 1150, 40, 18, '#ff8a5a', 'right'); ctx.restore();
+function drawFloor(t){
+  const g = ctx.createLinearGradient(0,205,0,CH); g.addColorStop(0,'#26262b'); g.addColorStop(1,'#111114');
+  ctx.fillStyle = g; ctx.fillRect(0,205,CW,CH-205);
+  ctx.save(); ctx.beginPath(); ctx.rect(0,205,CW,CH-205); ctx.clip();
+  ctx.strokeStyle = 'rgba(255,255,255,0.05)'; ctx.lineWidth = 2;
+  for (let y=220;y<CH;y+=60){ ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(CW,y); ctx.stroke(); }
+  for (let x=0;x<CW;x+=120){ ctx.beginPath(); ctx.moveTo(x,205); ctx.lineTo(x,CH); ctx.stroke(); }
+  // тёплый отблеск лампы на полу
+  const lg = ctx.createRadialGradient(LIFT.x,420,20,LIFT.x,420,320); lg.addColorStop(0,'rgba(255,170,80,0.12)'); lg.addColorStop(1,'rgba(255,170,80,0)');
+  ctx.fillStyle = lg; ctx.fillRect(0,205,CW,CH-205);
+  ctx.restore();
+  ctx.save(); ctx.globalAlpha = 0.4; ctx.fillStyle = '#020202';
+  ctx.beginPath(); ctx.ellipse(LIFT.x, LIFT.y+160, 155, 32, 0, 0, Math.PI*2); ctx.fill(); ctx.restore();
+  ctx.fillStyle = 'rgba(15,15,15,0.65)'; ctx.fillRect(DOOR.x0+10,600,DOOR.x1-DOOR.x0-20,CH-600);
+  ctx.save(); ctx.strokeStyle = '#ffcc33'; ctx.lineWidth = 4; ctx.shadowColor = '#ffcc33'; ctx.shadowBlur = 10; ctx.setLineDash([14,10]);
+  ctx.globalAlpha = 0.85 + 0.15*Math.sin(t*0.006);
+  ctx.strokeRect(DOOR.x0+10,600,DOOR.x1-DOOR.x0-20,CH-600); ctx.restore();
 }
 
-// перфоборд с инструментами над верстаком (силуэты)
 function drawPegboard(){
-  ctx.fillStyle = '#3a3f46'; rr(BENCH.x0, 60, BENCH.x1-BENCH.x0, 130, 6); ctx.fill();
-  ctx.strokeStyle = 'rgba(255,255,255,0.12)'; ctx.lineWidth = 1;
-  for (let x = BENCH.x0+14; x < BENCH.x1-10; x += 20) for (let y = 76; y < 178; y += 20){ ctx.beginPath(); ctx.arc(x, y, 2, 0, Math.PI*2); ctx.stroke(); }
-  const tools = [ ['#c94a2e', 40, 90, 60], ['#8a8f96', 110, 100, 40], ['#3a7fd0', 170, 85, 55], ['#d0c23a', 220, 95, 45] ];
-  tools.forEach(([col, x, y, h]) => { ctx.strokeStyle = col; ctx.lineWidth = 6; ctx.beginPath(); ctx.moveTo(BENCH.x0+x, y); ctx.lineTo(BENCH.x0+x, y+h); ctx.stroke(); });
+  ctx.fillStyle = '#3a3f46'; rr(BENCH.x0,60,BENCH.x1-BENCH.x0,130,6); ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,0.14)'; ctx.lineWidth = 1;
+  for (let x=BENCH.x0+14;x<BENCH.x1-10;x+=20) for (let y=76;y<178;y+=20){ ctx.beginPath(); ctx.arc(x,y,2,0,Math.PI*2); ctx.stroke(); }
+  const tools = [ ['#ff5a3d',40,90,60], ['#c9ced4',110,100,40], ['#3aa0e0',170,85,55], ['#ffd23f',220,95,45] ];
+  tools.forEach(([col,x,y,h]) => { ctx.save(); ctx.shadowColor=col; ctx.shadowBlur=6; ctx.strokeStyle=col; ctx.lineWidth=6;
+    ctx.beginPath(); ctx.moveTo(BENCH.x0+x,y); ctx.lineTo(BENCH.x0+x,y+h); ctx.stroke(); ctx.restore(); });
 }
 function drawBench(){
-  ctx.fillStyle = '#5a4530'; rr(BENCH.x0, BENCH.y0, BENCH.x1-BENCH.x0, 28, 4); ctx.fill();
-  ctx.fillStyle = '#2e2418'; ctx.fillRect(BENCH.x0+6, BENCH.y0+28, BENCH.x1-BENCH.x0-12, BENCH.y1-BENCH.y0-28);
-  ctx.fillStyle = 'rgba(255,255,255,0.15)'; ctx.fillRect(BENCH.x0+2, BENCH.y0+2, BENCH.x1-BENCH.x0-4, 4);
-  // мелочь на верстаке
-  ['#c94a2e','#3a7fd0','#d0c23a'].forEach((c,i) => { ctx.fillStyle = c; ctx.fillRect(BENCH.x0+30+i*70, BENCH.y0-10, 40, 12); });
+  ctx.fillStyle = '#6a5238'; rr(BENCH.x0,BENCH.y0,BENCH.x1-BENCH.x0,28,4); ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,0.2)'; ctx.fillRect(BENCH.x0+2,BENCH.y0+2,BENCH.x1-BENCH.x0-4,4);
+  ctx.fillStyle = '#2e2418'; ctx.fillRect(BENCH.x0+6,BENCH.y0+28,BENCH.x1-BENCH.x0-12,BENCH.y1-BENCH.y0-28);
+  const drops = [['#ff5a3d',0],['#3aa0e0',70],['#ffd23f',140]];
+  drops.forEach(([c,ox]) => { ctx.save(); ctx.shadowColor=c; ctx.shadowBlur=8; ctx.fillStyle=c; ctx.fillRect(BENCH.x0+30+ox,BENCH.y0-10,40,12); ctx.restore(); });
 }
 function drawTires(){
   for (let i=0;i<4;i++){
-    ctx.fillStyle = '#1a1a1a'; ctx.beginPath(); ctx.ellipse(TIRES.x, TIRES.y - i*20, 58, 22, 0, 0, Math.PI*2); ctx.fill();
-    ctx.strokeStyle = '#000'; ctx.lineWidth = 3; ctx.stroke();
-    ctx.fillStyle = '#333'; ctx.beginPath(); ctx.ellipse(TIRES.x, TIRES.y - i*20, 22, 9, 0, 0, Math.PI*2); ctx.fill();
+    const y = TIRES.y - i*20;
+    ctx.fillStyle = '#111'; ctx.beginPath(); ctx.ellipse(TIRES.x,y,58,22,0,0,Math.PI*2); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.08)'; ctx.lineWidth = 2; ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,90,61,0.5)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.ellipse(TIRES.x,y,58,22,0,0,Math.PI); ctx.stroke();
+    ctx.fillStyle = '#333'; ctx.beginPath(); ctx.ellipse(TIRES.x,y,22,9,0,0,Math.PI*2); ctx.fill();
   }
 }
 function drawCabinet(){
-  ctx.fillStyle = '#c0392b'; rr(CABINET.x-46, CABINET.y-70, 92, 130, 6); ctx.fill();
-  ctx.fillStyle = 'rgba(0,0,0,0.35)';
-  for (let y = CABINET.y-58; y < CABINET.y+50; y += 24) ctx.fillRect(CABINET.x-40, y, 80, 3);
-  for (let y = CABINET.y-58; y < CABINET.y+50; y += 24){ ctx.fillStyle='#f4d35e'; ctx.beginPath(); ctx.arc(CABINET.x+30, y+12, 4, 0, Math.PI*2); ctx.fill(); }
+  const g = ctx.createLinearGradient(CABINET.x-46,0,CABINET.x+46,0); g.addColorStop(0,'#e0453a'); g.addColorStop(1,'#a82a22');
+  ctx.fillStyle = g; rr(CABINET.x-46,CABINET.y-70,92,130,6); ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,0.2)'; ctx.lineWidth = 2; rr(CABINET.x-46,CABINET.y-70,92,130,6); ctx.stroke();
+  for (let y=CABINET.y-58;y<CABINET.y+50;y+=24){
+    ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fillRect(CABINET.x-40,y,80,3);
+    ctx.save(); ctx.shadowColor='#ffd23f'; ctx.shadowBlur=6; ctx.fillStyle='#ffd23f'; ctx.beginPath(); ctx.arc(CABINET.x+30,y+12,4,0,Math.PI*2); ctx.fill(); ctx.restore();
+  }
 }
-// машина на подъёмнике — силуэт спорткара, приподнят над полом
+// машина — с бликами и свечением фар (глянцевый мультяшный стиль, как в игре)
 function drawLift(t){
-  const bob = Math.sin(t*0.0015) * 2;
-  const bx = LIFT.x, by = LIFT.y + bob;
-  // стойки подъёмника
-  ctx.fillStyle = '#8a8f96';
-  ctx.fillRect(bx-140, by+40, 16, 130); ctx.fillRect(bx+124, by+40, 16, 130);
-  ctx.fillStyle = '#c0392b'; ctx.fillRect(bx-150, by+165, 300, 14);
-  // кузов
-  ctx.save(); ctx.translate(bx, by);
-  ctx.fillStyle = '#e04b2f';
-  ctx.beginPath(); ctx.moveTo(-150, 30); ctx.lineTo(-120, -10); ctx.lineTo(-40, -34); ctx.lineTo(60, -34); ctx.lineTo(130, -6); ctx.lineTo(150, 30); ctx.lineTo(150, 46); ctx.lineTo(-150, 46); ctx.closePath(); ctx.fill();
-  ctx.fillStyle = 'rgba(180,230,255,0.55)'; ctx.beginPath(); ctx.moveTo(-30,-30); ctx.lineTo(50,-30); ctx.lineTo(70,-8); ctx.lineTo(-45,-8); ctx.closePath(); ctx.fill();
-  ctx.fillStyle = '#1a1a1a'; ctx.beginPath(); ctx.arc(-95, 46, 26, 0, Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(95, 46, 26, 0, Math.PI*2); ctx.fill();
-  ctx.fillStyle = '#555'; ctx.beginPath(); ctx.arc(-95, 46, 11, 0, Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(95, 46, 11, 0, Math.PI*2); ctx.fill();
-  ctx.fillStyle = 'rgba(255,255,255,0.25)'; ctx.fillRect(-140, 4, 280, 6);
+  const bob = Math.sin(t*0.0015)*2, bx = LIFT.x, by = LIFT.y + bob;
+  ctx.fillStyle = '#7a7f86'; ctx.fillRect(bx-140,by+50,16,130); ctx.fillRect(bx+124,by+50,16,130);
+  ctx.fillStyle = 'rgba(255,255,255,0.15)'; ctx.fillRect(bx-140,by+50,4,130); ctx.fillRect(bx+124,by+50,4,130);
+  ctx.fillStyle = '#c0392b'; rr(bx-150,by+175,300,14,4); ctx.fill();
+  ctx.save(); ctx.translate(bx,by);
+  const body = ctx.createLinearGradient(0,-34,0,46); body.addColorStop(0,'#ff6b4a'); body.addColorStop(0.5,'#e0432a'); body.addColorStop(1,'#a82a1c');
+  ctx.fillStyle = body;
+  ctx.beginPath(); ctx.moveTo(-150,30); ctx.lineTo(-120,-10); ctx.lineTo(-40,-34); ctx.lineTo(60,-34); ctx.lineTo(130,-6); ctx.lineTo(150,30); ctx.lineTo(150,46); ctx.lineTo(-150,46); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = 'rgba(0,0,0,0.35)'; ctx.lineWidth = 2; ctx.stroke();
+  // блик на крыше
+  ctx.fillStyle = 'rgba(255,255,255,0.35)'; ctx.beginPath(); ctx.moveTo(-100,20); ctx.lineTo(100,20); ctx.lineTo(90,26); ctx.lineTo(-90,26); ctx.closePath(); ctx.fill();
+  // стекло с отражением
+  ctx.fillStyle = 'rgba(140,210,255,0.6)'; ctx.beginPath(); ctx.moveTo(-30,-30); ctx.lineTo(50,-30); ctx.lineTo(70,-8); ctx.lineTo(-45,-8); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,0.8)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(-25,-27); ctx.lineTo(10,-27); ctx.stroke();
+  // бампер хром
+  ctx.fillStyle = 'rgba(220,225,232,0.9)'; ctx.fillRect(-150,38,300,7);
+  // фары — светятся
+  [[-133,20],[133,20]].forEach(([hx,hy]) => { ctx.save(); ctx.shadowColor='#fff6c8'; ctx.shadowBlur=14; ctx.fillStyle='#fff6c8'; ctx.beginPath(); ctx.ellipse(hx,hy,9,7,0,0,Math.PI*2); ctx.fill(); ctx.restore(); });
+  // колёса
+  [-95,95].forEach(wx => {
+    ctx.fillStyle = '#111'; ctx.beginPath(); ctx.arc(wx,46,26,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#787c82'; ctx.beginPath(); ctx.arc(wx,46,12,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.3)'; ctx.beginPath(); ctx.arc(wx,46,4,0,Math.PI*2); ctx.fill();
+  });
   ctx.restore();
-  // искры под машиной (декор)
-  for (let i=0;i<3;i++){ const a = t*0.003 + i*2.1, ex = bx + Math.cos(a)*40, ey = by+120+Math.sin(a*2)*6;
-    ctx.fillStyle = `rgba(255,200,80,${0.4+0.4*Math.sin(t*0.01+i)})`; ctx.beginPath(); ctx.arc(ex, ey, 2.5, 0, Math.PI*2); ctx.fill(); }
+  for (let i=0;i<3;i++){ const a=t*0.003+i*2.1, ex=bx+Math.cos(a)*40, ey=by+130+Math.sin(a*2)*6;
+    ctx.save(); ctx.shadowColor='#ffcc66'; ctx.shadowBlur=6; ctx.fillStyle=`rgba(255,200,80,${0.5+0.4*Math.sin(t*0.01+i)})`; ctx.beginPath(); ctx.arc(ex,ey,2.5,0,Math.PI*2); ctx.fill(); ctx.restore(); }
 }
 function drawPlayer(){
-  const k = persp(me.y), h = 160 * k;
-  const anim = me.moving ? 'walk' : 'idle', list = frames('bancho', me.face>0?'right':'left', anim);
-  const idx = Math.floor(me.t*8) % list.length, img = list[idx];
-  ctx.save(); ctx.globalAlpha = 0.35; ctx.fillStyle = '#000'; ctx.beginPath(); ctx.ellipse(me.x, me.y, 28*k, 8*k, 0, 0, Math.PI*2); ctx.fill(); ctx.restore();
-  if (ready(img)){ const sc = h / img.height, dw = img.width * sc; ctx.save(); ctx.imageSmoothingEnabled = false; ctx.drawImage(img, me.x - dw/2, me.y - h + 6, dw, h); ctx.restore(); }
-  else { ctx.fillStyle = '#c94a2e'; rr(me.x-14*k, me.y-h, 28*k, h-6, 6); ctx.fill(); }
+  const k = persp(me.y), h = FIGHTER_H * k;
+  const anim = me.moving ? 'walk' : 'idle', list = frames('bancho', anim), fps = CH_DEF.bancho[anim][1];
+  const img = list[Math.floor(me.t*fps) % list.length];
+  ctx.save(); ctx.globalAlpha = 0.35; ctx.fillStyle = '#000'; ctx.beginPath(); ctx.ellipse(me.x,me.y,28*k,8*k,0,0,Math.PI*2); ctx.fill(); ctx.restore();
+  if (ready(img)){
+    let sc = h / img.naturalHeight; if (img.naturalWidth*sc > h*1.55) sc = h*1.55/img.naturalWidth;
+    const dw = img.naturalWidth*sc, dh = img.naturalHeight*sc;
+    ctx.save(); ctx.translate(me.x,me.y); if (me.face<0) ctx.scale(-1,1); ctx.imageSmoothingEnabled = false; ctx.drawImage(img,-dw/2,-dh+6,dw,dh); ctx.restore();
+  } else { ctx.fillStyle = '#ff5a3d'; rr(me.x-14*k, me.y-h, 28*k, h-6, 6); ctx.fill(); }
+  txt('Ты', me.x, me.y - h - 8, 15, '#ffd23f');
 }
 
 let last = performance.now();
 function frame(now){
-  const dt = Math.min(0.05, (now-last)/1000); last = now;
+  const dt = Math.min(0.05,(now-last)/1000); last = now;
   update(dt);
   ctx.clearRect(0,0,CW,CH);
-  drawWall(); drawPegboard(); drawFloor();
-  const items = [ { y: BENCH.y1, fn: drawBench }, { y: TIRES.y, fn: drawTires }, { y: CABINET.y, fn: drawCabinet }, { y: LIFT.y+100, fn: () => drawLift(now) }, { y: me.y, fn: drawPlayer } ];
-  items.sort((a,b) => a.y - b.y).forEach(it => it.fn());
-  if (nearDoor()){ txt('E — выход', me.x, me.y - 190, 16, '#fff', 'center'); }
-  if (note){ ctx.globalAlpha = Math.min(1, note.t/0.4); txt(note.text, CW/2, CH-40, 18, '#ffd23f', 'center'); ctx.globalAlpha = 1; }
+  drawWall(now); drawPegboard(); drawFloor(now);
+  const items = [ {y:BENCH.y1,fn:drawBench}, {y:TIRES.y,fn:drawTires}, {y:CABINET.y,fn:drawCabinet}, {y:LIFT.y+100,fn:() => drawLift(now)}, {y:me.y,fn:drawPlayer} ];
+  items.sort((a,b) => a.y-b.y).forEach(it => it.fn());
+  drawLamp(now);
+  const v = ctx.createRadialGradient(CW/2,CH/2,260,CW/2,CH/2,780); v.addColorStop(0,'rgba(0,0,0,0)'); v.addColorStop(1,'rgba(0,0,0,0.5)');
+  ctx.fillStyle = v; ctx.fillRect(0,0,CW,CH);
+  ctx.fillStyle = 'rgba(8,8,16,0.8)'; rr(16,16,470,44,10); ctx.fill(); ctx.strokeStyle = '#ff5a3d'; ctx.lineWidth = 2; rr(16,16,470,44,10); ctx.stroke();
+  txt('ГАРАЖ — ВНУТРИ · ЧЕРНОВИК', 30, 46, 19, '#ffb38a', 'left');
+  ctx.font = '13px Arial'; ctx.fillStyle = 'rgba(220,226,250,0.9)';
+  ['← → ↑ ↓ / WASD — ходить, Shift — бежать', 'внизу по центру — выход (у двери: E)'].forEach((s,i) => { ctx.textAlign='left'; ctx.strokeStyle='rgba(0,0,0,0.8)'; ctx.lineWidth=3; ctx.strokeText(s,20,CH-44+i*18); ctx.fillText(s,20,CH-44+i*18); });
+  if (nearDoor()) txt('🚪 Выйти на улицу  [E]', CW/2, CH-52, 22, '#3dff9a');
+  if (note){ ctx.globalAlpha = Math.min(1, note.t/0.4); txt(note.text, CW/2, 300, 24, '#fff'); ctx.globalAlpha = 1; }
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
