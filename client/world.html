@@ -870,21 +870,31 @@ function drawGarageScene(){
 // Вход — на улице в районе «Пиццерия» (зона 4). Внутри — фон-картинка, как в гараже, поверх только
 // настоящие игроки. Планировка/столкновения должны совпадать с PIZZERIA на сервере (server/world.js).
 const PIZZERIA_DOOR_X = 4 * 1800 + 1120 + 145;   // ВТОРОЙ тайл "pizza" (дальше от площади), точно на нарисованной двери слева от вывески
-const pizzeriaPersp = y => 0.72 + 0.28 * (Math.max(0, Math.min(1, (y - 354) / (700 - 354))));
-const PIZZERIA_X0 = 40, PIZZERIA_X1 = 1240, PIZZERIA_Y0 = 354, PIZZERIA_Y1 = 700;
+const pizzeriaPersp = y => 0.72 + 0.28 * (Math.max(0, Math.min(1, (y - 371) / (700 - 371))));
+const PIZZERIA_X0 = 40, PIZZERIA_X1 = 1240, PIZZERIA_Y0 = 371, PIZZERIA_Y1 = 700;
 const PIZZERIA_DOOR = { x0:560, x1:760 };
-const PIZZERIA_BLOCKS = [ { x0:0, x1:352, y0:PIZZERIA_Y0, y1:390 }, { x0:880, x1:1280, y0:PIZZERIA_Y0, y1:390 } ];
+// Границы пола — по красной линии, которую нарисовал пользователь поверх референса (найдены
+// анализом пикселей его разметки): плавный откос у левой кабинки, ровная середина у барной
+// стойки, откос и глубокая "мёртвая зона" у столиков/холодильника справа.
+const PIZZERIA_BLOCKS = [
+  { x0:0, x1:60, y0:PIZZERIA_Y0, y1:429 }, { x0:60, x1:120, y0:PIZZERIA_Y0, y1:417 },
+  { x0:120, x1:180, y0:PIZZERIA_Y0, y1:403 }, { x0:180, x1:240, y0:PIZZERIA_Y0, y1:388 },
+  { x0:240, x1:300, y0:PIZZERIA_Y0, y1:379 },
+  { x0:840, x1:900, y0:PIZZERIA_Y0, y1:377 }, { x0:900, x1:960, y0:PIZZERIA_Y0, y1:385 },
+  { x0:960, x1:1020, y0:PIZZERIA_Y0, y1:399 }, { x0:1020, x1:1080, y0:PIZZERIA_Y0, y1:414 },
+  { x0:1080, x1:1140, y0:PIZZERIA_Y0, y1:426 }, { x0:1140, x1:1200, y0:PIZZERIA_Y0, y1:432 },
+  { x0:1200, x1:1240, y0:PIZZERIA_Y0, y1:615 },
+];
 const PIZZERIA_LAMPS = [ [190,88],[286,142],[321,173],[364,180],[489,149],[574,233],[766,155],[819,227],[947,172],[995,142],[1046,180],[1087,90],[1129,157] ];
 const PIZZERIA_NEONS_RED = [ [624,188],[344,226],[1110,216] ];   // главная вывеска PIZZA, левая настенная с долькой, правый постер
 const PIZZERIA_NEONS_BLUE = [ [153,213],[1191,188] ];             // OPEN на окне, "PIZZA LIFE" справа
 const PIZZERIA_BG = new Image(); PIZZERIA_BG.src = 'sprites/room_bg/pizzeria_bg.png';
 function pizzeriaConstrainMe(){
+  // блоки — локальное поднятие границы пола в колонке x (лестница по линии пользователя),
+  // не отдельные препятствия, поэтому просто не пускаем выше b.y1 в этом x-диапазоне.
   me.x = Math.max(PIZZERIA_X0, Math.min(PIZZERIA_X1, me.x)); me.y = Math.max(PIZZERIA_Y0, Math.min(PIZZERIA_Y1, me.y));
   for (const b of PIZZERIA_BLOCKS){
-    if (me.x > b.x0 && me.x < b.x1 && me.y > b.y0 && me.y < b.y1){
-      const dl=me.x-b.x0, dr=b.x1-me.x, dt=me.y-b.y0, db=b.y1-me.y, m=Math.min(dl,dr,dt,db);
-      if (m===dt) me.y=b.y0; else if (m===db) me.y=b.y1; else if (m===dl) me.x=b.x0; else me.x=b.x1;
-    }
+    if (me.x > b.x0 && me.x < b.x1 && me.y < b.y1) me.y = b.y1;
   }
 }
 function drawPizzeriaLights(t){
