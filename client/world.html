@@ -665,7 +665,7 @@ canvas.addEventListener('pointerup', endPointer);
 canvas.addEventListener('pointercancel', endPointer);
 canvas.addEventListener('contextmenu', e => e.preventDefault());
 
-const actorK = e => room === 'club' ? clubPersp(e.ry) : 0.9 + 0.16 * (e.ry - 500) / 200;   // перспектива: ниже по экрану — чуть крупнее (диапазон 500..700 как раньше, выше 500 — мельче)
+const actorK = e => room === 'club' ? clubPersp(e.ry) : room === 'garage' ? garagePersp(e.ry) : 0.9 + 0.16 * (e.ry - 500) / 200;   // перспектива: ниже по экрану — чуть крупнее (диапазон 500..700 как раньше, выше 500 — мельче)
 const FIGHTER_H = 160;
 function tapWorld(x, y){
   let hit = null;
@@ -806,7 +806,65 @@ function drawClanPanel(){
 // Планировка и столкновения должны совпадать с CLUB на сервере (server/world.js).
 const clubPersp = y => 0.62 + 0.43 * (Math.max(0, Math.min(1, (y - 215) / (700 - 215))));
 const CLUB_DOOR_X = 6 * 1800 + 900;        // где на улице дверь клуба (центр 7-го района)
-let room = '';                             // '' — улица, 'club' — внутри клуба
+let room = '';                             // '' — улица, 'club' — внутри клуба, 'garage' — внутри гаража
+
+// ═══════════════ ГАРАЖ (внутри) ═══════════════
+// Вход — на улице в районе «Гараж» (зона 2, центр). Внутри — фон-картинка (не тайлы/рисование, как
+// в клубе), поверх неё только настоящие игроки. Планировка/столкновения должны совпадать с GARAGE
+// на сервере (server/world.js).
+const GARAGE_DOOR_X = 2 * 1800 + 900;
+const garagePersp = y => 0.72 + 0.28 * (Math.max(0, Math.min(1, (y - 380) / (700 - 380))));
+const GARAGE_X0 = 40, GARAGE_X1 = 1240, GARAGE_Y0 = 380, GARAGE_Y1 = 700;
+const GARAGE_DOOR = { x0:560, x1:760 };
+const GARAGE_BLOCKS = [ { x0:0, x1:660, y0:GARAGE_Y0, y1:410 }, { x0:930, x1:1280, y0:GARAGE_Y0, y1:415 } ];
+const GARAGE_LAMPS = [ [96,129], [358,191], [518,171], [935,197], [1131,175] ];
+const GARAGE_NEONS = [ [459,25], [276,122], [772,48], [993,106] ];
+const GARAGE_BG = new Image(); GARAGE_BG.src = 'sprites/room_bg/garage_bg2.png';
+function garageConstrainMe(){
+  me.x = Math.max(GARAGE_X0, Math.min(GARAGE_X1, me.x)); me.y = Math.max(GARAGE_Y0, Math.min(GARAGE_Y1, me.y));
+  for (const b of GARAGE_BLOCKS){
+    if (me.x > b.x0 && me.x < b.x1 && me.y > b.y0 && me.y < b.y1){
+      const dl=me.x-b.x0, dr=b.x1-me.x, dt=me.y-b.y0, db=b.y1-me.y, m=Math.min(dl,dr,dt,db);
+      if (m===dt) me.y=b.y0; else if (m===db) me.y=b.y1; else if (m===dl) me.x=b.x0; else me.x=b.x1;
+    }
+  }
+}
+function drawGarageLights(t){
+  ctx.save(); ctx.globalCompositeOperation = 'lighter';
+  const flick = 0.85 + 0.15*Math.sin(t*0.02);
+  GARAGE_LAMPS.forEach(([x,y], i) => {
+    const f = flick * (0.9 + 0.1*Math.sin(t*0.015 + i));
+    const g = ctx.createRadialGradient(x,y,2,x,y+70,190);
+    g.addColorStop(0, `rgba(255,210,130,${0.85*f})`); g.addColorStop(0.35, `rgba(255,160,70,${0.32*f})`); g.addColorStop(1,'rgba(255,160,70,0)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x,y+40,190,0,Math.PI*2); ctx.fill();
+  });
+  GARAGE_NEONS.forEach(([x,y], i) => {
+    const f = flick * (0.9 + 0.1*Math.sin(t*0.02 + i*1.7));
+    const g = ctx.createRadialGradient(x,y,2,x,y,120);
+    g.addColorStop(0, `rgba(150,215,255,${0.8*f})`); g.addColorStop(0.4, `rgba(120,195,255,${0.25*f})`); g.addColorStop(1,'rgba(140,210,255,0)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x,y,120,0,Math.PI*2); ctx.fill();
+  });
+  ctx.restore();
+}
+function garageExit(t){
+  ctx.save(); ctx.strokeStyle = '#3dff9a'; ctx.lineWidth = 3; ctx.shadowColor = '#3dff9a'; ctx.shadowBlur = 16;
+  ctx.globalAlpha = 0.8 + 0.2*Math.sin(t*0.006);
+  ctx.strokeRect(GARAGE_DOOR.x0, GARAGE_Y1-4, GARAGE_DOOR.x1-GARAGE_DOOR.x0, 6);
+  ctx.restore();
+  ctx.save(); ctx.shadowColor = '#3dff9a'; ctx.shadowBlur = 14;
+  txt('EXIT', (GARAGE_DOOR.x0+GARAGE_DOOR.x1)/2, GARAGE_Y1-34, 22, '#3dff9a');
+  ctx.restore();
+}
+function drawGarageScene(){
+  const tm = performance.now();
+  if (ready(GARAGE_BG)) ctx.drawImage(GARAGE_BG, 0, 0, CW, CH);
+  else { ctx.fillStyle = '#111'; ctx.fillRect(0,0,CW,CH); }
+  drawGarageLights(tm);
+  garageExit(tm);
+  for (const e of ents.values()) drawActor(e);   // единственные "жители" гаража — настоящие игроки, порядок по глубине не критичен (нет мебели-игроков рядом)
+  const vg = ctx.createRadialGradient(CW/2, CH/2, 260, CW/2, CH/2, 780); vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,0.5)');
+  ctx.fillStyle = vg; ctx.fillRect(0, 0, CW, CH);
+}
 const CLUB_STOOL_X = [126, 284, 482, 632, 814, 995];          // барные стулья (по рисунку — 6 штук)
 const CLUB_STOOL_Y = 262;                                     // стулья стоят перед стойкой
 const CLUB_BAR_BASE = 236;                                    // где стойка стоит на полу
@@ -1019,17 +1077,23 @@ function drawClubScene(){
   const vg = ctx.createRadialGradient(CW/2, CH/2, 250, CW/2, CH/2, 760); vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,0.5)');
   ctx.fillStyle = vg; ctx.fillRect(0, 0, CW, CH);
 }
-function changeRoom(r){ room = r; ui.fade = 0.6; ui.card = null; if (r === 'club') camX = 0; }   // плавное появление из чёрного
+function changeRoom(r){ room = r; ui.fade = 0.6; ui.card = null; if (r === 'club' || r === 'garage') camX = 0; }   // плавное появление из чёрного
 
-// дверь: на улице у клуба — «Войти», внутри у нижнего выхода — «Выйти» (E или кнопка на телефоне)
+// дверь: на улице у клуба/гаража — «Войти», внутри у нижнего выхода — «Выйти» (E или кнопка на телефоне)
 function doorState(){
   if (room === 'club') return (me.y >= 672 && me.x > 590 && me.x < 772) ? 'leave' : null;
-  return (Math.abs(me.x - CLUB_DOOR_X) < 110 && me.y < 560) ? 'enter' : null;
+  if (room === 'garage') return (me.y >= GARAGE_Y1 - 20 && me.x > GARAGE_DOOR.x0 && me.x < GARAGE_DOOR.x1) ? 'leave' : null;
+  if (Math.abs(me.x - CLUB_DOOR_X) < 110 && me.y < 560) return 'enter_club';
+  if (Math.abs(me.x - GARAGE_DOOR_X) < 110 && me.y < 560) return 'enter_garage';
+  return null;
 }
-function doorGo(ds){ sendWs({ t: ds === 'enter' ? 'enter' : 'leave', b: 'club' }); }
+function doorGo(ds){
+  if (ds === 'leave') sendWs({ t:'leave', b: room });
+  else sendWs({ t:'enter', b: ds === 'enter_club' ? 'club' : 'garage' });
+}
 function drawDoorPrompt(){
   const ds = doorState(); if (!ds) return;
-  const label = t(ds === 'enter' ? 'door_enter' : 'door_exit');
+  const label = t(ds === 'leave' ? 'door_exit' : 'door_enter');
   if (ui.touch){                                                                    // телефон: круглая кнопка над «Блоком»
     const bx = 1180, by = 318, br = 46;
     ctx.fillStyle = '#2fae5c'; ctx.globalAlpha = 0.85; ctx.beginPath(); ctx.arc(bx, by, br, 0, Math.PI*2); ctx.fill(); ctx.globalAlpha = 1;
@@ -1037,7 +1101,8 @@ function drawDoorPrompt(){
     txt('🚪', bx, by - 2, 26, '#fff'); txt(label, bx, by + 24, 13, '#fff', 'center', 80);
     addHit(bx - br, by - br, br*2, br*2, () => doorGo(ds));
   } else {                                                                          // компьютер: подсказка над дверью / у выхода
-    const px = room === 'club' ? CW/2 : CLUB_DOOR_X - camX, py = room === 'club' ? CH - 74 : 236;
+    const doorX = ds === 'enter_garage' ? GARAGE_DOOR_X : CLUB_DOOR_X;
+    const px = (room === 'club' || room === 'garage') ? CW/2 : doorX - camX, py = (room === 'club' || room === 'garage') ? CH - 74 : 236;
     const w = 250, h = 44;
     ctx.fillStyle = 'rgba(8,8,16,0.88)'; rr(px - w/2, py - h/2, w, h, 12); ctx.fill();
     ctx.strokeStyle = '#3dff9a'; ctx.lineWidth = 2.5; rr(px - w/2, py - h/2, w, h, 12); ctx.stroke();
@@ -1183,6 +1248,7 @@ function update(dt){
     const len = Math.hypot(dx, dy) || 1, k = Math.min(1, len);
     const sp = me.sp * run * slow;
     if (room === 'club'){ me.x += dx/len*k*sp*dt; me.y += dy/len*k*sp*0.6*dt; clubConstrainMe(); }
+    else if (room === 'garage'){ me.x += dx/len*k*sp*dt; me.y += dy/len*k*sp*0.6*dt; garageConstrainMe(); }
     else {
       me.x = Math.max(60, Math.min(WORLD_W-60, me.x + dx/len*k*sp*dt));
       me.y = Math.max(GROUND_MIN, Math.min(GROUND_MAX, me.y + dy/len*k*sp*0.6*dt));
@@ -1206,7 +1272,7 @@ function update(dt){
   if (ui.banner){ ui.banner.t -= dt; if (ui.banner.t <= 0) ui.banner = null; }
   if (ui.koText > 0) ui.koText -= dt;
   if (ui.fade > 0) ui.fade -= dt;
-  if (room === 'club') camX = 0;
+  if (room === 'club' || room === 'garage') camX = 0;
   else { const target = Math.max(0, Math.min(WORLD_W-CW, me.x - CW/2)); camX += (target - camX) * Math.min(1, dt*8); }
 }
 
@@ -1414,7 +1480,7 @@ function drawActor(e){
   const ny = e.ry - h - 6;
   if (e.c) bar(sx-34, ny-24, 68, 8, e.h/e.m, e.h/e.m > 0.35 ? '#4be06f' : '#ff5a5a');
   const isMe = e.id === myId, isBot = e.k === 'b';
-  const zt = room === 'club' ? 'hub' : ZONES[zoneAt(e.rx)].type;
+  const zt = (room === 'club' || room === 'garage') ? 'hub' : ZONES[zoneAt(e.rx)].type;
   ctx.font = 'bold 15px Arial';
   // у бота под ним и так видно, что это бот (нет ника/тега) — незачем подписывать ещё и "Панк"
   const name = isBot ? '' : ((e.cl && clanTags[e.cl]) ? '['+clanTags[e.cl]+'] ' : '') + e.n, nameW = isBot ? 0 : ctx.measureText(name).width;
@@ -1475,7 +1541,7 @@ function drawHUD(){
     if (hasUnread){ ctx.fillStyle = '#ff3b3b'; ctx.beginPath(); ctx.arc(178, cy+4, 9, 0, Math.PI*2); ctx.fill(); txt(String(Math.min(9,chatUnread)) + (chatUnread>9?'+':''), 178, cy+9, 11, '#fff'); }
     addHit(16, cy, 170, 34, () => openChat()); }
 
-  if (room !== 'club') {
+  if (room !== 'club' && room !== 'garage') {
   const cellW = 48, mapW = cellW*ZONES.length, mmx = RX - mapW, my2 = 16, mh = 18;
   ctx.fillStyle = 'rgba(0,0,0,0.6)'; rr(mmx-6, my2-6, mapW+12, mh+12, 8); ctx.fill();
   for (let z=0; z<ZONES.length; z++){
@@ -1669,6 +1735,7 @@ function frame(now){
   ui.hits = [];
   ctx.clearRect(0, 0, CW, CH);
   if (room === 'club') drawClubScene();
+  else if (room === 'garage') drawGarageScene();
   else { drawSky(); drawRoad(); drawWalls(); drawLamps(); drawZoneDecor(); [...ents.values()].sort((a,b) => a.ry - b.ry).forEach(drawActor); }
   drawFloaters();
   if (connected){ drawHUD(); drawControls(); drawDoorPrompt(); drawCard(); drawPanel(); drawClanPanel(); }
