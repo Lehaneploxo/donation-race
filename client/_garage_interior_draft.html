@@ -88,9 +88,10 @@ function drawWall(t){
   ctx.save(); ctx.lineWidth = 4; ctx.strokeStyle = '#ff5a3d'; ctx.shadowColor = '#ff5a3d'; ctx.shadowBlur = 16;
   ctx.globalAlpha = 0.75 + 0.25*Math.sin(t*0.004);
   ctx.beginPath(); ctx.moveTo(0,18); ctx.lineTo(CW,18); ctx.stroke(); ctx.restore();
-  // вывеска GARAGE с сильным неоновым свечением
-  ctx.save(); ctx.shadowColor = '#ffcc33'; ctx.shadowBlur = 22 + 6*Math.sin(t*0.006);
-  txt('GARAGE', 130, 78, 40, '#ffdd55', 'left'); ctx.restore();
+  // вывеска GARAGE с сильным неоновым свечением — в свободном участке стены между
+  // перфобордом (слева) и рамкой заголовка черновика (сверху), чтобы не перекрывались
+  ctx.save(); ctx.shadowColor = '#ffcc33'; ctx.shadowBlur = 18 + 5*Math.sin(t*0.006);
+  txt('GARAGE', 500, 115, 36, '#ffdd55', 'left'); ctx.restore();
   ctx.save(); ctx.shadowColor = '#ff5a3d'; ctx.shadowBlur = 14; txt('24/7 TUNING', 1150, 46, 18, '#ff8a5a', 'right'); ctx.restore();
 }
 
