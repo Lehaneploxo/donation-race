@@ -715,9 +715,8 @@ function tick() {
     if (e.room === 'club') { e.x += dx * sp * dt; e.y += dy * sp * 0.6 * dt; clubConstrain(e); }
     else if (e.room === 'garage') { e.x += dx * sp * dt; e.y += dy * sp * 0.6 * dt; garageConstrain(e); }
     else { e.x = clamp(e.x + dx * sp * dt, minX, maxX); e.y = clamp(e.y + dy * sp * 0.6 * dt, GROUND_MIN, GROUND_MAX); }
-    // автовход в клуб/гараж: упёрся в дверь снизу (идёшь вверх у самой стены по центру двери) — заходишь сам; клавиша E и кнопка тоже работают
-    if (e.kind === 'p' && !e.room && e.koT <= 0 && e.iny < -0.3 && Math.abs(e.x - CLUB_DOOR_X) < 75 && e.y <= GROUND_MIN + 14) enterClub(e);   // только если идёшь вверх В дверь (не пробегаешь вдоль стены)
-    if (e.kind === 'p' && !e.room && e.koT <= 0 && e.iny < -0.3 && Math.abs(e.x - GARAGE_DOOR_X) < 75 && e.y <= GROUND_MIN + 14) enterGarage(e);
+    // вход в клуб/гараж — только по кнопке/клавише E (case 'enter' ниже), один в один как выход;
+    // автовхода простой ходьбой в дверь больше нет — по прямой просьбе пользователя
     e.moving = !locked && (Math.abs(dx) + Math.abs(dy)) > 0.05;
     if (dx !== 0 && !locked && !e.atk) e.f = dx > 0 ? 1 : -1;
 
