@@ -115,6 +115,9 @@
   #msg button{margin-top:16px;padding:12px 26px;border:0;border-radius:10px;background:#6f4bd8;color:#fff;font-size:17px;font-weight:bold}
   #chatForm{position:fixed;inset:0;z-index:26;display:flex;background:rgba(0,0,0,.72);padding:10px;overflow:auto}
   #chatForm[hidden]{display:none}
+  #modForm{position:fixed;inset:0;z-index:27;display:flex;background:rgba(0,0,0,.72);padding:10px;overflow:auto}
+  #modForm[hidden]{display:none}
+  #modForm .box button{margin-top:10px}
   #chatLog{height:min(50vh,360px);overflow-y:auto;background:#0c0a18;border:1px solid #2b2650;border-radius:10px;padding:10px;margin:12px 0;text-align:left;font-size:14px;line-height:1.5;color:#dfe6ff}
   #chatLog .cm{margin-bottom:6px;word-break:break-word}
   #chatLog .cm b{color:#ffd23f}
@@ -217,6 +220,19 @@
     <div class="link" id="chatClose" data-i="cancel"></div>
   </div>
 </div>
+<div id="modForm" hidden>
+  <div class="box">
+    <h1 data-i="mod_title"></h1>
+    <div class="sub" id="modTarget"></div>
+    <label for="modMinutes" data-i="mod_minutes"></label>
+    <input id="modMinutes" type="number" min="0" step="1" value="10">
+    <div class="hint" data-i="mod_hint"></div>
+    <div class="err" id="modErr"></div>
+    <button class="main" id="modMuteBtn" data-i="mod_mute_btn"></button>
+    <button class="main" id="modBanBtn" data-i="mod_ban_btn" style="background:#8a1f1f"></button>
+    <div class="link" id="modCancel" data-i="cancel"></div>
+  </div>
+</div>
 
 <script>
 'use strict';
@@ -283,6 +299,9 @@ Object.assign(L.uk, { rules_text:
 
 • Раз на 7 днів можна змінити бійця — рівень і статистики зберігаються
 • Чат загальний на весь світ — без цензури, будь ввічливим` });
+Object.assign(L.ru, { mod_title:'Модерация', mod_minutes:'Минут', mod_hint:'Для бана 0 = навсегда', mod_mute_btn:'🔇 Замутить', mod_ban_btn:'⛔ Забанить', mod_btn:'🛡 Модерация', m_mod_you_muted:'Тебя замутили на {0} мин.', banned_perm_title:'Ты заблокирован навсегда', banned_until_title:'Ты заблокирован до {0}', mod_bad_minutes:'Укажи число минут (0 или больше)' });
+Object.assign(L.uk, { mod_title:'Модерація', mod_minutes:'Хвилин', mod_hint:'Для бану 0 = назавжди', mod_mute_btn:'🔇 Замутити', mod_ban_btn:'⛔ Забанити', mod_btn:'🛡 Модерація', m_mod_you_muted:'Тебе замутили на {0} хв.', banned_perm_title:'Тебе заблоковано назавжди', banned_until_title:'Тебе заблоковано до {0}', mod_bad_minutes:'Вкажи число хвилин (0 або більше)' });
+Object.assign(L.en, { mod_title:'Moderation', mod_minutes:'Minutes', mod_hint:'0 = permanent for ban', mod_mute_btn:'🔇 Mute', mod_ban_btn:'⛔ Ban', mod_btn:'🛡 Moderate', m_mod_you_muted:'You were muted for {0} min.', banned_perm_title:'You are permanently banned', banned_until_title:'You are banned until {0}', mod_bad_minutes:'Enter a number of minutes (0 or more)' });
 Object.assign(L.en, { rules_text:
 `🏙️ WORLD RULES
 
@@ -479,6 +498,7 @@ function enterGame(){
   if (!gameStarted){ gameStarted = true; requestAnimationFrame(frame); }
   connect();
 }
+let lastBanUntil;   // undefined = не приходило; null = навсегда; число = мс
 function connect(){
   ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/world-ws?token=' + encodeURIComponent(token));
   ws.onopen = () => { retry = 0; };
@@ -489,6 +509,12 @@ function connect(){
     if (ev.code === 4001){ showMsg(t('need_login_msg'), t('btn_log'), logout); return; }
     if (ev.code === 4002){ document.body.classList.remove('ingame'); $('ov').hidden = false; $('scrAuth').hidden = true; showCreate(); return; }
     if (ev.code === 4004){ stopRetry = true; showMsg(t('kicked'), t('play_here'), () => location.reload()); return; }
+    if (ev.code === 4005){
+      stopRetry = true;
+      const text = lastBanUntil ? t('banned_until_title', new Date(lastBanUntil).toLocaleString()) : t('banned_perm_title');
+      showMsg(text, t('btn_ok'), () => location.reload());
+      return;
+    }
     retry++; setTimeout(connect, Math.min(5000, 500 * retry));
   };
 }
@@ -551,6 +577,9 @@ function onServer(m){
       ui.chatFeed.push({ u:m.u, text:m.m, t:5 }); if (ui.chatFeed.length > 4) ui.chatFeed.shift();
       playChatDing();
       break;
+    case 'ban_info': lastBanUntil = m.until; break;
+    case 'chat_muted': toast(t('m_mod_you_muted', Math.max(1, Math.ceil((m.until - Date.now())/60000))), '#ff8a8a'); break;
+    case 'mod_ok': toast('✓ ' + m.action + ' — ' + m.nick, '#7dff9a'); break;
     case 'kicked': break;
   }
 }
@@ -686,6 +715,28 @@ function sendChat(){
 }
 $('chatSendBtn').onclick = sendChat;
 $('chatInput').addEventListener('keydown', e => { if (e.key === 'Enter') sendChat(); });
+
+// ── Модерация (мут/бан) — доступна только тем, чей ник сервер пометил canMod в карточке игрока ──
+let modTargetNick = '';
+function openModForm(nick){
+  modTargetNick = nick; $('modErr').textContent = ''; $('modTarget').textContent = nick;
+  $('modMinutes').value = 10; ui.card = null; $('modForm').hidden = false;
+}
+$('modCancel').onclick = () => { $('modForm').hidden = true; };
+function modMinutesOrErr(){
+  const v = Math.round(Number($('modMinutes').value));
+  if (!Number.isFinite(v) || v < 0){ $('modErr').textContent = t('mod_bad_minutes'); return null; }
+  return v;
+}
+$('modMuteBtn').onclick = () => {
+  const v = modMinutesOrErr(); if (v === null) return;
+  if (v < 1){ $('modErr').textContent = t('mod_bad_minutes'); return; }
+  sendWs({ t:'mod_mute', nick:modTargetNick, minutes:v }); $('modForm').hidden = true;
+};
+$('modBanBtn').onclick = () => {
+  const v = modMinutesOrErr(); if (v === null) return;
+  sendWs({ t:'mod_ban', nick:modTargetNick, minutes:v }); $('modForm').hidden = true;
+};
 
 function drawClanPanel(){
   if (!ui.clanPanel) return;
@@ -1495,7 +1546,7 @@ function drawControls(){
 }
 function drawCard(){
   const a = ui.card; if (!a) return;
-  const w = 400, h = 290, x = (CW-w)/2, y = 150;
+  const w = 400, h = 290 + (a.canMod ? 50 : 0), x = (CW-w)/2, y = 150;
   ctx.fillStyle = 'rgba(8,8,16,0.94)'; rr(x, y, w, h, 14); ctx.fill();
   ctx.strokeStyle = '#8ab4ff'; ctx.lineWidth = 2.5; rr(x, y, w, h, 14); ctx.stroke();
   addHit(x, y, w, h, () => {});
@@ -1508,6 +1559,12 @@ function drawCard(){
     const ry = y + 118 + i*30;
     txt(r[0], x+20, ry+10, 16, '#dfe6ff', 'left'); bar(x+130, ry-2, w-190, 14, r[1]/20, r[2]); txt(String(r[1]), x+w-24, ry+11, 16, '#fff', 'right');
   });
+  if (a.canMod){
+    const my2 = y + h - 118;
+    ctx.fillStyle = '#5a2a2a'; rr(x+20, my2, w-40, 42, 10); ctx.fill();
+    txt(t('mod_btn'), x+w/2, my2+28, 16, '#ffb3b3');
+    addHit(x+20, my2, w-40, 42, () => openModForm(a.name));
+  }
   const by = y + h - 60;
   let label, canDo = false;
   if (a.kind === 'b') label = t('card_bot');

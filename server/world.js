@@ -57,6 +57,12 @@ const POINTS_PER_LEVEL = 3, LEVEL_CAP = 100;
 // Дебаг-режим баланса: только этому нику разрешено вручную выставлять себе статы
 // (см. case 'debug_stat' в onMessage) — для теста кривой скорости/урона на живом сервере.
 const DEBUG_OWNER_NICK = 'leha_neploxo';
+// Модерация (20.09.2026): список ников с правами мода — мут/бан других игроков (см. case
+// 'mod_mute'/'mod_ban'). Расширяется вручную правкой этого списка, когда владелец попросит.
+const MODERATOR_NICKS = new Set(['leha_neploxo']);
+const isModeratorNick = nick => MODERATOR_NICKS.has((nick || '').toLowerCase());
+const MUTE_MAX_MIN = 7 * 24 * 60, BAN_MAX_MIN = 365 * 24 * 60;   // защита от опечатки — не больше недели мута / года бана
+const muted = new Map();   // nick_lower → until (мс) — мут держим только в памяти, это лёгкая мера, не переживает рестарт
 const xpNeed   = lvl => Math.round(300 * Math.pow(lvl, 1.7));   // опыта до след. уровня: с 1-го 300, с 5-го ~4600, с 10-го ~15000, с 50-го ~232000
 const maxHpOf  = e => e.kind === 'b' ? 40 + e.level * 8 : 70 + e.stats.hp * 10;
 // скорость растёт с убывающей отдачей и упирается в потолок (~200 пикс/с при базовых ~154) —
@@ -101,9 +107,21 @@ class PgStore {
     await q(`ALTER TABLE world_chars ADD COLUMN IF NOT EXISTS money INTEGER NOT NULL DEFAULT 0`);
     await q(`ALTER TABLE world_chars ADD COLUMN IF NOT EXISTS fighter_changed_at TIMESTAMPTZ`);
     await q(`CREATE TABLE IF NOT EXISTS world_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)`);
+    // модерация (20.09.2026): баны — навсегда (until NULL) или до срока, переживают рестарт/деплой
+    await q(`CREATE TABLE IF NOT EXISTS world_bans (
+      nick_lower TEXT PRIMARY KEY, until TIMESTAMPTZ, banned_by TEXT NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
     await this.initClans();
   }
   async getMeta(k) { const r = await this.pool.query('SELECT value FROM world_meta WHERE key=$1', [k]); return r.rows[0] ? r.rows[0].value : null; }
+  async setBan(lower, until, by) { await this.pool.query('INSERT INTO world_bans(nick_lower,until,banned_by) VALUES($1,$2,$3) ON CONFLICT (nick_lower) DO UPDATE SET until=$2, banned_by=$3, created_at=now()', [lower, until, by]); }
+  async clearBan(lower) { await this.pool.query('DELETE FROM world_bans WHERE nick_lower=$1', [lower]); }
+  async getBan(lower) {
+    const r = await this.pool.query('SELECT until FROM world_bans WHERE nick_lower=$1', [lower]);
+    if (!r.rows.length) return null;
+    const until = r.rows[0].until;
+    if (until && new Date(until).getTime() <= Date.now()) { await this.clearBan(lower); return null; }   // срок вышел — сам убираем запись
+    return { until: until ? new Date(until).getTime() : null };
+  }
   async setMeta(k, v) { await this.pool.query('INSERT INTO world_meta(key,value) VALUES($1,$2) ON CONFLICT (key) DO NOTHING', [k, v]); }
   async findByNick(lower) { const r = await this.pool.query('SELECT id,nick,pass_hash FROM world_accounts WHERE nick_lower=$1', [lower]); return r.rows[0] || null; }
   async findById(id) { const r = await this.pool.query('SELECT id,nick FROM world_accounts WHERE id=$1', [id]); return r.rows[0] || null; }
@@ -127,11 +145,18 @@ class PgStore {
   }
 }
 class FileStore {
-  constructor(file) { this.file = file; this.d = { nextId: 1, accounts: [], chars: {}, meta: {} }; this.timer = null; }
-  async init() { try { this.d = JSON.parse(fs.readFileSync(this.file, 'utf8')); } catch (_) {} await this.initClans(); }
+  constructor(file) { this.file = file; this.d = { nextId: 1, accounts: [], chars: {}, meta: {}, bans: {} }; this.timer = null; }
+  async init() { try { this.d = JSON.parse(fs.readFileSync(this.file, 'utf8')); } catch (_) {} if (!this.d.bans) this.d.bans = {}; await this.initClans(); }
   _save() { if (this.timer) return; this.timer = setTimeout(() => { this.timer = null; try { fs.writeFileSync(this.file, JSON.stringify(this.d)); } catch (_) {} }, 300); }
   async getMeta(k) { return this.d.meta[k] || null; }
   async setMeta(k, v) { if (!this.d.meta[k]) { this.d.meta[k] = v; this._save(); } }
+  async setBan(lower, until, by) { this.d.bans[lower] = { until: until ? until.toISOString() : null, banned_by: by }; this._save(); }
+  async clearBan(lower) { delete this.d.bans[lower]; this._save(); }
+  async getBan(lower) {
+    const b = this.d.bans[lower]; if (!b) return null;
+    if (b.until && new Date(b.until).getTime() <= Date.now()) { delete this.d.bans[lower]; this._save(); return null; }
+    return { until: b.until ? new Date(b.until).getTime() : null };
+  }
   async findByNick(lower) { return this.d.accounts.find(a => a.nick_lower === lower) || null; }
   async findById(id) { return this.d.accounts.find(a => a.id === id) || null; }
   async createAccount(nick, lower, hash) {
@@ -350,6 +375,8 @@ function attach(app) {
     const { nick, pass } = req.body || {};
     const acc = (typeof nick === 'string' && typeof pass === 'string') ? await store.findByNick(nick.toLowerCase()) : null;
     if (!acc || !(await checkPass(pass, acc.pass_hash))) return res.status(401).json({ code: 'bad_creds', error: 'Неверный ник или пароль' });
+    const ban = await store.getBan(nick.toLowerCase());
+    if (ban) return res.status(403).json({ code: 'banned', error: 'Доступ заблокирован', until: ban.until });
     res.json({ token: signToken(acc.id), nick: acc.nick, hasChar: !!(await store.getChar(acc.id)) });
   }));
   app.get('/world-api/me', guard, auth, wrap(async (req, res) => {
@@ -744,6 +771,8 @@ async function handleConnection(ws, req) {
   const accId = verifyToken(token);
   const acc = accId ? await store.findById(accId) : null;
   if (!acc) { ws.send(JSON.stringify({ t: 'auth_fail' })); ws.close(4001, 'auth'); return; }
+  const ban = await store.getBan(acc.nick.toLowerCase());
+  if (ban) { ws.send(JSON.stringify({ t: 'ban_info', until: ban.until })); ws.close(4005, 'banned'); return; }
 
   // если аккаунт уже в игре (закрытая вкладка ещё не отвалилась) — сначала дожидаемся сохранения его прогресса,
   // и только потом читаем персонажа из базы, иначе можно получить устаревший уровень и затереть свежий
@@ -792,12 +821,37 @@ function onMessage(p, m) {
     }
     case 'atk': if (m.k === 'jab') startAttack(p, 'jab'); else if (m.k === 'super' || m.k === 'kick') startAttack(p, 'super'); break;
     case 'chat_send': {
+      const muteUntil = muted.get((p.name || '').toLowerCase());
+      if (muteUntil && muteUntil > now) { send(p, { t: 'chat_muted', until: muteUntil }); break; }
       const text = String(m.msg || '').trim().slice(0, CHAT_MAX_LEN);
       if (!text) break;
       const entry = { u: p.name, m: text };
       chatLog.push(entry);
       if (chatLog.length > CHAT_HISTORY) chatLog.shift();
       for (const q of byAccount.values()) send(q, { t: 'chat_msg', ...entry });   // чат общий на весь мир, не по комнатам/зонам
+      break;
+    }
+    case 'mod_mute': {
+      if (!isModeratorNick(p.name)) break;
+      const targetNick = String(m.nick || '').toLowerCase(), minutes = clamp(Math.round(Number(m.minutes) || 0), 1, MUTE_MAX_MIN);
+      if (!targetNick) break;
+      const until = Date.now() + minutes * 60000;
+      muted.set(targetNick, until);
+      const target = [...byAccount.values()].find(q => (q.name || '').toLowerCase() === targetNick);
+      if (target) toast(target, 'mod_you_muted', '#ff8a8a', [minutes]);
+      send(p, { t: 'mod_ok', action: 'mute', nick: m.nick, minutes });
+      break;
+    }
+    case 'mod_ban': {
+      if (!isModeratorNick(p.name)) break;
+      const targetNick = String(m.nick || '').toLowerCase();
+      if (!targetNick || isModeratorNick(targetNick)) break;   // модератора забанить нельзя (в т.ч. себя по ошибке)
+      const minutes = clamp(Math.round(Number(m.minutes) || 0), 0, BAN_MAX_MIN);   // 0 = навсегда
+      const until = minutes > 0 ? new Date(Date.now() + minutes * 60000) : null;
+      store.setBan(targetNick, until, p.name).catch(e => console.error('[DB] setBan error:', e.message));
+      const target = [...byAccount.values()].find(q => (q.name || '').toLowerCase() === targetNick);
+      if (target) { send(target, { t: 'ban_info', until: until ? until.getTime() : null }); try { target.ws.close(4005, 'banned'); } catch (_) {} }
+      send(p, { t: 'mod_ok', action: 'ban', nick: m.nick, minutes });
       break;
     }
     case 'spend':
@@ -830,7 +884,7 @@ function onMessage(p, m) {
     }
     case 'inspect': {
       const t = ents.get(m.id);
-      if (t && t.room === p.room && Math.abs(t.x - p.x) < 900) send(p, { t: 'card', id: t.id, name: t.name, kind: t.kind, ty: t.type, level: t.level, hp: Math.ceil(t.hp), max: maxHpOf(t), st: t.stats, tag: t.clanTag || '', ally: !!(p.clanId && p.clanId === t.clanId), canInvite: !!(p.clanLeader && t.kind === 'p' && t.clanId !== p.clanId), inClan: !!p.clanId });
+      if (t && t.room === p.room && Math.abs(t.x - p.x) < 900) send(p, { t: 'card', id: t.id, name: t.name, kind: t.kind, ty: t.type, level: t.level, hp: Math.ceil(t.hp), max: maxHpOf(t), st: t.stats, tag: t.clanTag || '', ally: !!(p.clanId && p.clanId === t.clanId), canInvite: !!(p.clanLeader && t.kind === 'p' && t.clanId !== p.clanId), inClan: !!p.clanId, canMod: isModeratorNick(p.name) && t.kind === 'p' && !isModeratorNick(t.name) });
       break;
     }
     case 'enter': if (m.b === 'club') enterClub(p); break;
