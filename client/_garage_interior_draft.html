@@ -83,7 +83,6 @@ function rr(x, y, w, h, r){ ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,
 // не трогается, поверх неё рисуется мягкое цветное свечение (аддитивно), с лёгким мерцанием
 const LAMPS = [ [96,121], [361,161], [524,138], [946,161], [1090,119] ];          // тёплые подвесные лампы
 const NEONS = [ [467,40], [268,90], [769,40], [987,90] ];                          // синие неоновые трубки на потолке
-const STRIPS = [ [298,225,90,14], [207,248,110,14] ];                              // жёлтые лампы дневного света над столами
 function drawLights(t){
   ctx.save(); ctx.globalCompositeOperation = 'lighter';
   const flick = 0.85 + 0.15*Math.sin(t*0.02);
@@ -100,12 +99,7 @@ function drawLights(t){
     g.addColorStop(0, `rgba(150,215,255,${0.8*f})`); g.addColorStop(0.4, `rgba(120,195,255,${0.25*f})`); g.addColorStop(1,'rgba(140,210,255,0)');
     ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x,y,120,0,Math.PI*2); ctx.fill();
   });
-  STRIPS.forEach(([x,y,w,h], i) => {
-    const f = flick * (0.9 + 0.1*Math.sin(t*0.018 + i*2.2));
-    const g = ctx.createRadialGradient(x+w/2,y+h/2,4,x+w/2,y+h/2,w*1.3);
-    g.addColorStop(0, `rgba(255,235,175,${0.75*f})`); g.addColorStop(1,'rgba(255,230,160,0)');
-    ctx.fillStyle = g; ctx.beginPath(); ctx.ellipse(x+w/2,y+h/2,w*0.9,w*0.6,0,0,Math.PI*2); ctx.fill();
-  });
+  // свет от жёлтых ламп над столом убран — смотрелся как левое круглое пятно, не как подсветка
   ctx.restore();
 }
 
