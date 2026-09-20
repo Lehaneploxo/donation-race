@@ -721,7 +721,8 @@ function broadcast() {
     for (const id of p.known) if (!vis.has(id)) { rm.push(id); p.known.delete(id); }
     if (add.length) send(p, { t: 'add', e: add });
     const ev = evs.filter(v => vis.has(v[0]));
-    send(p, { t: 's', a, rm, ev, me: { mo: p.money, rm: p.room, su: Math.max(0, Math.ceil(((superReady.get(p.accountId) || 0) - Date.now()) / 1000)), sp: Math.round(speedOf(p)), xp: p.xp, need: xpNeed(p.level), pt: p.points, st: p.stats, stm: Math.round(p.stamina) } });
+    send(p, { t: 's', a, rm, ev, me: { mo: p.money, rm: p.room, su: Math.max(0, Math.ceil(((superReady.get(p.accountId) || 0) - Date.now()) / 1000)), sp: Math.round(speedOf(p)), xp: p.xp, need: xpNeed(p.level), pt: p.points, st: p.stats, stm: Math.round(p.stamina),
+      dh: Math.round(baseDmg(p) * ATK.jab.mult), ds: Math.round(baseDmg(p) * ATK.super.mult) } });   // реальный урон удара/супера — для показа в панели персонажа
   }
 }
 

@@ -210,6 +210,9 @@ Object.assign(L.en, { btn_super:'SUPER', sec:'s', hint2:'J — punch   K — sup
 Object.assign(L.ru, { door_enter:'Войти', door_exit:'Выйти', m_no_enter_combat:'Пока идёт драка с игроком, войти нельзя', hint3:'E — игрок рядом / дверь   Tab — персонаж' });
 Object.assign(L.uk, { door_enter:'Увійти', door_exit:'Вийти', m_no_enter_combat:'Поки триває бійка з гравцем, увійти не можна', hint3:'E — гравець поруч / двері   Tab — персонаж' });
 Object.assign(L.en, { door_enter:'Enter', door_exit:'Exit', m_no_enter_combat:'Can’t enter while fighting another player', hint3:'E — nearby player / door   Tab — character' });
+Object.assign(L.ru, { dmg_hint:'удар ~{0}   ·   супер ~{1}' });
+Object.assign(L.uk, { dmg_hint:'удар ~{0}   ·   супер ~{1}' });
+Object.assign(L.en, { dmg_hint:'hit ~{0}   ·   super ~{1}' });
 function t(k, ...a){
   let s = (L[lang] && k in L[lang]) ? L[lang][k] : (k in L.ru ? L.ru[k] : k);
   a.forEach((v, i) => { s = s.split('{' + i + '}').join(v); });
@@ -370,7 +373,7 @@ function showMsg(text, btn, fn){
 let ws = null, myId = 0, connected = false, retry = 0, gameStarted = false, stopRetry = false;
 const ents = new Map();            // id → сущность
 const SUPER_COOLDOWN = 60;                                        // секунд, как на сервере
-const me = { mo:0, su:0, suStamp:0, sp:240, stm:100, x:0, y:600, f:1, xp:0, need:50, pt:0, st:{str:1,hp:1,spd:1}, sent:'', sentAt:0 };
+const me = { mo:0, su:0, suStamp:0, sp:240, stm:100, dh:0, ds:0, x:0, y:600, f:1, xp:0, need:50, pt:0, st:{str:1,hp:1,spd:1}, sent:'', sentAt:0 };
 const ui = { hits:[], toasts:[], floaters:[], banner:null, card:null, panel:false, touch:false, koText:0, fade:0, clanPanel:false, clanScroll:0 };
 
 function enterGame(){
@@ -421,7 +424,7 @@ function onServer(m){
         floater(e, v[2] ? t('block_dmg', v[1]) : '−'+v[1], v[2] ? '#7ec8ff' : (e.id === myId ? '#ff5a5a' : '#ffe14a'));
       }
       if ((m.me.rm || '') !== room) changeRoom(m.me.rm || '');
-      Object.assign(me, { mo:m.me.mo, su:m.me.su, suStamp:performance.now(), sp:m.me.sp, stm:m.me.stm, xp:m.me.xp, need:m.me.need, pt:m.me.pt, st:m.me.st });
+      Object.assign(me, { mo:m.me.mo, su:m.me.su, suStamp:performance.now(), sp:m.me.sp, stm:m.me.stm, xp:m.me.xp, need:m.me.need, pt:m.me.pt, st:m.me.st, dh:m.me.dh, ds:m.me.ds });
       break;
     }
     case 'money': { const e = ents.get(m.id) || myEnt(); if (e) floater(e, (m.d > 0 ? '+$' : '−$') + Math.abs(m.d), m.d > 0 ? '#7dff9a' : '#ff5a5a'); break; }
@@ -1273,6 +1276,7 @@ function drawPanel(){
     const ry = y + 100 + i*66;
     txt(r[1], x+22, ry+22, 20, '#fff', 'left');
     ctx.font = '13px Arial'; ctx.textAlign = 'left'; ctx.fillStyle = '#9fb0d8'; ctx.fillText(r[2], x+22, ry+42);
+    if (r[0] === 'str') { ctx.font = '13px Arial'; ctx.textAlign = 'left'; ctx.fillStyle = '#ffd23f'; ctx.fillText(t('dmg_hint', me.dh||0, me.ds||0), x+22, ry+58); }
     bar(x+190, ry+8, 150, 16, me.st[r[0]]/20, r[3]); txt(String(me.st[r[0]]), x+360, ry+24, 22, '#fff', 'right');
     const capped = r[0] === 'spd' && me.st.spd >= 100;
     const can = me.pt > 0 && !capped;
