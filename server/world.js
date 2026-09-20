@@ -371,6 +371,11 @@ let nextId = 1;
 const ents = new Map();          // id → сущность (игрок или бот)
 const byAccount = new Map();     // accountId → игрок
 const botRespawns = [];          // { zone, at }
+// Общий чат (20.09.2026): один на весь мир, без комнат/зон, без бана и фильтра слов —
+// по прямой просьбе пользователя, «пока флуда не будет». Хранится только в памяти,
+// на новых подключениях подсовывается последние CHAT_HISTORY штук, чтобы окно не было пустым.
+const chatLog = [];
+const CHAT_HISTORY = 40, CHAT_MAX_LEN = 200;
 const evs = [];
 const superReady = new Map();      // accountId → когда суперсила снова готова (живёт в памяти, перезаход заряд не сбрасывает)                  // события тика (цифры урона)
 const rnd = (a, b) => a + Math.random() * (b - a);
@@ -758,6 +763,7 @@ async function handleConnection(ws, req) {
   console.log(`[WORLD] +${acc.nick} (онлайн: ${byAccount.size})`);
   send(p, { t: 'hello', id: p.id, zones: ZONE_TYPES, zoneW: ZONE_W, ground: [GROUND_MIN, GROUND_MAX], world: WORLD_W, x: p.x, y: p.y, club: CLUB, doorX: CLUB_DOOR_X });
   sendClanInfo(p).catch(clanErr);     // клан и приглашения игрока
+  send(p, { t: 'chat_history', list: chatLog });
 
   ws.isAlive = true;
   ws.on('pong', () => { ws.isAlive = true; });
@@ -785,6 +791,15 @@ function onMessage(p, m) {
       break;
     }
     case 'atk': if (m.k === 'jab') startAttack(p, 'jab'); else if (m.k === 'super' || m.k === 'kick') startAttack(p, 'super'); break;
+    case 'chat_send': {
+      const text = String(m.msg || '').trim().slice(0, CHAT_MAX_LEN);
+      if (!text) break;
+      const entry = { u: p.name, m: text };
+      chatLog.push(entry);
+      if (chatLog.length > CHAT_HISTORY) chatLog.shift();
+      for (const q of byAccount.values()) send(q, { t: 'chat_msg', ...entry });   // чат общий на весь мир, не по комнатам/зонам
+      break;
+    }
     case 'spend':
       if (p.points > 0 && (m.stat === 'str' || m.stat === 'hp' || m.stat === 'spd')) {
         if (m.stat === 'spd' && p.stats.spd >= SPD_CAP) break;   // скорость качается только до 100

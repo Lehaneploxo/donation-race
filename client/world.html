@@ -110,6 +110,14 @@
   #clanForm{position:fixed;inset:0;z-index:26;display:flex;background:rgba(0,0,0,.72);padding:10px;overflow:auto}
   #clanForm[hidden]{display:none}
   #msg button{margin-top:16px;padding:12px 26px;border:0;border-radius:10px;background:#6f4bd8;color:#fff;font-size:17px;font-weight:bold}
+  #chatForm{position:fixed;inset:0;z-index:26;display:flex;background:rgba(0,0,0,.72);padding:10px;overflow:auto}
+  #chatForm[hidden]{display:none}
+  #chatLog{height:min(50vh,360px);overflow-y:auto;background:#0c0a18;border:1px solid #2b2650;border-radius:10px;padding:10px;margin:12px 0;text-align:left;font-size:14px;line-height:1.5;color:#dfe6ff}
+  #chatLog .cm{margin-bottom:6px;word-break:break-word}
+  #chatLog .cm b{color:#ffd23f}
+  .chatRow{display:flex;gap:8px}
+  .chatRow input{flex:1;margin:0}
+  .chatRow button{margin:0;width:auto;padding:0 22px;white-space:nowrap}
 </style>
 </head>
 <body>
@@ -189,6 +197,17 @@
   </div>
 </div>
 <div id="msg" hidden><div><div id="msgText"></div><button id="msgBtn">Ок</button></div></div>
+<div id="chatForm" hidden>
+  <div class="box wide">
+    <h1 data-i="chat_title"></h1>
+    <div id="chatLog"></div>
+    <div class="chatRow">
+      <input id="chatInput" maxlength="200" autocomplete="off" spellcheck="false" data-ph="chat_ph">
+      <button class="main" id="chatSendBtn" data-i="chat_send_btn"></button>
+    </div>
+    <div class="link" id="chatClose" data-i="cancel"></div>
+  </div>
+</div>
 
 <script>
 'use strict';
@@ -217,6 +236,9 @@ Object.assign(L.en, { dmg_hint:'hit ~{0}   ·   super ~{1}', lbl_str:'STRENGTH',
 Object.assign(L.ru, { change_fighter_btn:'Сменить бойца', choose_sub_switch:'Уровень, опыт и характеристики остаются прежними — меняется только внешность. Следующая смена станет доступна через 7 дней.', btn_switch_go:'Сменить', err_fighter_cooldown:'Сменить бойца можно раз в 7 дней — осталось {0} дн.' });
 Object.assign(L.uk, { change_fighter_btn:'Змінити бійця', choose_sub_switch:'Рівень, досвід і характеристики лишаються ті самі — змінюється лише зовнішність. Наступна зміна стане доступна через 7 днів.', btn_switch_go:'Змінити', err_fighter_cooldown:'Змінювати бійця можна раз на 7 днів — лишилось {0} дн.' });
 Object.assign(L.en, { change_fighter_btn:'Change fighter', choose_sub_switch:'Level, XP and stats stay the same — only the look changes. Next change will be available in 7 days.', btn_switch_go:'Change', err_fighter_cooldown:'You can change fighter once every 7 days — {0} day(s) left' });
+Object.assign(L.ru, { chat_btn:'💬 Чат', chat_title:'💬 Общий чат', chat_ph:'Написать сообщение…', chat_send_btn:'Отправить' });
+Object.assign(L.uk, { chat_btn:'💬 Чат', chat_title:'💬 Загальний чат', chat_ph:'Написати повідомлення…', chat_send_btn:'Надіслати' });
+Object.assign(L.en, { chat_btn:'💬 Chat', chat_title:'💬 Global chat', chat_ph:'Write a message…', chat_send_btn:'Send' });
 function t(k, ...a){
   let s = (L[lang] && k in L[lang]) ? L[lang][k] : (k in L.ru ? L.ru[k] : k);
   a.forEach((v, i) => { s = s.split('{' + i + '}').join(v); });
@@ -455,6 +477,8 @@ function onServer(m){
     case 'clan_ok': $('clanForm').hidden = true; break;
     case 'fighter_change_ok': switchingFighter = false; $('ov').hidden = true; $('start').disabled = false; break;
     case 'fighter_change_err': $('err2').textContent = m.code === 'cooldown' ? t('err_fighter_cooldown', m.days) : t('err_bad_fighter'); $('start').disabled = false; break;
+    case 'chat_history': $('chatLog').innerHTML = ''; m.list.forEach(c => appendChatMsg(c.u, c.m)); break;
+    case 'chat_msg': appendChatMsg(m.u, m.m); if (!chatOpen) chatUnread++; break;
     case 'kicked': break;
   }
 }
@@ -570,6 +594,26 @@ $('cCancel').onclick = () => { $('clanForm').hidden = true; };
 $('cGo').onclick = () => { $('cErr').textContent = ''; $('cGo').disabled = true; sendWs({ t:'clan_create', name:$('cName').value, tag:$('cTag').value }); };
 $('cTag').addEventListener('keydown', e => { if (e.key === 'Enter') $('cGo').click(); });
 canvas.addEventListener('wheel', e => { if (ui.clanPanel){ ui.clanScroll += e.deltaY > 0 ? 1 : -1; e.preventDefault(); } }, { passive:false });
+
+// ── Общий чат: сворачиваемое окно, бейдж с непрочитанными на кнопке, пока свёрнуто ──
+let chatOpen = false, chatUnread = 0;
+function escapeHtml(s){ return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function appendChatMsg(u, m){
+  const row = document.createElement('div'); row.className = 'cm';
+  row.innerHTML = `<b>${escapeHtml(u)}:</b> ${escapeHtml(m)}`;
+  $('chatLog').appendChild(row);
+  $('chatLog').scrollTop = $('chatLog').scrollHeight;
+}
+function openChat(){ chatOpen = true; chatUnread = 0; $('chatForm').hidden = false; setTimeout(() => $('chatInput').focus(), 50); }
+$('chatClose').onclick = () => { chatOpen = false; $('chatForm').hidden = true; };
+function sendChat(){
+  const v = $('chatInput').value.trim();
+  if (!v) return;
+  sendWs({ t:'chat_send', msg:v });
+  $('chatInput').value = '';
+}
+$('chatSendBtn').onclick = sendChat;
+$('chatInput').addEventListener('keydown', e => { if (e.key === 'Enter') sendChat(); });
 
 function drawClanPanel(){
   if (!ui.clanPanel) return;
@@ -1202,6 +1246,12 @@ function drawHUD(){
     txt(t('clan_btn'), bx+52, 73, 15, '#dfe6ff', 'center', 96);
     if (hasInv){ ctx.fillStyle = '#ff3b3b'; ctx.beginPath(); ctx.arc(bx+100, 54, 9, 0, Math.PI*2); ctx.fill(); txt(String(clanState.invites.length), bx+100, 59, 11, '#fff'); }
     addHit(bx, 50, 104, 34, () => { if (ui.clanPanel) ui.clanPanel = false; else openClanPanel(); }); }
+  { const cx = RX-150-8-104-8-104, hasUnread = chatUnread > 0;
+    ctx.fillStyle = 'rgba(8,8,16,0.82)'; rr(cx, 50, 104, 34, 10); ctx.fill();
+    ctx.strokeStyle = hasUnread ? '#ffd23f' : 'rgba(125,200,255,0.6)'; ctx.lineWidth = 2; rr(cx, 50, 104, 34, 10); ctx.stroke();
+    txt(t('chat_btn'), cx+52, 73, 15, '#dfe6ff', 'center', 96);
+    if (hasUnread){ ctx.fillStyle = '#ff3b3b'; ctx.beginPath(); ctx.arc(cx+100, 54, 9, 0, Math.PI*2); ctx.fill(); txt(String(Math.min(9,chatUnread)) + (chatUnread>9?'+':''), cx+100, 59, 11, '#fff'); }
+    addHit(cx, 50, 104, 34, () => openChat()); }
 
   if (!ui.touch){
     ctx.font = '12px Arial'; ctx.textAlign = 'right'; ctx.fillStyle = 'rgba(210,220,245,0.9)';
