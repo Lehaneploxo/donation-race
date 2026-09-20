@@ -59,8 +59,14 @@ const POINTS_PER_LEVEL = 3, LEVEL_CAP = 100;
 const DEBUG_OWNER_NICK = 'leha_neploxo';
 const xpNeed   = lvl => Math.round(300 * Math.pow(lvl, 1.7));   // опыта до след. уровня: с 1-го 300, с 5-го ~4600, с 10-го ~15000, с 50-го ~232000
 const maxHpOf  = e => e.kind === 'b' ? 40 + e.level * 8 : 70 + e.stats.hp * 10;
-// скорость растёт с убывающей отдачей и упирается в потолок (~340 пикс/с при базовых ~240) — на высоких уровнях не «летают»
-const speedOf  = e => 230 + 110 * (1 - Math.exp(-e.stats.spd / 35));
+// скорость растёт с убывающей отдачей и упирается в потолок (~270 пикс/с при базовых ~205) —
+// 20.09.2026 перебалансировано: было 230+110*(1-e^(-spd/35)) — почти сразу (уже к ~10-11 уровню
+// при вкладывании очков в скорость) упиралось в потолок ~340, да ещё бег (см. RUN_CAP) добавлял
+// сверху ×1.6 — итоговая скорость на бегу доходила до ~540 пикс/с, «летали». Теперь база ниже,
+// диапазон уже, кривая растянута (делитель 55 вместо 35) — рост скорости за счёт статы стал
+// заметно более плавным на протяжении всех 100 уровней.
+const speedOf  = e => 200 + 70 * (1 - Math.exp(-e.stats.spd / 55));
+const RUN_CAP  = 1.3;   // множитель бега — раньше был 1.6, тоже разгонял сильнее, чем нужно
 const baseDmg  = e => 6 + e.stats.str * 1.2;
 const ZONE_XP_MULT = { safe: 1, wild: 1.6, wild2: 2.5 };   // опыт за урон по ботам
 const REGEN_HUB = 15, REGEN_FIELD = 3, COMBAT_COOLDOWN = 6;   // хп/сек, секунд «в бою»
@@ -632,7 +638,7 @@ function tick() {
     if (len > 1) { dx /= len; dy /= len; }
     const locked = e.koT > 0 || e.hurtT > 0;
     const slow = locked ? 0 : e.atk ? 0.15 : e.blk ? 0.35 : 1;
-    const sp = speedOf(e) * clamp(e.run, 0.5, 1.6) * slow;
+    const sp = speedOf(e) * clamp(e.run, 0.5, RUN_CAP) * slow;
     const minX = 60, maxX = WORLD_W - 60;
     if (e.room === 'club') { e.x += dx * sp * dt; e.y += dy * sp * 0.6 * dt; clubConstrain(e); }
     else { e.x = clamp(e.x + dx * sp * dt, minX, maxX); e.y = clamp(e.y + dy * sp * 0.6 * dt, GROUND_MIN, GROUND_MAX); }
@@ -750,7 +756,7 @@ function onMessage(p, m) {
     case 'in': {
       const num = v => (typeof v === 'number' && isFinite(v)) ? v : 0;
       p.inx = clamp(num(m.dx), -1, 1); p.iny = clamp(num(m.dy), -1, 1);
-      p.run = clamp(num(m.run) || 1, 1, 1.6);
+      p.run = clamp(num(m.run) || 1, 1, RUN_CAP);
       const wantBlock = !!m.blk && !p.atk && p.hurtT <= 0 && p.koT <= 0;
       p.blk = wantBlock;
       if (p.koT > 0) { p.inx = p.iny = 0; }

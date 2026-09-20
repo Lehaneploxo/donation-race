@@ -874,8 +874,8 @@ function update(dt){
   if (keys.ArrowRight || keys.KeyD) dx += 1;
   if (keys.ArrowUp || keys.KeyW) dy -= 1;
   if (keys.ArrowDown || keys.KeyS) dy += 1;
-  let run = (keys.ShiftLeft || keys.ShiftRight) ? 1.6 : 1;
-  if (joy.active && (joy.vx || joy.vy)){ dx = joy.vx; dy = joy.vy; run = Math.hypot(dx,dy) > 0.9 ? 1.5 : 1; }
+  let run = (keys.ShiftLeft || keys.ShiftRight) ? 1.3 : 1;   // держим тот же потолок, что и сервер (RUN_CAP)
+  if (joy.active && (joy.vx || joy.vy)){ dx = joy.vx; dy = joy.vy; run = Math.hypot(dx,dy) > 0.9 ? 1.3 : 1; }
   const blk = !!(keys.Space || blockHeld);
   const inp = { t:'in', dx:+dx.toFixed(2), dy:+dy.toFixed(2), run, blk };
   const sig = inp.dx+'|'+inp.dy+'|'+run+'|'+blk, now = performance.now();
