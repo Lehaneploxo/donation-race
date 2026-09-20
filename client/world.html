@@ -67,6 +67,10 @@
   #fs:hover,#fs:active{opacity:1}
   #fs svg{width:22px;height:22px}
   #fs .ic-off{display:none}#fs.on .ic-on{display:none}#fs.on .ic-off{display:block}
+  #snd{position:fixed;top:calc(8px + env(safe-area-inset-top,0px));right:calc(56px + env(safe-area-inset-right,0px));z-index:40;
+      width:40px;height:40px;padding:0;border-radius:10px;border:1px solid rgba(255,255,255,.25);background:rgba(10,10,24,.55);
+      color:#fff;opacity:.5;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:20px}
+  #snd:hover,#snd:active{opacity:1}
   @media (max-height:520px){
     #ov{padding:8px}
     .box{padding:12px 18px}
@@ -184,6 +188,7 @@
   <svg class="ic-on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>
   <svg class="ic-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/></svg>
 </button>
+<button id="snd" data-title="snd_title">🔊</button>
 <div id="clanForm" hidden>
   <div class="box">
     <h1 data-i="clan_form_title"></h1>
@@ -239,6 +244,9 @@ Object.assign(L.en, { change_fighter_btn:'Change fighter', choose_sub_switch:'Le
 Object.assign(L.ru, { chat_btn:'💬 Чат', chat_title:'💬 Общий чат', chat_ph:'Написать сообщение…', chat_send_btn:'Отправить' });
 Object.assign(L.uk, { chat_btn:'💬 Чат', chat_title:'💬 Загальний чат', chat_ph:'Написати повідомлення…', chat_send_btn:'Надіслати' });
 Object.assign(L.en, { chat_btn:'💬 Chat', chat_title:'💬 Global chat', chat_ph:'Write a message…', chat_send_btn:'Send' });
+Object.assign(L.ru, { snd_title:'Звук вкл/выкл' });
+Object.assign(L.uk, { snd_title:'Звук увімк/вимк' });
+Object.assign(L.en, { snd_title:'Sound on/off' });
 function t(k, ...a){
   let s = (L[lang] && k in L[lang]) ? L[lang][k] : (k in L.ru ? L.ru[k] : k);
   a.forEach((v, i) => { s = s.split('{' + i + '}').join(v); });
@@ -445,7 +453,10 @@ function onServer(m){
       for (const r of m.a){
         const e = ents.get(r[0]); if (!e) continue;
         e.x = r[1]; e.y = r[2]; e.f = r[3];
-        if (e.s !== r[4]){ e.s = r[4]; e.t = 0; }
+        if (e.s !== r[4]){
+          if (r[4] === ST.ko && e.s !== ST.ko) playKo(hearVol(e.x, e.y));   // нокаут — свой или чужой поблизости
+          e.s = r[4]; e.t = 0;
+        }
         e.h = r[5]; e.m = r[6]; e.l = r[7]; e.c = r[8]; e.cl = r[9] || 0;
         if (!e.init){ e.rx = e.x; e.ry = e.y; e.init = true; }
         if (e.id === myId){
@@ -457,6 +468,7 @@ function onServer(m){
       for (const v of m.ev){
         const e = ents.get(v[0]); if (!e) continue;
         floater(e, v[2] ? t('block_dmg', v[1]) : '−'+v[1], v[2] ? '#7ec8ff' : (e.id === myId ? '#ff5a5a' : '#ffe14a'));
+        playHit(hearVol(e.x, e.y), !!v[2]);   // удар — свой или чужой поблизости, громкость по расстоянию
       }
       if ((m.me.rm || '') !== room) changeRoom(m.me.rm || '');
       Object.assign(me, { mo:m.me.mo, su:m.me.su, suStamp:performance.now(), sp:m.me.sp, stm:m.me.stm, xp:m.me.xp, need:m.me.need, pt:m.me.pt, st:m.me.st, dh:m.me.dh, ds:m.me.ds });
@@ -482,6 +494,7 @@ function onServer(m){
       appendChatMsg(m.u, m.m);
       if (!chatOpen) chatUnread++;
       ui.chatFeed.push({ u:m.u, text:m.m, t:5 }); if (ui.chatFeed.length > 4) ui.chatFeed.shift();
+      playChatDing();
       break;
     case 'kicked': break;
   }
@@ -928,9 +941,92 @@ function drawDoorPrompt(){
 }
 
 // ═══════════════ ЛОГИКА КАДРА ═══════════════
-let camX = 0;
+let camX = 0, stepTimer = 0;
 function toast(text, color){ ui.toasts.push({ text, color: color||'#fff', t:2.6 }); if (ui.toasts.length > 3) ui.toasts.shift(); }
 function floater(e, text, color){ ui.floaters.push({ e, text, color, t:0 }); }
+
+// ═══════════════ ЗВУКИ ═══════════════
+// Синтезируются на лету через Web Audio (тот же приём, что уже в streetfighter_arena.html) —
+// без файлов, без лицензий. Мир открытый, боёв может быть много одновременно — звук удара/нокаута
+// слышен и от ЧУЖИХ драк поблизости (не только своей), громкость падает с расстоянием и обнуляется
+// за HEARING_RANGE пикселей, чтобы драка на другом конце карты не была слышна.
+let soundOn = true;
+try { soundOn = localStorage.getItem('world_sound') !== '0'; } catch(_){}
+let audioCtx = null;
+function getAudioCtx(){ if (!audioCtx) audioCtx = new (window.AudioContext||window.webkitAudioContext)(); return audioCtx; }
+document.addEventListener('pointerdown', function unlockAudioOnce(){ try{ getAudioCtx().resume(); }catch(_){} }, { once:true });
+
+const HEARING_RANGE = 900;
+function hearVol(x, y){ return Math.pow(Math.max(0, 1 - Math.hypot(x-me.x, y-me.y)/HEARING_RANGE), 1.5); }
+
+function playHit(vol, blocked){
+  if (!soundOn || vol <= 0.02) return;
+  const ac = getAudioCtx(), now = ac.currentTime;
+  const osc = ac.createOscillator(), gain = ac.createGain();
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(blocked ? 340 : 150, now);
+  osc.frequency.exponentialRampToValueAtTime(blocked ? 220 : 55, now + (blocked ? 0.06 : 0.09));
+  gain.gain.setValueAtTime(0.4*vol, now);
+  gain.gain.exponentialRampToValueAtTime(0.001, now + (blocked ? 0.09 : 0.13));
+  osc.connect(gain); gain.connect(ac.destination);
+  osc.start(now); osc.stop(now + 0.14);
+  if (!blocked){
+    const bufSize = Math.floor(ac.sampleRate*0.06);
+    const buf = ac.createBuffer(1, bufSize, ac.sampleRate), data = buf.getChannelData(0);
+    for (let i=0;i<bufSize;i++) data[i] = (Math.random()*2-1)*(1-i/bufSize);
+    const noise = ac.createBufferSource(); noise.buffer = buf;
+    const noiseGain = ac.createGain();
+    noiseGain.gain.setValueAtTime(0.3*vol, now);
+    noiseGain.gain.exponentialRampToValueAtTime(0.001, now+0.06);
+    noise.connect(noiseGain); noiseGain.connect(ac.destination);
+    noise.start(now);
+  }
+}
+function playKo(vol){
+  if (!soundOn || vol <= 0.02) return;
+  const ac = getAudioCtx(), now = ac.currentTime;
+  const osc = ac.createOscillator(), gain = ac.createGain();
+  osc.type = 'sawtooth';
+  osc.frequency.setValueAtTime(200, now);
+  osc.frequency.exponentialRampToValueAtTime(38, now+0.5);
+  gain.gain.setValueAtTime(0.32*vol, now);
+  gain.gain.exponentialRampToValueAtTime(0.001, now+0.55);
+  osc.connect(gain); gain.connect(ac.destination);
+  osc.start(now); osc.stop(now+0.6);
+}
+function playStep(){
+  if (!soundOn) return;
+  const ac = getAudioCtx(), now = ac.currentTime;
+  const bufSize = Math.floor(ac.sampleRate*0.03);
+  const buf = ac.createBuffer(1, bufSize, ac.sampleRate), data = buf.getChannelData(0);
+  for (let i=0;i<bufSize;i++) data[i] = (Math.random()*2-1)*(1-i/bufSize)*0.5;
+  const noise = ac.createBufferSource(); noise.buffer = buf;
+  const filt = ac.createBiquadFilter(); filt.type = 'lowpass'; filt.frequency.value = 700;
+  const gain = ac.createGain(); gain.gain.setValueAtTime(0.1, now); gain.gain.exponentialRampToValueAtTime(0.001, now+0.03);
+  noise.connect(filt); filt.connect(gain); gain.connect(ac.destination);
+  noise.start(now);
+}
+function playChatDing(){
+  if (!soundOn) return;
+  const ac = getAudioCtx(), now = ac.currentTime;
+  [880, 1320].forEach((f, i) => {
+    const osc = ac.createOscillator(), gain = ac.createGain();
+    osc.type = 'sine'; osc.frequency.setValueAtTime(f, now + i*0.07);
+    gain.gain.setValueAtTime(0, now + i*0.07);
+    gain.gain.linearRampToValueAtTime(0.12, now + i*0.07 + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + i*0.07 + 0.25);
+    osc.connect(gain); gain.connect(ac.destination);
+    osc.start(now + i*0.07); osc.stop(now + i*0.07 + 0.26);
+  });
+}
+function applySndBtn(){ $('snd').textContent = soundOn ? '🔊' : '🔇'; }
+applySndBtn();
+$('snd').addEventListener('click', () => {
+  soundOn = !soundOn;
+  try { localStorage.setItem('world_sound', soundOn ? '1' : '0'); } catch(_){}
+  applySndBtn();
+  if (soundOn) { try { getAudioCtx().resume(); } catch(_){} }
+});
 
 function update(dt){
   const my = myEnt();
@@ -959,6 +1055,11 @@ function update(dt){
       me.x = Math.max(60, Math.min(WORLD_W-60, me.x + dx/len*k*sp*dt));
       me.y = Math.max(GROUND_MIN, Math.min(GROUND_MAX, me.y + dy/len*k*sp*0.6*dt));
     }
+    // лёгкий звук шагов — только свой, только когда реально идёшь (не в ударе/блоке/лежишь)
+    if ((dx || dy) && !locked && s !== ST.block && !(s >= 2 && s <= 4)){
+      stepTimer -= dt;
+      if (stepTimer <= 0){ playStep(); stepTimer = run > 1 ? 0.22 : 0.34; }
+    } else stepTimer = 0;
   }
   // сглаживание чужих
   const a = 1 - Math.exp(-dt*14);
