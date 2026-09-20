@@ -204,9 +204,9 @@ Object.assign(L.uk, {"lbl_wild":"ДИКИЙ","lbl_wild2":"ДИКИЙ · ЖОРС
 Object.assign(L.uk, { f_enemy_punk:'Панк', pass2:'Повтори пароль', pass2_ph:'ще раз той самий пароль', err_pass_mismatch:'Паролі не збігаються', show_pass:'Показати пароль' });
 Object.assign(L.en, {"lbl_wild":"WILD","lbl_wild2":"WILD · HARSH","sub_wild":"attack anyone except your clan","sub_wild2":"same rules, but more punks and XP","clan_btn":"🛡 Clan","clan_title":"Clan","clan_none":"You are not in a clan yet","clan_create_btn":"Create a clan","clan_form_title":"CREATE A CLAN","clan_name":"Clan name","clan_name_ph":"e.g. Legion","clan_tag":"Tag (2–4 characters)","clan_tag_ph":"LNG","clan_create_go":"Create","cancel":"Cancel","clan_members":"Members: {0}","clan_leave_btn":"Leave clan","clan_hint_invite":"To invite: tap a player → “Invite to clan”","clan_invites":"Invitations: {0}","clan_more":"+{0} more","clan_invite_btn":"🛡 Invite to clan","clan_card_ally":"Your clan","clan_card_hint_noclan":"Create a clan in the “🛡 Clan” menu","clan_card_hint_noleader":"Only the clan leader can invite","ce_clan_name_bad":"Name: 3–20 characters — letters, digits, _ and space","ce_clan_tag_bad":"Tag: 2–4 characters, letters and digits only","ce_clan_name_taken":"This name is taken","ce_clan_tag_taken":"This tag is taken","m_clanmate":"That’s your clan — you can’t hit clanmates","m_clan_in_clan":"You are already in a clan","m_clan_not_leader":"Only the clan leader can invite","m_clan_already_member":"{0} is already in your clan","m_clan_invite_sent":"Invitation sent: {0}","m_clan_invited":"[{0}] {1} invites you to a clan — open “🛡 Clan”","m_clan_joined":"You joined clan [{0}]","m_clan_left":"You left the clan","m_clan_kicked":"You were removed from clan [{0}]","m_clan_created":"Clan [{0}] created!","m_clan_pending":"Clan invitations: {0} — open “🛡 Clan”"});
 Object.assign(L.en, { f_enemy_punk:'Punk', pass2:'Repeat password', pass2_ph:'same password again', err_pass_mismatch:'Passwords do not match', show_pass:'Show password' });
-Object.assign(L.ru, { btn_super:'СУПЕР', sec:'с', super_bar:'СУПЕР через {0}с', super_ready:'СУПЕР — ГОТОВО', hint2:'J — удар   K — суперсила   Пробел — блок', m_super_wait:'Суперсила заряжается: ещё {0} с' });
-Object.assign(L.uk, { btn_super:'СУПЕР', sec:'с', super_bar:'СУПЕР за {0}с', super_ready:'СУПЕР — ГОТОВО', hint2:'J — удар   K — суперсила   Пробіл — блок', m_super_wait:'Суперсила заряджається: ще {0} с' });
-Object.assign(L.en, { btn_super:'SUPER', sec:'s', super_bar:'SUPER in {0}s', super_ready:'SUPER — READY', hint2:'J — punch   K — super   Space — block', m_super_wait:'Super is charging: {0} s left' });
+Object.assign(L.ru, { btn_super:'СУПЕР', sec:'с', hint2:'J — удар   K — суперсила   Пробел — блок', m_super_wait:'Суперсила заряжается: ещё {0} с' });
+Object.assign(L.uk, { btn_super:'СУПЕР', sec:'с', hint2:'J — удар   K — суперсила   Пробіл — блок', m_super_wait:'Суперсила заряджається: ще {0} с' });
+Object.assign(L.en, { btn_super:'SUPER', sec:'s', hint2:'J — punch   K — super   Space — block', m_super_wait:'Super is charging: {0} s left' });
 Object.assign(L.ru, { door_enter:'Войти', door_exit:'Выйти', m_no_enter_combat:'Пока идёт драка с игроком, войти нельзя', hint3:'E — игрок рядом / дверь   Tab — персонаж' });
 Object.assign(L.uk, { door_enter:'Увійти', door_exit:'Вийти', m_no_enter_combat:'Поки триває бійка з гравцем, увійти не можна', hint3:'E — гравець поруч / двері   Tab — персонаж' });
 Object.assign(L.en, { door_enter:'Enter', door_exit:'Exit', m_no_enter_combat:'Can’t enter while fighting another player', hint3:'E — nearby player / door   Tab — character' });
@@ -1131,8 +1131,8 @@ function drawFloaters(){
 function drawHUD(){
   const my = myEnt(), zone = ZONES[zoneAt(me.x)], ty = TYPES[zone.type];
   const hp = my ? my.h : 0, mx = my ? my.m : 100, lvl = my ? my.l : 1;
-  ctx.fillStyle = 'rgba(8,8,16,0.82)'; rr(16, 16, 330, 128, 12); ctx.fill();
-  ctx.strokeStyle = 'rgba(255,210,63,0.7)'; ctx.lineWidth = 2; rr(16, 16, 330, 128, 12); ctx.stroke();
+  ctx.fillStyle = 'rgba(8,8,16,0.82)'; rr(16, 16, 330, 100, 12); ctx.fill();
+  ctx.strokeStyle = 'rgba(255,210,63,0.7)'; ctx.lineWidth = 2; rr(16, 16, 330, 100, 12); ctx.stroke();
   ctx.fillStyle = '#b8860b'; ctx.beginPath(); ctx.arc(58, 66, 30, 0, Math.PI*2); ctx.fill();
   ctx.strokeStyle = '#ffd23f'; ctx.lineWidth = 3; ctx.stroke();
   txt(String(lvl), 58, 76, 26, '#fff'); txt(t('lvl_big'), 58, 46, 11, '#ffe9a0');
@@ -1142,14 +1142,11 @@ function drawHUD(){
   bar(100, 78, 230, 10, me.xp/me.need, '#5fa8ff');
   txt(t('xp', Math.floor(me.xp), me.need), 100, 106, 12, '#b8c8ee', 'left');
   txt('$ ' + (me.mo || 0), 338, 106, 15, '#7dff9a', 'right');
-  { const rem = superRemain(), ready = rem <= 0.05, fr = 1 - Math.min(1, rem / SUPER_COOLDOWN);
-    bar(100, 114, 230, 14, fr, ready ? '#ffd23f' : '#d8912a');
-    txt(ready ? t('super_ready') : t('super_bar', Math.ceil(rem)), 215, 125, 11, '#fff'); }
 
   if (me.pt > 0){
-    ctx.globalAlpha = 0.75 + 0.25*Math.sin(performance.now()*0.008); ctx.fillStyle = '#ff9d2e'; rr(16, 152, 170, 34, 10); ctx.fill(); ctx.globalAlpha = 1;
-    txt(t('points', me.pt), 101, 176, 16, '#fff');
-    addHit(16, 152, 170, 34, () => { ui.panel = true; ui.card = null; });
+    ctx.globalAlpha = 0.75 + 0.25*Math.sin(performance.now()*0.008); ctx.fillStyle = '#ff9d2e'; rr(16, 124, 170, 34, 10); ctx.fill(); ctx.globalAlpha = 1;
+    txt(t('points', me.pt), 101, 148, 16, '#fff');
+    addHit(16, 124, 170, 34, () => { ui.panel = true; ui.card = null; });
   }
 
   if (room !== 'club') {
