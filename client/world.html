@@ -1365,14 +1365,17 @@ function drawActor(e){
   const isMe = e.id === myId, isBot = e.k === 'b';
   const zt = room === 'club' ? 'hub' : ZONES[zoneAt(e.rx)].type;
   ctx.font = 'bold 15px Arial';
-  const name = isBot ? '🤖 '+t('f_'+e.ty) : ((e.cl && clanTags[e.cl]) ? '['+clanTags[e.cl]+'] ' : '') + e.n, nameW = ctx.measureText(name).width;
-  const pill = t('pill') + e.l, pw = ctx.measureText(pill).width + 10, total = pw + 6 + nameW, x0 = sx - total/2;
+  // у бота под ним и так видно, что это бот (нет ника/тега) — незачем подписывать ещё и "Панк"
+  const name = isBot ? '' : ((e.cl && clanTags[e.cl]) ? '['+clanTags[e.cl]+'] ' : '') + e.n, nameW = isBot ? 0 : ctx.measureText(name).width;
+  const pill = t('pill') + e.l, pw = ctx.measureText(pill).width + 10, total = isBot ? pw : pw + 6 + nameW, x0 = sx - total/2;
   ctx.fillStyle = 'rgba(0,0,0,0.5)'; rr(x0-6, ny-15, total+12, 21, 6); ctx.fill();
   ctx.fillStyle = isMe ? '#b8860b' : isBot ? '#7a2a2a' : '#3a4a8a'; rr(x0, ny-12, pw, 16, 5); ctx.fill();
   ctx.textAlign = 'center'; ctx.fillStyle = '#fff'; ctx.fillText(pill, x0 + pw/2, ny);
-  ctx.textAlign = 'left'; const mate = !isMe && !isBot && e.cl && e.cl === myClanId();
-  ctx.fillStyle = isMe ? '#ffd23f' : mate ? '#7fe3ff' : (isBot || zt === 'wild' || zt === 'wild2') ? '#ff8a8a' : '#fff';
-  ctx.fillText(name, x0 + pw + 6, ny + 1);
+  if (!isBot){
+    ctx.textAlign = 'left'; const mate = !isMe && e.cl && e.cl === myClanId();
+    ctx.fillStyle = isMe ? '#ffd23f' : mate ? '#7fe3ff' : (zt === 'wild' || zt === 'wild2') ? '#ff8a8a' : '#fff';
+    ctx.fillText(name, x0 + pw + 6, ny + 1);
+  }
 }
 function drawFloaters(){
   for (const f of ui.floaters){
