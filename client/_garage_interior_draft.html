@@ -20,14 +20,28 @@ const canvas = document.getElementById('c'), ctx = canvas.getContext('2d');
 const CW = 1280, CH = 720, FIGHTER_H = 160;
 const ready = im => im && im.complete && im.naturalWidth;
 
-const BG = new Image(); BG.src = 'sprites/room_bg/garage_bg.png';
+const BG = new Image(); BG.src = 'sprites/room_bg/garage_bg2.png';   // новая картинка — без девочки, чище пол
 
 // зона ходьбы — пол на картинке начинается примерно с середины экрана
-const Y_MIN = 420, Y_MAX = 700, X_MIN = 40, X_MAX = 1240;
+const Y_MIN = 380, Y_MAX = 700, X_MIN = 40, X_MAX = 1240;
 const persp = y => 0.72 + 0.28 * (Math.max(0, Math.min(1, (y - Y_MIN) / (Y_MAX - Y_MIN))));
 // выход — низ по центру (как во всех остальных комнатах)
 const DOOR = { x0:560, x1:760 };
 const nearDoor = () => me.y > Y_MAX - 20 && me.x > DOOR.x0 && me.x < DOOR.x1;
+// невидимые "стены" — чтобы не проходить сквозь верстак/шины/шкафы слева и машину справа
+// (сама картинка не трогается, это просто зоны-заглушки поверх неё, прикидочно по глазу)
+const BLOCKS = [
+  { x0:0,   x1:660,  y0:Y_MIN, y1:470 },   // верстак / полки / шины / красные шкафы — левая стена
+  { x0:930, x1:1280, y0:Y_MIN, y1:480 },   // машина — правая стена
+];
+function pushOutOfBlocks(){
+  for (const b of BLOCKS){
+    if (me.x > b.x0 && me.x < b.x1 && me.y > b.y0 && me.y < b.y1){
+      const dl = me.x-b.x0, dr = b.x1-me.x, dt = me.y-b.y0, db = b.y1-me.y, m = Math.min(dl,dr,dt,db);
+      if (m===dt) me.y = b.y0; else if (m===db) me.y = b.y1; else if (m===dl) me.x = b.x0; else me.x = b.x1;
+    }
+  }
+}
 
 const CH_DEF = { bancho: { base:'urban_brawlers', variant:'bancho_v4_teal', idle:[7,9], walk:[6,12] } };
 const _fc = {};
@@ -54,6 +68,7 @@ function update(dt){
   if (dx) me.face = dx > 0 ? 1 : -1;
   me.x += dx/len * 240 * run * dt; me.y += dy/len * 130 * run * dt;
   me.x = Math.max(X_MIN, Math.min(X_MAX, me.x)); me.y = Math.max(Y_MIN, Math.min(Y_MAX, me.y));
+  pushOutOfBlocks();
   me.t += dt;
   if (note){ note.t -= dt; if (note.t <= 0) note = null; }
 }
