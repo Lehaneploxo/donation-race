@@ -370,7 +370,7 @@ function showMsg(text, btn, fn){
 let ws = null, myId = 0, connected = false, retry = 0, gameStarted = false, stopRetry = false;
 const ents = new Map();            // id → сущность
 const SUPER_COOLDOWN = 60;                                        // секунд, как на сервере
-const me = { mo:0, su:0, suStamp:0, sp:240, x:0, y:600, f:1, xp:0, need:50, pt:0, st:{str:1,hp:1,spd:1}, sent:'', sentAt:0 };
+const me = { mo:0, su:0, suStamp:0, sp:240, stm:100, x:0, y:600, f:1, xp:0, need:50, pt:0, st:{str:1,hp:1,spd:1}, sent:'', sentAt:0 };
 const ui = { hits:[], toasts:[], floaters:[], banner:null, card:null, panel:false, touch:false, koText:0, fade:0, clanPanel:false, clanScroll:0 };
 
 function enterGame(){
@@ -421,7 +421,7 @@ function onServer(m){
         floater(e, v[2] ? t('block_dmg', v[1]) : '−'+v[1], v[2] ? '#7ec8ff' : (e.id === myId ? '#ff5a5a' : '#ffe14a'));
       }
       if ((m.me.rm || '') !== room) changeRoom(m.me.rm || '');
-      Object.assign(me, { mo:m.me.mo, su:m.me.su, suStamp:performance.now(), sp:m.me.sp, xp:m.me.xp, need:m.me.need, pt:m.me.pt, st:m.me.st });
+      Object.assign(me, { mo:m.me.mo, su:m.me.su, suStamp:performance.now(), sp:m.me.sp, stm:m.me.stm, xp:m.me.xp, need:m.me.need, pt:m.me.pt, st:m.me.st });
       break;
     }
     case 'money': { const e = ents.get(m.id) || myEnt(); if (e) floater(e, (m.d > 0 ? '+$' : '−$') + Math.abs(m.d), m.d > 0 ? '#7dff9a' : '#ff5a5a'); break; }
@@ -874,8 +874,9 @@ function update(dt){
   if (keys.ArrowRight || keys.KeyD) dx += 1;
   if (keys.ArrowUp || keys.KeyW) dy -= 1;
   if (keys.ArrowDown || keys.KeyS) dy += 1;
-  let run = (keys.ShiftLeft || keys.ShiftRight) ? 1.3 : 1;   // держим тот же потолок, что и сервер (RUN_CAP)
-  if (joy.active && (joy.vx || joy.vy)){ dx = joy.vx; dy = joy.vy; run = Math.hypot(dx,dy) > 0.9 ? 1.3 : 1; }
+  const canSprint = me.stm > 0;   // шкала бега кончилась — сервер всё равно урежет до шага, не просим зря (иначе будет дёргаться при коррекции позиции)
+  let run = (keys.ShiftLeft || keys.ShiftRight) && canSprint ? 1.3 : 1;   // держим тот же потолок, что и сервер (RUN_CAP)
+  if (joy.active && (joy.vx || joy.vy)){ dx = joy.vx; dy = joy.vy; run = (Math.hypot(dx,dy) > 0.9 && canSprint) ? 1.3 : 1; }
   const blk = !!(keys.Space || blockHeld);
   const inp = { t:'in', dx:+dx.toFixed(2), dy:+dy.toFixed(2), run, blk };
   const sig = inp.dx+'|'+inp.dy+'|'+run+'|'+blk, now = performance.now();
@@ -1135,22 +1136,28 @@ function drawFloaters(){
 function drawHUD(){
   const my = myEnt(), zone = ZONES[zoneAt(me.x)], ty = TYPES[zone.type];
   const hp = my ? my.h : 0, mx = my ? my.m : 100, lvl = my ? my.l : 1;
-  ctx.fillStyle = 'rgba(8,8,16,0.82)'; rr(16, 16, 330, 100, 12); ctx.fill();
-  ctx.strokeStyle = 'rgba(255,210,63,0.7)'; ctx.lineWidth = 2; rr(16, 16, 330, 100, 12); ctx.stroke();
+  const stm = me.stm != null ? me.stm : 100;
+  ctx.fillStyle = 'rgba(8,8,16,0.82)'; rr(16, 16, 330, 108, 12); ctx.fill();
+  ctx.strokeStyle = 'rgba(255,210,63,0.7)'; ctx.lineWidth = 2; rr(16, 16, 330, 108, 12); ctx.stroke();
   ctx.fillStyle = '#b8860b'; ctx.beginPath(); ctx.arc(58, 66, 30, 0, Math.PI*2); ctx.fill();
   ctx.strokeStyle = '#ffd23f'; ctx.lineWidth = 3; ctx.stroke();
   txt(String(lvl), 58, 76, 26, '#fff'); txt(t('lvl_big'), 58, 46, 11, '#ffe9a0');
-  txt(my ? my.n : '…', 100, 44, 20, '#ffd23f', 'left', 230);
+  txt(my ? my.n : '…', 100, 44, 20, '#ffd23f', 'left', 180);
+  txt('$ ' + (me.mo || 0), 338, 44, 15, '#7dff9a', 'right');
+  // 1) здоровье
   bar(100, 54, 230, 16, hp/mx, hp/mx > 0.35 ? '#4be06f' : '#ff5a5a');
   txt(hp+' / '+mx, 215, 67, 12, '#fff');
-  bar(100, 78, 230, 10, me.xp/me.need, '#5fa8ff');
-  txt(t('xp', Math.floor(me.xp), me.need), 100, 106, 12, '#b8c8ee', 'left');
-  txt('$ ' + (me.mo || 0), 338, 106, 15, '#7dff9a', 'right');
+  // 2) шкала бега — тратится, пока держишь бег, восстанавливается на шаге
+  bar(100, 76, 230, 14, stm/100, stm > 25 ? '#ffb347' : '#ff6b3d');
+  txt(Math.round(stm)+' / 100', 215, 88, 11, '#fff');
+  // 3) опыт — подпись прямо внутри шкалы
+  bar(100, 96, 230, 14, me.xp/me.need, '#5fa8ff');
+  txt(t('xp', Math.floor(me.xp), me.need), 215, 108, 11, '#fff');
 
   if (me.pt > 0){
-    ctx.globalAlpha = 0.75 + 0.25*Math.sin(performance.now()*0.008); ctx.fillStyle = '#ff9d2e'; rr(16, 124, 170, 34, 10); ctx.fill(); ctx.globalAlpha = 1;
-    txt(t('points', me.pt), 101, 148, 16, '#fff');
-    addHit(16, 124, 170, 34, () => { ui.panel = true; ui.card = null; });
+    ctx.globalAlpha = 0.75 + 0.25*Math.sin(performance.now()*0.008); ctx.fillStyle = '#ff9d2e'; rr(16, 132, 170, 34, 10); ctx.fill(); ctx.globalAlpha = 1;
+    txt(t('points', me.pt), 101, 156, 16, '#fff');
+    addHit(16, 132, 170, 34, () => { ui.panel = true; ui.card = null; });
   }
 
   if (room !== 'club') {
@@ -1267,10 +1274,12 @@ function drawPanel(){
     txt(r[1], x+22, ry+22, 20, '#fff', 'left');
     ctx.font = '13px Arial'; ctx.textAlign = 'left'; ctx.fillStyle = '#9fb0d8'; ctx.fillText(r[2], x+22, ry+42);
     bar(x+190, ry+8, 150, 16, me.st[r[0]]/20, r[3]); txt(String(me.st[r[0]]), x+360, ry+24, 22, '#fff', 'right');
-    const can = me.pt > 0;
+    const capped = r[0] === 'spd' && me.st.spd >= 100;
+    const can = me.pt > 0 && !capped;
     ctx.fillStyle = can ? '#ff9d2e' : 'rgba(80,80,100,0.6)'; rr(x+376, ry+2, 56, 40, 10); ctx.fill();
     txt('+', x+404, ry+32, 28, can ? '#fff' : '#8a8aa0');
-    addHit(x+376, ry+2, 56, 40, () => { if (me.pt > 0) sendWs({ t:'spend', stat:r[0] }); });
+    if (capped) { ctx.font = '10px Arial'; ctx.textAlign = 'center'; ctx.fillStyle = '#ff8a8a'; ctx.fillText('MAX', x+404, ry+52); }
+    addHit(x+376, ry+2, 56, 40, () => { if (can) sendWs({ t:'spend', stat:r[0] }); });
   });
   if (dbg) {
     const dy = y + 300;

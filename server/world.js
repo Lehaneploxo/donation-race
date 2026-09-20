@@ -69,6 +69,10 @@ const maxHpOf  = e => e.kind === 'b' ? 40 + e.level * 8 : 70 + e.stats.hp * 10;
 // идти как бот».
 const speedOf  = e => 150 + 52.5 * (1 - Math.exp(-e.stats.spd / 55));
 const RUN_CAP  = 1.3;   // множитель бега — раньше был 1.6, тоже разгонял сильнее, чем нужно
+const SPD_CAP  = 100;   // скорость (стата) качается только до 100, дальше очки — только в силу/здоровье
+// Шкала бега (20.09.2026): бег больше не бесконечный — тратит шкалу, которая
+// восстанавливается, когда игрок не бежит (даже если просто идёт или дерётся).
+const STAMINA_MAX = 100, STAMINA_DRAIN_PER_SEC = STAMINA_MAX / 6, STAMINA_REGEN_PER_SEC = STAMINA_MAX / 12;
 const baseDmg  = e => 6 + e.stats.str * 1.2;
 const ZONE_XP_MULT = { safe: 1, wild: 1.6, wild2: 2.5 };   // опыт за урон по ботам
 const REGEN_HUB = 15, REGEN_FIELD = 3, COMBAT_COOLDOWN = 6;   // хп/сек, секунд «в бою»
@@ -375,7 +379,7 @@ function makeEntity(kind, name, type, variant, x, y) {
     atk: null, rest: 0, hurtT: 0, stagImm: 0, koT: 0, combatT: 999,
     room: '', pvpT: 999, hintCd: 0, clanId: 0, clanTag: '', clanLeader: false, knownClans: new Set(),
     // игрок:
-    ws: null, accountId: 0, known: new Set(), dirty: false, msgs: 0, msgWindow: 0, killedRecently: new Map(), money: 0,
+    ws: null, accountId: 0, known: new Set(), dirty: false, msgs: 0, msgWindow: 0, killedRecently: new Map(), money: 0, stamina: STAMINA_MAX,
     // бот:
     zone: 0, target: 0, wait: 0, tx: x, ty: y, cd: 0 };
 }
@@ -449,7 +453,7 @@ function gainXp(p, n) {
     if (p.level % 2 === 0) {
       const base = FIGHTERS[p.type].stats;
       const top = Object.keys(base).sort((a, b) => base[b] - base[a])[0];
-      p.stats[top]++;
+      if (!(top === 'spd' && p.stats.spd >= SPD_CAP)) p.stats[top]++;   // и автобонус не пробивает потолок скорости
     }
     p.hp = maxHpOf(p);
   }
@@ -640,7 +644,16 @@ function tick() {
     if (len > 1) { dx /= len; dy /= len; }
     const locked = e.koT > 0 || e.hurtT > 0;
     const slow = locked ? 0 : e.atk ? 0.15 : e.blk ? 0.35 : 1;
-    const sp = speedOf(e) * clamp(e.run, 0.5, RUN_CAP) * slow;
+    // Шкала бега — только у игроков (боты всегда run=1, см. spawnBot). Пока просит бег
+    // (run>1) и есть силы — тратим; иначе восстанавливаем. Кончилась — бег принудительно
+    // сбрасывается до обычного шага, пока не накопится снова.
+    let run = e.run;
+    if (e.kind === 'p') {
+      if (run > 1.001 && e.stamina > 0) e.stamina = Math.max(0, e.stamina - STAMINA_DRAIN_PER_SEC * dt);
+      else e.stamina = Math.min(STAMINA_MAX, e.stamina + STAMINA_REGEN_PER_SEC * dt);
+      if (e.stamina <= 0) run = 1;
+    }
+    const sp = speedOf(e) * clamp(run, 0.5, RUN_CAP) * slow;
     const minX = 60, maxX = WORLD_W - 60;
     if (e.room === 'club') { e.x += dx * sp * dt; e.y += dy * sp * 0.6 * dt; clubConstrain(e); }
     else { e.x = clamp(e.x + dx * sp * dt, minX, maxX); e.y = clamp(e.y + dy * sp * 0.6 * dt, GROUND_MIN, GROUND_MAX); }
@@ -708,7 +721,7 @@ function broadcast() {
     for (const id of p.known) if (!vis.has(id)) { rm.push(id); p.known.delete(id); }
     if (add.length) send(p, { t: 'add', e: add });
     const ev = evs.filter(v => vis.has(v[0]));
-    send(p, { t: 's', a, rm, ev, me: { mo: p.money, rm: p.room, su: Math.max(0, Math.ceil(((superReady.get(p.accountId) || 0) - Date.now()) / 1000)), sp: Math.round(speedOf(p)), xp: p.xp, need: xpNeed(p.level), pt: p.points, st: p.stats } });
+    send(p, { t: 's', a, rm, ev, me: { mo: p.money, rm: p.room, su: Math.max(0, Math.ceil(((superReady.get(p.accountId) || 0) - Date.now()) / 1000)), sp: Math.round(speedOf(p)), xp: p.xp, need: xpNeed(p.level), pt: p.points, st: p.stats, stm: Math.round(p.stamina) } });
   }
 }
 
@@ -767,6 +780,7 @@ function onMessage(p, m) {
     case 'atk': if (m.k === 'jab') startAttack(p, 'jab'); else if (m.k === 'super' || m.k === 'kick') startAttack(p, 'super'); break;
     case 'spend':
       if (p.points > 0 && (m.stat === 'str' || m.stat === 'hp' || m.stat === 'spd')) {
+        if (m.stat === 'spd' && p.stats.spd >= SPD_CAP) break;   // скорость качается только до 100
         p.points--; p.stats[m.stat]++; p.dirty = true;
         if (m.stat === 'hp') p.hp += 10;
       }
