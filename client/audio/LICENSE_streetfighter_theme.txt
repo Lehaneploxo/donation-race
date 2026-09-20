@@ -7,4 +7,5 @@ https://creativecommons.org/licenses/by-sa/4.0/
 Usage requires attribution to the author (maxstack) and, if this file is
 modified/redistributed on its own, the derivative must be shared under the
 same CC BY-SA 4.0 license. Used here as background loop for Street Fighter
-game (client/streetfighter_arena.html).
+game (client/streetfighter_arena.html), and reused as-is (2026-09-20) for
+the "World" game (client/world.html) — same file, same license terms.

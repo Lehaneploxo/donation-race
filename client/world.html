@@ -63,12 +63,12 @@
   #msgText{white-space:pre-line;line-height:1.5;max-width:520px}
   #topRightBtns{position:fixed;top:calc(8px + env(safe-area-inset-top,0px));right:calc(8px + env(safe-area-inset-right,0px));
       z-index:40;display:flex;flex-direction:column;gap:8px}
-  #fs,#snd{position:static;width:40px;height:40px;padding:0;border-radius:10px;border:1px solid rgba(255,255,255,.25);
+  #fs,#snd,#music,#rules{position:static;width:40px;height:40px;padding:0;border-radius:10px;border:1px solid rgba(255,255,255,.25);
       background:rgba(10,10,24,.55);color:#fff;opacity:.5;display:flex;align-items:center;justify-content:center;cursor:pointer}
-  #fs:hover,#fs:active,#snd:hover,#snd:active{opacity:1}
+  #fs:hover,#fs:active,#snd:hover,#snd:active,#music:hover,#music:active,#rules:hover,#rules:active{opacity:1}
   #fs svg{width:22px;height:22px}
   #fs .ic-off{display:none}#fs.on .ic-on{display:none}#fs.on .ic-off{display:block}
-  #snd{font-size:20px}
+  #snd,#music,#rules{font-size:20px}
   @media (max-height:520px){
     #ov{padding:8px}
     .box{padding:12px 18px}
@@ -123,6 +123,7 @@
 </style>
 </head>
 <body>
+<audio id="bgMusic" src="audio/streetfighter_theme.mp3" loop preload="auto"></audio>
 <div id="wrap"><canvas id="c" width="1280" height="720"></canvas></div>
 
 <div id="ov">
@@ -188,6 +189,8 @@
     <svg class="ic-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/></svg>
   </button>
   <button id="snd" data-title="snd_title">🔊</button>
+  <button id="music" data-title="music_title">🎵</button>
+  <button id="rules" data-title="rules_title">📜</button>
 </div>
 <div id="clanForm" hidden>
   <div class="box">
@@ -244,9 +247,57 @@ Object.assign(L.en, { change_fighter_btn:'Change fighter', choose_sub_switch:'Le
 Object.assign(L.ru, { chat_btn:'💬 Чат', chat_title:'💬 Общий чат', chat_ph:'Написать сообщение…', chat_send_btn:'Отправить' });
 Object.assign(L.uk, { chat_btn:'💬 Чат', chat_title:'💬 Загальний чат', chat_ph:'Написати повідомлення…', chat_send_btn:'Надіслати' });
 Object.assign(L.en, { chat_btn:'💬 Chat', chat_title:'💬 Global chat', chat_ph:'Write a message…', chat_send_btn:'Send' });
-Object.assign(L.ru, { snd_title:'Звук вкл/выкл' });
-Object.assign(L.uk, { snd_title:'Звук увімк/вимк' });
-Object.assign(L.en, { snd_title:'Sound on/off' });
+Object.assign(L.ru, { snd_title:'Звуки игры вкл/выкл', music_title:'Музыка вкл/выкл', rules_title:'Правила игры' });
+Object.assign(L.uk, { snd_title:'Звуки гри увімк/вимк', music_title:'Музика увімк/вимк', rules_title:'Правила гри' });
+Object.assign(L.en, { snd_title:'Game sounds on/off', music_title:'Music on/off', rules_title:'Game rules' });
+Object.assign(L.ru, { rules_text:
+`🏙️ ПРАВИЛА МИРА
+
+• Площадь (центр карты) — тут бой запрещён, все свои
+• Дальше от центра — районы «дикие»: бить можно любого, кроме своего клана
+• Чем дальше — тем опаснее боты, но больше опыта
+
+• Сила и здоровье качаются без предела
+• Скорость — максимум до 100, дальше очки идут в силу/здоровье
+• Бег ограничен шкалой — тратится на бегу, восстанавливается на шаге
+
+• Клан может создать любой; соклановцы друг друга не бьют
+• Смерть — возрождение на площади, прогресс не теряется
+
+• Раз в 7 дней можно сменить бойца — уровень и статы сохраняются
+• Чат общий на весь мир — без цензуры, будь вежлив` });
+Object.assign(L.uk, { rules_text:
+`🏙️ ПРАВИЛА СВІТУ
+
+• Площа (центр карти) — тут бій заборонено, всі свої
+• Далі від центру — райони «дикі»: бити можна будь-кого, крім свого клану
+• Що далі — то небезпечніші боти, але більше досвіду
+
+• Сила і здоров'я качаються без обмежень
+• Швидкість — максимум до 100, далі очки йдуть у силу/здоров'я
+• Біг обмежений шкалою — витрачається на бігу, відновлюється на кроці
+
+• Клан може створити будь-хто; соклановці одне одного не б'ють
+• Смерть — відродження на площі, прогрес не втрачається
+
+• Раз на 7 днів можна змінити бійця — рівень і статистики зберігаються
+• Чат загальний на весь світ — без цензури, будь ввічливим` });
+Object.assign(L.en, { rules_text:
+`🏙️ WORLD RULES
+
+• The plaza (map center) is safe — no fighting there
+• Farther from the center — "wild" districts: attack anyone except your clan
+• The farther out, the tougher the bots, but the more XP
+
+• Strength and health can be trained without limit
+• Speed caps at 100 — points beyond that go into strength/health
+• Running is limited by a stamina bar — drains while running, refills while walking
+
+• Anyone can create a clan; clanmates can't hit each other
+• Death respawns you at the plaza — no progress is lost
+
+• You can switch fighters once every 7 days — level and stats carry over
+• Chat is global and uncensored — be nice` });
 function t(k, ...a){
   let s = (L[lang] && k in L[lang]) ? L[lang][k] : (k in L.ru ? L.ru[k] : k);
   a.forEach((v, i) => { s = s.split('{' + i + '}').join(v); });
@@ -1027,6 +1078,29 @@ $('snd').addEventListener('click', () => {
   applySndBtn();
   if (soundOn) { try { getAudioCtx().resume(); } catch(_){} }
 });
+
+// ── Фоновая музыка (Final Punch, maxstack, CC BY-SA — тот же трек и лицензия, что в Street
+// Fighter, см. audio/LICENSE_streetfighter_theme.txt) — отдельный тумблер от звуков игры,
+// чтобы можно было выключить что-то одно ──
+const BG_MUSIC_VOLUME = 0.14;
+const bgMusic = $('bgMusic');
+bgMusic.volume = BG_MUSIC_VOLUME;
+let musicOn = true;
+try { musicOn = localStorage.getItem('world_music') !== '0'; } catch(_){}
+bgMusic.muted = !musicOn;
+function tryPlayMusic(){
+  bgMusic.play().then(() => { document.removeEventListener('pointerdown', tryPlayMusic); }).catch(() => {});
+}
+document.addEventListener('pointerdown', tryPlayMusic);
+function applyMusicBtn(){ $('music').textContent = musicOn ? '🎵' : '🔇'; }
+applyMusicBtn();
+$('music').addEventListener('click', () => {
+  musicOn = !musicOn; bgMusic.muted = !musicOn;
+  try { localStorage.setItem('world_music', musicOn ? '1' : '0'); } catch(_){}
+  applyMusicBtn();
+});
+
+$('rules').addEventListener('click', () => showMsg(t('rules_text'), t('btn_ok')));
 
 function update(dt){
   const my = myEnt();
