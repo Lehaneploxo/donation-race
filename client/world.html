@@ -441,6 +441,10 @@ function onServer(m){
   }
 }
 const myEnt = () => ents.get(myId);
+// Дебаг-режим баланса: только этому нику сервер разрешит менять себе статы
+// (проверка тут — только чтобы не рисовать лишние кнопки остальным, сервер всё равно перепроверяет)
+const DEBUG_OWNER_NICK = 'leha_neploxo';
+const isDebugOwner = () => { const e = myEnt(); return !!(e && e.n && e.n.toLowerCase() === DEBUG_OWNER_NICK); };
 const inCombat = () => { const e = myEnt(); return !!(e && e.c); };
 const maxHpMe = () => { const e = myEnt(); return e ? e.m : 100; };
 
@@ -1249,7 +1253,8 @@ function drawCard(){
 }
 function drawPanel(){
   if (!ui.panel) return;
-  const my = myEnt(), w = 460, h = 360, x = (CW-w)/2, y = 120;
+  const dbg = isDebugOwner();
+  const my = myEnt(), w = 460, h = dbg ? 424 : 360, x = (CW-w)/2, y = 120;
   ctx.fillStyle = 'rgba(8,8,16,0.95)'; rr(x, y, w, h, 14); ctx.fill();
   ctx.strokeStyle = '#ffd23f'; ctx.lineWidth = 2.5; rr(x, y, w, h, 14); ctx.stroke();
   addHit(x, y, w, h, () => {});
@@ -1267,6 +1272,22 @@ function drawPanel(){
     txt('+', x+404, ry+32, 28, can ? '#fff' : '#8a8aa0');
     addHit(x+376, ry+2, 56, 40, () => { if (me.pt > 0) sendWs({ t:'spend', stat:r[0] }); });
   });
+  if (dbg) {
+    const dy = y + 300;
+    ctx.font = '12px Arial'; ctx.textAlign = 'left'; ctx.fillStyle = '#ff5a5a';
+    ctx.fillText('🛠 DEBUG — только у тебя, можно накрутить любые статы для теста', x+22, dy-8);
+    [['str',t('st_str')],['hp',t('st_hp')],['spd',t('st_spd')]].forEach((r,i) => {
+      const cx = x + 22 + i*145;
+      ctx.font = '12px Arial'; ctx.textAlign = 'center'; ctx.fillStyle = '#9fb0d8';
+      ctx.fillText(r[1], cx+63, dy+14);
+      ctx.fillStyle = '#3a3a55'; rr(cx, dy+20, 60, 32, 8); ctx.fill();
+      txt('−10', cx+30, dy+41, 14, '#fff');
+      addHit(cx, dy+20, 60, 32, () => sendWs({ t:'debug_stat', stat:r[0], delta:-10 }));
+      ctx.fillStyle = '#3a3a55'; rr(cx+66, dy+20, 60, 32, 8); ctx.fill();
+      txt('+10', cx+96, dy+41, 14, '#fff');
+      addHit(cx+66, dy+20, 60, 32, () => sendWs({ t:'debug_stat', stat:r[0], delta:10 }));
+    });
+  }
   ctx.font = '12px Arial'; ctx.textAlign = 'center'; ctx.fillStyle = '#7f8db0';
   ctx.fillText(t('no_reset'), x+w/2, y+h-52);
   ctx.fillStyle = 'rgba(120,40,40,0.8)'; rr(x+w/2-70, y+h-40, 140, 30, 8); ctx.fill();

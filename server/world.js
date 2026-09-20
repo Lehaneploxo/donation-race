@@ -54,6 +54,9 @@ const VARIANTS = 3;   // цветов на бойца
 const ATK = { jab: { mult: 0.7, range: 125 }, punch: { mult: 1.0, range: 135 }, kick: { mult: 1.3, range: 145 }, super: { mult: 1.4, range: 145 } };
 const SUPER_COOLDOWN_MS = 60000;
 const POINTS_PER_LEVEL = 3, LEVEL_CAP = 100;
+// Дебаг-режим баланса: только этому нику разрешено вручную выставлять себе статы
+// (см. case 'debug_stat' в onMessage) — для теста кривой скорости/урона на живом сервере.
+const DEBUG_OWNER_NICK = 'leha_neploxo';
 const xpNeed   = lvl => Math.round(300 * Math.pow(lvl, 1.7));   // опыта до след. уровня: с 1-го 300, с 5-го ~4600, с 10-го ~15000, с 50-го ~232000
 const maxHpOf  = e => e.kind === 'b' ? 40 + e.level * 8 : 70 + e.stats.hp * 10;
 // скорость растёт с убывающей отдачей и упирается в потолок (~340 пикс/с при базовых ~240) — на высоких уровнях не «летают»
@@ -760,6 +763,15 @@ function onMessage(p, m) {
         if (m.stat === 'hp') p.hp += 10;
       }
       break;
+    case 'debug_stat': {
+      if ((p.name || '').toLowerCase() !== DEBUG_OWNER_NICK) break;
+      if ((m.stat === 'str' || m.stat === 'hp' || m.stat === 'spd') && Number.isFinite(m.delta)) {
+        p.stats[m.stat] = clamp(p.stats[m.stat] + Math.round(m.delta), 1, 999);
+        if (m.stat === 'hp') p.hp = maxHpOf(p);   // сразу видно эффект на здоровье
+        p.dirty = true;
+      }
+      break;
+    }
     case 'inspect': {
       const t = ents.get(m.id);
       if (t && t.room === p.room && Math.abs(t.x - p.x) < 900) send(p, { t: 'card', id: t.id, name: t.name, kind: t.kind, ty: t.type, level: t.level, hp: Math.ceil(t.hp), max: maxHpOf(t), st: t.stats, tag: t.clanTag || '', ally: !!(p.clanId && p.clanId === t.clanId), canInvite: !!(p.clanLeader && t.kind === 'p' && t.clanId !== p.clanId), inClan: !!p.clanId });
