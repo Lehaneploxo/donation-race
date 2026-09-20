@@ -870,13 +870,13 @@ function drawGarageScene(){
 // Вход — на улице в районе «Пиццерия» (зона 4). Внутри — фон-картинка, как в гараже, поверх только
 // настоящие игроки. Планировка/столкновения должны совпадать с PIZZERIA на сервере (server/world.js).
 const PIZZERIA_DOOR_X = 4 * 1800 + 1120 + 145;   // ВТОРОЙ тайл "pizza" (дальше от площади), точно на нарисованной двери слева от вывески
-const pizzeriaPersp = y => 0.72 + 0.28 * (Math.max(0, Math.min(1, (y - 331) / (700 - 331))));
-const PIZZERIA_X0 = 40, PIZZERIA_X1 = 1240, PIZZERIA_Y0 = 331, PIZZERIA_Y1 = 700;
+const pizzeriaPersp = y => 0.72 + 0.28 * (Math.max(0, Math.min(1, (y - 354) / (700 - 354))));
+const PIZZERIA_X0 = 40, PIZZERIA_X1 = 1240, PIZZERIA_Y0 = 354, PIZZERIA_Y1 = 700;
 const PIZZERIA_DOOR = { x0:560, x1:760 };
-const PIZZERIA_BLOCKS = [ { x0:0, x1:230, y0:PIZZERIA_Y0, y1:390 }, { x0:1050, x1:1280, y0:PIZZERIA_Y0, y1:390 } ];
-const PIZZERIA_LAMPS = [ [173,44],[330,85],[338,101],[567,74],[798,71],[998,56],[1128,88],[1222,76],[628,174],[785,162] ];
-const PIZZERIA_NEONS_RED = [ [678,94],[134,126],[323,159],[1195,158] ];   // главная вывеска PIZZA, OPEN, левая и правая настенные
-const PIZZERIA_NEONS_BLUE = [ [1246,57] ];                                // "PIZZA LIFE" справа
+const PIZZERIA_BLOCKS = [ { x0:0, x1:352, y0:PIZZERIA_Y0, y1:390 }, { x0:880, x1:1280, y0:PIZZERIA_Y0, y1:390 } ];
+const PIZZERIA_LAMPS = [ [190,88],[286,142],[321,173],[364,180],[489,149],[574,233],[766,155],[819,227],[947,172],[995,142],[1046,180],[1087,90],[1129,157] ];
+const PIZZERIA_NEONS_RED = [ [624,188],[344,226],[1110,216] ];   // главная вывеска PIZZA, левая настенная с долькой, правый постер
+const PIZZERIA_NEONS_BLUE = [ [153,213],[1191,188] ];             // OPEN на окне, "PIZZA LIFE" справа
 const PIZZERIA_BG = new Image(); PIZZERIA_BG.src = 'sprites/room_bg/pizzeria_bg.png';
 function pizzeriaConstrainMe(){
   me.x = Math.max(PIZZERIA_X0, Math.min(PIZZERIA_X1, me.x)); me.y = Math.max(PIZZERIA_Y0, Math.min(PIZZERIA_Y1, me.y));

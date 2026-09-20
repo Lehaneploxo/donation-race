@@ -60,8 +60,8 @@ function garageConstrain(e) {
 // тайла — координата найдена анализом пикселей tileset.png). Комната — картинка-фон, как гараж.
 const PIZZERIA_DOOR_X = 4 * ZONE_W + 1120 + 145;
 const PIZZERIA = {
-  x0: 40, x1: 1240, y0: 331, y1: 700, spawn: { x: 640, y: 600 }, exit: { x0: 560, x1: 760, y: 680 },
-  blocks: [ { x0: 0, x1: 230, y0: 331, y1: 390 }, { x0: 1050, x1: 1280, y0: 331, y1: 390 } ],
+  x0: 40, x1: 1240, y0: 354, y1: 700, spawn: { x: 640, y: 600 }, exit: { x0: 560, x1: 760, y: 680 },
+  blocks: [ { x0: 0, x1: 352, y0: 354, y1: 390 }, { x0: 880, x1: 1280, y0: 354, y1: 390 } ],
 };
 function pizzeriaConstrain(e) {
   e.x = clamp(e.x, PIZZERIA.x0, PIZZERIA.x1); e.y = clamp(e.y, PIZZERIA.y0, PIZZERIA.y1);
