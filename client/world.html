@@ -409,7 +409,7 @@ let ws = null, myId = 0, connected = false, retry = 0, gameStarted = false, stop
 const ents = new Map();            // id → сущность
 const SUPER_COOLDOWN = 60;                                        // секунд, как на сервере
 const me = { mo:0, su:0, suStamp:0, sp:240, stm:100, dh:0, ds:0, x:0, y:600, f:1, xp:0, need:50, pt:0, st:{str:1,hp:1,spd:1}, sent:'', sentAt:0 };
-const ui = { hits:[], toasts:[], floaters:[], banner:null, card:null, panel:false, touch:false, koText:0, fade:0, clanPanel:false, clanScroll:0 };
+const ui = { hits:[], toasts:[], floaters:[], chatFeed:[], banner:null, card:null, panel:false, touch:false, koText:0, fade:0, clanPanel:false, clanScroll:0 };
 
 function enterGame(){
   $('ov').hidden = true; document.body.classList.add('ingame');
@@ -478,7 +478,11 @@ function onServer(m){
     case 'fighter_change_ok': switchingFighter = false; $('ov').hidden = true; $('start').disabled = false; break;
     case 'fighter_change_err': $('err2').textContent = m.code === 'cooldown' ? t('err_fighter_cooldown', m.days) : t('err_bad_fighter'); $('start').disabled = false; break;
     case 'chat_history': $('chatLog').innerHTML = ''; m.list.forEach(c => appendChatMsg(c.u, c.m)); break;
-    case 'chat_msg': appendChatMsg(m.u, m.m); if (!chatOpen) chatUnread++; break;
+    case 'chat_msg':
+      appendChatMsg(m.u, m.m);
+      if (!chatOpen) chatUnread++;
+      ui.chatFeed.push({ u:m.u, text:m.m, t:6 }); if (ui.chatFeed.length > 4) ui.chatFeed.shift();
+      break;
     case 'kicked': break;
   }
 }
@@ -965,6 +969,7 @@ function update(dt){
   for (const f of ui.floaters) f.t += dt;
   ui.floaters = ui.floaters.filter(f => f.t < 1.1);
   for (const t of ui.toasts) t.t -= dt; ui.toasts = ui.toasts.filter(t => t.t > 0);
+  for (const c of ui.chatFeed) c.t -= dt; ui.chatFeed = ui.chatFeed.filter(c => c.t > 0);
   if (ui.banner){ ui.banner.t -= dt; if (ui.banner.t <= 0) ui.banner = null; }
   if (ui.koText > 0) ui.koText -= dt;
   if (ui.fade > 0) ui.fade -= dt;
@@ -1389,6 +1394,19 @@ function drawOverlays(){
     ctx.font = 'bold 18px Arial'; const w = ctx.measureText(t.text).width + 36, y = 640 - i*40 - (ui.touch ? 0 : 20);
     ctx.globalAlpha = Math.min(1, t.t/0.4); ctx.fillStyle = 'rgba(8,8,16,0.88)'; rr(CW/2-w/2, y-24, w, 34, 10); ctx.fill();
     ctx.textAlign = 'center'; ctx.fillStyle = t.color; ctx.fillText(t.text, CW/2, y); ctx.globalAlpha = 1;
+  });
+  // всплывающие реплики общего чата — короткая живая лента слева под HUD, чтобы видеть сообщения
+  // на бегу, не открывая само окно чата (см. openChat/#chatForm). Специально НЕ внизу экрана —
+  // там на телефоне джойстик и кнопки боя, лента бы их перекрывала
+  ui.chatFeed.forEach((c, i) => {
+    const short = c.text.length > 60 ? c.text.slice(0, 60) + '…' : c.text;
+    const y = 210 + i * 26;
+    ctx.font = '14px Arial'; const full = c.u + ': ' + short, w = Math.min(600, ctx.measureText(full).width + 20);
+    ctx.globalAlpha = Math.min(1, c.t); ctx.fillStyle = 'rgba(8,8,16,0.72)'; rr(20, y-18, w, 25, 7); ctx.fill();
+    ctx.textAlign = 'left'; ctx.fillStyle = '#ffd23f'; ctx.fillText(c.u + ':', 28, y);
+    const nw = ctx.measureText(c.u + ':').width;
+    ctx.fillStyle = '#fff'; ctx.fillText(' ' + short, 28 + nw, y);
+    ctx.globalAlpha = 1;
   });
   if (ui.fade > 0){ ctx.globalAlpha = Math.min(1, ui.fade / 0.6); ctx.fillStyle = '#000'; ctx.fillRect(0, 0, CW, CH); ctx.globalAlpha = 1; }
   if (!connected){
