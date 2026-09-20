@@ -481,7 +481,7 @@ function onServer(m){
     case 'chat_msg':
       appendChatMsg(m.u, m.m);
       if (!chatOpen) chatUnread++;
-      ui.chatFeed.push({ u:m.u, text:m.m, t:6 }); if (ui.chatFeed.length > 4) ui.chatFeed.shift();
+      ui.chatFeed.push({ u:m.u, text:m.m, t:5 }); if (ui.chatFeed.length > 4) ui.chatFeed.shift();
       break;
     case 'kicked': break;
   }
@@ -1229,6 +1229,15 @@ function drawHUD(){
     addHit(16, 132, 170, 34, () => { ui.panel = true; ui.card = null; });
   }
 
+  // Чат — кнопка слева под основной плашкой (перенесена сюда с правого верхнего угла по просьбе
+  // пользователя); прямо под ней всплывают последние реплики (см. drawOverlays/ui.chatFeed)
+  { const hasUnread = chatUnread > 0;
+    ctx.fillStyle = 'rgba(8,8,16,0.82)'; rr(16, 172, 170, 34, 10); ctx.fill();
+    ctx.strokeStyle = hasUnread ? '#ffd23f' : 'rgba(125,200,255,0.6)'; ctx.lineWidth = 2; rr(16, 172, 170, 34, 10); ctx.stroke();
+    txt(t('chat_btn'), 101, 195, 15, '#dfe6ff');
+    if (hasUnread){ ctx.fillStyle = '#ff3b3b'; ctx.beginPath(); ctx.arc(178, 176, 9, 0, Math.PI*2); ctx.fill(); txt(String(Math.min(9,chatUnread)) + (chatUnread>9?'+':''), 178, 181, 11, '#fff'); }
+    addHit(16, 172, 170, 34, () => openChat()); }
+
   if (room !== 'club') {
   const cellW = 48, mapW = cellW*ZONES.length, mmx = RX - mapW, my2 = 16, mh = 18;
   ctx.fillStyle = 'rgba(0,0,0,0.6)'; rr(mmx-6, my2-6, mapW+12, mh+12, 8); ctx.fill();
@@ -1251,12 +1260,6 @@ function drawHUD(){
     txt(t('clan_btn'), bx+52, 73, 15, '#dfe6ff', 'center', 96);
     if (hasInv){ ctx.fillStyle = '#ff3b3b'; ctx.beginPath(); ctx.arc(bx+100, 54, 9, 0, Math.PI*2); ctx.fill(); txt(String(clanState.invites.length), bx+100, 59, 11, '#fff'); }
     addHit(bx, 50, 104, 34, () => { if (ui.clanPanel) ui.clanPanel = false; else openClanPanel(); }); }
-  { const cx = RX-150-8-104-8-104, hasUnread = chatUnread > 0;
-    ctx.fillStyle = 'rgba(8,8,16,0.82)'; rr(cx, 50, 104, 34, 10); ctx.fill();
-    ctx.strokeStyle = hasUnread ? '#ffd23f' : 'rgba(125,200,255,0.6)'; ctx.lineWidth = 2; rr(cx, 50, 104, 34, 10); ctx.stroke();
-    txt(t('chat_btn'), cx+52, 73, 15, '#dfe6ff', 'center', 96);
-    if (hasUnread){ ctx.fillStyle = '#ff3b3b'; ctx.beginPath(); ctx.arc(cx+100, 54, 9, 0, Math.PI*2); ctx.fill(); txt(String(Math.min(9,chatUnread)) + (chatUnread>9?'+':''), cx+100, 59, 11, '#fff'); }
-    addHit(cx, 50, 104, 34, () => openChat()); }
 
   if (!ui.touch){
     ctx.font = '12px Arial'; ctx.textAlign = 'right'; ctx.fillStyle = 'rgba(210,220,245,0.9)';
@@ -1395,17 +1398,12 @@ function drawOverlays(){
     ctx.globalAlpha = Math.min(1, t.t/0.4); ctx.fillStyle = 'rgba(8,8,16,0.88)'; rr(CW/2-w/2, y-24, w, 34, 10); ctx.fill();
     ctx.textAlign = 'center'; ctx.fillStyle = t.color; ctx.fillText(t.text, CW/2, y); ctx.globalAlpha = 1;
   });
-  // всплывающие реплики общего чата — короткая живая лента слева под HUD, чтобы видеть сообщения
-  // на бегу, не открывая само окно чата (см. openChat/#chatForm). Специально НЕ внизу экрана —
-  // там на телефоне джойстик и кнопки боя, лента бы их перекрывала
-  if (ui.chatFeed.length){
-    ctx.globalAlpha = Math.min(1, ui.chatFeed[ui.chatFeed.length-1].t);
-    ctx.font = '20px Arial'; ctx.textAlign = 'left'; ctx.fillStyle = '#dfe6ff'; ctx.fillText(t('chat_btn'), 20, 205);
-    ctx.globalAlpha = 1;
-  }
+  // всплывающие реплики общего чата — прямо под кнопкой "Чат" слева (см. drawHUD), чтобы видеть
+  // сообщения на бегу, не открывая само окно. Специально НЕ внизу экрана — там на телефоне
+  // джойстик и кнопки боя, лента бы их перекрывала
   ui.chatFeed.forEach((c, i) => {
     const short = c.text.length > 60 ? c.text.slice(0, 60) + '…' : c.text;
-    const y = 228 + i * 30;
+    const y = 232 + i * 30;
     ctx.font = '17px Arial'; const full = c.u + ': ' + short, w = Math.min(640, ctx.measureText(full).width + 24);
     ctx.globalAlpha = Math.min(1, c.t); ctx.fillStyle = 'rgba(8,8,16,0.75)'; rr(20, y-21, w, 30, 8); ctx.fill();
     ctx.textAlign = 'left'; ctx.fillStyle = '#ffd23f'; ctx.fillText(c.u + ':', 30, y);
