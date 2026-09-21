@@ -54,7 +54,11 @@ function serveHtml(file) {
   };
 }
 
-app.get('/',            serveHtml('launcher.html'));
+// 21.09.2026: перенос хостинга — Мир теперь главная игра на корне домена, список ТикТок-игр
+// переехал на /games (сама страница та же launcher.html, просто другой адрес). Адреса ОТДЕЛЬНЫХ
+// ТикТок-игр (/boxing, /streetfighter и т.д. ниже) НЕ трогаем — они вбиты в сценах OBS на стриме.
+app.get('/',             serveHtml('world.html'));
+app.get('/games',        serveHtml('launcher.html'));
 // Онлайн-мир (19.09.2026): свои аккаунты и БД, REST /world-api/*, сокет /world-ws
 app.get('/world',       serveHtml('world.html'));
 world.attach(app);
