@@ -1168,7 +1168,16 @@ function drawClubScene(){
   const vg = ctx.createRadialGradient(CW/2, CH/2, 250, CW/2, CH/2, 760); vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,0.5)');
   ctx.fillStyle = vg; ctx.fillRect(0, 0, CW, CH);
 }
-function changeRoom(r){ room = r; ui.fade = 0.6; ui.card = null; if (r === 'club' || r === 'garage' || r === 'pizzeria') camX = 0; }   // плавное появление из чёрного
+function changeRoom(r){
+  room = r; ui.fade = 0.6; ui.card = null;
+  // при входе в комнату камера всегда 0 (там свои локальные координаты). При ВЫХОДЕ раньше camX
+  // просто оставался как есть (0, с прошлого раза внутри комнаты) и потом несколько кадров плавно
+  // "доезжал" до настоящего места через update() — а пока не доехал, drawWalls/drawZoneDecor (после
+  // перехода мира на кольцо) считают район по НЕВЕРНОМУ camX и не находят его на экране, район не
+  // рисуется — короткая вспышка черноты/рваного кадра при выходе из клуба/гаража/пиццерии.
+  // Теперь при выходе сразу ставим камеру на настоящее место, без "доездов".
+  if (r === 'club' || r === 'garage' || r === 'pizzeria') camX = 0; else camX = me.x - CW/2;
+}
 
 // дверь: на улице у клуба/гаража/пиццерии — «Войти», внутри у нижнего выхода — «Выйти» (E или кнопка на телефоне)
 function doorState(){
