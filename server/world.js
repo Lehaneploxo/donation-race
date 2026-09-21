@@ -98,6 +98,7 @@ const FIGHTERS = {
   bancho:       { name: 'Хулиган',         stats: { str: 7, hp: 6, spd: 5 }, anim: { jab: [9, 18], punch: [7, 18], kick: [8, 18] } },
   batting_girl: { name: 'Девушка с битой', stats: { str: 9, hp: 4, spd: 5 }, anim: { jab: [5, 18], punch: [8, 18], kick: [11, 20] } },
   brawler_girl: { name: 'Уличная боец',    stats: { str: 5, hp: 5, spd: 7 }, anim: { jab: [3, 16], punch: [3, 16], kick: [5, 16] } },
+  fury:         { name: 'Рыжая фурия',     stats: { str: 7, hp: 5, spd: 6 }, anim: { jab: [2, 12], punch: [4, 16], kick: [4, 14] } },
 };
 const FIGHTER_KEYS = Object.keys(FIGHTERS);
 // уличные боты (для выбора игроками не доступны) — только панк; бандит с битой раньше тоже

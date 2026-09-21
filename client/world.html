@@ -46,16 +46,17 @@
        font-size:18px;font-weight:bold;cursor:pointer}
   button.main:disabled{opacity:.5;cursor:default}
   .link{margin-top:12px;text-align:center;font-size:13px;color:#8391b8;cursor:pointer;text-decoration:underline}
-  .cards{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
-  @media (max-width:760px){.cards{grid-template-columns:repeat(2,1fr)}}
+  .cards{display:flex;flex-wrap:wrap;justify-content:center;gap:10px}
   .card{border:2px solid #2b2650;border-radius:12px;padding:10px;background:#0d0b1e;cursor:pointer;text-align:center}
+  .card{flex:0 0 calc(25% - 8px);min-width:0;box-sizing:border-box}
+  @media (max-width:760px){.card{flex-basis:calc(50% - 6px)}}
   .card.on{border-color:#ffd23f;box-shadow:0 0 16px rgba(255,210,63,.4)}
   .card img{height:110px;image-rendering:pixelated}
   .card .nm{font-weight:bold;margin:4px 0 6px}
   .st{display:flex;align-items:center;gap:6px;font-size:12px;margin:3px 0;color:#c9d3f2}
   .st span{width:60px;text-align:left}.st i{display:block;height:8px;border-radius:4px}
   .sw{display:flex;justify-content:center;gap:6px;margin-top:6px}
-  .sw img{height:44px;border:2px solid transparent;border-radius:8px;padding:2px;background:#15122b}
+  .sw img{height:44px;width:calc(33.3% - 4px);object-fit:contain;box-sizing:border-box;border:2px solid transparent;border-radius:8px;padding:2px;background:#15122b}
   .sw img.on{border-color:#ffd23f}
   #msg{position:fixed;inset:0;z-index:25;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.75);
        font-size:22px;text-align:center;padding:20px}
@@ -84,6 +85,7 @@
     .card{padding:6px}.card img{height:64px}.card .nm{margin:2px 0 3px;font-size:14px}
     .st{margin:1px 0;font-size:11px}.sw{margin-top:3px}.sw img{height:30px}
     .cards{gap:6px}
+    .card{flex-basis:calc(20% - 5px)}
   }
   #scrStart{width:min(940px,100%);margin:auto;display:flex;flex-direction:column;gap:10px}
   #scrStart[hidden]{display:none}
@@ -285,6 +287,7 @@ Object.assign(L.uk, {"lbl_wild":"ДИКИЙ","lbl_wild2":"ДИКИЙ · ЖОРС
 Object.assign(L.uk, { f_enemy_punk:'Панк', f_bat_thug:'Бандит', f_ninja_boss:'Ніндзя', pass2:'Повтори пароль', pass2_ph:'ще раз той самий пароль', err_pass_mismatch:'Паролі не збігаються', show_pass:'Показати пароль' });
 Object.assign(L.en, {"lbl_wild":"WILD","lbl_wild2":"WILD · HARSH","sub_wild":"attack anyone except your clan","sub_wild2":"same rules, but more punks and XP","clan_btn":"🛡 Clan","clan_title":"Clan","clan_none":"You are not in a clan yet","clan_create_btn":"Create a clan","clan_form_title":"CREATE A CLAN","clan_name":"Clan name","clan_name_ph":"e.g. Legion","clan_tag":"Tag (2–4 characters)","clan_tag_ph":"LNG","clan_create_go":"Create","cancel":"Cancel","clan_members":"Members: {0}","clan_leave_btn":"Leave clan","clan_hint_invite":"To invite: tap a player → “Invite to clan”","clan_invites":"Invitations: {0}","clan_more":"+{0} more","clan_invite_btn":"🛡 Invite to clan","clan_card_ally":"Your clan","clan_card_hint_noclan":"Create a clan in the “🛡 Clan” menu","clan_card_hint_noleader":"Only the clan leader can invite","ce_clan_name_bad":"Name: 3–20 characters — letters, digits, _ and space","ce_clan_tag_bad":"Tag: 2–4 characters, letters and digits only","ce_clan_name_taken":"This name is taken","ce_clan_tag_taken":"This tag is taken","m_clanmate":"That’s your clan — you can’t hit clanmates","m_clan_in_clan":"You are already in a clan","m_clan_not_leader":"Only the clan leader can invite","m_clan_already_member":"{0} is already in your clan","m_clan_invite_sent":"Invitation sent: {0}","m_clan_invited":"[{0}] {1} invites you to a clan — open “🛡 Clan”","m_clan_joined":"You joined clan [{0}]","m_clan_left":"You left the clan","m_clan_kicked":"You were removed from clan [{0}]","m_clan_created":"Clan [{0}] created!","m_clan_pending":"Clan invitations: {0} — open “🛡 Clan”"});
 Object.assign(L.en, { f_enemy_punk:'Punk', f_bat_thug:'Thug', f_ninja_boss:'Ninja', pass2:'Repeat password', pass2_ph:'same password again', err_pass_mismatch:'Passwords do not match', show_pass:'Show password' });
+Object.assign(L.ru, { f_fury:'Рыжая фурия' }); Object.assign(L.uk, { f_fury:'Руда фурія' }); Object.assign(L.en, { f_fury:'Red Fury' });
 Object.assign(L.ru, { btn_super:'СУПЕР', sec:'с', hint2:'J — удар   K — суперсила   Пробел — блок', m_super_wait:'Суперсила заряжается: ещё {0} с' });
 Object.assign(L.uk, { btn_super:'СУПЕР', sec:'с', hint2:'J — удар   K — суперсила   Пробіл — блок', m_super_wait:'Суперсила заряджається: ще {0} с' });
 Object.assign(L.en, { btn_super:'SUPER', sec:'s', hint2:'J — punch   K — super   Space — block', m_super_wait:'Super is charging: {0} s left' });
@@ -421,6 +424,8 @@ const A = {
   brawler_girl: { base:'streets_of_fight', get name(){ return t('f_brawler_girl'); },
     idle:['Idle','idle',4,8],  walk:['Walk','walk',10,12],jab:['Jab','jab',3,16],  punch:['Punch','punch',3,16], kick:['Kick','kick',5,16],  hurt:['Hurt','hurt',2,12] },
 };
+A.fury = { base:'action_girl', lying:true, get name(){ return t('f_fury'); },
+    idle:['Idle','idle',2,3],  walk:['Walk','walk',6,11], jab:['Jab','jab',2,12], punch:['Punch','punch',4,16], kick:['Kick','kick',4,14], hurt:['Hurt','hurt',6,8] };
 A.enemy_punk = { base:'streets_of_fight', left:true, lying:true, get name(){ return t('f_enemy_punk'); },
     idle:['Idle','idle',4,8], walk:['Walk','walk',4,10], jab:['Punch','punch',3,16], punch:['Punch','punch',3,16], kick:['Punch','punch',3,16], hurt:['Hurt','hurt',4,12] };
 A.bat_thug = { base:'martial_hero3', lying:true, get name(){ return t('f_bat_thug'); },
@@ -435,6 +440,7 @@ const VARIANT_DIRS = {
   bancho:       ['bancho','bancho_v4_teal','bancho_v6_purple'],
   batting_girl: ['batting_girl','batting_girl_v2_yellowgreen','batting_girl_v7_pink'],
   brawler_girl: ['brawler_girl','brawler_girl_v5_blue','brawler_girl_v6_purple'],
+  fury:         ['fury','fury_v4_teal','fury_v6_purple'],
 };
 const ST = { idle:0, walk:1, jab:2, punch:3, kick:4, hurt:5, ko:6, block:7 };
 const ST_ANIM = ['idle','walk','jab','punch','kick','hurt','hurt','idle'];
