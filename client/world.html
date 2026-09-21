@@ -490,7 +490,7 @@ $('msg').addEventListener('click', e => { if (e.target === $('msg')) $('msg').hi
 let ws = null, myId = 0, connected = false, retry = 0, gameStarted = false, stopRetry = false;
 const ents = new Map();            // id → сущность
 const SUPER_COOLDOWN = 60;                                        // секунд, как на сервере
-const me = { mo:0, su:0, suStamp:0, sp:240, stm:100, dh:0, ds:0, x:0, y:600, f:1, xp:0, need:50, pt:0, st:{str:1,hp:1,spd:1}, sent:'', sentAt:0 };
+const me = { mo:0, su:0, suStamp:0, sp:240, stm:100, dh:0, ds:0, x:0, y:600, f:1, xp:0, need:50, pt:0, st:{str:1,hp:1,spd:1}, sent:'', sentAt:0, wasMoving:false };
 const ui = { hits:[], toasts:[], floaters:[], chatFeed:[], banner:null, card:null, panel:false, touch:false, koText:0, fade:0, clanPanel:false, clanScroll:0 };
 
 function enterGame(){
@@ -542,7 +542,7 @@ function onServer(m){
         if (!e.init){ e.rx = e.x; e.ry = e.y; e.init = true; }
         if (e.id === myId){
           const d = Math.hypot(e.x - me.x, e.y - me.y);
-          if (d > 160){ me.x = e.x; me.y = e.y; } else { me.x += (e.x - me.x) * 0.12; me.y += (e.y - me.y) * 0.12; }
+          if (d > 160){ me.x = e.x; me.y = e.y; } else { me.x += (e.x - me.x) * 0.35; me.y += (e.y - me.y) * 0.35; }
         }
       }
       for (const id of m.rm) ents.delete(id);
@@ -1315,7 +1315,10 @@ function update(dt){
   const blk = !!(keys.Space || blockHeld);
   const inp = { t:'in', dx:+dx.toFixed(2), dy:+dy.toFixed(2), run, blk };
   const sig = inp.dx+'|'+inp.dy+'|'+run+'|'+blk, now = performance.now();
-  if (connected && (sig !== me.sent && now - me.sentAt > 45 || now - me.sentAt > 1000)){ sendWs(inp); me.sent = sig; me.sentAt = now; }
+  const isMoving = dx !== 0 || dy !== 0;
+  const justStopped = !isMoving && me.wasMoving;   // отпустили кнопку/джойстик — шлём "стоп" сразу, без троттлинга 45мс (иначе персонажа ещё доносит вперёд)
+  if (connected && (sig !== me.sent && (justStopped || now - me.sentAt > 45) || now - me.sentAt > 1000)){ sendWs(inp); me.sent = sig; me.sentAt = now; }
+  me.wasMoving = isMoving;
 
   // предсказание своей позиции (те же формулы, что на сервере)
   if (my){
