@@ -838,7 +838,7 @@ const RULES_OTHER = [
   'Напиши в чате слово рейтинг — узнаешь своё место в топе!',
   'Нокаутированный боец вернётся в бой, если его снова лайкнуть или задонатить!',
   'Забыл про бойца на 5 минут? Его Сила начнёт слабеть — лайкни, чтобы не терять форму!',
-  'Заходите в наш телеграм канал — ссылка прямо на табло!',
+  'Заходите в полную игру на нашем сайте — gameleha точка xyz!',
 ];
 let _ruleOtherIdx = 0;
 const FILLER = [
@@ -2475,7 +2475,7 @@ function drawHUD() {
     { text: '🎮 Напиши "skin1"-"skin5" — выбери героя', color: '#4fc3ff' },
     { text: '⏳ 5 мин тишины = 💪Сила -1/сек', color: '#ffa64d' },
   ];
-  const rY = T+78, rStep = 24; // сжато с 82/28 — освободило строку снизу под телеграм-канал
+  const rY = T+78, rStep = 24; // сжато с 82/28 — освободило строку снизу под сайт полной игры
   // буквы "растянуты" по высоте: берём шрифт покрупнее и сжимаем его по
   // ширине через ctx.scale(sx,1) — так же, как сделано в arena2/arena3 —
   // ширина остаётся в рамках левой колонки (не вылезает на топ-список),
@@ -2498,17 +2498,18 @@ function drawHUD() {
     ctx.restore();
   });
 
-  // телеграм-канал — отдельной строкой под правилами, своим размером
+  // сайт полной игры — отдельной строкой под правилами, своим размером
   // шрифта (не участвует в общем ruleScaleX, чтобы не сжимать остальные
-  // правила из-за длинного адреса)
+  // правила из-за длинного адреса). Раньше тут был телеграм-канал — убрали
+  // по просьбе пользователя, теперь тут промо полной браузерной игры (Мир)
   {
-    const tgText = '📱 Наш телеграм: tiktokgames777';
+    const siteText = '🌐 ПОЛНАЯ ИГРА: gameleha.xyz';
     ctx.save();
     ctx.font = 'bold 19px Arial Black'; ctx.textAlign = 'left';
     ctx.strokeStyle = 'rgba(0,0,0,0.85)'; ctx.lineWidth = 3;
-    ctx.strokeText(tgText, 8, rY + rules.length*rStep, ruleAvailW);
-    ctx.fillStyle = '#4fc3ff';
-    ctx.fillText(tgText, 8, rY + rules.length*rStep, ruleAvailW);
+    ctx.strokeText(siteText, 8, rY + rules.length*rStep, ruleAvailW);
+    ctx.fillStyle = '#ffd24f';
+    ctx.fillText(siteText, 8, rY + rules.length*rStep, ruleAvailW);
     ctx.restore();
   }
 
