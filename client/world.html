@@ -1707,9 +1707,11 @@ function drawMiniMap(){
     txt('✕', cx, cy-rOut-50, 20, '#ff8a8a');
     addHit(cx-20, cy-rOut-76, 40, 40, () => { ui.mapExpanded = false; });
   } else {
-    // по просьбе пользователя (скриншот с телефона) — сразу под кнопками «Клан»/«Персонаж»
-    // (они y:50-84), там пусто: подсказки WASD там всё равно скрыты на тач-устройствах
-    const R = 46, rIn = 26, cx = RX - 75, cy = 175;
+    // позиция по фото пользователя — пересчитано точно через getBoundingClientRect повёрнутого
+    // канваса (формула CSS: rotate(90deg), width:min(100vh,177.78vw)), а не на глаз:
+    // canvasY = CH*(1-fracX), canvasX = CW*fracY, где frac — доля от видимой области фото.
+    // Проверено по двум ориентирам (кнопки «Клан»/«Персонаж») — совпало с точностью до пары %.
+    const R = 46, rIn = 26, cx = 915, cy = 175;
     ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.beginPath(); ctx.arc(cx,cy,R+6,0,Math.PI*2); ctx.fill();
     for (let z=0; z<ZONES.length; z++){
       const a0 = -Math.PI/2 + (z/7 - 0.5)*Math.PI*2, a1 = -Math.PI/2 + ((z+1)/7 - 0.5)*Math.PI*2;
