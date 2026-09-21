@@ -92,8 +92,12 @@ const FIGHTERS = {
   brawler_girl: { name: 'Уличная боец',    stats: { str: 5, hp: 5, spd: 7 }, anim: { jab: [3, 16], punch: [3, 16], kick: [5, 16] } },
 };
 const FIGHTER_KEYS = Object.keys(FIGHTERS);
-// боты — только панки (для выбора игроками не доступны)
-const BOT_TYPES = { enemy_punk: { name: 'Панк', stats: { str: 6, hp: 5, spd: 4 }, anim: { punch: [3, 16] } } };
+// боты — панк и бандит с битой (для выбора игроками не доступны), одинаковая сила/уровень (см. PUNK_LEVEL) — чистый визуальный вариатив
+const BOT_TYPES = {
+  enemy_punk: { name: 'Панк',    stats: { str: 6, hp: 5, spd: 4 }, anim: { punch: [3, 16] } },
+  bat_thug:   { name: 'Бандит',  stats: { str: 6, hp: 5, spd: 4 }, anim: { punch: [7, 16] } },
+};
+const BOT_TYPE_KEYS = Object.keys(BOT_TYPES);
 const infoOf = type => FIGHTERS[type] || BOT_TYPES[type];
 const VARIANTS = 3;   // цветов на бойца
 
@@ -472,7 +476,7 @@ function send(p, obj) { if (p.ws && p.ws.readyState === 1) { try { p.ws.send(JSO
 function toast(p, k, color, a) { send(p, { t: 'toast', k, a: a || [], color }); }
 
 function spawnBot(zone) {
-  const type = 'enemy_punk';
+  const type = BOT_TYPE_KEYS[Math.floor(Math.random() * BOT_TYPE_KEYS.length)];
   const b = makeEntity('b', BOT_TYPES[type].name, type, Math.floor(Math.random() * VARIANTS),
     zone * ZONE_W + rnd(250, ZONE_W - 250), rnd(GROUND_MIN, GROUND_MAX));
   b.zone = zone; b.level = PUNK_LEVEL;      // одинаковые характеристики везде
