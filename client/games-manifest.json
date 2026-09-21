@@ -1,8 +1,8 @@
 {
-  "name": "Гонка Донатов",
-  "short_name": "Donation Race",
-  "description": "TikTok Live donation race game",
-  "start_url": "/game",
+  "name": "ТикТок игры",
+  "short_name": "TikTok игры",
+  "description": "Список ТикТок Live игр",
+  "start_url": "/games",
   "display": "fullscreen",
   "orientation": "portrait",
   "background_color": "#000000",
