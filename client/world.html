@@ -2026,11 +2026,18 @@ $('play').onclick = async () => {
     s.style.left = Math.random()*100 + '%'; s.style.top = Math.random()*55 + '%';
     s.style.animationDelay = (Math.random()*2.4) + 's'; stars.appendChild(s);
   }
+  // кадры грузим один раз в память (blob) — сервер отдаёт спрайты без кэша, иначе телефон скачивал бы их заново каждый кадр
+  imgs.forEach(o => {
+    const d = o.img.dataset, n = +d.n, urls = [];
+    for (let k = 1; k <= n; k++) urls.push('sprites/' + d.base + '/' + d.dir + '/Idle/idle' + k + '.png');
+    Promise.all(urls.map(u => fetch(u).then(r => r.blob()).then(bl => URL.createObjectURL(bl)))).then(fr => { o.frames = fr; }).catch(() => {});
+  });
   const step = ts => {
     if (start.hidden) return;
     imgs.forEach(o => {
-      const f = Math.floor(ts / (1000 / o.fps)) % +o.img.dataset.n + 1;
-      if (f !== o.i){ o.i = f; o.img.src = 'sprites/' + o.img.dataset.base + '/' + o.img.dataset.dir + '/Idle/idle' + f + '.png'; }
+      if (!o.frames) return;
+      const f = Math.floor(ts / (1000 / o.fps)) % o.frames.length;
+      if (f !== o.i){ o.i = f; o.img.src = o.frames[f]; }
     });
     requestAnimationFrame(step);
   };
