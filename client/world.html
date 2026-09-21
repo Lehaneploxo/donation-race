@@ -89,14 +89,21 @@
   #scrStart[hidden]{display:none}
   .banner{position:relative;height:clamp(150px,54vh,360px);border-radius:16px;overflow:hidden;border:2px solid #6f4bd8;
           box-shadow:0 0 40px rgba(120,70,255,.4);background:linear-gradient(#05010c 0%,#160a2c 55%,#2a1140 100%)}
-  .banner .city{position:absolute;inset:0;background:url(sprites/streets_of_fight/stage/back.png) repeat-x 0 82%/auto 70%;image-rendering:pixelated}
+  .banner .stars{position:absolute;inset:0;overflow:hidden}
+  .banner .star{position:absolute;width:2px;height:2px;background:#fff;border-radius:50%;animation:tw 2.4s ease-in-out infinite}
+  @keyframes tw{0%,100%{opacity:.15}50%{opacity:.95}}
+  @keyframes glow{0%,100%{filter:brightness(1)}50%{filter:brightness(1.35)}}
+  @keyframes drift{from{background-position:0 82%}to{background-position:-1200px 82%}}
+  .banner .city{position:absolute;inset:0;background:url(sprites/streets_of_fight/stage/back.png) repeat-x 0 82%/auto 70%;image-rendering:pixelated;animation:drift 40s linear infinite}
+  .banner .punks{position:absolute;left:0;right:0;bottom:5%;height:70%}
+  .banner .punk{position:absolute;bottom:0;height:clamp(56px,min(30vh,21vw),190px);image-rendering:pixelated;filter:drop-shadow(0 4px 2px rgba(0,0,0,.6)) brightness(.82)}
   .banner .road{position:absolute;left:0;right:0;bottom:0;height:24%;background:linear-gradient(#2c3f57,#0e1622);border-top:3px solid #6b5f68}
-  .banner .fighters{position:absolute;left:0;right:0;bottom:6%;display:flex;justify-content:space-evenly;align-items:flex-end;padding:0 2%}
+  .banner .fighters{position:absolute;left:0;right:0;bottom:6%;display:flex;justify-content:space-evenly;align-items:flex-end;padding:0 2%;z-index:2}
   .banner .fighters img{height:clamp(56px,min(30vh,21vw),190px);max-width:24%;object-fit:contain;image-rendering:pixelated;filter:drop-shadow(0 6px 3px rgba(0,0,0,.65))}
-  .banner .ttl{position:absolute;top:5%;left:0;right:0;text-align:center;font-family:"Arial Black",Arial;line-height:1.02}
-  .banner .t1{font-size:clamp(20px,min(8vh,7.4vw),62px);color:#ffd23f;letter-spacing:2px;text-shadow:0 0 18px rgba(255,90,0,.9),0 3px 0 #7a2a00}
-  .banner .t2{font-size:clamp(26px,min(11vh,10vw),84px);color:#ff4a3a;letter-spacing:8px;text-shadow:0 0 22px rgba(255,40,0,.85),0 4px 0 #500}
-  .banner .tag{position:absolute;left:0;right:0;bottom:1.5%;text-align:center;font-size:clamp(11px,2.4vh,15px);color:#cfd8ff;letter-spacing:1px;text-shadow:0 1px 3px #000}
+  .banner .ttl{position:absolute;top:5%;left:0;right:0;text-align:center;font-family:"Arial Black",Arial;line-height:1.02;z-index:3}
+  .banner .t1{font-size:clamp(20px,min(8vh,7.4vw),62px);color:#ffd23f;letter-spacing:2px;text-shadow:0 0 18px rgba(255,90,0,.9),0 3px 0 #7a2a00;animation:glow 2.6s ease-in-out infinite}
+  .banner .t2{font-size:clamp(26px,min(11vh,10vw),84px);color:#ff4a3a;letter-spacing:8px;text-shadow:0 0 22px rgba(255,40,0,.85),0 4px 0 #500;animation:glow 2.6s ease-in-out infinite .3s}
+  .banner .tag{position:absolute;left:0;right:0;bottom:1.5%;text-align:center;font-size:clamp(11px,2.4vh,15px);color:#cfd8ff;letter-spacing:1px;text-shadow:0 1px 3px #000;z-index:3}
   .langs{display:flex;gap:8px;justify-content:center}
   .lang{flex:1;max-width:200px;padding:10px 6px;border-radius:10px;border:2px solid #2b2650;background:#14112a;color:#9fb0d8;font-size:15px;font-weight:bold;cursor:pointer}
   .lang.on{background:#6f4bd8;border-color:#a58bff;color:#fff}
@@ -134,12 +141,14 @@
   <!-- стартовая страница: баннер игры + выбор языка -->
   <div id="scrStart">
     <div class="banner">
+      <div class="stars" id="bnStars"></div>
       <div class="city"></div><div class="road"></div>
-      <div class="fighters">
-        <img src="sprites/urban_brawlers/brute_arms/Idle/idle1.png" alt="">
-        <img src="sprites/streets_of_fight/brawler_girl_v5_blue/Idle/idle1.png" alt="">
-        <img src="sprites/urban_brawlers/batting_girl_v7_pink/Idle/idle1.png" alt="">
-        <img src="sprites/urban_brawlers/bancho_v4_teal/Idle/idle1.png" alt="">
+      <div class="punks" id="bnPunks"></div>
+      <div class="fighters" id="bnFighters">
+        <img src="sprites/urban_brawlers/brute_arms/Idle/idle1.png" data-base="urban_brawlers" data-dir="brute_arms" data-n="8" alt="">
+        <img src="sprites/streets_of_fight/brawler_girl_v5_blue/Idle/idle1.png" data-base="streets_of_fight" data-dir="brawler_girl_v5_blue" data-n="4" alt="">
+        <img src="sprites/urban_brawlers/batting_girl_v7_pink/Idle/idle1.png" data-base="urban_brawlers" data-dir="batting_girl_v7_pink" data-n="15" alt="">
+        <img src="sprites/urban_brawlers/bancho_v4_teal/Idle/idle1.png" data-base="urban_brawlers" data-dir="bancho_v4_teal" data-n="7" alt="">
       </div>
       <div class="ttl"><div class="t1">LEHA NEPLOXO</div><div class="t2">GAME</div></div>
       <div class="tag" data-i="tagline"></div>
@@ -1943,6 +1952,37 @@ $('play').onclick = async () => {
     $('scrAuth').hidden = false;
   }
 };
+// анимация стартового баннера: idle героев и 7 панков, звёзды
+(function(){
+  const start = document.getElementById('scrStart');
+  const PUNKS = ['enemy_punk','enemy_punk_v2_yellowgreen','enemy_punk_v3_green','enemy_punk_v4_teal','enemy_punk_v5_blue','enemy_punk_v6_purple','enemy_punk_v7_pink'];
+  const POS = [{l:5,s:.95,f:0},{l:17,s:.85,f:0},{l:31,s:.9,f:1},{l:50,s:.85,f:0},{l:69,s:.9,f:1},{l:83,s:.85,f:0},{l:95,s:.95,f:1}];
+  const punksEl = document.getElementById('bnPunks'), imgs = [];
+  PUNKS.forEach((dir, i) => {
+    const p = POS[i], img = document.createElement('img');
+    img.className = 'punk'; img.style.left = p.l + '%';
+    img.style.transform = 'translateX(-50%) scale(' + p.s + ')' + (p.f ? ' scaleX(-1)' : '');
+    img.dataset.base = 'streets_of_fight'; img.dataset.dir = dir; img.dataset.n = 4;
+    img.src = 'sprites/streets_of_fight/' + dir + '/Idle/idle1.png';
+    punksEl.appendChild(img); imgs.push({ img, i: 1, fps: 8 });
+  });
+  document.querySelectorAll('#bnFighters img').forEach(img => imgs.push({ img, i: 1, fps: 9 }));
+  const stars = document.getElementById('bnStars');
+  for (let i = 0; i < 40; i++){
+    const s = document.createElement('div'); s.className = 'star';
+    s.style.left = Math.random()*100 + '%'; s.style.top = Math.random()*55 + '%';
+    s.style.animationDelay = (Math.random()*2.4) + 's'; stars.appendChild(s);
+  }
+  const step = ts => {
+    if (start.hidden) return;
+    imgs.forEach(o => {
+      const f = Math.floor(ts / (1000 / o.fps)) % +o.img.dataset.n + 1;
+      if (f !== o.i){ o.i = f; o.img.src = 'sprites/' + o.img.dataset.base + '/' + o.img.dataset.dir + '/Idle/idle' + f + '.png'; }
+    });
+    requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+})();
 </script>
 </body>
 </html>
