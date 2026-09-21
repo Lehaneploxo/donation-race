@@ -1713,7 +1713,7 @@ function drawCard(){
   ctx.fillStyle = 'rgba(8,8,16,0.94)'; rr(x, y, w, h, 14); ctx.fill();
   ctx.strokeStyle = '#8ab4ff'; ctx.lineWidth = 2.5; rr(x, y, w, h, 14); ctx.stroke();
   addHit(x, y, w, h, () => {});
-  txt(a.kind === 'b' ? t('f_'+a.ty) : ((a.tag ? '['+a.tag+'] ' : '') + a.name), x+20, y+40, 26, a.ally ? '#7fe3ff' : '#fff', 'left', 260); txt(t('lvl_word', a.level), x+w-56, y+40, 22, '#ffd23f', 'right');
+  txt((a.boss ? '👑 ' : '') + (a.kind === 'b' ? t('f_'+a.ty) : ((a.tag ? '['+a.tag+'] ' : '') + a.name)), x+20, y+40, 26, a.ally ? '#7fe3ff' : (a.boss ? '#ffd23f' : '#fff'), 'left', 260); txt(t('lvl_word', a.level), x+w-56, y+40, 22, '#ffd23f', 'right');
   txt('✕', x+w-24, y+36, 24, '#ff8a8a'); addHit(x+w-50, y+6, 44, 44, () => { ui.card = null; });
   ctx.font = '14px Arial'; ctx.textAlign = 'left'; ctx.fillStyle = '#9fb0d8';
   ctx.fillText((a.kind === 'b' ? t('bot_prefix') : '') + t('fighter_lbl') + (A[a.ty] ? A[a.ty].name : ''), x+20, y+62);

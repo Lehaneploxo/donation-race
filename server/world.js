@@ -118,7 +118,7 @@ const isModeratorNick = nick => MODERATOR_NICKS.has((nick || '').toLowerCase());
 const MUTE_MAX_MIN = 7 * 24 * 60, BAN_MAX_MIN = 365 * 24 * 60;   // защита от опечатки — не больше недели мута / года бана
 const muted = new Map();   // nick_lower → until (мс) — мут держим только в памяти, это лёгкая мера, не переживает рестарт
 const xpNeed   = lvl => Math.round(300 * Math.pow(lvl, 1.7));   // опыта до след. уровня: с 1-го 300, с 5-го ~4600, с 10-го ~15000, с 50-го ~232000
-const maxHpOf  = e => e.kind === 'b' ? 40 + e.level * 8 : 70 + e.stats.hp * 10;
+const maxHpOf  = e => e.kind === 'b' ? (e.hpMax || 40 + e.level * 8) : 70 + e.stats.hp * 10;   // hpMax — точное HP босса (см. BOSS_DEFS), у обычных ботов не задан — считается по уровню
 // скорость растёт с убывающей отдачей и упирается в потолок (~200 пикс/с при базовых ~154) —
 // 20.09.2026 перебалансировано дважды. Было 230+110*(1-e^(-spd/35)) — почти сразу (уже к ~10-11
 // уровню при вкладывании очков в скорость) упиралось в потолок ~340, да ещё бег добавлял сверху
@@ -141,8 +141,7 @@ const RESPAWN_MS = 2000, BOT_RESPAWN_MS = 8000;
 const DEATH_MONEY_PENALTY = 10;   // $ теряет игрок за свою смерть (ниже нуля не уходит)
 const BOTS_BY_TYPE = { safe: 3, wild: 6, wild2: 10 };   // чем глубже, тем больше ботов (сила у всех одинаковая)
 const PUNK_LEVEL = 5;                                       // уровень панка (один на всех)
-const BOSS_LEVEL = 20;               // уровень босса-ниндзя (HP=40+20*8=200 против 80 у панка) — «заметно сильнее»
-const BOSS_RESPAWN_MS = 5 * 60 * 1000;   // ровно 5 минут после убийства, фиксированная точка в пиццерии (не как у уличных ботов)
+const BOSS_RESPAWN_MS = 5 * 60 * 1000;   // ровно 5 минут после убийства, на том же месте (не как у уличных ботов)
 const TICK_MS = 50, VIEW_RANGE = 1500;
 
 // ═════════════════════════ ХРАНИЛИЩЕ ═════════════════════════
@@ -454,7 +453,7 @@ let nextId = 1;
 const ents = new Map();          // id → сущность (игрок или бот)
 const byAccount = new Map();     // accountId → игрок
 const botRespawns = [];          // { zone, at }
-let bossRespawnAt = 0;           // 0 = босс жив/уже заспавнен; иначе таймстамп, когда его пересоздать (ровно BOSS_RESPAWN_MS после убийства)
+const bossRespawnAt = {};        // ключ босса (см. BOSS_DEFS) → таймстамп пересоздания; 0/нет ключа = жив
 // Общий чат (20.09.2026): один на весь мир, без комнат/зон, без бана и фильтра слов —
 // по прямой просьбе пользователя, «пока флуда не будет». Хранится только в памяти,
 // на новых подключениях подсовывается последние CHAT_HISTORY штук, чтобы окно не было пустым.
@@ -491,18 +490,28 @@ function spawnBot(zone) {
 function spawnAllBots() {
   for (let z = 0; z < N_ZONES; z++) for (let i = 0; i < (BOTS_BY_TYPE[ZONE_TYPES[z]] || 0); i++) spawnBot(z);
 }
-// босс-ниндзя: один экземпляр, живёт в пиццерии (не на улице), гуляет/дерётся только в её пределах —
-// см. bossAI. Фиксированный variant=0 (не перекрашен, всегда одинаковый — по нему узнают босса).
-const BOSS_SPOT = { x: 640, y: 460 };
-function spawnBoss() {
-  const b = makeEntity('b', BOT_TYPES.ninja_boss.name, 'ninja_boss', 0, BOSS_SPOT.x, BOSS_SPOT.y);
+// боссы: уникальные (по одному экземпляру), живут в конкретной комнате, гуляют/дерутся только
+// в её пределах (см. bossAI), респавн ровно через BOSS_RESPAWN_MS на том же месте. hpMax — точное
+// HP (не по уровню, см. maxHpOf), stats.str — сила удара; level — только для награды деньгами
+// при убийстве ($ = level, см. killEntity) и для отображения. Каждый — отдельный цвет/тип, чтобы
+// визуально отличался от обычных уличных ботов того же спрайта.
+const BOSS_DEFS = {
+  ninja_boss:  { type: 'ninja_boss', variant: 0, room: 'pizzeria', spot: { x: 640, y: 460 }, bounds: PIZZERIA,
+    stats: { str: 20, hp: 5, spd: 5 }, hpMax: 700, level: 25 },
+  garage_boss: { type: 'bat_thug', variant: 2 /* v6_purple — отличает от обычных бандитов */, room: 'garage', spot: { x: 640, y: 460 }, bounds: GARAGE,
+    stats: { str: 15, hp: 5, spd: 4 }, hpMax: 500, level: 18, name: 'Бандит-главарь' },   // имя переопределено — тип «bat_thug» на улице встречается и как обычный слабый бот, без этого их не отличить в списке
+};
+function spawnBoss(key) {
+  const d = BOSS_DEFS[key];
+  const b = makeEntity('b', d.name || BOT_TYPES[d.type].name, d.type, d.variant, d.spot.x, d.spot.y);
+  b.boss = true; b.bossKey = key; b.room = d.room; b.homeSpot = d.spot; b.homeBounds = d.bounds;
   // zone здесь НЕ про физическое место (босс живёт в комнате) — только чтобы botXp() посчитал
-  // множитель опыта; ставим 0 (wild2, самый высокий множитель ×2.5), т.к. босс заметно сильнее
-  b.boss = true; b.room = 'pizzeria'; b.zone = 0; b.level = BOSS_LEVEL;
-  b.stats = { ...BOT_TYPES.ninja_boss.stats };
+  // множитель опыта; ставим 0 (wild2, самый высокий множитель ×2.5), т.к. боссы заметно сильнее
+  b.zone = 0; b.level = d.level; b.stats = { ...d.stats }; b.hpMax = d.hpMax;
   b.hp = maxHpOf(b); b.run = 1; b.wait = rnd(0, 3);
   ents.set(b.id, b);
 }
+function spawnAllBosses() { for (const key of Object.keys(BOSS_DEFS)) spawnBoss(key); }
 // опыт за урон по боту: чем выше игрок над уровнем панка, тем меньше отдача (не фармят одних панков вечно)
 function botXp(att, dmg, zone) {
   const decay = clamp(1 - (att.level - PUNK_LEVEL) * 0.05, 0.25, 1);
@@ -732,7 +741,7 @@ function botAI(b, dt) {
     b.inx = b.iny = 0;
   } else { b.inx = dx / d; b.iny = dy / d; }
 }
-// босс живёт в комнате (не на улице) — цель ищем среди игроков в ТОЙ ЖЕ комнате, бродим в пределах PIZZERIA
+// босс живёт в комнате (не на улице) — цель ищем среди игроков в ТОЙ ЖЕ комнате, бродим вокруг b.homeSpot в пределах b.homeBounds
 function bossAI(b, dt) {
   let tgt = b.target ? ents.get(b.target) : null;
   if (tgt && (tgt.koT > 0 || tgt.room !== b.room)) { tgt = null; b.target = 0; }
@@ -759,8 +768,8 @@ function bossAI(b, dt) {
   const dx = b.tx - b.x, dy = b.ty - b.y, d = Math.hypot(dx, dy);
   if (d < 8) {
     b.wait = rnd(0.8, 3);
-    b.tx = clamp(BOSS_SPOT.x + rnd(-220, 220), PIZZERIA.x0 + 60, PIZZERIA.x1 - 60);
-    b.ty = clamp(BOSS_SPOT.y + rnd(-60, 60), PIZZERIA.y0 + 20, PIZZERIA.y1 - 20);
+    b.tx = clamp(b.homeSpot.x + rnd(-220, 220), b.homeBounds.x0 + 60, b.homeBounds.x1 - 60);
+    b.ty = clamp(b.homeSpot.y + rnd(-60, 60), b.homeBounds.y0 + 20, b.homeBounds.y1 - 20);
     b.inx = b.iny = 0;
   } else { b.inx = dx / d; b.iny = dy / d; }
 }
@@ -823,13 +832,13 @@ function tick() {
         if (e.kind === 'p') {
           e.room = ''; e.x = HUB * ZONE_W + ZONE_W / 2 + rnd(-300, 300); e.y = rnd(GROUND_MIN + 40, GROUND_MAX - 40);
           e.hp = maxHpOf(e); e.combatT = 999; e.hurtT = 0; e.atk = null;
-        } else if (e.boss) { ents.delete(e.id); bossRespawnAt = now + BOSS_RESPAWN_MS; }
+        } else if (e.boss) { ents.delete(e.id); bossRespawnAt[e.bossKey] = now + BOSS_RESPAWN_MS; }
         else { ents.delete(e.id); botRespawns.push({ zone: e.zone, at: now + BOT_RESPAWN_MS }); }
       }
     }
   }
   for (let i = botRespawns.length - 1; i >= 0; i--) if (botRespawns[i].at <= now) { spawnBot(botRespawns[i].zone); botRespawns.splice(i, 1); }
-  if (bossRespawnAt && bossRespawnAt <= now) { spawnBoss(); bossRespawnAt = 0; }
+  for (const key of Object.keys(bossRespawnAt)) if (bossRespawnAt[key] && bossRespawnAt[key] <= now) { spawnBoss(key); bossRespawnAt[key] = 0; }
 
   broadcast();
 
@@ -991,7 +1000,7 @@ function onMessage(p, m) {
     }
     case 'inspect': {
       const t = ents.get(m.id);
-      if (t && t.room === p.room && Math.abs(t.x - p.x) < 900) send(p, { t: 'card', id: t.id, name: t.name, kind: t.kind, ty: t.type, level: t.level, hp: Math.ceil(t.hp), max: maxHpOf(t), st: t.stats, tag: t.clanTag || '', ally: !!(p.clanId && p.clanId === t.clanId), canInvite: !!(p.clanLeader && t.kind === 'p' && t.clanId !== p.clanId), inClan: !!p.clanId, canMod: isModeratorNick(p.name) && t.kind === 'p' && !isModeratorNick(t.name) });
+      if (t && t.room === p.room && Math.abs(t.x - p.x) < 900) send(p, { t: 'card', id: t.id, name: t.name, kind: t.kind, ty: t.type, boss: !!t.boss, level: t.level, hp: Math.ceil(t.hp), max: maxHpOf(t), st: t.stats, tag: t.clanTag || '', ally: !!(p.clanId && p.clanId === t.clanId), canInvite: !!(p.clanLeader && t.kind === 'p' && t.clanId !== p.clanId), inClan: !!p.clanId, canMod: isModeratorNick(p.name) && t.kind === 'p' && !isModeratorNick(t.name) });
       break;
     }
     case 'enter': if (m.b === 'club') enterClub(p); else if (m.b === 'garage') enterGarage(p); else if (m.b === 'pizzeria') enterPizzeria(p); break;
@@ -1054,7 +1063,7 @@ async function init() {
     // секрет для подписи токенов: один раз создаётся и хранится в БД (сессии переживают перезапуски)
     await store.setMeta('secret', process.env.WORLD_SECRET || crypto.randomBytes(32).toString('hex'));
     secret = (await store.getMeta('secret'));
-    if (process.env.WORLD_NO_BOTS !== '1') { spawnAllBots(); spawnBoss(); }   // WORLD_NO_BOTS=1 — только для отладки PvP
+    if (process.env.WORLD_NO_BOTS !== '1') { spawnAllBots(); spawnAllBosses(); }   // WORLD_NO_BOTS=1 — только для отладки PvP
     setInterval(tick, TICK_MS);
     setInterval(() => {
       for (const p of byAccount.values()) {
