@@ -1353,7 +1353,13 @@ function update(dt){
   if (ui.koText > 0) ui.koText -= dt;
   if (ui.fade > 0) ui.fade -= dt;
   if (room === 'club' || room === 'garage' || room === 'pizzeria') camX = 0;
-  else { const target = Math.max(0, Math.min(WORLD_W-CW, me.x - CW/2)); camX += (target - camX) * Math.min(1, dt*8); }
+  else {
+    const target = Math.max(0, Math.min(WORLD_W-CW, me.x - CW/2));
+    // пока идём — камера мягко следует с небольшим отставанием; как только отпустили кнопку — сразу довести камеру до цели,
+    // иначе именно это отставание после остановки выглядит как персонажа "ещё немного тянет" вперёд
+    if (isMoving) camX += (target - camX) * Math.min(1, dt*10);
+    else camX = target;
+  }
 }
 
 // ═══════════════ РИСОВАНИЕ ═══════════════
