@@ -176,6 +176,7 @@ class PgStore {
     // статистика для админ-панели модератора (21.09.2026): секунды в игре (копятся раз в минуту) и последний заход
     await q(`ALTER TABLE world_accounts ADD COLUMN IF NOT EXISTS play_sec BIGINT NOT NULL DEFAULT 0`);
     await q(`ALTER TABLE world_accounts ADD COLUMN IF NOT EXISTS last_seen TIMESTAMPTZ`);
+    await q(`ALTER TABLE world_accounts ADD COLUMN IF NOT EXISTS hidden BOOLEAN NOT NULL DEFAULT false`);   // тестовые/служебные аккаунты: скрыты из админки и счётчиков
     // модерация (20.09.2026): баны — навсегда (until NULL) или до срока, переживают рестарт/деплой
     await q(`CREATE TABLE IF NOT EXISTS world_bans (
       nick_lower TEXT PRIMARY KEY, until TIMESTAMPTZ, banned_by TEXT NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
@@ -193,16 +194,21 @@ class PgStore {
   }
   async setMeta(k, v) { await this.pool.query('INSERT INTO world_meta(key,value) VALUES($1,$2) ON CONFLICT (key) DO NOTHING', [k, v]); }
   async addPlay(id, sec) { await this.pool.query('UPDATE world_accounts SET play_sec=play_sec+$2, last_seen=now() WHERE id=$1', [id, sec | 0]); }
-  async adminStats() {
-    const t = (await this.pool.query(`SELECT count(*)::int AS total,
-      (count(*) FILTER (WHERE created_at > now() - interval '1 day'))::int AS d1,
-      (count(*) FILTER (WHERE created_at > now() - interval '7 days'))::int AS d7,
-      COALESCE(sum(play_sec),0)::float8 AS ps FROM world_accounts`)).rows[0];
-    const l = await this.pool.query(`SELECT a.id, a.nick, a.play_sec::float8 AS ps, a.created_at, COALESCE(a.last_seen, c.updated_at) AS ls, c.level, c.money
+  async setHidden(id, hidden) { await this.pool.query('UPDATE world_accounts SET hidden=$2 WHERE id=$1', [id, !!hidden]); }
+  // скрытые аккаунты (тестовые) не входят в итоги; в список попадают только если showHidden
+  async adminStats(showHidden) {
+    const t = (await this.pool.query(`SELECT (count(*) FILTER (WHERE NOT hidden))::int AS total,
+      (count(*) FILTER (WHERE NOT hidden AND created_at > now() - interval '1 day'))::int AS d1,
+      (count(*) FILTER (WHERE NOT hidden AND created_at > now() - interval '7 days'))::int AS d7,
+      COALESCE(sum(play_sec) FILTER (WHERE NOT hidden),0)::float8 AS ps,
+      (count(*) FILTER (WHERE hidden))::int AS nh FROM world_accounts`)).rows[0];
+    const h = await this.pool.query('SELECT id FROM world_accounts WHERE hidden');
+    const l = await this.pool.query(`SELECT a.id, a.nick, a.hidden, a.play_sec::float8 AS ps, a.created_at, COALESCE(a.last_seen, c.updated_at) AS ls, c.level, c.money
       FROM world_accounts a LEFT JOIN world_chars c ON c.account_id = a.id
+      ${showHidden ? '' : 'WHERE NOT a.hidden'}
       ORDER BY COALESCE(a.last_seen, c.updated_at) DESC NULLS LAST, a.id DESC LIMIT 500`);
-    return { total: t.total, d1: t.d1, d7: t.d7, ps: t.ps,
-      list: l.rows.map(r => ({ id: r.id, n: r.nick, ps: r.ps, cr: r.created_at ? new Date(r.created_at).getTime() : 0, ls: r.ls ? new Date(r.ls).getTime() : 0, lv: r.level || 0, mo: r.money || 0 })) };
+    return { total: t.total, d1: t.d1, d7: t.d7, ps: t.ps, nh: t.nh, hiddenIds: h.rows.map(r => r.id),
+      list: l.rows.map(r => ({ id: r.id, n: r.nick, h: r.hidden ? 1 : 0, ps: r.ps, cr: r.created_at ? new Date(r.created_at).getTime() : 0, ls: r.ls ? new Date(r.ls).getTime() : 0, lv: r.level || 0, mo: r.money || 0 })) };
   }
   async findByNick(lower) { const r = await this.pool.query('SELECT id,nick,pass_hash FROM world_accounts WHERE nick_lower=$1', [lower]); return r.rows[0] || null; }
   async findById(id) { const r = await this.pool.query('SELECT id,nick FROM world_accounts WHERE id=$1', [id]); return r.rows[0] || null; }
@@ -245,12 +251,13 @@ class FileStore {
     const id = this.d.nextId++; this.d.accounts.push({ id, nick, nick_lower: lower, pass_hash: hash, created_at: Date.now() }); this._save(); return id;
   }
   async addPlay(id, sec) { const a = this.d.accounts.find(x => x.id === id); if (a) { a.play_sec = (a.play_sec || 0) + (sec | 0); a.last_seen = Date.now(); this._save(); } }
-  async adminStats() {
-    const now = Date.now(), acc = this.d.accounts;
-    const list = acc.map(a => { const c = this.d.chars[a.id] || {}; return { id: a.id, n: a.nick, ps: a.play_sec || 0, cr: a.created_at || 0, ls: a.last_seen || 0, lv: c.level || 0, mo: c.money || 0 }; })
+  async setHidden(id, hidden) { const a = this.d.accounts.find(x => x.id === id); if (a) { a.hidden = !!hidden; this._save(); } }
+  async adminStats(showHidden) {
+    const now = Date.now(), all = this.d.accounts, acc = all.filter(a => !a.hidden);
+    const list = (showHidden ? all : acc).map(a => { const c = this.d.chars[a.id] || {}; return { id: a.id, n: a.nick, h: a.hidden ? 1 : 0, ps: a.play_sec || 0, cr: a.created_at || 0, ls: a.last_seen || 0, lv: c.level || 0, mo: c.money || 0 }; })
       .sort((x, y) => y.ls - x.ls).slice(0, 500);
     return { total: acc.length, d1: acc.filter(a => a.created_at > now - 864e5).length, d7: acc.filter(a => a.created_at > now - 7 * 864e5).length,
-      ps: acc.reduce((s, a) => s + (a.play_sec || 0), 0), list };
+      ps: acc.reduce((s, a) => s + (a.play_sec || 0), 0), nh: all.length - acc.length, hiddenIds: all.filter(a => a.hidden).map(a => a.id), list };
   }
   async getChar(id) { return this.d.chars[id] || null; }
   async insertChar(id, c) { if (!this.d.chars[id]) { this.d.chars[id] = { ...c }; this._save(); } }
@@ -993,13 +1000,21 @@ function onMessage(p, m) {
     }
     case 'admin_stats': {
       if (!isModeratorNick(p.name)) break;
-      if (now - (p.adminAt || 0) < 1500) break;   // запрос — это выборка из БД, не даём дёргать чаще раза в 1.5 с
+      if (now - (p.adminAt || 0) < 300) break;   // запрос — это выборка из БД, не даём дёргать чаще ~3 раз в секунду
       p.adminAt = now;
-      store.adminStats().then(s => {
-        const online = new Set([...byAccount.values()].map(q => q.accountId));
-        send(p, { t: 'admin_stats', total: s.total, d1: s.d1, d7: s.d7, ps: s.ps, online: byAccount.size,
-          list: s.list.map(r => ({ n: r.n, lv: r.lv, mo: r.mo, ps: r.ps, cr: r.cr, ls: r.ls, on: online.has(r.id) ? 1 : 0 })) });
+      store.adminStats(!!m.hidden).then(s => {
+        const hid = new Set(s.hiddenIds), online = new Set([...byAccount.values()].map(q => q.accountId));
+        send(p, { t: 'admin_stats', total: s.total, d1: s.d1, d7: s.d7, ps: s.ps, nh: s.nh, online: [...online].filter(id => !hid.has(id)).length,
+          list: s.list.map(r => ({ n: r.n, h: r.h, lv: r.lv, mo: r.mo, ps: r.ps, cr: r.cr, ls: r.ls, on: online.has(r.id) ? 1 : 0 })) });
       }).catch(e => console.error('[WORLD] admin_stats error:', e.message));
+      break;
+    }
+    case 'admin_hide': {
+      if (!isModeratorNick(p.name)) break;
+      const lower = String(m.nick || '').toLowerCase();
+      if (!lower || isModeratorNick(lower)) break;
+      store.findByNick(lower).then(acc => acc && store.setHidden(acc.id, !!m.hide)).then(() => send(p, { t: 'admin_hide_ok' }))
+        .catch(e => console.error('[WORLD] admin_hide error:', e.message));
       break;
     }
     case 'mod_mute': {

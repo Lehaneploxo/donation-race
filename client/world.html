@@ -134,6 +134,9 @@
   #admTbl th{position:sticky;top:0;background:#1c1838;color:#9fb0d8;cursor:pointer;padding:7px 8px;text-align:left;white-space:nowrap;user-select:none}
   #admTbl td{padding:6px 8px;border-top:1px solid #1f1b3a;white-space:nowrap}
   #admTbl tr.on td:first-child{color:#7dff9a}
+  #admTbl tr.hid td{opacity:.5}
+  .admHide{color:#ffb37a;cursor:pointer;padding:2px 8px;border-radius:6px;border:1px solid #4a3a2a}
+  .admHide:hover{background:#2a2014}
   #modForm{position:fixed;inset:0;z-index:27;display:flex;background:rgba(0,0,0,.72);padding:10px;overflow:auto}
   #modForm[hidden]{display:none}
   #modForm .box button{margin-top:10px}
@@ -246,8 +249,9 @@
     <h1>Админка</h1>
     <div id="admSum"></div>
     <input id="admSearch" placeholder="Поиск по нику" autocomplete="off" spellcheck="false">
+    <label id="admShowRow" style="display:flex;gap:8px;align-items:center;font-size:13px;color:#9fb0d8;margin:0 0 8px"><input type="checkbox" id="admShowHidden" style="width:auto;margin:0"> <span id="admShowTxt">Показывать скрытые (тестовые) аккаунты</span></label>
     <div id="admWrap"><table id="admTbl"><thead><tr>
-      <th data-k="n">Ник</th><th data-k="lv">Ур.</th><th data-k="ps">Время в игре</th><th data-k="ls">Последний заход</th><th data-k="cr">Регистрация</th><th data-k="mo">$</th>
+      <th data-k="n">Ник</th><th data-k="lv">Ур.</th><th data-k="ps">Время в игре</th><th data-k="ls">Последний заход</th><th data-k="cr">Регистрация</th><th data-k="mo">$</th><th></th>
     </tr></thead><tbody id="admBody"></tbody></table></div>
     <div class="link" id="admClose">Закрыть</div>
   </div>
@@ -630,6 +634,7 @@ function onServer(m){
     case 'ban_info': lastBanUntil = m.until; break;
     case 'chat_muted': toast(t('m_mod_you_muted', Math.max(1, Math.ceil((m.until - Date.now())/60000))), '#ff8a8a'); break;
     case 'admin_stats': admData = m; renderAdm(); break;
+    case 'admin_hide_ok': admReq(); break;
     case 'mod_ok': toast('✓ ' + m.action + ' — ' + m.nick, '#7dff9a'); break;
     case 'kicked': break;
   }
@@ -780,9 +785,16 @@ function renderAdm(){
   const q = $('admSearch').value.trim().toLowerCase();
   const rows = d.list.filter(r => !q || r.n.toLowerCase().includes(q))
     .sort((a,b) => (admSortK === 'n' ? a.n.localeCompare(b.n) : a[admSortK] - b[admSortK]) * admSortDir);
-  $('admBody').innerHTML = rows.map(r => '<tr'+(r.on?' class="on"':'')+'><td>'+(r.on?'● ':'')+escHtml(r.n)+'</td><td>'+r.lv+'</td><td>'+fmtDur(r.ps)+'</td><td>'+(r.on?'онлайн':fmtDate(r.ls))+'</td><td>'+fmtDate(r.cr)+'</td><td>'+r.mo+'</td></tr>').join('');
+  $('admBody').innerHTML = rows.map(r => '<tr'+(r.on?' class="on"':(r.h?' class="hid"':''))+'><td>'+(r.on?'● ':'')+escHtml(r.n)+'</td><td>'+r.lv+'</td><td>'+fmtDur(r.ps)+'</td><td>'+(r.on?'онлайн':fmtDate(r.ls))+'</td><td>'+fmtDate(r.cr)+'</td><td>'+r.mo+'</td><td>'+(r.on?'':'<span class="admHide" data-n="'+escHtml(r.n)+'" data-h="'+(r.h?0:1)+'">'+(r.h?'вернуть':'скрыть')+'</span>')+'</td></tr>').join('');
+  $('admShowTxt').textContent = 'Показывать скрытые (тестовые) аккаунты' + (d.nh ? ' — скрыто: ' + d.nh : '');
 }
-function openAdm(){ $('admForm').hidden = false; sendWs({ t:'admin_stats' }); }
+const admReq = () => sendWs({ t:'admin_stats', hidden: $('admShowHidden').checked ? 1 : 0 });
+function openAdm(){ $('admForm').hidden = false; admReq(); }
+$('admShowHidden').onchange = admReq;
+$('admBody').onclick = e => {
+  const b = e.target.closest('.admHide'); if (!b) return;
+  sendWs({ t:'admin_hide', nick:b.dataset.n, hide: b.dataset.h === '1' });
+};
 $('admClose').onclick = () => { $('admForm').hidden = true; };
 $('admSearch').oninput = renderAdm;
 document.querySelectorAll('#admTbl th').forEach(th => th.onclick = () => {
