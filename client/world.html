@@ -490,7 +490,7 @@ $('msg').addEventListener('click', e => { if (e.target === $('msg')) $('msg').hi
 let ws = null, myId = 0, connected = false, retry = 0, gameStarted = false, stopRetry = false;
 const ents = new Map();            // id → сущность
 const SUPER_COOLDOWN = 60;                                        // секунд, как на сервере
-const me = { mo:0, su:0, suStamp:0, sp:240, stm:100, dh:0, ds:0, x:0, y:600, f:1, xp:0, need:50, pt:0, st:{str:1,hp:1,spd:1}, sent:'', sentAt:0, wasMoving:false };
+const me = { mo:0, su:0, suStamp:0, sp:240, stm:100, dh:0, ds:0, x:0, y:600, f:1, xp:0, need:50, pt:0, st:{str:1,hp:1,spd:1}, sent:'', sentAt:0, wasMoving:false, moving:false };
 const ui = { hits:[], toasts:[], floaters:[], chatFeed:[], banner:null, card:null, panel:false, touch:false, koText:0, fade:0, clanPanel:false, clanScroll:0 };
 
 function enterGame(){
@@ -542,7 +542,11 @@ function onServer(m){
         if (!e.init){ e.rx = e.x; e.ry = e.y; e.init = true; }
         if (e.id === myId){
           const d = Math.hypot(e.x - me.x, e.y - me.y);
-          if (d > 160){ me.x = e.x; me.y = e.y; } else { me.x += (e.x - me.x) * 0.35; me.y += (e.y - me.y) * 0.35; }
+          const locked = e.s === ST.hurt || e.s === ST.ko;
+          if (d > 160){ me.x = e.x; me.y = e.y; }
+          else if (me.moving || locked){ me.x += (e.x - me.x) * 0.35; me.y += (e.y - me.y) * 0.35; }
+          // стоим на месте и не в нокдауне — НЕ подтягиваем к серверной позиции: она ещё пару тиков "доезжает"
+          // по инерции сети после отпускания кнопки, и как раз это подтягивание ощущается как скольжение
         }
       }
       for (const id of m.rm) ents.delete(id);
@@ -1319,6 +1323,7 @@ function update(dt){
   const justStopped = !isMoving && me.wasMoving;   // отпустили кнопку/джойстик — шлём "стоп" сразу, без троттлинга 45мс (иначе персонажа ещё доносит вперёд)
   if (connected && (sig !== me.sent && (justStopped || now - me.sentAt > 45) || now - me.sentAt > 1000)){ sendWs(inp); me.sent = sig; me.sentAt = now; }
   me.wasMoving = isMoving;
+  me.moving = isMoving;
 
   // предсказание своей позиции (те же формулы, что на сервере)
   if (my){
