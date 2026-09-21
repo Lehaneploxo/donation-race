@@ -173,6 +173,9 @@ class PgStore {
     await q(`ALTER TABLE world_chars ADD COLUMN IF NOT EXISTS money INTEGER NOT NULL DEFAULT 0`);
     await q(`ALTER TABLE world_chars ADD COLUMN IF NOT EXISTS fighter_changed_at TIMESTAMPTZ`);
     await q(`CREATE TABLE IF NOT EXISTS world_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)`);
+    // статистика для админ-панели модератора (21.09.2026): секунды в игре (копятся раз в минуту) и последний заход
+    await q(`ALTER TABLE world_accounts ADD COLUMN IF NOT EXISTS play_sec BIGINT NOT NULL DEFAULT 0`);
+    await q(`ALTER TABLE world_accounts ADD COLUMN IF NOT EXISTS last_seen TIMESTAMPTZ`);
     // модерация (20.09.2026): баны — навсегда (until NULL) или до срока, переживают рестарт/деплой
     await q(`CREATE TABLE IF NOT EXISTS world_bans (
       nick_lower TEXT PRIMARY KEY, until TIMESTAMPTZ, banned_by TEXT NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
@@ -189,6 +192,18 @@ class PgStore {
     return { until: until ? new Date(until).getTime() : null };
   }
   async setMeta(k, v) { await this.pool.query('INSERT INTO world_meta(key,value) VALUES($1,$2) ON CONFLICT (key) DO NOTHING', [k, v]); }
+  async addPlay(id, sec) { await this.pool.query('UPDATE world_accounts SET play_sec=play_sec+$2, last_seen=now() WHERE id=$1', [id, sec | 0]); }
+  async adminStats() {
+    const t = (await this.pool.query(`SELECT count(*)::int AS total,
+      (count(*) FILTER (WHERE created_at > now() - interval '1 day'))::int AS d1,
+      (count(*) FILTER (WHERE created_at > now() - interval '7 days'))::int AS d7,
+      COALESCE(sum(play_sec),0)::float8 AS ps FROM world_accounts`)).rows[0];
+    const l = await this.pool.query(`SELECT a.id, a.nick, a.play_sec::float8 AS ps, a.created_at, COALESCE(a.last_seen, c.updated_at) AS ls, c.level, c.money
+      FROM world_accounts a LEFT JOIN world_chars c ON c.account_id = a.id
+      ORDER BY COALESCE(a.last_seen, c.updated_at) DESC NULLS LAST, a.id DESC LIMIT 500`);
+    return { total: t.total, d1: t.d1, d7: t.d7, ps: t.ps,
+      list: l.rows.map(r => ({ id: r.id, n: r.nick, ps: r.ps, cr: r.created_at ? new Date(r.created_at).getTime() : 0, ls: r.ls ? new Date(r.ls).getTime() : 0, lv: r.level || 0, mo: r.money || 0 })) };
+  }
   async findByNick(lower) { const r = await this.pool.query('SELECT id,nick,pass_hash FROM world_accounts WHERE nick_lower=$1', [lower]); return r.rows[0] || null; }
   async findById(id) { const r = await this.pool.query('SELECT id,nick FROM world_accounts WHERE id=$1', [id]); return r.rows[0] || null; }
   async createAccount(nick, lower, hash) {
@@ -227,7 +242,15 @@ class FileStore {
   async findById(id) { return this.d.accounts.find(a => a.id === id) || null; }
   async createAccount(nick, lower, hash) {
     if (this.d.accounts.some(a => a.nick_lower === lower)) throw new Error('taken');
-    const id = this.d.nextId++; this.d.accounts.push({ id, nick, nick_lower: lower, pass_hash: hash }); this._save(); return id;
+    const id = this.d.nextId++; this.d.accounts.push({ id, nick, nick_lower: lower, pass_hash: hash, created_at: Date.now() }); this._save(); return id;
+  }
+  async addPlay(id, sec) { const a = this.d.accounts.find(x => x.id === id); if (a) { a.play_sec = (a.play_sec || 0) + (sec | 0); a.last_seen = Date.now(); this._save(); } }
+  async adminStats() {
+    const now = Date.now(), acc = this.d.accounts;
+    const list = acc.map(a => { const c = this.d.chars[a.id] || {}; return { id: a.id, n: a.nick, ps: a.play_sec || 0, cr: a.created_at || 0, ls: a.last_seen || 0, lv: c.level || 0, mo: c.money || 0 }; })
+      .sort((x, y) => y.ls - x.ls).slice(0, 500);
+    return { total: acc.length, d1: acc.filter(a => a.created_at > now - 864e5).length, d7: acc.filter(a => a.created_at > now - 7 * 864e5).length,
+      ps: acc.reduce((s, a) => s + (a.play_sec || 0), 0), list };
   }
   async getChar(id) { return this.d.chars[id] || null; }
   async insertChar(id, c) { if (!this.d.chars[id]) { this.d.chars[id] = { ...c }; this._save(); } }
@@ -536,8 +559,17 @@ function loadPlayer(accountId, nick, ch, ws) {
   p.stats = { str: ch.str, hp: ch.hp, spd: ch.spd };
   p.hp = maxHpOf(p);
   p.fighterChangedAt = ch.fighter_changed_at ? new Date(ch.fighter_changed_at).getTime() : 0;
+  p.playMark = Date.now();
   ents.set(p.id, p); byAccount.set(accountId, p);
   return p;
+}
+// время в игре копится целыми секундами: раз в минуту для всех онлайн + при выходе/кике/остановке сервера
+function flushPlay(p) {
+  if (!store || !p.accountId || !p.playMark) return;
+  const sec = Math.floor((Date.now() - p.playMark) / 1000);
+  if (sec < 1) return;
+  p.playMark += sec * 1000;
+  store.addPlay(p.accountId, sec).catch(e => console.error('[WORLD] addPlay error:', e.message));
 }
 async function savePlayer(p) {
   if (!store || !p.accountId) return;
@@ -905,6 +937,7 @@ async function handleConnection(ws, req) {
   const old = byAccount.get(acc.id);
   if (old) {
     send(old, { t: 'kicked' });
+    flushPlay(old);
     ents.delete(old.id); byAccount.delete(old.accountId);
     await savePlayer(old);
     try { old.ws.close(4004, 'kicked'); } catch (_) {}
@@ -916,7 +949,7 @@ async function handleConnection(ws, req) {
 
   const p = loadPlayer(acc.id, acc.nick, ch, ws);
   console.log(`[WORLD] +${acc.nick} (онлайн: ${byAccount.size})`);
-  send(p, { t: 'hello', id: p.id, zones: ZONE_TYPES, zoneW: ZONE_W, ground: [GROUND_MIN, GROUND_MAX], world: WORLD_W, x: p.x, y: p.y, club: CLUB, doorX: CLUB_DOOR_X, garage: GARAGE, garageDoorX: GARAGE_DOOR_X, pizzeria: PIZZERIA, pizzeriaDoorX: PIZZERIA_DOOR_X });
+  send(p, { t: 'hello', mod: isModeratorNick(p.name), id: p.id, zones: ZONE_TYPES, zoneW: ZONE_W, ground: [GROUND_MIN, GROUND_MAX], world: WORLD_W, x: p.x, y: p.y, club: CLUB, doorX: CLUB_DOOR_X, garage: GARAGE, garageDoorX: GARAGE_DOOR_X, pizzeria: PIZZERIA, pizzeriaDoorX: PIZZERIA_DOOR_X });
   sendClanInfo(p).catch(clanErr);     // клан и приглашения игрока
   send(p, { t: 'chat_history', list: chatLog });
 
@@ -927,6 +960,7 @@ async function handleConnection(ws, req) {
   ws.on('error', () => {});
 }
 function removePlayer(p, keepSocket) {
+  flushPlay(p);
   ents.delete(p.id); if (byAccount.get(p.accountId) === p) byAccount.delete(p.accountId);
   savePlayer(p);
 }
@@ -955,6 +989,17 @@ function onMessage(p, m) {
       chatLog.push(entry);
       if (chatLog.length > CHAT_HISTORY) chatLog.shift();
       for (const q of byAccount.values()) send(q, { t: 'chat_msg', ...entry });   // чат общий на весь мир, не по комнатам/зонам
+      break;
+    }
+    case 'admin_stats': {
+      if (!isModeratorNick(p.name)) break;
+      if (now - (p.adminAt || 0) < 1500) break;   // запрос — это выборка из БД, не даём дёргать чаще раза в 1.5 с
+      p.adminAt = now;
+      store.adminStats().then(s => {
+        const online = new Set([...byAccount.values()].map(q => q.accountId));
+        send(p, { t: 'admin_stats', total: s.total, d1: s.d1, d7: s.d7, ps: s.ps, online: byAccount.size,
+          list: s.list.map(r => ({ n: r.n, lv: r.lv, mo: r.mo, ps: r.ps, cr: r.cr, ls: r.ls, on: online.has(r.id) ? 1 : 0 })) });
+      }).catch(e => console.error('[WORLD] admin_stats error:', e.message));
       break;
     }
     case 'mod_mute': {
@@ -1081,7 +1126,8 @@ async function init() {
         p.ws.isAlive = false; try { p.ws.ping(); } catch (_) {}
       }
     }, 30000).unref();
-    const flushAll = async sig => { console.log('[WORLD] ' + sig + ': сохраняю ' + byAccount.size + ' игроков'); await Promise.allSettled([...byAccount.values()].map(savePlayer)); process.exit(0); };
+    setInterval(() => { for (const p of byAccount.values()) flushPlay(p); }, 60000).unref();
+    const flushAll = async sig => { console.log('[WORLD] ' + sig + ': сохраняю ' + byAccount.size + ' игроков'); for (const p of byAccount.values()) flushPlay(p); await Promise.allSettled([...byAccount.values()].map(savePlayer)); process.exit(0); };
     process.once('SIGTERM', () => flushAll('SIGTERM'));
     process.once('SIGINT', () => flushAll('SIGINT'));
     ready = true;

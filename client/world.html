@@ -122,6 +122,18 @@
   #msg button{margin-top:16px;padding:12px 26px;border:0;border-radius:10px;background:#6f4bd8;color:#fff;font-size:17px;font-weight:bold}
   #chatForm{position:fixed;inset:0;z-index:26;display:flex;background:rgba(0,0,0,.72);padding:10px;overflow:auto}
   #chatForm[hidden]{display:none}
+  #admForm{position:fixed;inset:0;z-index:28;display:flex;background:rgba(0,0,0,.78);padding:10px;overflow:auto}
+  #admForm[hidden]{display:none}
+  #admForm .box{color:#dfe6ff}
+  #admSum{display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 12px}
+  #admSum div{flex:1 1 120px;background:#14112a;border:1px solid #2b2650;border-radius:10px;padding:8px 10px;text-align:center;font-size:12px;color:#9fb0d8}
+  #admSum b{display:block;font-size:22px;color:#ffd23f;margin-top:2px}
+  #admSearch{margin:0 0 8px}
+  #admWrap{max-height:min(48vh,380px);overflow:auto;border:1px solid #2b2650;border-radius:10px}
+  #admTbl{width:100%;border-collapse:collapse;font-size:13px}
+  #admTbl th{position:sticky;top:0;background:#1c1838;color:#9fb0d8;cursor:pointer;padding:7px 8px;text-align:left;white-space:nowrap;user-select:none}
+  #admTbl td{padding:6px 8px;border-top:1px solid #1f1b3a;white-space:nowrap}
+  #admTbl tr.on td:first-child{color:#7dff9a}
   #modForm{position:fixed;inset:0;z-index:27;display:flex;background:rgba(0,0,0,.72);padding:10px;overflow:auto}
   #modForm[hidden]{display:none}
   #modForm .box button{margin-top:10px}
@@ -227,6 +239,17 @@
       <button class="main" id="chatSendBtn" data-i="chat_send_btn"></button>
     </div>
     <div class="link" id="chatClose" data-i="cancel"></div>
+  </div>
+</div>
+<div id="admForm" hidden>
+  <div class="box wide">
+    <h1>Админка</h1>
+    <div id="admSum"></div>
+    <input id="admSearch" placeholder="Поиск по нику" autocomplete="off" spellcheck="false">
+    <div id="admWrap"><table id="admTbl"><thead><tr>
+      <th data-k="n">Ник</th><th data-k="lv">Ур.</th><th data-k="ps">Время в игре</th><th data-k="ls">Последний заход</th><th data-k="cr">Регистрация</th><th data-k="mo">$</th>
+    </tr></thead><tbody id="admBody"></tbody></table></div>
+    <div class="link" id="admClose">Закрыть</div>
   </div>
 </div>
 <div id="modForm" hidden>
@@ -540,12 +563,13 @@ function connect(){
     retry++; setTimeout(connect, Math.min(5000, 500 * retry));
   };
 }
+let isMod = false;
 function sendWs(o){ if (ws && ws.readyState === 1) ws.send(JSON.stringify(o)); }
 
 function onServer(m){
   switch (m.t){
     case 'hello':
-      myId = m.id; ZONE_W = m.zoneW; WORLD_W = m.world; GROUND_MIN = m.ground[0]; GROUND_MAX = m.ground[1];
+      myId = m.id; isMod = !!m.mod; ZONE_W = m.zoneW; WORLD_W = m.world; GROUND_MIN = m.ground[0]; GROUND_MAX = m.ground[1];
       for (let i=0;i<m.zones.length;i++) if (ZONES[i]) ZONES[i].type = m.zones[i];
       ents.clear(); me.x = m.x; me.y = m.y; camX = me.x - CW/2; connected = true; break;
     case 'add':
@@ -605,6 +629,7 @@ function onServer(m){
       break;
     case 'ban_info': lastBanUntil = m.until; break;
     case 'chat_muted': toast(t('m_mod_you_muted', Math.max(1, Math.ceil((m.until - Date.now())/60000))), '#ff8a8a'); break;
+    case 'admin_stats': admData = m; renderAdm(); break;
     case 'mod_ok': toast('✓ ' + m.action + ' — ' + m.nick, '#7dff9a'); break;
     case 'kicked': break;
   }
@@ -742,6 +767,28 @@ function sendChat(){
 $('chatSendBtn').onclick = sendChat;
 $('chatInput').addEventListener('keydown', e => { if (e.key === 'Enter') sendChat(); });
 
+// ── Админ-панель модератора: сводка и список игроков (данные отдаёт сервер только модератору) ──
+let admData = null, admSortK = 'ls', admSortDir = -1;
+const fmtDur = s => { s = Math.floor(s); const h = Math.floor(s/3600), mi = Math.floor(s%3600/60); return h ? h+' ч '+mi+' м' : (s < 60 ? s+' с' : mi+' м'); };
+const fmtDate = ms => { if (!ms) return '—'; const d = new Date(ms), p2 = n => String(n).padStart(2,'0'); return p2(d.getDate())+'.'+p2(d.getMonth()+1)+'.'+String(d.getFullYear()).slice(2)+' '+p2(d.getHours())+':'+p2(d.getMinutes()); };
+const escHtml = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function renderAdm(){
+  if (!admData) return;
+  const d = admData;
+  $('admSum').innerHTML = [['Зарегистрировано', d.total], ['Онлайн сейчас', d.online], ['Новых за 24 ч', d.d1], ['Новых за 7 дней', d.d7], ['Всего времени в игре', fmtDur(d.ps)]]
+    .map(([k,v]) => '<div>'+k+'<b>'+v+'</b></div>').join('');
+  const q = $('admSearch').value.trim().toLowerCase();
+  const rows = d.list.filter(r => !q || r.n.toLowerCase().includes(q))
+    .sort((a,b) => (admSortK === 'n' ? a.n.localeCompare(b.n) : a[admSortK] - b[admSortK]) * admSortDir);
+  $('admBody').innerHTML = rows.map(r => '<tr'+(r.on?' class="on"':'')+'><td>'+(r.on?'● ':'')+escHtml(r.n)+'</td><td>'+r.lv+'</td><td>'+fmtDur(r.ps)+'</td><td>'+(r.on?'онлайн':fmtDate(r.ls))+'</td><td>'+fmtDate(r.cr)+'</td><td>'+r.mo+'</td></tr>').join('');
+}
+function openAdm(){ $('admForm').hidden = false; sendWs({ t:'admin_stats' }); }
+$('admClose').onclick = () => { $('admForm').hidden = true; };
+$('admSearch').oninput = renderAdm;
+document.querySelectorAll('#admTbl th').forEach(th => th.onclick = () => {
+  const k = th.dataset.k; if (admSortK === k) admSortDir = -admSortDir; else { admSortK = k; admSortDir = k === 'n' ? 1 : -1; }
+  renderAdm();
+});
 // ── Модерация (мут/бан) — доступна только тем, чей ник сервер пометил canMod в карточке игрока ──
 let modTargetNick = '';
 function openModForm(nick){
@@ -1669,7 +1716,13 @@ function drawHUD(){
     ctx.strokeStyle = hasUnread ? '#ffd23f' : 'rgba(125,200,255,0.6)'; ctx.lineWidth = 2; rr(16, cy, 170, 34, 10); ctx.stroke();
     txt(t('chat_btn'), 101, cy+23, 15, '#dfe6ff');
     if (hasUnread){ ctx.fillStyle = '#ff3b3b'; ctx.beginPath(); ctx.arc(178, cy+4, 9, 0, Math.PI*2); ctx.fill(); txt(String(Math.min(9,chatUnread)) + (chatUnread>9?'+':''), 178, cy+9, 11, '#fff'); }
-    addHit(16, cy, 170, 34, () => openChat()); }
+    addHit(16, cy, 170, 34, () => openChat());
+    if (isMod){
+      ctx.fillStyle = 'rgba(8,8,16,0.82)'; rr(194, cy, 110, 34, 10); ctx.fill();
+      ctx.strokeStyle = 'rgba(255,210,63,0.8)'; ctx.lineWidth = 2; rr(194, cy, 110, 34, 10); ctx.stroke();
+      txt('Админка', 249, cy+23, 15, '#ffd23f');
+      addHit(194, cy, 110, 34, () => openAdm());
+    } }
 
   ctx.fillStyle = 'rgba(8,8,16,0.82)'; rr(RX-150, 50, 150, 34, 10); ctx.fill();
   ctx.strokeStyle = 'rgba(140,170,255,0.6)'; ctx.lineWidth = 2; rr(RX-150, 50, 150, 34, 10); ctx.stroke();
