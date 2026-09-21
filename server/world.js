@@ -100,14 +100,17 @@ const FIGHTERS = {
   brawler_girl: { name: 'Уличная боец',    stats: { str: 5, hp: 5, spd: 7 }, anim: { jab: [3, 16], punch: [3, 16], kick: [5, 16] } },
 };
 const FIGHTER_KEYS = Object.keys(FIGHTERS);
-// боты — панк и бандит с битой (для выбора игроками не доступны), одинаковая сила/уровень (см. PUNK_LEVEL) — чистый визуальный вариатив
+// уличные боты (для выбора игроками не доступны) — только панк; бандит с битой раньше тоже
+// встречался на улице, но теперь это внешность уникального босса в гараже (см. BOSS_DEFS) —
+// если оставить его и в уличном пуле, боссы перестанут быть узнаваемыми на вид
 const BOT_TYPES = {
   enemy_punk: { name: 'Панк',    stats: { str: 6, hp: 5, spd: 4 }, anim: { punch: [3, 16] } },
-  bat_thug:   { name: 'Бандит',  stats: { str: 6, hp: 5, spd: 4 }, anim: { punch: [7, 16] } },
 };
-const BOT_TYPE_KEYS = Object.keys(BOT_TYPES);   // уличные боты — для случайного выбора при спавне (босс сюда не входит)
-// босс: уникальный, живёт в пиццерии (см. spawnBoss/bossAI), заметно сильнее уличных ботов — меч не перерисован в биту
+const BOT_TYPE_KEYS = Object.keys(BOT_TYPES);   // уличные боты — для случайного выбора при спавне (боссы сюда не входят)
+// боссы (не спавнятся на улице, только через BOSS_DEFS/spawnBoss): ниндзя — уникальный тип,
+// бандит с битой переиспользует внешность/анимации уже существующего типа (см. ниже bat_thug)
 BOT_TYPES.ninja_boss = { name: 'Ниндзя', stats: { str: 13, hp: 5, spd: 5 }, anim: { punch: [4, 16] } };
+BOT_TYPES.bat_thug = { name: 'Бандит', stats: { str: 6, hp: 5, spd: 4 }, anim: { punch: [7, 16] } };
 const infoOf = type => FIGHTERS[type] || BOT_TYPES[type];
 const VARIANTS = 3;   // цветов на бойца
 
