@@ -340,6 +340,13 @@ const CW = canvas.width, CH = canvas.height;
 const RX = 1280 - 16 - 56;   // правый край HUD (справа оставлено место под кнопку «на весь экран»)
 const S = 2.5, WALL_Y = 190, WALL_H = 96*S, ROAD_TOP = WALL_Y + WALL_H;
 let GROUND_MIN = 450, GROUND_MAX = 700, ZONE_W = 1800, WORLD_W = 1800*7;
+// мир — кольцо (21.09.2026, бесшовно, см. server/world.js): те же три функции, что на сервере.
+// camX и e.rx намеренно НЕ приводятся к [0,WORLD_W) — им дают "дрейфовать" (расти/убывать без
+// ограничений), а на экран переводят через nearestWrap относительно текущей камеры — так камера
+// и все актёры проходят через стык мира без скачка/рывка.
+const wrapX     = x => ((x % WORLD_W) + WORLD_W) % WORLD_W;
+const wrapDelta = (a, b) => { let d = (b - a) % WORLD_W; if (d > WORLD_W/2) d -= WORLD_W; else if (d < -WORLD_W/2) d += WORLD_W; return d; };
+const nearestWrap = (x, ref) => x - Math.round((x - ref) / WORLD_W) * WORLD_W;
 const TILESET = new Image(); TILESET.src = 'sprites/streets_of_fight/stage/tileset.png';
 const BACK    = new Image(); BACK.src    = 'sprites/streets_of_fight/stage/back.png';
 const FORE    = new Image(); FORE.src    = 'sprites/streets_of_fight/stage/fore.png';
@@ -365,7 +372,7 @@ const ZONES = [
   { get name(){ return t('z5'); },  type:'wild',    seq:['window','window','archwin','window','window','door'] },
   { get name(){ return t('z6'); },     type:'wild2',   seq:['brick'], tint:'rgba(70,0,70,0.28)', neon:true },
 ];
-const zoneAt = x => Math.max(0, Math.min(ZONES.length-1, Math.floor(x / ZONE_W)));
+const zoneAt = x => Math.min(ZONES.length-1, Math.floor(wrapX(x) / ZONE_W));
 
 // ── бойцы: [папка, префикс, кадров, fps] ──
 const A = {
@@ -497,7 +504,7 @@ let ws = null, myId = 0, connected = false, retry = 0, gameStarted = false, stop
 const ents = new Map();            // id → сущность
 const SUPER_COOLDOWN = 60;                                        // секунд, как на сервере
 const me = { mo:0, su:0, suStamp:0, sp:240, stm:100, dh:0, ds:0, x:0, y:600, f:1, xp:0, need:50, pt:0, st:{str:1,hp:1,spd:1}, sent:'', sentAt:0, wasMoving:false, moving:false };
-const ui = { hits:[], toasts:[], floaters:[], chatFeed:[], banner:null, card:null, panel:false, touch:false, koText:0, fade:0, clanPanel:false, clanScroll:0 };
+const ui = { hits:[], toasts:[], floaters:[], chatFeed:[], banner:null, card:null, panel:false, touch:false, koText:0, fade:0, clanPanel:false, clanScroll:0, mapExpanded:false };
 
 function enterGame(){
   $('ov').hidden = true; document.body.classList.add('ingame');
@@ -531,7 +538,7 @@ function onServer(m){
     case 'hello':
       myId = m.id; ZONE_W = m.zoneW; WORLD_W = m.world; GROUND_MIN = m.ground[0]; GROUND_MAX = m.ground[1];
       for (let i=0;i<m.zones.length;i++) if (ZONES[i]) ZONES[i].type = m.zones[i];
-      ents.clear(); me.x = m.x; me.y = m.y; camX = Math.max(0, Math.min(WORLD_W-CW, me.x - CW/2)); connected = true; break;
+      ents.clear(); me.x = m.x; me.y = m.y; camX = me.x - CW/2; connected = true; break;
     case 'add':
       for (const a of m.e){ const e = ents.get(a.id) || { id:a.id, rx:0, ry:0, x:0, y:0, f:1, s:0, ps:0, t:0, h:1, m:1, l:1, c:0, init:false };
         e.n = a.n; e.ty = a.ty; e.v = a.v; e.k = a.k; ents.set(a.id, e); }
@@ -547,10 +554,10 @@ function onServer(m){
         e.h = r[5]; e.m = r[6]; e.l = r[7]; e.c = r[8]; e.cl = r[9] || 0;
         if (!e.init){ e.rx = e.x; e.ry = e.y; e.init = true; }
         if (e.id === myId){
-          const d = Math.hypot(e.x - me.x, e.y - me.y);
+          const ddx = wrapDelta(me.x, e.x), ddy = e.y - me.y, d = Math.hypot(ddx, ddy);
           const locked = e.s === ST.hurt || e.s === ST.ko;
           if (d > 160){ me.x = e.x; me.y = e.y; }
-          else if (me.moving || locked){ me.x += (e.x - me.x) * 0.35; me.y += (e.y - me.y) * 0.35; }
+          else if (me.moving || locked){ me.x = wrapX(me.x + ddx * 0.35); me.y += ddy * 0.35; }
           // стоим на месте и не в нокдауне — НЕ подтягиваем к серверной позиции: она ещё пару тиков "доезжает"
           // по инерции сети после отпускания кнопки, и как раз это подтягивание ощущается как скольжение
         }
@@ -621,7 +628,7 @@ addEventListener('keydown', e => {
   if (e.code === 'KeyE'){
     const ds = doorState(); if (ds){ doorGo(ds); return; }
     let best = null, bd = 240;
-    for (const a of ents.values()){ if (a.id === myId) continue; const d = Math.hypot(a.x-me.x, (a.y-me.y)*2); if (d < bd){ bd = d; best = a; } }
+    for (const a of ents.values()){ if (a.id === myId) continue; const d = Math.hypot(wrapDelta(me.x,a.x), (a.y-me.y)*2); if (d < bd){ bd = d; best = a; } }
     if (best) askCard(best); else toast(t('nobody'));
   }
 });
@@ -680,7 +687,7 @@ const FIGHTER_H = 160;
 function tapWorld(x, y){
   let hit = null;
   for (const a of ents.values()){
-    const k = actorK(a), h = FIGHTER_H*k, sx = a.rx - camX;
+    const k = actorK(a), h = FIGHTER_H*k, sx = nearestWrap(a.rx, camX) - camX;
     if (Math.abs(x-sx) < 55*k && y > a.ry-h-24 && y < a.ry+12 && (!hit || a.ry > hit.ry)) hit = a;
   }
   if (!hit){ ui.card = null; return; }
@@ -1168,9 +1175,9 @@ function doorState(){
   if (room === 'club') return (me.y >= 672 && me.x > 590 && me.x < 772) ? 'leave' : null;
   if (room === 'garage') return (me.y >= GARAGE_Y1 - 20 && me.x > GARAGE_DOOR.x0 && me.x < GARAGE_DOOR.x1) ? 'leave' : null;
   if (room === 'pizzeria') return (me.y >= PIZZERIA_Y1 - 20 && me.x > PIZZERIA_DOOR.x0 && me.x < PIZZERIA_DOOR.x1) ? 'leave' : null;
-  if (Math.abs(me.x - CLUB_DOOR_X) < 90 && me.y < GROUND_MIN + 30) return 'enter_club';
-  if (Math.abs(me.x - GARAGE_DOOR_X) < 90 && me.y < GROUND_MIN + 30) return 'enter_garage';
-  if (Math.abs(me.x - PIZZERIA_DOOR_X) < 90 && me.y < GROUND_MIN + 30) return 'enter_pizzeria';
+  if (Math.abs(wrapDelta(me.x, CLUB_DOOR_X)) < 90 && me.y < GROUND_MIN + 30) return 'enter_club';
+  if (Math.abs(wrapDelta(me.x, GARAGE_DOOR_X)) < 90 && me.y < GROUND_MIN + 30) return 'enter_garage';
+  if (Math.abs(wrapDelta(me.x, PIZZERIA_DOOR_X)) < 90 && me.y < GROUND_MIN + 30) return 'enter_pizzeria';
   return null;
 }
 function doorGo(ds){
@@ -1188,7 +1195,7 @@ function drawDoorPrompt(){
     addHit(bx - br, by - br, br*2, br*2, () => doorGo(ds));
   } else {                                                                          // компьютер: подсказка над дверью / у выхода
     const doorX = ds === 'enter_garage' ? GARAGE_DOOR_X : ds === 'enter_pizzeria' ? PIZZERIA_DOOR_X : CLUB_DOOR_X;
-    const px = (room === 'club' || room === 'garage' || room === 'pizzeria') ? CW/2 : doorX - camX, py = (room === 'club' || room === 'garage' || room === 'pizzeria') ? CH - 74 : 236;
+    const px = (room === 'club' || room === 'garage' || room === 'pizzeria') ? CW/2 : nearestWrap(doorX, camX) - camX, py = (room === 'club' || room === 'garage' || room === 'pizzeria') ? CH - 74 : 236;
     const w = 250, h = 44;
     ctx.fillStyle = 'rgba(8,8,16,0.88)'; rr(px - w/2, py - h/2, w, h, 12); ctx.fill();
     ctx.strokeStyle = '#3dff9a'; ctx.lineWidth = 2.5; rr(px - w/2, py - h/2, w, h, 12); ctx.stroke();
@@ -1214,7 +1221,7 @@ function getAudioCtx(){ if (!audioCtx) audioCtx = new (window.AudioContext||wind
 document.addEventListener('pointerdown', function unlockAudioOnce(){ try{ getAudioCtx().resume(); }catch(_){} }, { once:true });
 
 const HEARING_RANGE = 900;
-function hearVol(x, y){ return Math.pow(Math.max(0, 1 - Math.hypot(x-me.x, y-me.y)/HEARING_RANGE), 1.5); }
+function hearVol(x, y){ return Math.pow(Math.max(0, 1 - Math.hypot(wrapDelta(me.x,x), y-me.y)/HEARING_RANGE), 1.5); }
 
 function playHit(vol, blocked){
   if (!soundOn || vol <= 0.02) return;
@@ -1341,7 +1348,7 @@ function update(dt){
     else if (room === 'garage'){ me.x += dx/len*k*sp*dt; me.y += dy/len*k*sp*0.6*dt; garageConstrainMe(); }
     else if (room === 'pizzeria'){ me.x += dx/len*k*sp*dt; me.y += dy/len*k*sp*0.6*dt; pizzeriaConstrainMe(); }
     else {
-      me.x = Math.max(60, Math.min(WORLD_W-60, me.x + dx/len*k*sp*dt));
+      me.x = wrapX(me.x + dx/len*k*sp*dt);
       me.y = Math.max(GROUND_MIN, Math.min(GROUND_MAX, me.y + dy/len*k*sp*0.6*dt));
     }
     // лёгкий звук шагов — только свой, только когда реально идёшь (не в ударе/блоке/лежишь)
@@ -1354,7 +1361,7 @@ function update(dt){
   const a = 1 - Math.exp(-dt*14);
   for (const e of ents.values()){
     e.t += dt;
-    if (e.id === myId){ e.rx = me.x; e.ry = me.y; } else { e.rx += (e.x - e.rx)*a; e.ry += (e.y - e.ry)*a; }
+    if (e.id === myId){ e.rx = me.x; e.ry = me.y; } else { e.rx += wrapDelta(e.rx, e.x)*a; e.ry += (e.y - e.ry)*a; }
   }
   for (const f of ui.floaters) f.t += dt;
   ui.floaters = ui.floaters.filter(f => f.t < 1.1);
@@ -1365,7 +1372,10 @@ function update(dt){
   if (ui.fade > 0) ui.fade -= dt;
   if (room === 'club' || room === 'garage' || room === 'pizzeria') camX = 0;
   else {
-    const target = Math.max(0, Math.min(WORLD_W-CW, me.x - CW/2));
+    // мир — кольцо, у камеры больше нет краёв (никакого clamp по WORLD_W): цель берём ближайшим
+    // "развёрнутым" представлением относительно текущей camX, иначе на стыке мира камеру дёрнет
+    // на всю ширину карты. camX сам продолжает свободно расти/убывать — это ожидаемо и нормально.
+    const target = nearestWrap(me.x - CW/2, camX);
     // всегда мягко следуем за целью (без резкого снапа при остановке — он дёргает картинку рывком);
     // раньше без снапа была видна "докатка", но её убрали в источнике (me.x больше не доезжает после стопа),
     // так что теперь цель сама не двигается после остановки и камера сходится к ней плавно, без рывка
@@ -1413,9 +1423,12 @@ function drawRoad(){
   ctx.fillStyle = g; ctx.fillRect(0, ROAD_TOP, CW, CH-ROAD_TOP); ctx.restore();
 }
 function drawWalls(){
-  const z0 = zoneAt(camX), z1 = zoneAt(camX + CW);
-  for (let z=z0; z<=z1; z++){
-    const zone = ZONES[z], zx = z*ZONE_W - camX;
+  // мир — кольцо: вместо диапазона z0..z1 просто перебираем все 7 районов и берём для каждого
+  // ближайшее к камере "развёрнутое" положение — те, что вне экрана, отсеиваются сразу
+  for (let z=0; z<ZONES.length; z++){
+    const zx = nearestWrap(z*ZONE_W, camX) - camX;
+    if (zx > CW || zx + ZONE_W < 0) continue;
+    const zone = ZONES[z];
     ctx.save(); ctx.beginPath(); ctx.rect(zx, 0, ZONE_W, CH); ctx.clip();
     let x = zx, i = 0;
     while (x < zx + ZONE_W){
@@ -1520,16 +1533,18 @@ function drawNeon(zx){
   ctx.restore();
 }
 function drawZoneDecor(){
-  const z0 = zoneAt(camX), z1 = zoneAt(camX + CW);
-  for (let z=z0; z<=z1; z++){
-    const zone = ZONES[z], ty = TYPES[zone.type], zx = z*ZONE_W - camX;
-    if (zone.neon) drawNeon(zx);
+  for (let z=0; z<ZONES.length; z++){
+    const zx = nearestWrap(z*ZONE_W, camX) - camX;
+    if (zx > CW || zx + ZONE_W < 0) continue;
+    if (ZONES[z].neon) drawNeon(zx);
   }
   const rank = k => ({hub:0,safe:1,wild:2,wild2:3})[ZONES[k].type];
-  for (let z=1; z<ZONES.length; z++){
-    const bx = z*ZONE_W - camX;
+  // теперь включая z=0 — это стык между последним районом (z6) и первым (z0), кольцо замкнуто
+  for (let z=0; z<ZONES.length; z++){
+    const bx = nearestWrap(z*ZONE_W, camX) - camX;
     if (bx < -300 || bx > CW+300) continue;
-    const col = TYPES[ZONES[rank(z-1) > rank(z) ? z-1 : z].type].color;
+    const prevZ = (z - 1 + ZONES.length) % ZONES.length;
+    const col = TYPES[ZONES[rank(prevZ) > rank(z) ? prevZ : z].type].color;
     ctx.save(); ctx.beginPath(); ctx.rect(bx-7, ROAD_TOP, 14, CH-ROAD_TOP); ctx.clip();
     for (let y=ROAD_TOP; y<CH; y+=26){ ctx.fillStyle = ((y-ROAD_TOP)/26)%2 ? '#111' : col; ctx.fillRect(bx-7, y, 14, 26); }
     ctx.restore();
@@ -1538,7 +1553,7 @@ function drawZoneDecor(){
 
 function drawActor(e){
   if (!A[e.ty]) return;
-  const k = actorK(e), h = FIGHTER_H*k, sx = e.rx - camX;
+  const k = actorK(e), h = FIGHTER_H*k, sx = nearestWrap(e.rx, camX) - camX;
   if (sx < -200 || sx > CW+200) return;
   const anim = ST_ANIM[e.s] || 'idle', def = A[e.ty][anim];
   const list = framesOf(e.ty, e.v, anim), n = list.length, fps = def[3];
@@ -1594,7 +1609,7 @@ function drawActor(e){
 function drawFloaters(){
   for (const f of ui.floaters){
     ctx.globalAlpha = Math.max(0, 1 - f.t/1.1);
-    txt(f.text, f.e.rx - camX, f.e.ry - FIGHTER_H - 30 - f.t*50, 24, f.color);
+    txt(f.text, nearestWrap(f.e.rx, camX) - camX, f.e.ry - FIGHTER_H - 30 - f.t*50, 24, f.color);
   }
   ctx.globalAlpha = 1;
 }
@@ -1638,18 +1653,6 @@ function drawHUD(){
     if (hasUnread){ ctx.fillStyle = '#ff3b3b'; ctx.beginPath(); ctx.arc(178, cy+4, 9, 0, Math.PI*2); ctx.fill(); txt(String(Math.min(9,chatUnread)) + (chatUnread>9?'+':''), 178, cy+9, 11, '#fff'); }
     addHit(16, cy, 170, 34, () => openChat()); }
 
-  if (room !== 'club' && room !== 'garage' && room !== 'pizzeria') {
-  const cellW = 48, mapW = cellW*ZONES.length, mmx = RX - mapW, my2 = 16, mh = 18;
-  ctx.fillStyle = 'rgba(0,0,0,0.6)'; rr(mmx-6, my2-6, mapW+12, mh+12, 8); ctx.fill();
-  for (let z=0; z<ZONES.length; z++){
-    ctx.globalAlpha = (z === zoneAt(me.x)) ? 0.95 : 0.5; ctx.fillStyle = TYPES[ZONES[z].type].color; ctx.fillRect(mmx + z*cellW + 1, my2, cellW-2, mh);
-  }
-  ctx.globalAlpha = 1;
-  // мини-карта: только реальные игроки (боты не показываются). Зелёные — соклановцы, красные — остальные, ты — белая
-  const dot = (px, col, r) => { ctx.beginPath(); ctx.arc(px, my2 + mh/2, r, 0, Math.PI*2); ctx.fillStyle = col; ctx.fill(); ctx.strokeStyle = 'rgba(0,0,0,0.9)'; ctx.lineWidth = 1.5; ctx.stroke(); };
-  for (const q of miniPlayers) dot(mmx + (q[0] / WORLD_W) * mapW, q[1] ? '#2bff6b' : '#ff3b3b', 3.5);
-  dot(mmx + (me.x / WORLD_W) * mapW, '#ffffff', 5);
-  }
   ctx.fillStyle = 'rgba(8,8,16,0.82)'; rr(RX-150, 50, 150, 34, 10); ctx.fill();
   ctx.strokeStyle = 'rgba(140,170,255,0.6)'; ctx.lineWidth = 2; rr(RX-150, 50, 150, 34, 10); ctx.stroke();
   txt(t('menu'), RX-75, 73, 15, '#dfe6ff');
@@ -1665,6 +1668,57 @@ function drawHUD(){
     ctx.font = '12px Arial'; ctx.textAlign = 'right'; ctx.fillStyle = 'rgba(210,220,245,0.9)';
     [t('hint1'), t('hint2'), t('hint3')]
       .forEach((s,i) => { ctx.strokeStyle='rgba(0,0,0,0.8)'; ctx.lineWidth=3; ctx.strokeText(s, RX, 106+i*17); ctx.fillText(s, RX, 106+i*17); });
+  }
+}
+// ── круговая мини-карта (21.09.2026, вместо линейной полоски вверху — мир теперь кольцо):
+// свёрнутая — маленькое кольцо в правом нижнем углу, тап по нему раскрывает крупную версию по
+// центру экрана с подписанными районами. Район "площадь" всегда наверху (12 часов), дальше по
+// кругу — реальный порядок районов в мире (см. angleForX), стык z6↔z0 внизу.
+const angleForX = x => -Math.PI/2 + (wrapX(x)/WORLD_W - 0.5) * Math.PI*2;
+function drawMiniMap(){
+  if (room === 'club' || room === 'garage' || room === 'pizzeria') return;
+  const myZone = zoneAt(me.x);
+  const wedge = (cx,cy,rIn,rOut,a0,a1,color,alpha) => {
+    ctx.globalAlpha = alpha; ctx.beginPath(); ctx.arc(cx,cy,rOut,a0,a1); ctx.arc(cx,cy,rIn,a1,a0,true); ctx.closePath();
+    ctx.fillStyle = color; ctx.fill(); ctx.globalAlpha = 1;
+  };
+  if (ui.mapExpanded){
+    const cx = CW/2, cy = CH/2, rOut = Math.min(CW,CH)*0.24, rIn = rOut*0.55;
+    addHit(0, 0, CW, CH, () => { ui.mapExpanded = false; });   // тап вне круга — закрыть
+    ctx.fillStyle = 'rgba(0,0,0,0.62)'; ctx.fillRect(0, 0, CW, CH);
+    for (let z=0; z<ZONES.length; z++){
+      const a0 = -Math.PI/2 + (z/7 - 0.5)*Math.PI*2, a1 = -Math.PI/2 + ((z+1)/7 - 0.5)*Math.PI*2;
+      wedge(cx, cy, rIn, rOut, a0, a1, TYPES[ZONES[z].type].color, z === myZone ? 0.95 : 0.55);
+    }
+    ctx.strokeStyle = 'rgba(0,0,0,0.85)'; ctx.lineWidth = 2;
+    for (let z=0; z<ZONES.length; z++){
+      const a0 = -Math.PI/2 + (z/7 - 0.5)*Math.PI*2;
+      ctx.beginPath(); ctx.moveTo(cx+Math.cos(a0)*rIn, cy+Math.sin(a0)*rIn); ctx.lineTo(cx+Math.cos(a0)*rOut, cy+Math.sin(a0)*rOut); ctx.stroke();
+    }
+    for (let z=0; z<ZONES.length; z++){
+      const am = -Math.PI/2 + ((z+0.5)/7 - 0.5)*Math.PI*2;
+      txt(ZONES[z].name, cx+Math.cos(am)*(rOut+30), cy+Math.sin(am)*(rOut+30)+5, 15, z === myZone ? '#ffd23f' : '#dfe6ff', 'center', 150);
+    }
+    const dot = (ang, col, rad) => { const px = cx+Math.cos(ang)*(rIn+rOut)/2, py = cy+Math.sin(ang)*(rIn+rOut)/2; ctx.beginPath(); ctx.arc(px,py,rad,0,Math.PI*2); ctx.fillStyle=col; ctx.fill(); ctx.strokeStyle='rgba(0,0,0,0.9)'; ctx.lineWidth=1.5; ctx.stroke(); };
+    for (const q of miniPlayers) dot(angleForX(q[0]), q[1] ? '#2bff6b' : '#ff3b3b', 5);
+    dot(angleForX(me.x), '#ffffff', 7);
+    addHit(cx-rOut, cy-rOut, rOut*2, rOut*2, () => {});   // тап по самому кольцу — не закрывать
+    ctx.fillStyle = 'rgba(8,8,16,0.9)'; ctx.beginPath(); ctx.arc(cx, cy-rOut-56, 20, 0, Math.PI*2); ctx.fill();
+    txt('✕', cx, cy-rOut-50, 20, '#ff8a8a');
+    addHit(cx-20, cy-rOut-76, 40, 40, () => { ui.mapExpanded = false; });
+  } else {
+    // правый край, но НЕ у самого низа — там на телефоне кнопки удара/супер/блока (см. btns), карта
+    // легла бы прямо на них. cy=330 — с запасом выше верхней кнопки блока (её верх на y=398)
+    const R = 46, rIn = 26, cx = CW-16-R, cy = 330;
+    ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.beginPath(); ctx.arc(cx,cy,R+6,0,Math.PI*2); ctx.fill();
+    for (let z=0; z<ZONES.length; z++){
+      const a0 = -Math.PI/2 + (z/7 - 0.5)*Math.PI*2, a1 = -Math.PI/2 + ((z+1)/7 - 0.5)*Math.PI*2;
+      wedge(cx, cy, rIn, R, a0, a1, TYPES[ZONES[z].type].color, z === myZone ? 0.95 : 0.5);
+    }
+    const dot = (ang, col, rad) => { const px = cx+Math.cos(ang)*(rIn+R)/2, py = cy+Math.sin(ang)*(rIn+R)/2; ctx.beginPath(); ctx.arc(px,py,rad,0,Math.PI*2); ctx.fillStyle=col; ctx.fill(); ctx.strokeStyle='rgba(0,0,0,0.9)'; ctx.lineWidth=1.2; ctx.stroke(); };
+    for (const q of miniPlayers) dot(angleForX(q[0]), q[1] ? '#2bff6b' : '#ff3b3b', 2.6);
+    dot(angleForX(me.x), '#ffffff', 3.6);
+    addHit(cx-R-6, cy-R-6, (R+6)*2, (R+6)*2, () => { ui.mapExpanded = true; });
   }
 }
 // ── «Суперсила»: заряжается раз в минуту; кнопка заполняется снизу вверх, готовая — светится ──
@@ -1836,7 +1890,7 @@ function frame(now){
   else if (room === 'pizzeria') drawPizzeriaScene();
   else { drawSky(); drawRoad(); drawWalls(); drawLamps(); drawZoneDecor(); [...ents.values()].sort((a,b) => a.ry - b.ry).forEach(drawActor); }
   drawFloaters();
-  if (connected){ drawHUD(); drawControls(); drawDoorPrompt(); drawCard(); drawPanel(); drawClanPanel(); }
+  if (connected){ drawHUD(); drawControls(); drawDoorPrompt(); drawCard(); drawPanel(); drawClanPanel(); drawMiniMap(); }
   drawOverlays();
   requestAnimationFrame(frame);
 }

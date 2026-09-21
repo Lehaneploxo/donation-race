@@ -18,7 +18,15 @@ const ZONE_W = 1800, N_ZONES = 7, WORLD_W = ZONE_W * N_ZONES, HUB = 3;
 const GROUND_MIN = 450, GROUND_MAX = 700;   // верхний предел ходьбы поднят с 500 до 450 (почти до стены)
 const ZONE_TYPES = ['wild2', 'wild', 'safe', 'hub', 'safe', 'wild', 'wild2'];   // wild — ближний дикий, wild2 — самый дальний (жёстче)
 const clamp  = (v, a, b) => Math.max(a, Math.min(b, v));
-const zoneAt = x => clamp(Math.floor(x / ZONE_W), 0, N_ZONES - 1);
+// мир замкнут в кольцо (21.09.2026, бесшовно): x всегда в [0, WORLD_W), край z6 стыкуется с
+// началом z0. wrapX — привести координату в этот диапазон; wrapDelta — кратчайшая ЗНАКОВАЯ
+// разница b-a по кольцу (может быть отрицательной — используется для направления движения);
+// wrapDist — её модуль. Работает одинаково корректно и для комнат (там x на порядки меньше
+// WORLD_W, поправка на стык никогда не срабатывает) — поэтому применяем везде без разбора.
+const wrapX     = x => ((x % WORLD_W) + WORLD_W) % WORLD_W;
+const wrapDelta = (a, b) => { let d = (b - a) % WORLD_W; if (d > WORLD_W / 2) d -= WORLD_W; else if (d < -WORLD_W / 2) d += WORLD_W; return d; };
+const wrapDist  = (a, b) => Math.abs(wrapDelta(a, b));
+const zoneAt = x => Math.min(N_ZONES - 1, Math.floor(wrapX(x) / ZONE_W));
 
 // ── КЛУБ 21: вход на улице (зона 6, по центру), внутри — отдельная комната на один экран (1280x720). ──
 // Внутри драться нельзя, ботов нет, игроки видят только тех, кто внутри. Координаты — локальные (не карта мира).
@@ -581,7 +589,7 @@ function resolveAttack(att) {
   let hitAny = false, ruleBlocked = null;
   for (const t of ents.values()) {
     if (t === att || t.room !== att.room) continue;
-    const ddx = (t.x - att.x) * att.f;
+    const ddx = wrapDelta(att.x, t.x) * att.f;
     if (ddx <= 0 || ddx > cfg.range || Math.abs(t.y - att.y) > 45 || t.koT > 0) continue;
     if (!canDamage(att, t)) { if (att.kind === 'p' && t.kind === 'p') ruleBlocked = t; continue; }
     hitAny = true;
@@ -665,7 +673,7 @@ async function clanCreate(p, name, tag) {
 async function clanInvite(p, toId) {
   if (!p.clanId || !p.clanLeader) return toast(p, 'clan_not_leader', '#ffc933');
   const t = ents.get(toId);
-  if (!t || t.kind !== 'p' || t === p || t.room !== p.room || Math.abs(t.x - p.x) > 900) return;
+  if (!t || t.kind !== 'p' || t === p || t.room !== p.room || wrapDist(p.x, t.x) > 900) return;
   if (t.clanId === p.clanId) return toast(p, 'clan_already_member', '#ffc933', [t.name]);
   await store.createInvite(p.clanId, t.accountId, p.accountId);
   toast(p, 'clan_invite_sent', '#ffc933', [t.name]);
@@ -712,18 +720,18 @@ function botAI(b, dt) {
   if (b.koT > 0) { b.inx = b.iny = 0; return; }
   if (b.boss) { bossAI(b, dt); return; }
   let tgt = b.target ? ents.get(b.target) : null;
-  if (tgt && (tgt.koT > 0 || tgt.room || zoneAt(tgt.x) !== b.zone || Math.abs(tgt.x - b.x) > 700)) { tgt = null; b.target = 0; }
+  if (tgt && (tgt.koT > 0 || tgt.room || zoneAt(tgt.x) !== b.zone || wrapDist(b.x, tgt.x) > 700)) { tgt = null; b.target = 0; }
   if (!tgt) {
     let best = 1e9;
     for (const p of ents.values()) {
       if (p.kind !== 'p' || p.koT > 0 || p.room || zoneAt(p.x) !== b.zone) continue;
-      const dx = Math.abs(p.x - b.x), dy = Math.abs(p.y - b.y);
+      const dx = wrapDist(b.x, p.x), dy = Math.abs(p.y - b.y);
       if (dx < 260 && dy < 140 && dx < best) { best = dx; tgt = p; }
     }
     if (tgt) b.target = tgt.id;
   }
   if (tgt) {
-    const dx = tgt.x - b.x, dy = tgt.y - b.y;
+    const dx = wrapDelta(b.x, tgt.x), dy = tgt.y - b.y;
     if (!b.atk) b.f = dx >= 0 ? 1 : -1;
     if (Math.abs(dx) > 95 || Math.abs(dy) > 28) { const d = Math.hypot(dx, dy) || 1; b.inx = dx / d; b.iny = dy / d; }
     else {
@@ -733,7 +741,7 @@ function botAI(b, dt) {
     return;
   }
   if (b.wait > 0) { b.wait -= dt; b.inx = b.iny = 0; return; }
-  const dx = b.tx - b.x, dy = b.ty - b.y, d = Math.hypot(dx, dy);
+  const dx = wrapDelta(b.x, b.tx), dy = b.ty - b.y, d = Math.hypot(dx, dy);
   if (d < 8) {
     b.wait = rnd(0.8, 3);
     b.tx = clamp(b.x + rnd(-500, 500), b.zone * ZONE_W + 150, (b.zone + 1) * ZONE_W - 150);
@@ -804,11 +812,10 @@ function tick() {
       if (e.stamina <= 0) run = 1;
     }
     const sp = speedOf(e) * clamp(run, 0.5, RUN_CAP) * slow;
-    const minX = 60, maxX = WORLD_W - 60;
     if (e.room === 'club') { e.x += dx * sp * dt; e.y += dy * sp * 0.6 * dt; clubConstrain(e); }
     else if (e.room === 'garage') { e.x += dx * sp * dt; e.y += dy * sp * 0.6 * dt; garageConstrain(e); }
     else if (e.room === 'pizzeria') { e.x += dx * sp * dt; e.y += dy * sp * 0.6 * dt; pizzeriaConstrain(e); }
-    else { e.x = clamp(e.x + dx * sp * dt, minX, maxX); e.y = clamp(e.y + dy * sp * 0.6 * dt, GROUND_MIN, GROUND_MAX); }
+    else { e.x = wrapX(e.x + dx * sp * dt); e.y = clamp(e.y + dy * sp * 0.6 * dt, GROUND_MIN, GROUND_MAX); }   // открытый мир — кольцо, без краёв
     // вход в клуб/гараж — только по кнопке/клавише E (case 'enter' ниже), один в один как выход;
     // автовхода простой ходьбой в дверь больше нет — по прямой просьбе пользователя
     e.moving = !locked && (Math.abs(dx) + Math.abs(dy)) > 0.05;
@@ -863,7 +870,7 @@ function broadcast() {
     if (!p.ws || p.ws.readyState !== 1) continue;
     const vis = new Set(), a = [], add = [];
     for (const e of list) {
-      if (e.room !== p.room || (!p.room && Math.abs(e.x - p.x) > VIEW_RANGE)) continue;   // видим только свою комнату
+      if (e.room !== p.room || (!p.room && wrapDist(p.x, e.x) > VIEW_RANGE)) continue;   // видим только свою комнату
       vis.add(e.id); a.push(rows.get(e.id));
       if (!p.known.has(e.id)) { p.known.add(e.id); add.push({ id: e.id, n: e.name, ty: e.type, v: e.variant, k: e.kind }); }
     }
@@ -1000,7 +1007,7 @@ function onMessage(p, m) {
     }
     case 'inspect': {
       const t = ents.get(m.id);
-      if (t && t.room === p.room && Math.abs(t.x - p.x) < 900) send(p, { t: 'card', id: t.id, name: t.name, kind: t.kind, ty: t.type, boss: !!t.boss, level: t.level, hp: Math.ceil(t.hp), max: maxHpOf(t), st: t.stats, tag: t.clanTag || '', ally: !!(p.clanId && p.clanId === t.clanId), canInvite: !!(p.clanLeader && t.kind === 'p' && t.clanId !== p.clanId), inClan: !!p.clanId, canMod: isModeratorNick(p.name) && t.kind === 'p' && !isModeratorNick(t.name) });
+      if (t && t.room === p.room && wrapDist(p.x, t.x) < 900) send(p, { t: 'card', id: t.id, name: t.name, kind: t.kind, ty: t.type, boss: !!t.boss, level: t.level, hp: Math.ceil(t.hp), max: maxHpOf(t), st: t.stats, tag: t.clanTag || '', ally: !!(p.clanId && p.clanId === t.clanId), canInvite: !!(p.clanLeader && t.kind === 'p' && t.clanId !== p.clanId), inClan: !!p.clanId, canMod: isModeratorNick(p.name) && t.kind === 'p' && !isModeratorNick(t.name) });
       break;
     }
     case 'enter': if (m.b === 'club') enterClub(p); else if (m.b === 'garage') enterGarage(p); else if (m.b === 'pizzeria') enterPizzeria(p); break;
@@ -1017,7 +1024,7 @@ function onMessage(p, m) {
 
 function enterClub(p) {
   if (p.room || p.koT > 0) return;
-  if (Math.abs(p.x - CLUB_DOOR_X) > 140 || p.y > 570) return;          // только вплотную к двери
+  if (wrapDist(p.x, CLUB_DOOR_X) > 140 || p.y > 570) return;          // только вплотную к двери
   if (p.pvpT < CLUB_COMBAT_LOCK) { if (p.hintCd <= 0) { p.hintCd = 2; toast(p, 'no_enter_combat', '#ffc933'); } return; }   // из боя в клуб не убежать (первые секунды после удара)
   p.room = 'club'; p.x = CLUB.spawn.x; p.y = CLUB.spawn.y; p.inx = p.iny = 0; p.atk = null; p.blk = false; p.hurtT = 0;
 }
@@ -1028,7 +1035,7 @@ function leaveClub(p) {
 }
 function enterGarage(p) {
   if (p.room || p.koT > 0) return;
-  if (Math.abs(p.x - GARAGE_DOOR_X) > 140 || p.y > 570) return;
+  if (wrapDist(p.x, GARAGE_DOOR_X) > 140 || p.y > 570) return;
   if (p.pvpT < CLUB_COMBAT_LOCK) { if (p.hintCd <= 0) { p.hintCd = 2; toast(p, 'no_enter_combat', '#ffc933'); } return; }
   p.room = 'garage'; p.x = GARAGE.spawn.x; p.y = GARAGE.spawn.y; p.inx = p.iny = 0; p.atk = null; p.blk = false; p.hurtT = 0;
 }
@@ -1039,7 +1046,7 @@ function leaveGarage(p) {
 }
 function enterPizzeria(p) {
   if (p.room || p.koT > 0) return;
-  if (Math.abs(p.x - PIZZERIA_DOOR_X) > 140 || p.y > 570) return;
+  if (wrapDist(p.x, PIZZERIA_DOOR_X) > 140 || p.y > 570) return;
   if (p.pvpT < CLUB_COMBAT_LOCK) { if (p.hintCd <= 0) { p.hintCd = 2; toast(p, 'no_enter_combat', '#ffc933'); } return; }
   p.room = 'pizzeria'; p.x = PIZZERIA.spawn.x; p.y = PIZZERIA.spawn.y; p.inx = p.iny = 0; p.atk = null; p.blk = false; p.hurtT = 0;
 }
