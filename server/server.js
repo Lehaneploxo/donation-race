@@ -6,7 +6,8 @@ const url       = require('url');
 
 const { connectToTikTok } = require('./tiktokConnector');
 const db                  = require('./db');
-const world               = require('./world');   // /world — онлайн-мир, отдельно от TikTok-игр
+// 30.09.2026: онлайн-мир (./world.js, /world, /world-api, /world-ws) выключен — на корне домена
+// теперь GTA-шка. Код мира и его таблицы в БД оставлены как есть, вернуть можно из git-истории.
 
 const PORT     = process.env.PORT || 3000;
 const DEFAULT_USERNAME = (process.argv[2] || process.env.TIKTOK_USERNAME || 'demo')
@@ -57,11 +58,61 @@ function serveHtml(file) {
 // 21.09.2026: перенос хостинга — Мир теперь главная игра на корне домена, список ТикТок-игр
 // переехал на /games (сама страница та же launcher.html, просто другой адрес). Адреса ОТДЕЛЬНЫХ
 // ТикТок-игр (/boxing, /streetfighter и т.д. ниже) НЕ трогаем — они вбиты в сценах OBS на стриме.
-app.get('/',             serveHtml('world.html'));
+// 30.09.2026: на корне домена — GTA-шка LEHA NEPLOXO WORLD (репо neon-bay). Её файлы берём
+// с GitHub Pages и отдаём под /gta/, так что обновления игры выходят обычным пушем в neon-bay,
+// здесь ничего менять не надо. <base href="/gta/"> в начале страницы направляет её относительные
+// адреса (js/…, img/…, version.txt) в /gta/ и не даёт им пересечься с файлами ТикТок-игр.
+const GTA_ORIGIN   = 'https://lehaneploxo.github.io/neon-bay/';
+const GTA_CACHE_MS = 60 * 1000;
+const gtaCache     = new Map();   // файл → { t, status, type, body }
+
+async function gtaFile(file) {
+  const hit = gtaCache.get(file);
+  if (hit && Date.now() - hit.t < GTA_CACHE_MS) return hit;
+  const r = await fetch(GTA_ORIGIN + file);
+  const entry = {
+    t:      Date.now(),
+    status: r.status,
+    type:   r.headers.get('content-type') || 'application/octet-stream',
+    body:   Buffer.from(await r.arrayBuffer()),
+  };
+  if (r.ok) gtaCache.set(file, entry);
+  return entry;
+}
+
+app.get('/', async (req, res) => {
+  try {
+    const f = await gtaFile('index.html');
+    if (f.status !== 200) return res.status(502).send('Игра временно недоступна');
+    res.type('html').send('<base href="/gta/">\n' + f.body.toString('utf8'));
+  } catch (e) {
+    console.error('[GTA]', e.message);
+    res.status(502).send('Игра временно недоступна');
+  }
+});
+
+app.get('/gta/*', async (req, res) => {
+  const file = req.params[0];
+  if (!file || file.includes('..')) return res.status(404).end();
+  try {
+    const f = await gtaFile(file);
+    if (f.status !== 200) return res.status(f.status === 404 ? 404 : 502).end();
+    // Скрипты с ?v= меняют адрес на каждом выпуске — их кэшируем надолго, остальное на сутки.
+    // version.txt не кэшируем никогда: по нему страница узнаёт о новой версии.
+    if (file !== 'version.txt') {
+      res.setHeader('Cache-Control', req.query.v ? 'public, max-age=31536000, immutable' : 'public, max-age=86400');
+      res.removeHeader('Pragma');
+      res.removeHeader('Expires');
+    }
+    res.type(f.type).send(f.body);
+  } catch (e) {
+    console.error('[GTA]', e.message);
+    res.status(502).end();
+  }
+});
+
+app.get('/world', (req, res) => res.redirect(302, '/'));
 app.get('/games',        serveHtml('launcher.html'));
-// Онлайн-мир (19.09.2026): свои аккаунты и БД, REST /world-api/*, сокет /world-ws
-app.get('/world',       serveHtml('world.html'));
-world.attach(app);
 app.get('/game',        serveHtml('index.html'));
 app.get('/arena',       serveHtml('arena.html'));
 app.get('/arena2',      serveHtml('arena2.html'));
@@ -1241,7 +1292,7 @@ wss.on('error', (err) => {
 });
 
 wss.on('connection', (ws, req) => {
-  if (req.url && req.url.startsWith('/world-ws')) { world.handleConnection(ws, req); return; }
+  if (req.url && req.url.startsWith('/world-ws')) { ws.close(); return; }   // мир выключен 30.09.2026
   const query    = url.parse(req.url, true).query;
   const username = (query.username || DEFAULT_USERNAME).replace(/^@/, '').trim();
 
@@ -1617,7 +1668,6 @@ server.on('error', (err) => {
 });
 
 db.init().catch(e => console.error('[DB] init error:', e.message));
-world.init();
 
 server.listen(PORT, () => {
   console.log(`[Server] Запущен: http://localhost:${PORT}/game?username=${DEFAULT_USERNAME}`);
