@@ -236,7 +236,7 @@ const ROOMS = [
   { name:'улица к морю', cx:-50, cz:-5, dir:Math.PI, hour:11 },
   { name:'улица у банка', cx:-50, cz:-14, dir:Math.PI - 0.55, hour:12 },
   { name:'казино', cx:-2, cz:-25, dir:Math.PI/2, hour:20.8, dist:6 },   // ближе — навес над тротуаром не лезет в кадр
-  { name:'пожарная часть', cx:30, cz:-44, dir:Math.PI, hour:21.6 },
+  { name:'пожарная часть', cx:30, cz:-50, dir:Math.PI, hour:21.6, dist:8 },   // камера перед домом (раньше стояла внутри него — бойцам не было места)
 ];
 const ROOM_SWITCH_MS = (+(Q.get('roomSec')||0) || 5*60) * 1000;
 let roomIdx = (+(Q.get('room')||0)) % ROOMS.length;
@@ -284,7 +284,15 @@ function blockedAt(x, y){
     if (b.npcOnly || b.maxY < .45 || b.minY > 1.4) continue;
     if (p.x + r > b.minX && p.x - r < b.maxX && p.z + r > b.minZ && p.z - r < b.maxZ) return true;
   }
-  return !onScreen(p.x, groundAt(p.x, p.z), p.z);
+  const gy = groundAt(p.x, p.z);
+  // сцены, подиумы, пульт диджея (всё выше тротуара) — не для драки
+  if (gy > .3 || !onScreen(p.x, gy, p.z)) return true;
+  // боец должен быть ВИДЕН камере: внутри зданий (клуб, дома — у них пустой пол за стенами)
+  // и за стенами ходить нельзя, иначе он появляется «в здании» и застревает там.
+  // Луч стартует в 1.5 м перед камерой — сама камера может стоять внутри козырька/фонаря
+  const cp = camera.position, tx = p.x - cp.x, ty = gy + 1.2 - cp.y, tz = p.z - cp.z, d = Math.hypot(tx, ty, tz);
+  const ux = tx/d, uy = ty/d, uz = tz/d, s0 = 1.5;
+  return world.col.raycast(cp.x + ux*s0, cp.y + uy*s0, cp.z + uz*s0, ux, uy, uz, d - s0) < d - s0 - .5;
 }
 // высота земли под бойцом (тротуар, ступени, сцена в клубе)
 function groundAt(wx, wz){
@@ -1304,6 +1312,11 @@ function update(dt){
       continue;
     }
     if (v.inExchange) continue;
+    // страховка: боец оказался там, где его не видно (в здании, за стеной) — раз в секунду переводим на видимое место
+    if ((v.posCheck = (v.posCheck||0) - dt) <= 0){
+      v.posCheck = 1000;
+      if (blockedAt(v.x, v.y)){ const p = freeRingPos(); v.x = v.tx = p.x; v.y = v.ty = p.y; }
+    }
     v.wanderPause -= dt;
     const dx=v.tx-v.x, dy=v.ty-v.y, dist=Math.hypot(dx,dy);
     if (dist<6 && v.wanderPause<=0){
