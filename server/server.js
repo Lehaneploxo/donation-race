@@ -116,23 +116,19 @@ app.get('/games',        serveHtml('launcher.html'));
 app.get('/game',        serveHtml('index.html'));
 app.get('/arena',       serveHtml('arena.html'));
 app.get('/arena2',      serveHtml('arena2.html'));
-app.get('/civilization',serveHtml('civilization.html'));
 app.get('/boxing',      serveHtml('boxing_arena.html'));
 app.get('/boxing-db',   serveHtml('boxing_db.html'));
-app.get('/boxing-en',    serveHtml('boxing_arena_en.html'));
-app.get('/boxing-db-en', serveHtml('boxing_db_en.html'));
 app.get('/streetfighter',    serveHtml('streetfighter_arena.html'));
 app.get('/streetfighter-db', serveHtml('streetfighter_db.html'));
 app.get('/streetfighter2',   serveHtml('streetfighter_arena2.html'));
 app.get('/fantasyarena',     serveHtml('fantasy_arena.html'));
 app.get('/fantasyarena-db',  serveHtml('fantasy_arena_db.html'));
-// Fantasy Arena TV (08.09.2026) — та же игра в ТВ-формате 16:9, без плашек,
-// со СВОЕЙ отдельной базой (таблицы fantasyarenatv_*)
-app.get('/fantasyarenatv',    serveHtml('fantasy_arena_tv.html'));
-app.get('/fantasyarenatv-db', serveHtml('fantasy_arena_tv_db.html'));
-app.get('/fishing',    serveHtml('fishing.html'));
-app.get('/fishing-db', serveHtml('fishing_db.html'));
-app.get('/vzaimki',    serveHtml('vzaimki.html'));
+// NEPLOXO STREET WARS (06.10.2026) — логика Street Fighters 1 в 3D-городе из GTA-шки,
+// своя база (таблицы streetwars_*). Город — копия файлов игры в client/streetwars/nb/
+app.get('/streetwars',    serveHtml('streetwars/streetwars.html'));
+app.get('/streetwars-db', serveHtml('streetwars/streetwars_db.html'));
+// 06.10.2026: Boxing Arena EN, Рыбалка, Fantasy Arena TV, Взаимки и Цивилизация убраны
+// с сайта — файлы лежат в archive/ (вне client/, поэтому не раздаются), базы EN/Рыбалки/TV стёрты
 
 // Локальный no-op сервис подписи — возвращает URL без изменений
 // Библиотека tiktok-live-connector использует его вместо eulerstream
@@ -339,59 +335,6 @@ app.get('/admin/boxing-weekly-check', async (req, res) => {
   }
 });
 
-app.get('/api/boxing-db-en', async (req, res) => {
-  try {
-    const rows = await db.getAllBoxingStolenEn();
-    res.json({ ok: true, count: rows.length, rows });
-  } catch(e) {
-    res.json({ ok: false, error: e.message });
-  }
-});
-
-app.get('/admin/reset-boxing-rating-en', async (req, res) => {
-  try {
-    await db.resetBoxingRatingEn();
-    res.json({ ok: true });
-  } catch(e) {
-    res.json({ ok: false, error: e.message });
-  }
-});
-
-app.get('/admin/set-boxing-stolen-en', async (req, res) => {
-  try {
-    const username = req.query.username || '';
-    const value = parseInt(req.query.value);
-    if (!username || Number.isNaN(value)) return res.json({ ok: false, error: 'username and value required' });
-    await db.setBoxingStolenEn(username, value);
-    console.log(`[ADMIN-SET-BOXING-STOLEN-EN] username="${username}" value=${value}`);
-    res.json({ ok: true, username, value });
-  } catch(e) {
-    res.json({ ok: false, error: e.message });
-  }
-});
-
-app.get('/admin/delete-boxing-user-en', async (req, res) => {
-  try {
-    const username = req.query.username || '';
-    if (!username) return res.json({ ok: false, error: 'username required' });
-    await db.deleteBoxingUserEn(username);
-    console.log(`[ADMIN-DELETE-BOXING-USER-EN] username="${username}"`);
-    res.json({ ok: true, username });
-  } catch(e) {
-    res.json({ ok: false, error: e.message });
-  }
-});
-
-app.get('/top-boxing-en', async (req, res) => {
-  try {
-    const limit = parseInt(req.query.limit) || 100;
-    const top = await db.getTopBoxingStolenEn(limit);
-    res.json({ ok: true, count: top.length, top });
-  } catch(e) {
-    res.json({ ok: false, error: e.message });
-  }
-});
-
 app.get('/api/streetfighter-db', async (req, res) => {
   try {
     const rows = await db.getAllStreetFighterStolen();
@@ -583,169 +526,94 @@ app.get('/admin/fantasyarena-weekly-check', async (req, res) => {
   }
 });
 
-// ─── Fantasy Arena TV — те же ручки, но по своей таблице ───
-app.get('/api/fantasyarenatv-db', async (req, res) => {
+// ─── NEPLOXO STREET WARS — те же ручки, что у Street Fighter, по своей таблице ───
+app.get('/api/streetwars-db', async (req, res) => {
   try {
-    const rows = await db.getAllFantasyArenaTvStolen();
+    const rows = await db.getAllStreetWarsStolen();
     res.json({ ok: true, count: rows.length, rows });
   } catch(e) {
     res.json({ ok: false, error: e.message });
   }
 });
 
-app.get('/admin/reset-fantasyarenatv-rating', async (req, res) => {
+app.get('/admin/reset-streetwars-rating', async (req, res) => {
   try {
-    await db.resetFantasyArenaTvRating();
+    await db.resetStreetWarsRating();
     res.json({ ok: true });
   } catch(e) {
     res.json({ ok: false, error: e.message });
   }
 });
 
-app.get('/admin/set-fantasyarenatv-stolen', async (req, res) => {
+app.get('/admin/set-streetwars-stolen', async (req, res) => {
   try {
     const username = req.query.username || '';
     const value = parseInt(req.query.value);
     if (!username || Number.isNaN(value)) return res.json({ ok: false, error: 'username and value required' });
-    await db.setFantasyArenaTvStolen(username, value);
-    console.log(`[ADMIN-SET-FANTASYARENATV-STOLEN] username="${username}" value=${value}`);
+    await db.setStreetWarsStolen(username, value);
+    console.log(`[ADMIN-SET-STREETWARS-STOLEN] username="${username}" value=${value}`);
     res.json({ ok: true, username, value });
   } catch(e) {
     res.json({ ok: false, error: e.message });
   }
 });
 
-app.get('/admin/set-fantasyarenatv-wins', async (req, res) => {
+app.get('/admin/set-streetwars-wins', async (req, res) => {
   try {
     const username = req.query.username || '';
     const value = parseInt(req.query.value);
     if (!username || Number.isNaN(value)) return res.json({ ok: false, error: 'username and value required' });
-    await db.setFantasyArenaTvWeeklyKingWins(username, value);
-    console.log(`[ADMIN-SET-FANTASYARENATV-WINS] username="${username}" value=${value}`);
+    await db.setStreetWarsWeeklyKingWins(username, value);
+    console.log(`[ADMIN-SET-STREETWARS-WINS] username="${username}" value=${value}`);
     res.json({ ok: true, username, value });
   } catch(e) {
     res.json({ ok: false, error: e.message });
   }
 });
 
-app.get('/admin/delete-fantasyarenatv-user', async (req, res) => {
+app.get('/admin/delete-streetwars-user', async (req, res) => {
   try {
     const username = req.query.username || '';
     if (!username) return res.json({ ok: false, error: 'username required' });
-    await db.deleteFantasyArenaTvUser(username);
-    console.log(`[ADMIN-DELETE-FANTASYARENATV-USER] username="${username}"`);
+    await db.deleteStreetWarsUser(username);
+    console.log(`[ADMIN-DELETE-STREETWARS-USER] username="${username}"`);
     res.json({ ok: true, username });
   } catch(e) {
     res.json({ ok: false, error: e.message });
   }
 });
 
-app.get('/top-fantasyarenatv', async (req, res) => {
+app.get('/top-streetwars', async (req, res) => {
   try {
     const limit = parseInt(req.query.limit) || 100;
-    const top = await db.getTopFantasyArenaTvStolen(limit);
+    const top = await db.getTopStreetWarsStolen(limit);
     res.json({ ok: true, count: top.length, top });
   } catch(e) {
     res.json({ ok: false, error: e.message });
   }
 });
 
-app.get('/fantasyarenatv-weekly-champion', async (req, res) => {
+app.get('/streetwars-weekly-champion', async (req, res) => {
   try {
-    const champion = await db.getLastFantasyArenaTvWeeklyChampion();
+    const champion = await db.getLastStreetWarsWeeklyChampion();
     res.json({ ok: true, champion });
   } catch(e) {
     res.json({ ok: false, error: e.message });
   }
 });
 
-app.get('/admin/fantasyarenatv-weekly-history', async (req, res) => {
+app.get('/admin/streetwars-weekly-history', async (req, res) => {
   try {
-    const history = await db.getFantasyArenaTvWeeklyHistory();
+    const history = await db.getStreetWarsWeeklyHistory();
     res.json({ ok: true, count: history.length, history });
   } catch(e) {
     res.json({ ok: false, error: e.message });
   }
 });
 
-app.get('/admin/fantasyarenatv-weekly-check', async (req, res) => {
+app.get('/admin/streetwars-weekly-check', async (req, res) => {
   try {
-    const result = await checkFantasyArenaTvWeeklyReset();
-    res.json({ ok: true, result });
-  } catch(e) {
-    res.json({ ok: false, error: e.message });
-  }
-});
-
-app.get('/api/fishing-db', async (req, res) => {
-  try {
-    const rows = await db.getAllFishing();
-    res.json({ ok: true, count: rows.length, rows });
-  } catch(e) {
-    res.json({ ok: false, error: e.message });
-  }
-});
-
-// "ТОП ЗА СЕГОДНЯ" в самой игре — ежедневный (обнуляется в полночь по Киеву)
-app.get('/top-fishing', async (req, res) => {
-  try {
-    const limit = parseInt(req.query.limit) || 10;
-    const top = await db.getTopFishingDaily(limit);
-    res.json({ ok: true, count: top.length, top });
-  } catch(e) {
-    res.json({ ok: false, error: e.message });
-  }
-});
-
-// "ТОП ВЧЕРА" — снапшот дневного топа, снятый перед полуночным сбросом,
-// виден весь следующий день (см. db.performFishingDailyResetIfNeeded)
-app.get('/top-fishing-yesterday', async (req, res) => {
-  try {
-    const top = await db.getYesterdayTopFishing();
-    res.json({ ok: true, count: top.length, top });
-  } catch(e) {
-    res.json({ ok: false, error: e.message });
-  }
-});
-
-app.get('/admin/reset-fishing-rating', async (req, res) => {
-  try {
-    await db.resetFishingRating();
-    res.json({ ok: true });
-  } catch(e) {
-    res.json({ ok: false, error: e.message });
-  }
-});
-
-app.get('/admin/set-fishing-total', async (req, res) => {
-  try {
-    const username = req.query.username || '';
-    const value = parseInt(req.query.value);
-    if (!username || Number.isNaN(value)) return res.json({ ok: false, error: 'username and value required' });
-    await db.setFishingTotal(username, value);
-    console.log(`[ADMIN-SET-FISHING-TOTAL] username="${username}" value=${value}`);
-    res.json({ ok: true, username, value });
-  } catch(e) {
-    res.json({ ok: false, error: e.message });
-  }
-});
-
-app.get('/admin/delete-fishing-user', async (req, res) => {
-  try {
-    const username = req.query.username || '';
-    if (!username) return res.json({ ok: false, error: 'username required' });
-    await db.deleteFishingUser(username);
-    console.log(`[ADMIN-DELETE-FISHING-USER] username="${username}"`);
-    res.json({ ok: true, username });
-  } catch(e) {
-    res.json({ ok: false, error: e.message });
-  }
-});
-
-// ручной запуск проверки дневного сброса (для теста, без ожидания полуночи)
-app.get('/admin/fishing-daily-check', async (req, res) => {
-  try {
-    const result = await checkFishingDailyReset();
+    const result = await checkStreetWarsWeeklyReset();
     res.json({ ok: true, result });
   } catch(e) {
     res.json({ ok: false, error: e.message });
@@ -761,9 +629,8 @@ const STATE_DB_SAVE_MIN_INTERVAL_MS = 60 * 1000;
 const STATE_RESTORE_TYPE = {
   streetfighter: 'streetfighter_state_restore',
   boxing: 'boxing_state_restore',
-  boxing_en: 'boxing_state_restore_en',
   fantasyarena: 'fantasyarena_state_restore',
-  fantasyarenatv: 'fantasyarenatv_state_restore',
+  streetwars: 'streetwars_state_restore',
 };
 
 class Room {
@@ -775,78 +642,14 @@ class Room {
     this._giftCount  = 0;
     this._lastGift   = null;
     // Снапшоты энергии/силы бойцов Street Fighter / Boxing Arena (2026-08-11):
-    // {streetfighter, boxing, boxing_en} → массив [{username,energyMax,energy,powerMax,power}].
+    // {streetfighter, boxing, fantasyarena, streetwars} → массив [{username,energyMax,energy,powerMax,power}].
     // Живёт в памяти комнаты, переживает обновление/переоткрытие страницы игры
     // (комната не уничтожается 5 минут после ухода последнего клиента, см.
     // removeClient). Резервная копия в БД — на случай перезапуска сервера,
     // см. _stateDbSavedAt/saveStateSnapshot ниже.
     this._stateSnapshots = {};
     this._stateDbSavedAt = {};
-    // Цивилизация: население/эпоха/донатеры — снапшот в game_state_snapshots,
-    // без фонового тика — цифры не должны "дрейфовать" сами по себе, пока
-    // никто не смотрит игру, поэтому грузим лениво по первому запросу клиента
-    // (см. sendCivState).
-    this._civ          = null;
-    this._civLoading    = false;
-    this._civDbSavedAt  = 0;
     this._connect();
-  }
-
-  // Цивилизация: сохранить снапшот {civPop, eraIdx, donors} — в память сразу
-  // (клиент шлёт каждые ~15 сек, см. civilization.html), в БД не чаще раза в
-  // минуту на комнату (резерв на случай рестарта сервера), та же схема
-  // троттлинга, что у saveStateSnapshot выше.
-  saveCivState(state) {
-    if (!state || typeof state !== 'object') return;
-    const donors = {};
-    if (state.donors && typeof state.donors === 'object') {
-      for (const [u, c] of Object.entries(state.donors)) {
-        const n = Math.max(0, Math.floor(Number(c)) || 0);
-        if (n > 0 && typeof u === 'string' && u) donors[u.slice(0, 100)] = n;
-      }
-    }
-    const clean = {
-      civPop: Math.max(0, Math.floor(Number(state.civPop)) || 0),
-      eraIdx: Math.max(0, Math.floor(Number(state.eraIdx)) || 0),
-      donors,
-    };
-    this._civ = clean;
-    const now = Date.now();
-    if (now - this._civDbSavedAt >= STATE_DB_SAVE_MIN_INTERVAL_MS) {
-      this._civDbSavedAt = now;
-      db.saveGameStateSnapshot('civilization', this.username, clean)
-        .catch(e => console.error('[DB] civ_state error:', e.message));
-    }
-  }
-
-  // отдать снапшот только что подключившемуся клиенту — сперва из памяти
-  // комнаты, если её нет (сервер только что перезапустился) — из БД
-  sendCivState(ws) {
-    const send = (state) => {
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: 'civ_state_restore', ...(state || { civPop: 0, eraIdx: 0, donors: {} }) }));
-      }
-    };
-    if (this._civ) { send(this._civ); return; }
-    if (this._civLoading) return;
-    this._civLoading = true;
-    db.getGameStateSnapshot('civilization', this.username)
-      .then(state => {
-        this._civLoading = false;
-        if (state && typeof state === 'object') this._civ = state;
-        send(this._civ);
-      })
-      .catch(() => { this._civLoading = false; send(null); });
-  }
-
-  // Полный сброс игры на ноль по кнопке в углу — сразу пишем в БД (не ждём
-  // троттлинг saveCivState) и рассылаем всем открытым вкладкам комнаты, чтобы
-  // сброс не "вернулся" при следующем сохранении с другого клиента.
-  resetCivState() {
-    this._civ = { civPop: 0, eraIdx: 0, donors: {} };
-    this._civDbSavedAt = Date.now();
-    db.saveGameStateSnapshot('civilization', this.username, this._civ).catch(() => {});
-    this.broadcast({ type: 'civ_state_restore', civPop: 0, eraIdx: 0, donors: {}, reset: true });
   }
 
   _connect() {
@@ -854,16 +657,6 @@ class Room {
       this.username,
       // onGift — донат
       (data) => {
-        // Civilization: только реальные донаты из TikTok, без исключений.
-        // Если реальное подключение оборвалось/упало и сервер временно переключился
-        // в демо-режим с ботами — эти фейковые донаты НЕ должны попадать в игру.
-        if (this.connection?._tiktokMode === 'tiktok') {
-          this.broadcast({ type: 'civ_gift', username: data.username, uniqueId: data.userId, coins: data.coins });
-          // Взаимки: тот же принцип, что и civ_gift — только реальные донаты,
-          // демо-боты не должны красить рейтинг подставными подарками
-          this.broadcast({ type: 'vzaimki_gift', username: data.username, userId: data.userId, avatarUrl: data.avatarUrl, giftName: data.giftName, coins: data.coins });
-        }
-
         const giftLower = (data.giftName || '').toLowerCase();
 
         // War game gift handling
@@ -920,18 +713,9 @@ class Room {
         // Arena: viewer joins stream → spawn with 1 coin if slot available
         this.broadcast({ type: 'arena_member', username: data.username });
         this.broadcast({ type: 'arena_join',   username: data.username });
-        if (this.connection?._tiktokMode === 'tiktok') {
-          this.broadcast({ type: 'vzaimki_member', username: data.username, userId: data.userId, avatarUrl: data.avatarUrl });
-        }
       },
       // onLike — лайки
       (data) => {
-        // Civilization: только реальные лайки из TikTok — демо-боты не должны
-        // растить население (та же защита, что уже стоит на civ_gift выше).
-        if (this.connection?._tiktokMode === 'tiktok') {
-          this.broadcast({ type: 'civ_like', likes: data.likes || 1, username: data.username });
-          this.broadcast({ type: 'vzaimki_like', likes: data.likes || 1, username: data.username, userId: data.userId, avatarUrl: data.avatarUrl });
-        }
         this.broadcast({ type: 'arena_like', likes: data.likes || 0, username: data.username });
         this.broadcast({ type: 'arena_member', username: data.username });
 
@@ -953,7 +737,7 @@ class Room {
         const msg = (data.message || '').trim();
         const msgLower = msg.toLowerCase();
 
-        // Civilization game: broadcast raw chat so client can react to keywords
+        // сырой чат — его слушает Arena Battle 2 (/arena2)
         this.broadcast({ type: 'chat', uniqueId: data.userId, username: data.username, comment: msg });
 
         // Arena game: any chat → try spawn if not on arena
@@ -997,11 +781,6 @@ class Room {
           db.setFantasyArenaSkin(data.username, skinIndex)
             .catch(e => console.error('[DB] fantasyarena_skin error:', e.message));
           this.broadcast({ type: 'fantasyarena_skin_choice', username: data.username, skinIndex });
-          // та же команда закрепляет героя и в ТВ-версии — у неё своя
-          // таблица, поэтому пишем отдельно (портретная версия не меняется)
-          db.setFantasyArenaTvSkin(data.username, skinIndex)
-            .catch(e => console.error('[DB] fantasyarenatv_skin error:', e.message));
-          this.broadcast({ type: 'fantasyarenatv_skin_choice', username: data.username, skinIndex });
         }
 
         const lowerUser = (data.username || '').toLowerCase();
@@ -1065,22 +844,6 @@ class Room {
             .catch(() => {
               this.broadcast({ type: 'arena_boxing_rating', username: data.username, rank: null, stolen: 0, kos: 0, lifetimeStolen: 0, weeklyKingWins: 0, weeklyBeltSeconds: 0 });
             });
-          // Boxing Arena EN: тот же топ, но по английской таблице —
-          // рассылается всегда, EN-страница слушает только свой тип, RU игнорирует
-          db.getUserBoxingRankEn(data.username)
-            .then(rank => {
-              this.broadcast({
-                type: 'arena_boxing_rating_en',
-                username: data.username,
-                rank: rank ? rank.rank : null,
-                stolen: rank ? rank.total_stolen : 0,
-                kos: rank ? rank.total_kos : 0,
-                beltSeconds: rank ? rank.belt_seconds : 0,
-              });
-            })
-            .catch(() => {
-              this.broadcast({ type: 'arena_boxing_rating_en', username: data.username, rank: null, stolen: 0, kos: 0, beltSeconds: 0 });
-            });
           // Street Fighter: тот же топ, но по своей таблице. stolen/rank —
           // ДНЕВНЫЕ (обнуляются каждую полночь по Киеву), lifetimeStolen — вечный
           // (двигает уровень), weeklyKingWins — сколько раз выигрывал день (имя поля историческое)
@@ -1117,11 +880,11 @@ class Room {
             .catch(() => {
               this.broadcast({ type: 'arena_fantasyarena_rating', username: data.username, rank: null, stolen: 0, kos: 0, lifetimeStolen: 0, weeklyKingWins: 0, weeklyBeltSeconds: 0 });
             });
-          // Fantasy Arena TV: свой топ по своей таблице
-          db.getUserFantasyArenaTvRank(data.username)
+          // NEPLOXO STREET WARS: свой топ по своей таблице (1-в-1 Street Fighter)
+          db.getUserStreetWarsRank(data.username)
             .then(rank => {
               this.broadcast({
-                type: 'arena_fantasyarenatv_rating',
+                type: 'arena_streetwars_rating',
                 username: data.username,
                 rank: rank ? rank.rank : null,
                 stolen: rank ? rank.total_stolen : 0,
@@ -1132,25 +895,10 @@ class Room {
               });
             })
             .catch(() => {
-              this.broadcast({ type: 'arena_fantasyarenatv_rating', username: data.username, rank: null, stolen: 0, kos: 0, lifetimeStolen: 0, weeklyKingWins: 0, weeklyBeltSeconds: 0 });
-            });
-          // Рыбалка: место в дневном топе + вечный счёт рыбок
-          db.getUserFishingRank(data.username)
-            .then(rank => {
-              this.broadcast({ type: 'arena_fishing_rating', username: data.username, rank: rank ? rank.rank : null, totalFish: rank ? rank.total_fish : 0, dailyFish: rank ? rank.daily_fish : 0 });
-            })
-            .catch(() => {
-              this.broadcast({ type: 'arena_fishing_rating', username: data.username, rank: null, totalFish: 0, dailyFish: 0 });
+              this.broadcast({ type: 'arena_streetwars_rating', username: data.username, rank: null, stolen: 0, kos: 0, lifetimeStolen: 0, weeklyKingWins: 0, weeklyBeltSeconds: 0 });
             });
         }
 
-      },
-      // onFollow — реальная подписка (отдельно от простого захода зрителя),
-      // нужна только "Взаимкам"; остальные игры этот колбэк не используют
-      (data) => {
-        if (this.connection?._tiktokMode === 'tiktok') {
-          this.broadcast({ type: 'vzaimki_follow', username: data.username, userId: data.userId, avatarUrl: data.avatarUrl });
-        }
       }
     );
   }
@@ -1210,10 +958,6 @@ class Room {
     for (const game of Object.keys(this._stateSnapshots)) {
       const players = this._stateSnapshots[game];
       if (players) db.saveGameStateSnapshot(game, this.username, players).catch(() => {});
-    }
-
-    if (this._civ) {
-      db.saveGameStateSnapshot('civilization', this.username, this._civ).catch(() => {});
     }
   }
 
@@ -1353,29 +1097,6 @@ wss.on('connection', (ws, req) => {
             room.broadcast({ type: 'boxing_tier_info', username: msg.username, lifetimeStolen: 0 });
           });
       }
-      if (msg.type === 'boxing_stolen_en' && msg.username && msg.amount) {
-        db.addBoxingStolenEn(msg.username, msg.amount)
-          .then(() => db.getTopBoxingStolenEn(5))
-          .then(top => {
-            room.broadcast({ type: 'top_boxing_en', data: top });
-          })
-          .catch(e => console.error('[DB] boxing_stolen_en error:', e.message));
-      }
-      if (msg.type === 'boxing_ko_en' && msg.username) {
-        db.addBoxingKOEn(msg.username).catch(e => console.error('[DB] boxing_ko_en error:', e.message));
-      }
-      if (msg.type === 'boxing_belt_en' && msg.username && msg.seconds) {
-        db.addBoxingBeltSecondsEn(msg.username, msg.seconds).catch(e => console.error('[DB] boxing_belt_en error:', e.message));
-      }
-      if (msg.type === 'boxing_tier_request_en' && msg.username) {
-        db.getUserBoxingRankEn(msg.username)
-          .then(rank => {
-            room.broadcast({ type: 'boxing_tier_info_en', username: msg.username, total_stolen: rank ? rank.total_stolen : 0 });
-          })
-          .catch(() => {
-            room.broadcast({ type: 'boxing_tier_info_en', username: msg.username, total_stolen: 0 });
-          });
-      }
       if (msg.type === 'streetfighter_stolen' && msg.username && msg.amount) {
         db.addStreetFighterStolen(msg.username, msg.amount)
           .then(() => db.getTopStreetFighterStolen(5))
@@ -1432,31 +1153,28 @@ wss.on('connection', (ws, req) => {
             room.broadcast({ type: 'fantasyarena_tier_info', username: msg.username, lifetimeStolen: 0, chosenSkin: null });
           });
       }
-      // ─── Fantasy Arena TV — то же самое, но в свою таблицу ───
-      if (msg.type === 'fantasyarenatv_stolen' && msg.username && msg.amount) {
-        db.addFantasyArenaTvStolen(msg.username, msg.amount)
-          .then(() => db.getTopFantasyArenaTvStolen(5))
+      // ─── NEPLOXO STREET WARS — то же, что Street Fighter, но в свою таблицу ───
+      if (msg.type === 'streetwars_stolen' && msg.username && msg.amount) {
+        db.addStreetWarsStolen(msg.username, msg.amount)
+          .then(() => db.getTopStreetWarsStolen(5))
           .then(top => {
-            room.broadcast({ type: 'top_fantasyarenatv', data: top });
+            room.broadcast({ type: 'top_streetwars', data: top });
           })
-          .catch(e => console.error('[DB] fantasyarenatv_stolen error:', e.message));
+          .catch(e => console.error('[DB] streetwars_stolen error:', e.message));
       }
-      if (msg.type === 'fantasyarenatv_ko' && msg.username) {
-        db.addFantasyArenaTvKO(msg.username).catch(e => console.error('[DB] fantasyarenatv_ko error:', e.message));
+      if (msg.type === 'streetwars_ko' && msg.username) {
+        db.addStreetWarsKO(msg.username).catch(e => console.error('[DB] streetwars_ko error:', e.message));
       }
-      if (msg.type === 'fantasyarenatv_belt' && msg.username && msg.seconds) {
-        db.addFantasyArenaTvBeltSeconds(msg.username, msg.seconds).catch(e => console.error('[DB] fantasyarenatv_belt error:', e.message));
+      if (msg.type === 'streetwars_belt' && msg.username && msg.seconds) {
+        db.addStreetWarsBeltSeconds(msg.username, msg.seconds).catch(e => console.error('[DB] streetwars_belt error:', e.message));
       }
-      if (msg.type === 'fantasyarenatv_tier_request' && msg.username) {
-        Promise.all([
-          db.getUserFantasyArenaTvRank(msg.username),
-          db.getFantasyArenaTvSkin(msg.username),
-        ])
-          .then(([rank, chosenSkin]) => {
-            room.broadcast({ type: 'fantasyarenatv_tier_info', username: msg.username, lifetimeStolen: rank ? rank.lifetime_stolen : 0, chosenSkin });
+      if (msg.type === 'streetwars_tier_request' && msg.username) {
+        db.getUserStreetWarsRank(msg.username)
+          .then(rank => {
+            room.broadcast({ type: 'streetwars_tier_info', username: msg.username, lifetimeStolen: rank ? rank.lifetime_stolen : 0 });
           })
           .catch(() => {
-            room.broadcast({ type: 'fantasyarenatv_tier_info', username: msg.username, lifetimeStolen: 0, chosenSkin: null });
+            room.broadcast({ type: 'streetwars_tier_info', username: msg.username, lifetimeStolen: 0 });
           });
       }
       if (msg.type === 'fantasyarena_state_save') {
@@ -1465,30 +1183,13 @@ wss.on('connection', (ws, req) => {
       if (msg.type === 'fantasyarena_state_request') {
         room.sendStateSnapshot(ws, 'fantasyarena');
       }
-      if (msg.type === 'fantasyarenatv_state_save') {
-        room.saveStateSnapshot('fantasyarenatv', msg.players);
+      if (msg.type === 'streetwars_state_save') {
+        room.saveStateSnapshot('streetwars', msg.players);
       }
-      if (msg.type === 'fantasyarenatv_state_request') {
-        room.sendStateSnapshot(ws, 'fantasyarenatv');
+      if (msg.type === 'streetwars_state_request') {
+        room.sendStateSnapshot(ws, 'streetwars');
       }
-      if (msg.type === 'civ_state_save' && msg.state) {
-        room.saveCivState(msg.state);
-      }
-      if (msg.type === 'civ_state_request') {
-        room.sendCivState(ws);
-      }
-      if (msg.type === 'civ_reset') {
-        room.resetCivState();
-      }
-      if (msg.type === 'fishing_catch' && msg.username && msg.fish) {
-        db.addFishingCatch(msg.username, msg.fish)
-          .then(() => db.getTopFishingDaily(10))
-          .then(top => {
-            room.broadcast({ type: 'top_fishing', data: top });
-          })
-          .catch(e => console.error('[DB] fishing_catch error:', e.message));
-      }
-      // Street Fighter / Boxing Arena (RU/EN): автосейв энергии/силы бойцов и
+      // Street Fighter / Boxing Arena: автосейв энергии/силы бойцов и
       // восстановление при перезапуске стрима (обновление/переоткрытие
       // страницы игры) — см. Room.saveStateSnapshot/sendStateSnapshot
       if (msg.type === 'streetfighter_state_save') {
@@ -1502,12 +1203,6 @@ wss.on('connection', (ws, req) => {
       }
       if (msg.type === 'boxing_state_request') {
         room.sendStateSnapshot(ws, 'boxing');
-      }
-      if (msg.type === 'boxing_state_save_en') {
-        room.saveStateSnapshot('boxing_en', msg.players);
-      }
-      if (msg.type === 'boxing_state_request_en') {
-        room.sendStateSnapshot(ws, 'boxing_en');
       }
       if (msg.type === 'request_rating' && msg.username) {
         db.getUserRank(msg.username)
@@ -1618,44 +1313,25 @@ async function checkFantasyArenaWeeklyReset() {
 setInterval(() => { checkFantasyArenaWeeklyReset().catch(e => console.error('[FANTASYARENA] weekly-check error:', e.message)); }, 10*60*1000);
 setTimeout(() => { checkFantasyArenaWeeklyReset().catch(e => console.error('[FANTASYARENA] weekly-check (startup) error:', e.message)); }, 15*1000);
 
-// ─── Fantasy Arena TV: ЕЖЕДНЕВНЫЙ сброс рейтинга (полночь по Киеву) ─────
-// 1-в-1 паттерн Fantasy Arena выше, но по своей таблице.
-async function checkFantasyArenaTvWeeklyReset() {
-  const result = await db.performFantasyArenaTvWeeklyResetIfNeeded();
+// ─── NEPLOXO STREET WARS: ЕЖЕДНЕВНЫЙ сброс рейтинга (полночь по Киеву) ─────
+// 1-в-1 паттерн Street Fighter выше, но по своей таблице.
+async function checkStreetWarsWeeklyReset() {
+  const result = await db.performStreetWarsWeeklyResetIfNeeded();
   if (result) {
-    console.log('[FANTASYARENATV] Рассылаю обновлённый топ и нового чемпиона дня во все активные комнаты после сброса');
+    console.log('[STREETWARS] Рассылаю обновлённый топ и нового чемпиона дня во все активные комнаты после сброса');
     for (const room of rooms.values()) {
-      db.getTopFantasyArenaTvStolen(5)
-        .then(top => room.broadcast({ type: 'top_fantasyarenatv', data: top }))
-        .catch(e => console.error('[FANTASYARENATV] Ошибка рассылки топа после сброса:', e.message));
-      db.getLastFantasyArenaTvWeeklyChampion()
-        .then(champion => room.broadcast({ type: 'fantasyarenatv_weekly_champion', champion }))
-        .catch(e => console.error('[FANTASYARENATV] Ошибка рассылки чемпиона после сброса:', e.message));
+      db.getTopStreetWarsStolen(5)
+        .then(top => room.broadcast({ type: 'top_streetwars', data: top }))
+        .catch(e => console.error('[STREETWARS] Ошибка рассылки топа после сброса:', e.message));
+      db.getLastStreetWarsWeeklyChampion()
+        .then(champion => room.broadcast({ type: 'streetwars_weekly_champion', champion }))
+        .catch(e => console.error('[STREETWARS] Ошибка рассылки чемпиона после сброса:', e.message));
     }
   }
   return result;
 }
-setInterval(() => { checkFantasyArenaTvWeeklyReset().catch(e => console.error('[FANTASYARENATV] weekly-check error:', e.message)); }, 10*60*1000);
-setTimeout(() => { checkFantasyArenaTvWeeklyReset().catch(e => console.error('[FANTASYARENATV] weekly-check (startup) error:', e.message)); }, 15*1000);
-
-// ─── Рыбалка: ежедневный сброс "ТОП ЗА СЕГОДНЯ" (полночь по Киеву) ─────
-async function checkFishingDailyReset() {
-  const result = await db.performFishingDailyResetIfNeeded();
-  if (result) {
-    console.log('[FISHING] Рассылаю обновлённый (пустой) дневной топ и топ вчера во все активные комнаты после сброса');
-    for (const room of rooms.values()) {
-      db.getTopFishingDaily(10)
-        .then(top => room.broadcast({ type: 'top_fishing', data: top }))
-        .catch(e => console.error('[FISHING] Ошибка рассылки топа после сброса:', e.message));
-      db.getYesterdayTopFishing()
-        .then(top => room.broadcast({ type: 'top_fishing_yesterday', data: top }))
-        .catch(e => console.error('[FISHING] Ошибка рассылки топа вчера после сброса:', e.message));
-    }
-  }
-  return result;
-}
-setInterval(() => { checkFishingDailyReset().catch(e => console.error('[FISHING] daily-check error:', e.message)); }, 10*60*1000);
-setTimeout(() => { checkFishingDailyReset().catch(e => console.error('[FISHING] daily-check (startup) error:', e.message)); }, 15*1000);
+setInterval(() => { checkStreetWarsWeeklyReset().catch(e => console.error('[STREETWARS] weekly-check error:', e.message)); }, 10*60*1000);
+setTimeout(() => { checkStreetWarsWeeklyReset().catch(e => console.error('[STREETWARS] weekly-check (startup) error:', e.message)); }, 15*1000);
 
 // ─── Старт ───────────────────────────────────────────────────────────────────
 server.on('error', (err) => {

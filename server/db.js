@@ -71,14 +71,11 @@ async function init() {
     )
   `);
 
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS boxing_stolen_en (
-      username TEXT PRIMARY KEY,
-      total_stolen INTEGER NOT NULL DEFAULT 0
-    )
-  `);
-  await pool.query(`ALTER TABLE boxing_stolen_en ADD COLUMN IF NOT EXISTS total_kos INTEGER NOT NULL DEFAULT 0`);
-  await pool.query(`ALTER TABLE boxing_stolen_en ADD COLUMN IF NOT EXISTS belt_seconds INTEGER NOT NULL DEFAULT 0`);
+  // 06.10.2026: Boxing Arena EN, Рыбалка и Fantasy Arena TV убраны с сайта (файлы в archive/),
+  // их базы стёрты по просьбе пользователя. IF EXISTS — после первого запуска это пустые операции.
+  await pool.query(`DROP TABLE IF EXISTS boxing_stolen_en, fishing_catches, fishing_daily_meta,
+    fantasyarenatv_stolen, fantasyarenatv_weekly_kings, fantasyarenatv_weekly_meta`);
+
   await pool.query(`
     CREATE TABLE IF NOT EXISTS streetfighter_stolen (
       username TEXT PRIMARY KEY,
@@ -171,25 +168,22 @@ async function init() {
     )
   `);
 
-  // ── Fantasy Arena TV (2026-09-08) — ТВ-версия Fantasy Arena (16:9, без
-  // плашек), схема 1-в-1 как у fantasyarena_stolen выше, но СВОЯ таблица/
-  // архив/метка сброса: рейтинг и уровни у ТВ-версии полностью отдельные.
+  // ── NEPLOXO STREET WARS (06.10.2026) — TikTok-игра по логике Street Fighters 1 в 3D-городе
+  // из GTA-шки. Схема 1-в-1 как у streetfighter_stolen выше, СВОЯ таблица/архив/метка сброса.
   await pool.query(`
-    CREATE TABLE IF NOT EXISTS fantasyarenatv_stolen (
+    CREATE TABLE IF NOT EXISTS streetwars_stolen (
       username TEXT PRIMARY KEY,
       total_stolen INTEGER NOT NULL DEFAULT 0
     )
   `);
-  await pool.query(`ALTER TABLE fantasyarenatv_stolen ADD COLUMN IF NOT EXISTS total_kos INTEGER NOT NULL DEFAULT 0`);
-  await pool.query(`ALTER TABLE fantasyarenatv_stolen ADD COLUMN IF NOT EXISTS belt_seconds INTEGER NOT NULL DEFAULT 0`);
-  // выбор героя командой "hero1".."hero4" — как в портретной версии, но своя колонка
-  await pool.query(`ALTER TABLE fantasyarenatv_stolen ADD COLUMN IF NOT EXISTS chosen_skin INTEGER`);
-  await pool.query(`ALTER TABLE fantasyarenatv_stolen ADD COLUMN IF NOT EXISTS lifetime_stolen INTEGER NOT NULL DEFAULT 0`);
-  await pool.query(`UPDATE fantasyarenatv_stolen SET lifetime_stolen = total_stolen WHERE lifetime_stolen = 0 AND total_stolen > 0`);
-  await pool.query(`ALTER TABLE fantasyarenatv_stolen ADD COLUMN IF NOT EXISTS weekly_belt_seconds INTEGER NOT NULL DEFAULT 0`);
-  await pool.query(`ALTER TABLE fantasyarenatv_stolen ADD COLUMN IF NOT EXISTS weekly_king_wins INTEGER NOT NULL DEFAULT 0`);
+  await pool.query(`ALTER TABLE streetwars_stolen ADD COLUMN IF NOT EXISTS total_kos INTEGER NOT NULL DEFAULT 0`);
+  await pool.query(`ALTER TABLE streetwars_stolen ADD COLUMN IF NOT EXISTS belt_seconds INTEGER NOT NULL DEFAULT 0`);
+  await pool.query(`ALTER TABLE streetwars_stolen ADD COLUMN IF NOT EXISTS lifetime_stolen INTEGER NOT NULL DEFAULT 0`);
+  await pool.query(`UPDATE streetwars_stolen SET lifetime_stolen = total_stolen WHERE lifetime_stolen = 0 AND total_stolen > 0`);
+  await pool.query(`ALTER TABLE streetwars_stolen ADD COLUMN IF NOT EXISTS weekly_belt_seconds INTEGER NOT NULL DEFAULT 0`);
+  await pool.query(`ALTER TABLE streetwars_stolen ADD COLUMN IF NOT EXISTS weekly_king_wins INTEGER NOT NULL DEFAULT 0`);
   await pool.query(`
-    CREATE TABLE IF NOT EXISTS fantasyarenatv_weekly_kings (
+    CREATE TABLE IF NOT EXISTS streetwars_weekly_kings (
       id SERIAL PRIMARY KEY,
       week_start TIMESTAMPTZ NOT NULL,
       username TEXT NOT NULL,
@@ -199,42 +193,18 @@ async function init() {
     )
   `);
   await pool.query(`
-    CREATE TABLE IF NOT EXISTS fantasyarenatv_weekly_meta (
+    CREATE TABLE IF NOT EXISTS streetwars_weekly_meta (
       id INTEGER PRIMARY KEY DEFAULT 1,
       last_reset_at TIMESTAMPTZ NOT NULL
     )
   `);
-
-  // ── Рыбалка (2026-08-10) — рейтинг строится на количестве "рыбок", не
-  // донатов: 1 монета/100 лайков = 1 рыбка, total_fish копится вечно (по
-  // нему db-страница), daily_fish — ЕЖЕДНЕВНЫЙ (обнуляется в полночь по
-  // Киеву, см. performFishingDailyResetIfNeeded) — по нему "ТОП ЗА СЕГОДНЯ"
-  // прямо в игре.
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS fishing_catches (
-      username TEXT PRIMARY KEY,
-      total_fish BIGINT NOT NULL DEFAULT 0,
-      daily_fish INTEGER NOT NULL DEFAULT 0,
-      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
-    )
-  `);
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS fishing_daily_meta (
-      id INTEGER PRIMARY KEY DEFAULT 1,
-      last_reset_at TIMESTAMPTZ NOT NULL
-    )
-  `);
-  // yesterday_top — снапшот топа дня, снятый прямо перед обнулением daily_fish
-  // (см. performFishingDailyResetIfNeeded), чтобы "ТОП ЗА СЕГОДНЯ" не пропадал
-  // бесследно в полночь, а был виден весь следующий день как "ТОП ВЧЕРА"
-  await pool.query(`ALTER TABLE fishing_daily_meta ADD COLUMN IF NOT EXISTS yesterday_top JSONB NOT NULL DEFAULT '[]'`);
 
   // ── Снапшоты энергии/силы бойцов Street Fighter / Boxing Arena (2026-08-11) ──
   // Резервная копия в БД для восстановления после ПЕРЕЗАПУСКА СЕРВЕРА
   // (обычный ре-коннект/обновление страницы восстанавливается быстрее — из
   // памяти комнаты на сервере, см. Room._stateSnapshots в server.js). Пишется
   // редко (раз в минуту максимум на комнату+игру), payload маленький — не
-  // нагружает БД. game: 'streetfighter'|'boxing'|'boxing_en', room — ник стримера.
+  // нагружает БД. game: 'streetfighter'|'boxing'|'fantasyarena'|'streetwars', room — ник стримера.
   await pool.query(`
     CREATE TABLE IF NOT EXISTS game_state_snapshots (
       game TEXT NOT NULL,
@@ -245,7 +215,10 @@ async function init() {
     )
   `);
 
-  console.log('[DB] Таблицы kills, boss_damage, race_donations, boxing_stolen, boxing_stolen_en, streetfighter_stolen, fishing_catches и game_state_snapshots готовы');
+  // снапшоты бойцов убранных игр (см. DROP TABLE выше)
+  await pool.query(`DELETE FROM game_state_snapshots WHERE game IN ('boxing_en', 'fantasyarenatv')`);
+
+  console.log('[DB] Таблицы kills, boss_damage, race_donations, boxing_stolen, streetfighter_stolen, fantasyarena_stolen, streetwars_stolen и game_state_snapshots готовы');
 }
 
 // снапшот текущей энергии/силы реальных бойцов на ринге — бэкап на случай
@@ -354,9 +327,9 @@ async function getTopRaceDonations(limit = 10) {
   return res.rows;
 }
 
-// Фабрика boxing-функций, параметризованная именем таблицы — используется
-// и для RU-таблицы (boxing_stolen), и для EN-таблицы (boxing_stolen_en).
-// `table` всегда один из двух захардкоженных литералов ниже, не приходит
+// Фабрика boxing-функций, параметризованная именем таблицы — общая для всех
+// игр с рейтингом отнятой энергии (бокс, Street Fighter, Fantasy Arena, Street Wars).
+// `table` всегда захардкоженный литерал ниже, не приходит
 // от пользователя — подставлять в SQL напрямую безопасно.
 function makeBoxingApi(table) {
   return {
@@ -472,7 +445,6 @@ function makeBoxingApi(table) {
 }
 
 const boxingRu = makeBoxingApi('boxing_stolen');
-const boxingEn = makeBoxingApi('boxing_stolen_en');
 const streetFighter = makeBoxingApi('streetfighter_stolen');
 
 // addStolen/addBeltSeconds/getUserRank/getAll У boxing_stolen (RU) СВОИ
@@ -485,16 +457,6 @@ const resetBoxingRating = boxingRu.reset;
 const setBoxingStolen = boxingRu.setStolen;
 const deleteBoxingUser = boxingRu.deleteUser;
 const setBoxingWeeklyKingWins = boxingRu.setWeeklyKingWins;
-
-const addBoxingStolenEn = boxingEn.addStolen;
-const getTopBoxingStolenEn = boxingEn.getTop;
-const getAllBoxingStolenEn = boxingEn.getAll;
-const getUserBoxingRankEn = boxingEn.getUserRank;
-const addBoxingKOEn = boxingEn.addKO;
-const addBoxingBeltSecondsEn = boxingEn.addBeltSeconds;
-const resetBoxingRatingEn = boxingEn.reset;
-const setBoxingStolenEn = boxingEn.setStolen;
-const deleteBoxingUserEn = boxingEn.deleteUser;
 
 // addStolen/addBeltSeconds/getUserRank/getAll У Street Fighter СВОИ версии
 // (не из фабрики) — нужно писать сразу в 2 колонки (недельную +
@@ -859,45 +821,44 @@ async function getFantasyArenaWeeklyHistory() {
   }));
 }
 
-// ── Fantasy Arena TV: 1-в-1 логика Fantasy Arena выше (см. комментарии там),
-// своя таблица/архив/метка сброса — рейтинг ТВ-версии не смешивается с
-// портретной Fantasy Arena. ──
-const fantasyArenaTv = makeBoxingApi('fantasyarenatv_stolen');
-const getTopFantasyArenaTvStolen = fantasyArenaTv.getTop;
-const addFantasyArenaTvKO = fantasyArenaTv.addKO;
-const resetFantasyArenaTvRating = fantasyArenaTv.reset;
-const setFantasyArenaTvStolen = fantasyArenaTv.setStolen;
-const deleteFantasyArenaTvUser = fantasyArenaTv.deleteUser;
-const setFantasyArenaTvWeeklyKingWins = fantasyArenaTv.setWeeklyKingWins;
+// ── NEPLOXO STREET WARS: 1-в-1 логика Street Fighter выше (см. комментарии там),
+// своя таблица/архив/метка сброса. ──
+const streetWars = makeBoxingApi('streetwars_stolen');
+const getTopStreetWarsStolen = streetWars.getTop;
+const addStreetWarsKO = streetWars.addKO;
+const resetStreetWarsRating = streetWars.reset;
+const setStreetWarsStolen = streetWars.setStolen;
+const deleteStreetWarsUser = streetWars.deleteUser;
+const setStreetWarsWeeklyKingWins = streetWars.setWeeklyKingWins;
 
-async function addFantasyArenaTvStolen(username, amount) {
+async function addStreetWarsStolen(username, amount) {
   if (!pool || !username || !amount) return;
   await pool.query(`
-    INSERT INTO fantasyarenatv_stolen (username, total_stolen, lifetime_stolen)
+    INSERT INTO streetwars_stolen (username, total_stolen, lifetime_stolen)
     VALUES ($1, $2, $2)
     ON CONFLICT (username)
-    DO UPDATE SET total_stolen = fantasyarenatv_stolen.total_stolen + $2,
-                  lifetime_stolen = fantasyarenatv_stolen.lifetime_stolen + $2
+    DO UPDATE SET total_stolen = streetwars_stolen.total_stolen + $2,
+                  lifetime_stolen = streetwars_stolen.lifetime_stolen + $2
   `, [username, Math.floor(amount)]);
 }
 
-async function addFantasyArenaTvBeltSeconds(username, seconds) {
+async function addStreetWarsBeltSeconds(username, seconds) {
   if (!pool || !username || !seconds) return;
   await pool.query(`
-    INSERT INTO fantasyarenatv_stolen (username, belt_seconds, weekly_belt_seconds)
+    INSERT INTO streetwars_stolen (username, belt_seconds, weekly_belt_seconds)
     VALUES ($1, $2, $2)
     ON CONFLICT (username)
-    DO UPDATE SET belt_seconds = fantasyarenatv_stolen.belt_seconds + $2,
-                  weekly_belt_seconds = fantasyarenatv_stolen.weekly_belt_seconds + $2
+    DO UPDATE SET belt_seconds = streetwars_stolen.belt_seconds + $2,
+                  weekly_belt_seconds = streetwars_stolen.weekly_belt_seconds + $2
   `, [username, Math.floor(seconds)]);
 }
 
-async function getUserFantasyArenaTvRank(username) {
+async function getUserStreetWarsRank(username) {
   if (!pool || !username) return null;
   const res = await pool.query(`
     SELECT username, total_stolen, total_kos, belt_seconds, lifetime_stolen, weekly_king_wins, weekly_belt_seconds,
            RANK() OVER (ORDER BY total_stolen DESC) AS rank
-    FROM fantasyarenatv_stolen
+    FROM streetwars_stolen
   `);
   const row = res.rows.find(r => r.username.toLowerCase() === username.toLowerCase());
   return row ? {
@@ -911,12 +872,12 @@ async function getUserFantasyArenaTvRank(username) {
   } : null;
 }
 
-async function getAllFantasyArenaTvStolen() {
+async function getAllStreetWarsStolen() {
   if (!pool) return [];
   const res = await pool.query(`
     SELECT username, total_stolen, total_kos, belt_seconds, lifetime_stolen, weekly_king_wins, weekly_belt_seconds,
            ROW_NUMBER() OVER (ORDER BY total_stolen DESC, username ASC) AS rank
-    FROM fantasyarenatv_stolen
+    FROM streetwars_stolen
     ORDER BY total_stolen DESC, username ASC
   `);
   return res.rows.map(r => ({
@@ -931,14 +892,14 @@ async function getAllFantasyArenaTvStolen() {
   }));
 }
 
-async function performFantasyArenaTvWeeklyResetIfNeeded() {
+async function performStreetWarsWeeklyResetIfNeeded() {
   if (!pool) return null;
   const boundaryMs = mostRecentMidnightKyivMs(Date.now());
   const boundary = new Date(boundaryMs);
 
-  const metaRes = await pool.query(`SELECT last_reset_at FROM fantasyarenatv_weekly_meta WHERE id=1`);
+  const metaRes = await pool.query(`SELECT last_reset_at FROM streetwars_weekly_meta WHERE id=1`);
   if (metaRes.rows.length === 0) {
-    await pool.query(`INSERT INTO fantasyarenatv_weekly_meta (id, last_reset_at) VALUES (1, $1)`, [boundary]);
+    await pool.query(`INSERT INTO streetwars_weekly_meta (id, last_reset_at) VALUES (1, $1)`, [boundary]);
     return null;
   }
 
@@ -946,7 +907,7 @@ async function performFantasyArenaTvWeeklyResetIfNeeded() {
   if (boundary <= lastReset) return null;
 
   const winnerRes = await pool.query(`
-    SELECT username, total_stolen, weekly_belt_seconds FROM fantasyarenatv_stolen
+    SELECT username, total_stolen, weekly_belt_seconds FROM streetwars_stolen
     WHERE total_stolen > 0
     ORDER BY total_stolen DESC LIMIT 1
   `);
@@ -954,46 +915,27 @@ async function performFantasyArenaTvWeeklyResetIfNeeded() {
   if (winnerRes.rows.length) {
     winner = winnerRes.rows[0];
     await pool.query(`
-      INSERT INTO fantasyarenatv_weekly_kings (week_start, username, weekly_belt_seconds, weekly_points)
+      INSERT INTO streetwars_weekly_kings (week_start, username, weekly_belt_seconds, weekly_points)
       VALUES ($1, $2, $3, $4)
     `, [lastReset, winner.username, winner.weekly_belt_seconds, winner.total_stolen]);
     await pool.query(`
-      UPDATE fantasyarenatv_stolen SET weekly_king_wins = weekly_king_wins + 1
+      UPDATE streetwars_stolen SET weekly_king_wins = weekly_king_wins + 1
       WHERE LOWER(username) = LOWER($1)
     `, [winner.username]);
   }
 
-  await pool.query(`UPDATE fantasyarenatv_stolen SET total_stolen = 0, weekly_belt_seconds = 0`);
-  await pool.query(`UPDATE fantasyarenatv_weekly_meta SET last_reset_at = $1 WHERE id=1`, [boundary]);
+  await pool.query(`UPDATE streetwars_stolen SET total_stolen = 0, weekly_belt_seconds = 0`);
+  await pool.query(`UPDATE streetwars_weekly_meta SET last_reset_at = $1 WHERE id=1`, [boundary]);
 
-  console.log(`[FANTASYARENATV] Дневной сброс выполнен, граница=${boundary.toISOString()}, король дня: ${winner ? winner.username + ' (' + winner.total_stolen + ' очков)' : 'нет (очков никто не набрал)'}`);
+  console.log(`[STREETWARS] Дневной сброс выполнен, граница=${boundary.toISOString()}, король дня: ${winner ? winner.username + ' (' + winner.total_stolen + ' очков)' : 'нет (очков никто не набрал)'}`);
 
   return { winner: winner ? winner.username : null, weekStart: lastReset.toISOString() };
 }
 
-// выбор героя (hero1..hero4) — как в портретной Fantasy Arena, но в своей таблице
-async function setFantasyArenaTvSkin(username, skinIndex) {
-  if (!pool || !username) return;
-  await pool.query(`
-    INSERT INTO fantasyarenatv_stolen (username, chosen_skin)
-    VALUES ($1, $2)
-    ON CONFLICT (username)
-    DO UPDATE SET chosen_skin = $2
-  `, [username, skinIndex]);
-}
-async function getFantasyArenaTvSkin(username) {
-  if (!pool || !username) return null;
-  const res = await pool.query(
-    `SELECT chosen_skin FROM fantasyarenatv_stolen WHERE LOWER(username) = LOWER($1)`,
-    [username]
-  );
-  return res.rows.length ? res.rows[0].chosen_skin : null;
-}
-
-async function getLastFantasyArenaTvWeeklyChampion() {
+async function getLastStreetWarsWeeklyChampion() {
   if (!pool) return null;
   const res = await pool.query(`
-    SELECT username, weekly_points, week_start FROM fantasyarenatv_weekly_kings
+    SELECT username, weekly_points, week_start FROM streetwars_weekly_kings
     ORDER BY week_start DESC LIMIT 1
   `);
   return res.rows.length ? {
@@ -1003,11 +945,11 @@ async function getLastFantasyArenaTvWeeklyChampion() {
   } : null;
 }
 
-async function getFantasyArenaTvWeeklyHistory() {
+async function getStreetWarsWeeklyHistory() {
   if (!pool) return [];
   const res = await pool.query(`
     SELECT username, weekly_points, weekly_belt_seconds, week_start, created_at
-    FROM fantasyarenatv_weekly_kings ORDER BY week_start ASC
+    FROM streetwars_weekly_kings ORDER BY week_start ASC
   `);
   return res.rows.map(r => ({
     username: r.username,
@@ -1019,8 +961,6 @@ async function getFantasyArenaTvWeeklyHistory() {
 
 // ── Boxing Arena RU: тот же еженедельный "Пояс чемпиона" (2026-08-08) ──
 // 1-в-1 логика Street Fighter выше, только своя таблица/архив/метка сброса.
-// EN-версия бокса НЕ трогается — остаётся на старой all-time схеме (фабрика
-// makeBoxingApi, boxingEn.* выше).
 
 async function addBoxingStolen(username, amount) {
   if (!pool || !username || !amount) return;
@@ -1153,90 +1093,8 @@ async function getBoxingWeeklyHistory() {
   }));
 }
 
-// ── Рыбалка ── 1 монета/лайк-порог = 1 рыбка, пишем сразу в оба счётчика:
-// total_fish (вечный, для db-страницы) и daily_fish (для "ТОП ЗА СЕГОДНЯ")
-async function addFishingCatch(username, fish) {
-  if (!pool || !username || !fish) return;
-  // total_fish (BIGINT) и daily_fish (INTEGER) — разные типы колонок, поэтому
-  // $2 без явного каста в обоих местах ловит ошибку Postgres "inconsistent
-  // types deduced for parameter $2" (обнаружено 2026-08-11: ни одна рыбка ни
-  // разу не записалась в БД с момента запуска игры). Явные касты убирают
-  // неоднозначность для каждого использования параметра по отдельности.
-  await pool.query(`
-    INSERT INTO fishing_catches (username, total_fish, daily_fish, updated_at)
-    VALUES ($1, $2::bigint, $2::integer, now())
-    ON CONFLICT (username)
-    DO UPDATE SET total_fish = fishing_catches.total_fish + $2::bigint,
-                  daily_fish = fishing_catches.daily_fish + $2::integer,
-                  updated_at = now()
-  `, [username, Math.floor(fish)]);
-}
-
-async function getTopFishingDaily(limit = 10) {
-  if (!pool) return [];
-  const res = await pool.query(
-    `SELECT username, daily_fish FROM fishing_catches WHERE daily_fish > 0 ORDER BY daily_fish DESC LIMIT $1`,
-    [limit]
-  );
-  return res.rows.map(r => ({ username: r.username, daily_fish: Number(r.daily_fish) }));
-}
-
-async function getAllFishing() {
-  if (!pool) return [];
-  const res = await pool.query(`
-    SELECT username, total_fish, daily_fish,
-           ROW_NUMBER() OVER (ORDER BY total_fish DESC, username ASC) AS rank
-    FROM fishing_catches
-    ORDER BY total_fish DESC, username ASC
-  `);
-  return res.rows.map(r => ({
-    rank: Number(r.rank),
-    username: r.username,
-    total_fish: Number(r.total_fish),
-    daily_fish: Number(r.daily_fish),
-  }));
-}
-
-async function getUserFishingRank(username) {
-  if (!pool || !username) return null;
-  const res = await pool.query(`
-    SELECT username, total_fish, daily_fish,
-           RANK() OVER (ORDER BY total_fish DESC) AS rank
-    FROM fishing_catches
-  `);
-  const row = res.rows.find(r => r.username.toLowerCase() === username.toLowerCase());
-  return row ? {
-    rank: Number(row.rank),
-    total_fish: Number(row.total_fish),
-    daily_fish: Number(row.daily_fish),
-  } : null;
-}
-
-async function resetFishingRating() {
-  if (!pool) return;
-  await pool.query('DELETE FROM fishing_catches');
-}
-
-async function setFishingTotal(username, value) {
-  if (!pool || !username) return;
-  // тот же каст, что и в addFishingCatch выше — total_fish/daily_fish разных
-  // типов, $2 без явного каста в обоих местах ловит ошибку Postgres
-  await pool.query(`
-    INSERT INTO fishing_catches (username, total_fish, daily_fish, updated_at)
-    VALUES ($1, $2::bigint, $2::integer, now())
-    ON CONFLICT (username)
-    DO UPDATE SET total_fish = $2::bigint, updated_at = now()
-  `, [username, Math.floor(value)]);
-}
-
-async function deleteFishingUser(username) {
-  if (!pool || !username) return;
-  await pool.query(`DELETE FROM fishing_catches WHERE username = $1`, [username]);
-}
-
 // ближайшая (текущая или прошлая) полночь по киевскому времени — общая для
-// Fishing, а с 2026-08-13 и для Street Fighter/Boxing (все три сброса теперь
-// ежедневные)
+// ежедневных сбросов всех игр
 function mostRecentMidnightKyivMs(nowMs) {
   const offsetMin = tzOffsetMinutes(nowMs, 'Europe/Kyiv');
   const kyivNow = new Date(nowMs + offsetMin*60000);
@@ -1244,48 +1102,6 @@ function mostRecentMidnightKyivMs(nowMs) {
     kyivNow.getUTCFullYear(), kyivNow.getUTCMonth(), kyivNow.getUTCDate(), 0, 0, 0, 0
   );
   return kyivMidnightAsUtcFields - offsetMin*60000;
-}
-
-// вызывается периодически (и раз при старте) — если с прошлого сброса
-// прошла полночь по Киеву, обнуляет daily_fish у всех. total_fish (вечный)
-// не трогается. Тот же безопасный при простое сервера паттерн, что и у
-// еженедельных сбросов выше (досчитывает пропущенный сброс при рестарте).
-async function performFishingDailyResetIfNeeded() {
-  if (!pool) return null;
-  const boundaryMs = mostRecentMidnightKyivMs(Date.now());
-  const boundary = new Date(boundaryMs);
-
-  const metaRes = await pool.query(`SELECT last_reset_at FROM fishing_daily_meta WHERE id=1`);
-  if (metaRes.rows.length === 0) {
-    await pool.query(`INSERT INTO fishing_daily_meta (id, last_reset_at) VALUES (1, $1)`, [boundary]);
-    return null;
-  }
-
-  const lastReset = metaRes.rows[0].last_reset_at;
-  if (boundary <= lastReset) return null;
-
-  // снимаем топ дня ДО обнуления — он и станет "ТОП ВЧЕРА" на весь следующий день
-  const topRes = await pool.query(
-    `SELECT username, daily_fish FROM fishing_catches WHERE daily_fish > 0 ORDER BY daily_fish DESC LIMIT 10`
-  );
-  const yesterdayTop = topRes.rows.map(r => ({ username: r.username, daily_fish: Number(r.daily_fish) }));
-
-  await pool.query(`UPDATE fishing_catches SET daily_fish = 0`);
-  await pool.query(
-    `UPDATE fishing_daily_meta SET last_reset_at = $1, yesterday_top = $2::jsonb WHERE id=1`,
-    [boundary, JSON.stringify(yesterdayTop)]
-  );
-
-  console.log(`[FISHING] Дневной сброс выполнен, граница=${boundary.toISOString()}, топ вчера сохранён (${yesterdayTop.length} строк)`);
-
-  return { reset: true, day: boundary.toISOString() };
-}
-
-async function getYesterdayTopFishing() {
-  if (!pool) return [];
-  const res = await pool.query(`SELECT yesterday_top FROM fishing_daily_meta WHERE id=1`);
-  if (!res.rows.length) return [];
-  return res.rows[0].yesterday_top || [];
 }
 
 function isConnected() { return pool !== null; }
@@ -1297,9 +1113,6 @@ module.exports = {
   addBoxingBeltSeconds, resetBoxingRating, setBoxingStolen, deleteBoxingUser,
   getAllBoxingStolen, performBoxingWeeklyResetIfNeeded, getLastBoxingWeeklyChampion,
   setBoxingWeeklyKingWins, getBoxingWeeklyHistory,
-  addBoxingStolenEn, getTopBoxingStolenEn, getUserBoxingRankEn, addBoxingKOEn,
-  addBoxingBeltSecondsEn, resetBoxingRatingEn, setBoxingStolenEn, deleteBoxingUserEn,
-  getAllBoxingStolenEn,
   addStreetFighterStolen, getTopStreetFighterStolen, getUserStreetFighterRank,
   addStreetFighterKO, addStreetFighterBeltSeconds, resetStreetFighterRating,
   setStreetFighterStolen, deleteStreetFighterUser, getAllStreetFighterStolen,
@@ -1312,15 +1125,11 @@ module.exports = {
   setFantasyArenaSkin, getFantasyArenaSkin,
   performFantasyArenaWeeklyResetIfNeeded, getLastFantasyArenaWeeklyChampion,
   setFantasyArenaWeeklyKingWins, getFantasyArenaWeeklyHistory,
-  addFantasyArenaTvStolen, getTopFantasyArenaTvStolen, getUserFantasyArenaTvRank,
-  addFantasyArenaTvKO, addFantasyArenaTvBeltSeconds, resetFantasyArenaTvRating,
-  setFantasyArenaTvStolen, deleteFantasyArenaTvUser, getAllFantasyArenaTvStolen,
-  setFantasyArenaTvSkin, getFantasyArenaTvSkin,
-  performFantasyArenaTvWeeklyResetIfNeeded, getLastFantasyArenaTvWeeklyChampion,
-  setFantasyArenaTvWeeklyKingWins, getFantasyArenaTvWeeklyHistory,
-  addFishingCatch, getTopFishingDaily, getAllFishing, getUserFishingRank,
-  resetFishingRating, setFishingTotal, deleteFishingUser,
-  performFishingDailyResetIfNeeded, getYesterdayTopFishing,
+  addStreetWarsStolen, getTopStreetWarsStolen, getUserStreetWarsRank,
+  addStreetWarsKO, addStreetWarsBeltSeconds, resetStreetWarsRating,
+  setStreetWarsStolen, deleteStreetWarsUser, getAllStreetWarsStolen,
+  performStreetWarsWeeklyResetIfNeeded, getLastStreetWarsWeeklyChampion,
+  setStreetWarsWeeklyKingWins, getStreetWarsWeeklyHistory,
   saveGameStateSnapshot, getGameStateSnapshot,
   isConnected,
 };
