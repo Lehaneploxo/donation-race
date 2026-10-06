@@ -809,7 +809,8 @@ class Room {
         }
 
         // Arena: rating command — show player's kill rank
-        if (msgLower === 'rating') {
+        // (06.10.2026: слово «рейтинг» на любом языке и в любом регистре, см. isRatingCommand)
+        if (isRatingCommand(msg)) {
           db.getUserRank(data.username)
             .then(rank => {
               this.broadcast({ type: 'arena_rating', username: data.username, rank: rank ? rank.rank : null, kills: rank ? rank.total_kills : 0 });
@@ -1016,6 +1017,13 @@ class Room {
       if (ws.readyState === WebSocket.OPEN) ws.send(msg);
     });
   }
+}
+
+// команда рейтинга в чате: «rating», «рейтинг» (рус/укр), «рейтінг», латиницей «reiting»/«reyting»/«rejting»,
+// «ranking» — в любом регистре, со знаками препинания и в составе фразы («мой рейтинг?»)
+const RATING_WORDS = new Set(['rating', 'рейтинг', 'рейтінг', 'reiting', 'reyting', 'rejting', 'ranking', 'рэйтинг']);
+function isRatingCommand(msg) {
+  return String(msg || '').toLowerCase().split(/[^\p{L}]+/u).some(w => RATING_WORDS.has(w));
 }
 
 const ALLOWED_STREAMERS = new Set(['lehaneploxo', 'utilizator11123', 'tiktokgame8805', 'tiktok.game261', 'demo']);

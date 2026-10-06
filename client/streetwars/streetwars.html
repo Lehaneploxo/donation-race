@@ -29,7 +29,7 @@
 <button id="fsBtn"    class="ui-btn" title="На весь экран">⛶</button>
 <div id="statusBadge"></div>
 <div id="ratingOverlay" style="position:fixed;top:27%;left:50%;transform:translateX(-50%);z-index:200;pointer-events:none;display:none;background:rgba(0,0,0,0.88);border:1.5px solid rgba(255,80,80,0.5);border-radius:8px;padding:6px 12px 7px;font-family:Arial,sans-serif;min-width:150px;text-align:center;line-height:1.25;white-space:nowrap;"></div>
-<audio id="bgMusic" src="../audio/streetfighter_theme.mp3" loop preload="auto"></audio>
+
 <div id="wrap">
   <canvas id="gl" width="600" height="1000"></canvas>
   <canvas id="c" width="600" height="1000"></canvas>
@@ -57,6 +57,8 @@
 <script src="nb/js/player.js"></script>
 <script src="nb/js/wardrobe.js"></script>
 <script src="nb/js/daynight.js"></script>
+<script src="nb/js/audio.js"></script>
+<script src="nb/js/radio.js"></script>
 <script>
 // ════════════════════════════════════════════════════════════════════════
 // NEPLOXO STREET WARS — Street Fighters 1 (streetfighter_arena.html), та же
@@ -93,8 +95,10 @@ const WEAPONS = [
   { id:'fists',   at:0,    icon:'👊', name:'кулаки' },
   { id:'bat',     at:50,   icon:'🏏', name:'биту' },
   { id:'knife',   at:150,  icon:'🔪', name:'нож' },
-  { id:'pistol',  at:400,  icon:'🔫', name:'пистолет', gun:true },
+  { id:'pistol',  at:300,  icon:'🔫', name:'пистолет', gun:true },
+  { id:'smg',     at:600,  icon:'🔫🔫', name:'УЗИ', gun:true },
   { id:'shotgun', at:1000, icon:'💥', name:'дробовик', gun:true },
+  { id:'rifle',   at:2000, icon:'🎯', name:'автомат', gun:true },
 ];
 function weaponOf(power){ let w = WEAPONS[0]; for (const x of WEAPONS) if (power >= x.at) w = x; return w; }
 
@@ -187,10 +191,11 @@ const VARIANTS = [];
 const _fighterCache = new Map();
 
 // ── Геометрия экрана: плашка сверху, ринг ниже (координаты SF1, пиксели 600×1000) ──
-const PANEL_TOP = 14, PANEL_H = 250;
+const PANEL_TOP = 10, PANEL_H = 148;   // компактная плашка (06.10.2026), было 250
 const WALL_TOP = PANEL_TOP + PANEL_H + 10;
-const FLOOR_TOP = 480, FLOOR_BOT = 1000;
-const RING = { xMin:75, xMax:525, yMin:FLOOR_TOP+45, yMax:FLOOR_BOT-35 };
+const FLOOR_TOP = 360, FLOOR_BOT = 1000;   // ринг уходит глубже в улицу (было 480 под высокую плашку SF1)
+// ринг в «пикселях SF1» (1 px ≈ 1.47 см): ≈26 м поперёк и ≈25 м в глубину — реально ходят по видимой земле (см. blockedAt)
+const RING = { xMin:0, xMax:1800, yMin:0, yMax:1700 };
 const KO_FALL_MS = 1600;
 const FIGHT_DIST = 68;
 const FIGHT_Y_GAP = 30;
@@ -213,36 +218,105 @@ Object.assign(sun.shadow.camera, { left:-22, right:22, top:22, bottom:-22, near:
 sun.shadow.camera.updateProjectionMatrix(); sun.shadow.bias = -.0008; sun.shadow.normalBias = .04;
 scene.add(sun, sun.target);
 const dn = NB.createDayNight(scene, hemi, sun), sky = dn.sky;
+sky.scale.setScalar(camera.far * .9 / 480);   // купол неба внутри дальней плоскости камеры (как в main.js игры)
 const world = NB.buildWorld(scene, renderer);
 world.setFog(70, 250);
 
 // ── Места (вместо комнат SF1): каждые 5 минут бой переезжает, бойцы те же ──
 const atDoor = (name, x, z, nx, nz, off = 7) => ({ name, cx: x + nx*off, cz: z + nz*off, dir: Math.atan2(-nx, -nz) });
+// hour — своё время суток у каждого места (закат, сумерки с неоном, ночь, день); dist/h/ly/ahead — своя камера
 const ROOMS = [
-  { name:'Клуб NEPLOXO 21', cx:103, cz:24, dir:-Math.PI/2 },
-  atDoor('Отель на Оушен-драйв', 92, -31, 1, 0),
-  atDoor('Полицейский участок', -65.8, -30.5, 1, 0),
-  atDoor('Пожарная часть', 26, -58, 0, 1),
+  { name:'пляж на закате', cx:124, cz:52, dir:Math.PI/2, hour:19.45, dist:11, h:4.2, ly:2.2, ahead:14 },
+  { name:'клуб NEPLOXO 21', cx:103, cz:24, dir:-Math.PI/2, hour:19.9 },
+  { name:'танцпол клуба NEPLOXO 21', cx:76, cz:25, dir:-Math.PI/2, hour:22.5, dist:12.5, h:5.2, ly:1.0, ahead:3 },
+  Object.assign(atDoor('Оушен-драйв', 92, -31, 1, 0), { hour:18.6 }),
+  { name:'казино', cx:1, cz:-25, dir:Math.PI/2, hour:20.8, dist:12, h:6.5, ly:1.2, ahead:8 },
+  Object.assign(atDoor('полицейский участок', -65.8, -30.5, 1, 0), { hour:13 }),
+  Object.assign(atDoor('пожарная часть и NEON SPRAY', 26, -58, 0, 1), { hour:21.6 }),
 ];
 const ROOM_SWITCH_MS = (+(Q.get('roomSec')||0) || 5*60) * 1000;
 let roomIdx = (+(Q.get('room')||0)) % ROOMS.length;
 let roomSwitchTimer = ROOM_SWITCH_MS;
 const CAM = { dist:12, h:7, ly:0.5, ahead:6 };
 const camFwd = new THREE.Vector3(), camRight = new THREE.Vector3();
+// у места могут быть свои dist/h/ly/ahead (камера) и hour (время суток: закат, ночь с неоном…)
 function placeCamera(){
   const P = ROOMS[roomIdx], fx = Math.sin(P.dir), fz = Math.cos(P.dir);
+  const dist = P.dist ?? CAM.dist, h = P.h ?? CAM.h, ly = P.ly ?? CAM.ly, ahead = P.ahead ?? CAM.ahead;
   camFwd.set(fx, 0, fz); camRight.set(-fz, 0, fx);
-  camera.position.set(P.cx - fx*CAM.dist, CAM.h, P.cz - fz*CAM.dist);
-  camera.lookAt(P.cx + fx*CAM.ahead, CAM.ly, P.cz + fz*CAM.ahead);
+  camera.position.set(P.cx - fx*dist, h, P.cz - fz*dist);
+  camera.lookAt(P.cx + fx*ahead, ly, P.cz + fz*ahead);
+  camera.updateMatrixWorld();
+  if (typeof drawBounds === 'function') drawBounds();
 }
-placeCamera();
-// пиксели ринга SF1 (x поперёк экрана, y в глубину) → метры на улице:
-// 450 px ринга ≈ 6.6 м, нижний край ринга ближе к камере
+// пиксели ринга SF1 (x поперёк экрана, y в глубину) → метры на улице, масштаб как в SF1:
+// 1 px ≈ 1.47 см, так что дистанция удара, шаг и расталкивание те же, что в Street Fighters.
+// Сам ринг большой (≈26 × 25 м); реально ходят там, где земля видна на экране под плашкой
+// (не дальше MAX_DEPTH от камеры), и не заходят в стены, столбы, машины и воду.
 const M_PER_PX = 6.6/450;
+const RING_CX = (RING.xMin + RING.xMax)/2, RING_CY = RING.yMax - 5/M_PER_PX;   // ближний край — 5 м перед центром места
 function ringToWorld(x, y){
-  const P = ROOMS[roomIdx], u = (x - 300)*M_PER_PX, v = (745 - y)*M_PER_PX;
+  const P = ROOMS[roomIdx], u = (x - RING_CX)*M_PER_PX, v = (RING_CY - y)*M_PER_PX;
   return { x: P.cx + camRight.x*u + camFwd.x*v, z: P.cz + camRight.z*u + camFwd.z*v };
 }
+const _cq = [], _vp = new THREE.Vector3();
+const VIEW = { left: 22, right: CW - 22, top: PANEL_TOP + PANEL_H + 70, bottom: 992 };   // макушка с ником не уходит под плашку
+function onScreen(wx, gy, wz){
+  _vp.set(wx, gy, wz).project(camera);
+  if (_vp.z > 1) return false;
+  const fx = (_vp.x + 1)/2*CW, fy = (1 - _vp.y)/2*1000;
+  if (fx < VIEW.left || fx > VIEW.right || fy > VIEW.bottom) return false;
+  _vp.set(wx, gy + 2.4, wz).project(camera);
+  return (1 - _vp.y)/2*1000 > VIEW.top;
+}
+// стены, столбы, скамейки, машины, вода, край экрана — туда бойцы не заходят, упираются, как в игре.
+// Бордюры и ступеньки (ниже 0.45 м) и то, что над головой (вывески, козырьки), не мешают.
+function blockedAt(x, y){
+  if (x < RING.xMin || x > RING.xMax || y < RING.yMin || y > RING.yMax) return true;
+  const p = ringToWorld(x, y), r = .3;
+  if (NB.water && NB.water.at(p.x, p.z)) return true;
+  for (const b of world.col.query(p.x - r, p.z - r, p.x + r, p.z + r, _cq)){
+    if (b.npcOnly || b.maxY < .45 || b.minY > 1.4) continue;
+    if (p.x + r > b.minX && p.x - r < b.maxX && p.z + r > b.minZ && p.z - r < b.maxZ) return true;
+  }
+  return !onScreen(p.x, groundAt(p.x, p.z), p.z);
+}
+// высота земли под бойцом (тротуар, ступени, сцена в клубе)
+function groundAt(wx, wz){
+  const t = world.col.raycast(wx, 2, wz, 0, -1, 0, 2.2);
+  return t < 2.2 ? Math.max(0, Math.min(.6, 2 - t)) : 0;
+}
+// свободная точка ринга (для появления бойцов, новых целей и после переезда)
+function freeRingPos(){
+  for (let k = 0; k < 120; k++){
+    const p = { x: RING.xMin + Math.random()*(RING.xMax-RING.xMin), y: RING.yMin + Math.random()*(RING.yMax-RING.yMin) };
+    if (!blockedAt(p.x, p.y)) return p;
+  }
+  return { x: RING_CX, y: RING_CY };
+}
+// ?bounds=1 — показать, докуда ходят бойцы: голубые точки — проходимая земля, красные — стены/вода
+let boundsObj = null;
+function drawBounds(){
+  if (!Q.get('bounds')) return;
+  camera.updateMatrixWorld();
+  if (boundsObj) scene.remove(boundsObj);
+  boundsObj = new THREE.Group();
+  const dot = new THREE.BoxGeometry(.16, .05, .16);
+  const cyan = new THREE.MeshBasicMaterial({ color: 0x3fe6e0 }), red = new THREE.MeshBasicMaterial({ color: 0xff3355 });
+  const S = 34;   // шаг сетки ≈ 0.5 м
+  const ok = (x, y) => !blockedAt(x, y);
+  for (let x = RING.xMin; x <= RING.xMax; x += S) for (let y = RING.yMin; y <= RING.yMax; y += S){
+    const p = ringToWorld(x, y), gy = groundAt(p.x, p.z);
+    if (!onScreen(p.x, gy, p.z)) continue;
+    const free = ok(x, y);
+    // голубым — край проходимой зоны, красным — препятствия внутри кадра
+    const edge = free && (!ok(x+S, y) || !ok(x-S, y) || !ok(x, y+S) || !ok(x, y-S));
+    if (!edge && free) continue;
+    const m = new THREE.Mesh(dot, free ? cyan : red); m.position.set(p.x, gy + .07, p.z); boundsObj.add(m);
+  }
+  scene.add(boundsObj);
+}
+placeCamera();
 
 /* ---------- люди: модель как у героя GTA, лица из атласа игры, одежда из бутика ---------- */
 const SKIN = ['#f3cfb0', '#e8b890', '#d49a6e', '#b97a50', '#8d5a36', '#633b22'];
@@ -345,6 +419,9 @@ function makePerson(female){
   wpn('knife', [[.035, .1, .04, metal, 0, -.02, 0], [.02, .22, .05, steel, 0, -.17, .005]]);
   wpn('pistol', [[.05, .22, .07, metal, 0, -.1, .02], [.045, .05, .11, metal, 0, .0, -.04]]);
   wpn('shotgun', [[.05, .7, .06, metal, 0, -.3, .02], [.06, .26, .08, wood, 0, .14, -.02], [.06, .22, .05, wood, 0, -.3, -.04]]);
+  // УЗИ и автомат — те же формы, что у героя GTA (player.js), повёрнутые вдоль руки
+  wpn('smg', [[.06, .3, .08, metal, 0, -.12, .02], [.05, .05, .16, metal, 0, -.02, -.08], [.05, .05, .08, metal, 0, .06, -.02]]);
+  wpn('rifle', [[.05, .62, .07, metal, 0, -.26, .02], [.045, .05, .14, metal, 0, -.16, -.08], [.05, .26, .09, metal, 0, .14, -.01], [.035, .16, .05, metal, 0, -.12, .07]]);
   m.W = W;
   m.setWeapon = id => { for (const k in W) W[k].visible = k === id; };
   return m;
@@ -389,9 +466,7 @@ function initFighterRuntime(v, x, y){
   dressFighter(v);
 }
 
-function spawnRingPos(){
-  return { x: RING.xMin + Math.random()*(RING.xMax-RING.xMin), y: RING.yMin + Math.random()*(RING.yMax-RING.yMin) };
-}
+function spawnRingPos(){ return freeRingPos(); }
 function findRealFighter(username){ return VARIANTS.find(v=>!v.isBot && v.name===username); }
 
 // gain: { likeEnergy?, likePower?, giftEnergy?, giftPower? } — как в SF1
@@ -587,7 +662,7 @@ const RULES_OTHER = [
   'Напиши в чате слово рейтинг — узнаешь своё место в топе!',
   'Нокаутированный боец вернётся в бой, если его снова лайкнуть или задонатить!',
   'Забыл про бойца на 5 минут? Его Сила начнёт слабеть — лайкни, чтобы не терять форму!',
-  'Чем больше силы — тем круче оружие! Бита, нож, пистолет и дробовик!',
+  'Чем больше силы — тем круче оружие! Бита, нож, пистолет, УЗИ, дробовик и автомат!',
   'Заходи в Neploxo City — gameleha точка xyz! Играй прямо в браузере, с телефона или компьютера!',
 ];
 let _ruleOtherIdx = 0;
@@ -794,18 +869,35 @@ document.addEventListener('pointerdown', function unlockAudioOnce(){
   document.removeEventListener('pointerdown', unlockAudioOnce);
 }, { once: true });
 
-const BG_MUSIC_VOLUME = 0.14, BG_MUSIC_DUCK_VOLUME = 0.035;
-const bgMusic = document.getElementById('bgMusic');
-bgMusic.volume = BG_MUSIC_VOLUME;
-function tryUnlockMusic(){ bgMusic.play().then(()=>{ document.removeEventListener('pointerdown', tryUnlockMusic); }).catch(()=>{}); }
-document.addEventListener('pointerdown', tryUnlockMusic);
+// ── Музыка: радио из GTA-шки (nb/js/radio.js) — 5 станций 80-х, песни синтезируются и
+// сменяются сами; на каждой смене места включается следующая станция. Английского ди-джея нет
+// (NB.radioNoDJ), говорит только наш диктор; на время его фразы радио приглушается.
+NB.noSfx = true; NB.radioNoDJ = true;
+const BG_MUSIC_VOLUME = 0.45, BG_MUSIC_DUCK_VOLUME = 0.12;
+const radioAudio = NB.createAudio();
+const radio = NB.createRadio(radioAudio);
+radioAudio.setVolume(BG_MUSIC_VOLUME);
+let musicOn = true;
+function radioNextStation(){ radio.next(); if (radio.label() === 'РАДИО ВЫКЛ') radio.next(); }
+// AudioContext браузер разрешает только после жеста; OBS обычно пускает сразу
+function tryStartRadio(){
+  radioAudio.init();
+  const ac = radioAudio.ctx();
+  if (!ac || ac.state !== 'running' || !musicOn) return;
+  radio.update(true);
+  if (radio.label() === 'РАДИО ВЫКЛ') radioNextStation();
+}
+tryStartRadio();
+setInterval(tryStartRadio, 2000);
+document.addEventListener('pointerdown', tryStartRadio);
 document.getElementById('musicBtn').addEventListener('click', ()=>{
-  bgMusic.muted = !bgMusic.muted;
-  document.getElementById('musicBtn').textContent = bgMusic.muted ? '🔇' : '🎵';
+  musicOn = !musicOn;
+  radio.update(musicOn);
+  document.getElementById('musicBtn').textContent = musicOn ? '🎵' : '🔇';
 });
 let _duckTimer = null;
-function duckBgMusic(){ if (_duckTimer) clearTimeout(_duckTimer); bgMusic.volume = BG_MUSIC_DUCK_VOLUME; }
-function unduckBgMusic(){ if (_duckTimer) clearTimeout(_duckTimer); _duckTimer = setTimeout(()=>{ bgMusic.volume = BG_MUSIC_VOLUME; }, 250); }
+function duckBgMusic(){ if (_duckTimer) clearTimeout(_duckTimer); radioAudio.setVolume(BG_MUSIC_DUCK_VOLUME); }
+function unduckBgMusic(){ if (_duckTimer) clearTimeout(_duckTimer); _duckTimer = setTimeout(()=>{ radioAudio.setVolume(BG_MUSIC_VOLUME); }, 250); }
 
 // ── Живое подключение к TikTok-чату (как в SF1; события streetwars_* добавим на сервер) ──
 let _ws = null, _wsUser = '', _gameMode = 'connecting';
@@ -939,106 +1031,58 @@ if (!DEMO){
   setInterval(()=>{ _dbTop = Object.entries(_demoDaily).sort((a,b)=>b[1]-a[1]).slice(0,5).map(([username, stolen])=>({ username, stolen })); }, 1000);
 }
 
-// ════════════════════════ HUD — как в SF1 ════════════════════════
-const GAME_TITLE = 'NEPLOXO STREET WARS';
+// ════════════════════════ HUD — компактная полупрозрачная плашка ════════════════════════
+// Слева три строки: лайк, монета (нарисованная) и сайт полной игры; справа ТОП-5 дня.
+// Название игры и creator убраны (06.10.2026) — плашка ниже, рингу больше места.
+function drawCoinIcon(cx, cy, r){
+  ctx.save();
+  ctx.translate(cx, cy); ctx.scale(r, r);
+  ctx.fillStyle = COIN_GRADIENT;
+  ctx.beginPath(); ctx.arc(0, 0, 1, 0, Math.PI*2); ctx.fill();
+  ctx.lineWidth = 2/r; ctx.strokeStyle = '#8a5a00'; ctx.stroke();
+  ctx.beginPath(); ctx.arc(0, 0, .68, 0, Math.PI*2); ctx.lineWidth = 1.2/r; ctx.strokeStyle = 'rgba(138,90,0,.6)'; ctx.stroke();
+  ctx.restore();
+}
+function hudText(txt, x, y, font, color, maxW, align){
+  ctx.font = font; ctx.textAlign = align || 'left';
+  ctx.strokeStyle = 'rgba(0,0,0,0.9)'; ctx.lineWidth = 4;
+  ctx.strokeText(txt, x, y, maxW); ctx.fillStyle = color; ctx.fillText(txt, x, y, maxW);
+}
 function drawHUD(){
   const T = PANEL_TOP, TH = PANEL_H;
-  const bg = ctx.createLinearGradient(0, T, 0, T + TH);
-  bg.addColorStop(0, 'rgba(14,8,26,0.95)'); bg.addColorStop(1, 'rgba(6,4,14,0.95)');
-  ctx.fillStyle = bg; ctx.fillRect(0, T, CW, TH);
-  ctx.strokeStyle = 'rgba(255,79,163,0.55)'; ctx.lineWidth = 1.5;
-  ctx.strokeRect(2, T + 2, CW - 4, TH - 4);
-
-  ctx.font = 'bold 24px Arial Black'; ctx.textAlign = 'center';
-  ctx.strokeStyle = 'rgba(0,0,0,0.9)'; ctx.lineWidth = 4;
-  ctx.strokeText(GAME_TITLE, CW/2, T+34, CW-20);
   ctx.save();
-  ctx.shadowColor = '#ff2d7a'; ctx.shadowBlur = 10;
-  ctx.fillStyle = '#ff4fa3'; ctx.fillText(GAME_TITLE, CW/2, T+34, CW-20);
+  // плашка полупрозрачная — сквозь неё виден город (текст держится на чёрной обводке букв)
+  ctx.fillStyle = 'rgba(10,6,22,0.55)';
+  roundRectPath(6, T, CW - 12, TH, 12); ctx.fill();
+  ctx.strokeStyle = 'rgba(255,79,163,0.6)'; ctx.lineWidth = 1.5; ctx.stroke();
+  ctx.strokeStyle = 'rgba(255,255,255,0.14)'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(CW*0.5, T+10); ctx.lineTo(CW*0.5, T+TH-10); ctx.stroke();
+
+  // левая колонка: правила — крупно
+  const L = 16, colW = CW*0.5 - 26;
+  hudText('👍 = +10❤️ +1💪', L, T+40, 'bold 27px Arial Black', '#FF6688', colW);
+  drawCoinIcon(L+15, T+74, 14);
+  hudText('= +100❤️ +10💪', L+36, T+84, 'bold 27px Arial Black', '#FFD700', colW-36);
+  hudText('🌐 gameleha.xyz', L, T+128, 'bold 27px Arial Black', '#3fe6e0', colW);
+
+  // правая колонка: ТОП-5 дня
+  const X = CW*0.5 + 12, R = CW - 18;
+  hudText('🏆 ТОП-5 ДНЯ', X, T+24, 'bold 15px Arial Black', '#ffd24f', R - X);
+  const top = _dbTop.slice(0,5);
+  const rankColors = ['#FFD700','#E0E0E0','#E3955A','#CCCCCC','#AAAAAA'];
+  for (let i=0;i<top.length;i++){
+    const p = top[i], y = T + 50 + i*24;
+    hudText((i+1)+'.', X, y, 'bold 20px Arial Black', rankColors[i]);
+    ctx.font = 'bold 17px Arial';
+    const pts = '⚡' + p.stolen, pw = ctx.measureText(pts).width;
+    hudText(pts, R, y, 'bold 17px Arial', '#7fd3ff', undefined, 'right');
+    hudText(p.username, X+28, y, 'bold 20px Arial Black', i===0 ? '#FFE566' : '#FFFFFF', R - pw - 8 - (X+28));
+  }
+  if (!top.length) hudText('пока пусто — лайкай!', X, T+56, 'bold 16px Arial', 'rgba(255,255,255,.7)', R - X);
   ctx.restore();
 
-  const hg = ctx.createLinearGradient(0,0,CW,0);
-  hg.addColorStop(0,'rgba(63,230,224,0)'); hg.addColorStop(0.2,'rgba(63,230,224,0.45)');
-  hg.addColorStop(0.8,'rgba(63,230,224,0.45)'); hg.addColorStop(1,'rgba(63,230,224,0)');
-  ctx.strokeStyle = hg; ctx.lineWidth = 1;
-  ctx.beginPath(); ctx.moveTo(0,T+44); ctx.lineTo(CW,T+44); ctx.stroke();
-
-  ctx.font = 'bold 26px Arial Black'; ctx.textAlign = 'center';
-  ctx.shadowColor = 'rgba(255,215,0,0.55)'; ctx.shadowBlur = 10;
-  ctx.strokeStyle = 'rgba(0,0,0,0.65)'; ctx.lineWidth = 3;
-  ctx.strokeText('🎮 creator: Leha Neploxo', CW/2, T+62, CW-20);
-  ctx.fillStyle = 'rgba(255,215,0,0.75)';
-  ctx.fillText('🎮 creator: Leha Neploxo', CW/2, T+62, CW-20);
-  ctx.shadowBlur = 0;
-
-  const vg = ctx.createLinearGradient(0,T+72,0,T+TH-6);
-  vg.addColorStop(0,'rgba(255,255,255,0)'); vg.addColorStop(0.3,'rgba(255,255,255,0.12)');
-  vg.addColorStop(0.7,'rgba(255,255,255,0.12)'); vg.addColorStop(1,'rgba(255,255,255,0)');
-  ctx.strokeStyle = vg;
-  ctx.beginPath(); ctx.moveTo(CW/2,T+72); ctx.lineTo(CW/2,T+TH-6); ctx.stroke();
-
-  const rules = [
-    { text: '👍 1 лайк = +10❤️ +1💪',       color: '#FF6688' },
-    { text: '🎁 1 монета = +100❤️ +10💪',   color: '#FFD700' },
-    { text: '💬 Напиши "rating" — узнаешь свой топ', color: '#8fffb0' },
-    { text: '🚩 Напиши "Team" — заходи в команду', color: '#ff5566' },
-    { text: '🔫 Больше 💪 — круче оружие', color: '#4fc3ff' },
-    { text: '⏳ 5 мин тишины = 💪Сила -1/сек', color: '#ffa64d' },
-  ];
-  const rY = T+78, rStep = 24;
-  const ruleFont = 'bold 24px Arial Black';
-  const ruleAvailW = CW/2 - 16;
-  ctx.font = ruleFont;
-  let ruleScaleX = 1;
-  rules.forEach(r => { ruleScaleX = Math.min(ruleScaleX, ruleAvailW / ctx.measureText(r.text).width); });
-  rules.forEach((r,i)=>{
-    ctx.save();
-    ctx.scale(ruleScaleX, 1);
-    ctx.font = ruleFont; ctx.textAlign = 'left';
-    ctx.strokeStyle = 'rgba(0,0,0,0.85)'; ctx.lineWidth = 3.5;
-    ctx.strokeText(r.text, 8/ruleScaleX, rY + i*rStep);
-    ctx.fillStyle = r.color;
-    ctx.fillText(r.text, 8/ruleScaleX, rY + i*rStep);
-    ctx.restore();
-  });
-  {
-    const siteText = '🌐 ПОЛНАЯ ИГРА: gameleha.xyz';
-    ctx.save();
-    ctx.font = 'bold 19px Arial Black'; ctx.textAlign = 'left';
-    ctx.strokeStyle = 'rgba(0,0,0,0.85)'; ctx.lineWidth = 3;
-    ctx.strokeText(siteText, 8, rY + rules.length*rStep, ruleAvailW);
-    ctx.fillStyle = '#ffd24f';
-    ctx.fillText(siteText, 8, rY + rules.length*rStep, ruleAvailW);
-    ctx.restore();
-  }
-
-  ctx.font = 'bold 12px Arial Black'; ctx.textAlign = 'center';
-  ctx.strokeStyle = 'rgba(0,0,0,0.9)'; ctx.lineWidth = 3;
-  ctx.strokeText('🏆 TOP БОЙЦЫ 🏆', CW*0.75, T+80, CW/2-16);
-  ctx.fillStyle = '#ffd24f'; ctx.fillText('🏆 TOP БОЙЦЫ 🏆', CW*0.75, T+80, CW/2-16);
-  const top = _dbTop.slice(0,5).map(p=>({ name:p.username, stolenEnergy:p.stolen }));
-  const rankColors = ['#FFD700','#C0C0C0','#CD7F32','#AAAAAA','#666666'];
-  const ranks = ['1.','2.','3.','4.','5.'];
-  const tX = CW/2 + 8, tY = T+108, tStep = 29;
-  for (let i=0;i<top.length;i++){
-    const p = top[i], y = tY + i*tStep;
-    if (i===0){ ctx.fillStyle='rgba(255,215,0,0.08)'; ctx.fillRect(tX-4,y-21,CW/2-12,tStep-1); }
-    ctx.font = i===0 ? 'bold 21px Arial Black' : 'bold 19px Arial Black';
-    ctx.textAlign='left'; ctx.strokeStyle='rgba(0,0,0,0.9)'; ctx.lineWidth=3.5;
-    ctx.strokeText(ranks[i], tX, y); ctx.fillStyle=rankColors[i]; ctx.fillText(ranks[i], tX, y);
-    ctx.strokeText(p.name, tX+26, y, 148);
-    ctx.fillStyle = i===0 ? '#FFE566' : '#EEEEEE';
-    ctx.fillText(p.name, tX+26, y, 148);
-    ctx.textAlign='right'; ctx.strokeStyle='rgba(0,0,0,0.9)'; ctx.lineWidth=3;
-    ctx.font = i===0 ? 'bold 17px Arial' : 'bold 16px Arial';
-    ctx.strokeText('⚡'+p.stolenEnergy, CW-8, y);
-    ctx.fillStyle='#7fd3ff'; ctx.fillText('⚡'+p.stolenEnergy, CW-8, y);
-  }
-  ctx.font = '9px Arial'; ctx.fillStyle = 'rgba(255,255,255,0.18)';
-  ctx.textAlign = 'center'; ctx.fillText('отнятая энергия за день', CW*0.75, T+TH-6);
-
   drawWeeklyChampionBadge();
-  drawPlaceBadge();
+  // название места и таймер смены не показываем (06.10.2026): смена просто идёт сама раз в 5 минут
 }
 function roundRectPath(x, y, w, h, r){
   ctx.beginPath();
@@ -1064,28 +1108,13 @@ function drawWeeklyChampionBadge(){
   ctx.fillStyle = '#FFD700'; ctx.fillText(txt, bx+10, by+23);
   ctx.restore();
 }
-// где сейчас драка и через сколько переезд — справа под плашкой
-function drawPlaceBadge(){
-  const s = Math.max(0, Math.ceil(roomSwitchTimer/1000));
-  const txt = '📍 ' + ROOMS[roomIdx].name + ' · ' + Math.floor(s/60) + ':' + String(s%60).padStart(2,'0');
-  ctx.save();
-  ctx.font = 'bold 15px Arial Black';
-  const bw = ctx.measureText(txt).width + 18, bh = 28;
-  const bx = CW - 10 - bw, by = WALL_TOP + 44;
-  ctx.fillStyle = 'rgba(6,14,20,0.85)'; ctx.strokeStyle = '#3fe6e0'; ctx.lineWidth = 1.5;
-  roundRectPath(bx, by, bw, bh, 7); ctx.fill(); ctx.stroke();
-  ctx.textAlign = 'left'; ctx.strokeStyle = 'rgba(0,0,0,0.9)'; ctx.lineWidth = 3;
-  ctx.strokeText(txt, bx+9, by+20); ctx.fillStyle = '#bff8f5'; ctx.fillText(txt, bx+9, by+20);
-  ctx.restore();
-}
-
 // ── метки над бойцом (SF1 drawFighter): ур. + ник, ❤️ Энергия, 💪 Сила (+ оружие) ──
 const FIGHTER_SCALE = 0.85 * 1.25;
 const _proj = new THREE.Vector3();
 function drawFighterLabels(v){
   if (v.eliminated || !v.m || v.wx == null) return;
   const s = FIGHTER_SCALE;
-  _proj.set(v.wx, v.alive ? 2.35 : 0.9, v.wz).project(camera);
+  _proj.set(v.wx, (v.gy || 0) + (v.alive ? 2.35 : 0.9), v.wz).project(camera);
   if (_proj.z > 1) return;
   const cx = (_proj.x + 1)/2*CW, top = (1 - _proj.y)/2*1000;
   // три строки над головой: ник, ❤️ Энергия, 💪 Сила
@@ -1173,7 +1202,7 @@ function startExchange(a, b){
   activeExchanges.push({ a, b, queue, idx:0, timer:0 });
 }
 // у каждого оружия свой набор ударов — как CHAR_ATTACKS у силуэтов SF1
-const WEAPON_ATTACKS = { fists:['jab','punch','kick'], bat:['swing','swing2'], knife:['stab','slash'], pistol:['shoot'], shotgun:['shoot'] };
+const WEAPON_ATTACKS = { fists:['jab','punch','kick'], bat:['swing','swing2'], knife:['stab','slash'], pistol:['shoot'], smg:['shoot'], shotgun:['shoot'], rifle:['shoot'] };
 function throwPunch(attacker, defender){
   const wid = (attacker.weapon || WEAPONS[0]).id;
   attacker.state='punch'; attacker.animName=pick(WEAPON_ATTACKS[wid]); attacker.stateTimer=PUNCH_TICK_MS;
@@ -1188,7 +1217,7 @@ function throwPunch(attacker, defender){
   defender.power = Math.max(1, defender.power - Math.max(1, Math.floor(dmg*0.3)));
   defender.lastAttacker = attacker;
   syncWeapon(defender, true);
-  if (attacker.weapon && attacker.weapon.gun){ playShotSound(wid === 'shotgun'); fireShot(attacker, defender, wid === 'shotgun'); }
+  if (attacker.weapon && attacker.weapon.gun) fireShot(attacker, defender, wid);
   else { playPunchSound(); hitSpark(defender, wid === 'bat' ? .55 : .35); }
 
   attacker.stolenEnergy += stolen;
@@ -1261,14 +1290,18 @@ function update(dt){
     v.wanderPause -= dt;
     const dx=v.tx-v.x, dy=v.ty-v.y, dist=Math.hypot(dx,dy);
     if (dist<6 && v.wanderPause<=0){
-      v.tx = RING.xMin + Math.random()*(RING.xMax-RING.xMin);
-      v.ty = RING.yMin + Math.random()*(RING.yMax-RING.yMin);
+      const p = freeRingPos(); v.tx = p.x; v.ty = p.y;
       v.wanderPause = 500 + Math.random()*1400;
     }
     if (dist>6){
       const speed = 0.05;
-      v.x += (dx/dist)*speed*dt;
-      v.y += (dy/dist)*speed*dt;
+      const nx = v.x + (dx/dist)*speed*dt, ny = v.y + (dy/dist)*speed*dt;
+      if (blockedAt(nx, ny) && !blockedAt(v.x, v.y)){
+        // упёрся в стену/столб/воду — стоит и выбирает, куда идти дальше
+        v.tx = v.x; v.ty = v.y; v.wanderPause = 200 + Math.random()*500; v.state = 'idle';
+        continue;
+      }
+      v.x = nx; v.y = ny;
       v.facing = dx>=0 ? -1 : 1;
       v.moveDx = dx/dist; v.moveDy = dy/dist;
       v.state = 'walk';
@@ -1286,8 +1319,10 @@ function update(dt){
       const dx=b.x-a.x, dy=b.y-a.y, d=Math.hypot(dx,dy)||0.001;
       if (d < MIN_SEP){
         const push = (MIN_SEP-d)/2, ux=dx/d, uy=dy/d;
-        a.x = clamp(a.x-ux*push, RING.xMin, RING.xMax); a.y = clamp(a.y-uy*push, RING.yMin, RING.yMax);
-        b.x = clamp(b.x+ux*push, RING.xMin, RING.xMax); b.y = clamp(b.y+uy*push, RING.yMin, RING.yMax);
+        const ax = clamp(a.x-ux*push, RING.xMin, RING.xMax), ay = clamp(a.y-uy*push, RING.yMin, RING.yMax);
+        const bx = clamp(b.x+ux*push, RING.xMin, RING.xMax), by = clamp(b.y+uy*push, RING.yMin, RING.yMax);
+        if (!blockedAt(ax, ay)){ a.x = ax; a.y = ay; }   // расталкивание не заталкивает в стену
+        if (!blockedAt(bx, by)){ b.x = bx; b.y = by; }
       }
     }
   }
@@ -1310,7 +1345,10 @@ function update(dt){
     roomIdx = (roomIdx + 1) % ROOMS.length;
     roomSwitchTimer = ROOM_SWITCH_MS;
     placeCamera();
+    // на новом месте кто оказался в стене/воде — переходит на свободное место
+    for (const v of VARIANTS) if (v.alive && blockedAt(v.x, v.y)){ const p = freeRingPos(); v.x = v.tx = p.x; v.y = v.ty = p.y; }
     pushEvent(pick(ROOM_LINES)(ROOMS[roomIdx].name), false);
+    if (musicOn) radioNextStation();   // новое место — новая станция
   }
   for (let i=VARIANTS.length-1; i>=0; i--){
     const v = VARIANTS[i];
@@ -1333,14 +1371,20 @@ function spark(x, y, z, s, mat){
 }
 function hitSpark(v, s){ if (v.wx != null) spark(v.wx, 1.4, v.wz, s); }
 const _muzzle = new THREE.Vector3();
-function fireShot(att, def, big){
+function fireShot(att, def, kind){
+  const burst = kind === 'smg' ? 4 : kind === 'rifle' ? 3 : 1;
+  for (let k = 0; k < burst; k++) setTimeout(() => shotOnce(att, def, kind), k*(kind === 'smg' ? 55 : 80));
+}
+function shotOnce(att, def, kind){
   if (!att.m || att.wx == null || def.wx == null) return;
-  att.m.W[big ? 'shotgun' : 'pistol'].getWorldPosition(_muzzle);
+  const big = kind === 'shotgun';
+  playShotSound(big);
+  att.m.W[kind].getWorldPosition(_muzzle);
   _muzzle.x += Math.sin(att.heading)*.5; _muzzle.z += Math.cos(att.heading)*.5; _muzzle.y = 1.35;
   spark(_muzzle.x, _muzzle.y, _muzzle.z, big ? .7 : .45, flashMat);
-  const n = big ? 5 : 1;
+  const n = big ? 5 : 1, spread = big ? .6 : kind === 'pistol' ? 0 : .25;
   for (let k=0; k<n; k++){
-    const to = new THREE.Vector3(def.wx + (big ? (Math.random()-.5)*.6 : 0), 1.3 + (big ? (Math.random()-.5)*.4 : 0), def.wz + (big ? (Math.random()-.5)*.6 : 0));
+    const to = new THREE.Vector3(def.wx + (Math.random()-.5)*spread, 1.3 + (Math.random()-.5)*spread*.7, def.wz + (Math.random()-.5)*spread);
     const l = new THREE.Line(new THREE.BufferGeometry().setFromPoints([_muzzle.clone(), to]), tracerMat.clone()); scene.add(l);
     fx.push({ m:l, t:0, life:.09, line:true });
   }
@@ -1360,6 +1404,7 @@ function turn(v, want, k){ let d = want - v.heading; while (d > Math.PI) d -= Ma
 function animate(v, dt){
   const m = v.m; if (!m) return;
   const p = ringToWorld(v.x, v.y); v.wx = p.x; v.wz = p.z;
+  const gy = groundAt(v.wx, v.wz); v.gy = v.gy == null ? gy : v.gy + (gy - v.gy)*Math.min(1, dt/80);
   const sec = dt/1000, k = Math.min(1, sec*16);
   // куда смотрит: на соперника в обмене, иначе — по ходу движения
   if (v.foe && v.alive && v.foe.wx != null) turn(v, angTo(v, v.foe), Math.min(1, sec*14));
@@ -1374,7 +1419,7 @@ function animate(v, dt){
     if (wid === 'fists'){ rsx = -1.0; rel = -1.7; lsx = -1.1; lel = -1.8; }
     else if (wid === 'bat'){ rsx = -2.3; rel = -.7; lsx = -.5; lel = -.7; }
     else if (wid === 'knife'){ rsx = -.9; rel = -1.0; lsx = -1.0; lel = -1.7; }
-    else if (wid === 'pistol'){ rsx = -1.0; rel = -.4; lsx = -.2; lel = -.3; }
+    else if (wid === 'pistol' || wid === 'smg'){ rsx = -1.0; rel = -.4; lsx = -.2; lel = -.3; }
     else { rsx = -1.0; rel = -.3; lsx = -1.0; lel = -.6; }
   };
   if (v.state === 'walk'){
@@ -1396,7 +1441,7 @@ function animate(v, dt){
       case 'swing2': rsx = -1.5; rel = -.2; rsz = lerp(-1.2, 1.2, Math.min(1, pr*1.4)); twist = lerp(-.7, .6, Math.min(1, pr*1.4)); break;
       case 'stab':  rsx = lerp(-.9, -1.55, e); rel = lerp(-1.0, 0, e); lean = .18*e; break;
       case 'slash': rsx = -1.4; rel = -.3; rsz = lerp(-1.0, .9, Math.min(1, pr*1.5)); twist = lerp(-.4, .4, Math.min(1, pr*1.5)); break;
-      case 'shoot': rsx = -1.55 - .35*e; rel = 0; if (wid === 'shotgun'){ lsx = -1.45; lel = -.35; } back = -.05*e; break;
+      case 'shoot': rsx = -1.55 - .35*e; rel = 0; if (wid === 'shotgun' || wid === 'rifle'){ lsx = -1.45; lel = -.35; } back = -.05*e; break;
     }
   } else if (v.state === 'hurt'){
     guard(); const pr = 1 - Math.max(0, v.stateTimer)/PUNCH_TICK_MS; lean = -.35*Math.sin(pr*Math.PI); back = -.06*Math.sin(pr*Math.PI);
@@ -1421,7 +1466,7 @@ function animate(v, dt){
   }
   m.root.rotation.x = v.state === 'ko' ? rootX : 0;
   m.root.rotation.y = v.heading;
-  m.root.position.set(v.wx + Math.sin(v.heading)*back, y + bob, v.wz + Math.cos(v.heading)*back);
+  m.root.position.set(v.wx + Math.sin(v.heading)*back, (v.gy || 0) + y + bob, v.wz + Math.cos(v.heading)*back);
   // перед исчезновением с ринга — уходит в асфальт (как fade-out в SF1)
   if (!v.alive && v.koTimer < (KO_FALL_MS - KO_SETTLE_END)) m.root.position.y -= (1 - v.koTimer/(KO_FALL_MS - KO_SETTLE_END))*.35;
 }
@@ -1443,8 +1488,8 @@ function loop(t){
 
   // город: время суток как в игре (игровая минута за реальную секунду)
   gameMin += dt/1000;
-  const env = dn.update(FIXED_HOUR ? START_HOUR : START_HOUR + gameMin/60, t/1000);
   const P = ROOMS[roomIdx];
+  const env = dn.update(FIXED_HOUR ? START_HOUR : P.hour != null ? P.hour : START_HOUR + gameMin/60, t/1000);
   sun.target.position.set(P.cx, 0, P.cz); sun.target.updateMatrixWorld();
   sun.position.copy(sun.target.position).addScaledVector(env.lightDir, 90);
   sky.position.copy(camera.position);
@@ -1462,7 +1507,7 @@ function loop(t){
 }
 document.getElementById('loading').remove();
 requestAnimationFrame(loop);
-window.SW = { VARIANTS, ROOMS, camera, onLike, onGift, CAM, placeCamera };
+window.SW = { VARIANTS, ROOMS, camera, onLike, onGift, CAM, placeCamera, world, setRoom: i => { roomIdx = i; placeCamera(); } };
 </script>
 </body>
 </html>
