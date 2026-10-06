@@ -195,7 +195,7 @@ const PANEL_TOP = 10, PANEL_H = 148;   // компактная плашка (06.
 const WALL_TOP = PANEL_TOP + PANEL_H + 10;
 const FLOOR_TOP = 360, FLOOR_BOT = 1000;   // ринг уходит глубже в улицу (было 480 под высокую плашку SF1)
 // ринг в «пикселях SF1» (1 px ≈ 1.47 см): ≈26 м поперёк и ≈25 м в глубину — реально ходят по видимой земле (см. blockedAt)
-const RING = { xMin:0, xMax:1800, yMin:0, yMax:1700 };
+const RING = { xMin:0, xMax:2700, yMin:0, yMax:2700 };   // ≈40 × 40 м
 const KO_FALL_MS = 1600;
 const FIGHT_DIST = 68;
 const FIGHT_Y_GAP = 30;
@@ -226,10 +226,10 @@ world.setFog(70, 250);
 const atDoor = (name, x, z, nx, nz, off = 7) => ({ name, cx: x + nx*off, cz: z + nz*off, dir: Math.atan2(-nx, -nz) });
 // hour — своё время суток у каждого места (закат, сумерки с неоном, ночь, день); dist/h/ly/ahead — своя камера
 const ROOMS = [
-  { name:'пляж на закате', cx:124, cz:52, dir:Math.PI/2, hour:19.45, dist:11, h:4.2, ly:2.2, ahead:14 },
-  { name:'клуб NEPLOXO 21', cx:103, cz:24, dir:-Math.PI/2, hour:19.9 },
+  { name:'пляж на закате', cx:124, cz:40, dir:Math.PI/2, hour:19.45, fov:56, dist:11, h:7.5, ly:1.6, ahead:20 },
+  { name:'клуб NEPLOXO 21', cx:100, cz:24, dir:-Math.PI/2, hour:19.9, dist:7, h:10, ahead:10 },   // камера перед пальмами набережной
   { name:'танцпол клуба NEPLOXO 21', cx:76, cz:25, dir:-Math.PI/2, hour:22.5, dist:12.5, h:5.2, ly:1.0, ahead:3 },
-  Object.assign(atDoor('Оушен-драйв', 92, -31, 1, 0), { hour:18.6 }),
+  Object.assign(atDoor('Оушен-драйв', 92, -31, 1, 0), { hour:18.6, dist:10, h:9 }),
   { name:'казино', cx:1, cz:-25, dir:Math.PI/2, hour:20.8, dist:12, h:6.5, ly:1.2, ahead:8 },
   Object.assign(atDoor('полицейский участок', -65.8, -30.5, 1, 0), { hour:13 }),
   Object.assign(atDoor('пожарная часть и NEON SPRAY', 26, -58, 0, 1), { hour:21.6 }),
@@ -237,7 +237,7 @@ const ROOMS = [
 const ROOM_SWITCH_MS = (+(Q.get('roomSec')||0) || 5*60) * 1000;
 let roomIdx = (+(Q.get('room')||0)) % ROOMS.length;
 let roomSwitchTimer = ROOM_SWITCH_MS;
-const CAM = { dist:12, h:7, ly:0.5, ahead:6 };
+const CAM = { dist:14, h:10, ly:0, ahead:9, fov:54 };   // высокая широкая камера — видно больше земли, бойцам больше места
 const camFwd = new THREE.Vector3(), camRight = new THREE.Vector3();
 // у места могут быть свои dist/h/ly/ahead (камера) и hour (время суток: закат, ночь с неоном…)
 function placeCamera(){
@@ -246,6 +246,7 @@ function placeCamera(){
   camFwd.set(fx, 0, fz); camRight.set(-fz, 0, fx);
   camera.position.set(P.cx - fx*dist, h, P.cz - fz*dist);
   camera.lookAt(P.cx + fx*ahead, ly, P.cz + fz*ahead);
+  const fov = P.fov ?? CAM.fov; if (camera.fov !== fov){ camera.fov = fov; camera.updateProjectionMatrix(); }
   camera.updateMatrixWorld();
   if (typeof drawBounds === 'function') drawBounds();
 }
@@ -254,7 +255,7 @@ function placeCamera(){
 // Сам ринг большой (≈26 × 25 м); реально ходят там, где земля видна на экране под плашкой
 // (не дальше MAX_DEPTH от камеры), и не заходят в стены, столбы, машины и воду.
 const M_PER_PX = 6.6/450;
-const RING_CX = (RING.xMin + RING.xMax)/2, RING_CY = RING.yMax - 5/M_PER_PX;   // ближний край — 5 м перед центром места
+const RING_CX = (RING.xMin + RING.xMax)/2, RING_CY = RING.yMax - 8/M_PER_PX;   // ближний край — 8 м перед центром места
 function ringToWorld(x, y){
   const P = ROOMS[roomIdx], u = (x - RING_CX)*M_PER_PX, v = (RING_CY - y)*M_PER_PX;
   return { x: P.cx + camRight.x*u + camFwd.x*v, z: P.cz + camRight.z*u + camFwd.z*v };
@@ -286,10 +287,22 @@ function groundAt(wx, wz){
   const t = world.col.raycast(wx, 2, wz, 0, -1, 0, 2.2);
   return t < 2.2 ? Math.max(0, Math.min(.6, 2 - t)) : 0;
 }
-// свободная точка ринга (для появления бойцов, новых целей и после переезда)
+// свободная точка ринга (для появления бойцов, новых целей и после переезда). Точка берётся
+// случайно ПО ЭКРАНУ и опускается лучом на землю — иначе почти все цели оказывались бы
+// вдали (дальняя земля занимает больше метров), и бойцы толпились бы у горизонта
+const _ray = new THREE.Raycaster(), _ndc = new THREE.Vector2(), _ground = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), _hit = new THREE.Vector3();
+function worldToRing(wx, wz){
+  const P = ROOMS[roomIdx], dx = wx - P.cx, dz = wz - P.cz;
+  const u = dx*camRight.x + dz*camRight.z, v = dx*camFwd.x + dz*camFwd.z;
+  return { x: RING_CX + u/M_PER_PX, y: RING_CY - v/M_PER_PX };
+}
 function freeRingPos(){
   for (let k = 0; k < 120; k++){
-    const p = { x: RING.xMin + Math.random()*(RING.xMax-RING.xMin), y: RING.yMin + Math.random()*(RING.yMax-RING.yMin) };
+    const sx = VIEW.left + Math.random()*(VIEW.right - VIEW.left), sy = VIEW.top + 60 + Math.random()*(VIEW.bottom - VIEW.top - 60);
+    _ndc.set(sx/CW*2 - 1, 1 - sy/1000*2);
+    _ray.setFromCamera(_ndc, camera);
+    if (!_ray.ray.intersectPlane(_ground, _hit)) continue;
+    const p = worldToRing(_hit.x, _hit.z);
     if (!blockedAt(p.x, p.y)) return p;
   }
   return { x: RING_CX, y: RING_CY };
