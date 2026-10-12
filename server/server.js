@@ -127,6 +127,8 @@ app.get('/fantasyarena-db',  serveHtml('fantasy_arena_db.html'));
 // своя база (таблицы streetwars_*). Город — копия файлов игры в client/streetwars/nb/
 app.get('/streetwars',    serveHtml('streetwars/streetwars.html'));
 app.get('/streetwars-db', serveHtml('streetwars/streetwars_db.html'));
+// 12.10.2026: NEPLOXO KART — гонка на картах, без базы данных (вся логика в client/kart.html)
+app.get('/kart',          serveHtml('kart.html'));
 // 06.10.2026: Boxing Arena EN, Рыбалка, Fantasy Arena TV, Взаимки и Цивилизация убраны
 // с сайта — файлы лежат в archive/ (вне client/, поэтому не раздаются), базы EN/Рыбалки/TV стёрты
 
@@ -678,7 +680,7 @@ class Room {
         // Arena game: any gift spawns/upgrades warrior with coin value
         this._giftCount++;
         this._lastGift = { username: data.username, coins: data.coins, gift: data.giftName, t: new Date().toISOString() };
-        this.broadcast({ type: 'arena_gift', username: data.username, coins: data.coins, giftName: data.giftName });
+        this.broadcast({ type: 'arena_gift', username: data.username, coins: data.coins, giftName: data.giftName, avatarUrl: data.avatarUrl });
         this.broadcast({ type: 'arena_member', username: data.username });
 
         // Race game: 1 монета = 100 метров пробега + 1 очко в рейтинге (всё время, хранится в БД)
@@ -716,7 +718,7 @@ class Room {
       },
       // onLike — лайки
       (data) => {
-        this.broadcast({ type: 'arena_like', likes: data.likes || 0, username: data.username });
+        this.broadcast({ type: 'arena_like', likes: data.likes || 0, username: data.username, avatarUrl: data.avatarUrl });
         this.broadcast({ type: 'arena_member', username: data.username });
 
         // Race game: 1 лайк = 1 метр пробега (в рейтинг очков не идёт)
@@ -744,7 +746,7 @@ class Room {
         this.broadcast({ type: 'arena_member', username: data.username });
 
         // Boxing Arena: любое сообщение в чате = как один лайк бойцу автора
-        this.broadcast({ type: 'arena_boxing_chat', username: data.username });
+        this.broadcast({ type: 'arena_boxing_chat', username: data.username, avatarUrl: data.avatarUrl });
 
         // Arena game: team commands
         if (msgLower === 'team') {

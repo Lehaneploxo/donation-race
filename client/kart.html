@@ -1,0 +1,879 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>🏁 NEPLOXO KART</title>
+<style>
+html,body{margin:0;height:100%;background:#0d0f14;color:#e8e8e8;font-family:Arial,sans-serif;overflow:hidden}
+#stage{position:absolute;left:0;top:0;bottom:0;right:380px;overflow:hidden}
+#wrap{position:absolute;left:0;top:0;width:600px;height:1000px;transform-origin:0 0}
+#panel{position:absolute;right:0;top:0;bottom:0;width:380px;background:#1a1d25;border-left:1px solid #2c303b;overflow-y:auto;padding:10px 12px;box-sizing:border-box;font-size:13px}
+#panel h3{margin:2px 0 8px;font-size:16px}
+.sec{background:#222632;border-radius:8px;padding:8px;margin-bottom:8px}
+.sec b{color:#ffd54a}
+button{background:#323848;color:#fff;border:1px solid #444b5e;border-radius:6px;padding:4px 7px;margin:2px;cursor:pointer;font-size:12px}
+button:hover{background:#414a60}
+input[type=text],input[type=number]{background:#11141b;color:#fff;border:1px solid #444b5e;border-radius:5px;padding:4px 6px;font-size:12px}
+.sl{display:flex;align-items:center;gap:6px;margin:3px 0}
+.sl span.l{flex:0 0 150px}
+.sl input{flex:1}
+.sl span.v{flex:0 0 42px;text-align:right;color:#ffd54a}
+.pl{background:#222632;border-radius:8px;padding:6px 8px;margin-bottom:6px;border-left:5px solid #888}
+.pl .top{display:flex;justify-content:space-between;align-items:center}
+.pl .nm{font-weight:bold}
+.pl .st{color:#9fb3c8;font-size:11px}
+.pl .gifts button{padding:3px 5px}
+.pl input{width:52px}
+.hint{color:#8a93a6;font-size:11px;line-height:1.35}
+/* боевой режим (?username=): тест-пульт скрыт, игра на весь экран */
+body.live #panel{display:none}
+body.live #stage{right:0}
+.ui-btn{position:fixed;z-index:99999;width:26px;height:26px;font-size:12px;background:rgba(0,0,0,0.55);color:rgba(255,255,255,0.55);border:1px solid rgba(255,255,255,0.2);border-radius:6px;cursor:pointer;display:none;align-items:center;justify-content:center;padding:0;margin:0}
+body.live .ui-btn{display:flex}
+#fsBtn{top:calc(50% - 13px);right:10px}
+#statusBadge{position:fixed;bottom:10px;left:50%;transform:translateX(-50%);font-size:12px;padding:4px 12px;border-radius:8px;border:2px solid #555;background:rgba(0,0,0,0.78);color:#AAA;white-space:nowrap;z-index:99999;display:none}
+#statusBadge.live{color:#00FF88;border-color:#00FF88}
+#statusBadge.demo{color:#FF9900;border-color:#FF9900}
+#statusBadge.error{color:#FF4444;border-color:#FF4444}
+</style>
+</head>
+<body>
+<button id="fsBtn" class="ui-btn" title="На весь экран">⛶</button>
+<div id="statusBadge"></div>
+<div id="stage"><div id="wrap"><canvas id="c" width="600" height="1000"></canvas></div></div>
+
+<div id="panel">
+  <h3>🏁 NEPLOXO KART — тестовый пульт</h3>
+  <div class="hint" style="margin-bottom:8px">Это черновой режим (эфир имитируется). Для эфира открой /kart?username=твой_ник — пульт исчезнет.</div>
+  <div class="sec">
+    Фаза: <b id="phaseLbl">—</b><br>
+    <button id="bStart">▶ Старт сейчас</button>
+    <button id="bEnd">⏹ Закончить гонку</button>
+    <button id="bReset">♻ Сбросить всех</button><br>
+    <button id="bMusic">🎵 Музыка: вкл</button>
+    <button id="bSfx">💥 Эффекты: вкл</button>
+    <div class="hint">Звук включается после первого клика по странице (так требует браузер).</div>
+  </div>
+  <div class="sec">
+    <input type="text" id="newName" placeholder="ник игрока" style="width:130px">
+    <button id="bAdd">+ Игрок</button>
+    <button id="bAdd10">+10 игроков</button><br>
+    <label><input type="checkbox" id="autoBots"> Авто-боты (сами лайкают, пишут, иногда дарят)</label><br>
+    <button id="bAllLike">❤️ Всем по 15 лайков</button>
+    <button id="bAllChat">💬 Всем по сообщению</button>
+  </div>
+  <div class="sec" id="sliders"></div>
+  <div class="hint" style="margin:0 2px 8px">1 монета = 1 турбо. Турбо копится в секундах и сгорает только во время гонки. Лайк и сообщение — маленький толчок. Подарки во время итогов/ожидания переносятся в следующую гонку.</div>
+  <div id="plist"></div>
+</div>
+
+<script>
+// ───────────────────────── Холст 600×1000 как во всех наших играх ─────────────────────────
+const CW = 600, CH = 1000;
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const DPR = Math.min(window.devicePixelRatio || 1, 3);
+canvas.width = CW * DPR; canvas.height = CH * DPR;
+canvas.style.width = CW + 'px'; canvas.style.height = CH + 'px';
+ctx.scale(DPR, DPR);
+const wrap = document.getElementById('wrap'), stage = document.getElementById('stage');
+function applyScale(){
+  const vw = stage.clientWidth, vh = stage.clientHeight;
+  const s = Math.min(vw/CW, vh/CH);
+  wrap.style.transform = `translate(${(vw-CW*s)/2}px,${(vh-CH*s)/2}px) scale(${s})`;
+}
+window.addEventListener('resize', applyScale); applyScale();
+
+// ───────────────────────── Настройки баланса (ползунки в пульте) ─────────────────────────
+const CFG = {
+  laps: 10,          // кругов до финиша
+  raceSec: 180,      // лимит гонки, сек
+  waitSec: 30,       // ожидание перед стартом
+  resultsSec: 12,    // показ итогов
+  turboMul: 3,       // на турбо машинка едет во столько раз быстрее базы
+  secPerCoin: 1.0,   // секунд турбо за 1 монету
+  sec10Likes: 0.1,  // мини-нитро: секунд турбо за каждые 10 лайков
+  secChat: 0.1,     // мини-нитро за любое сообщение в чат
+  joinLikes: 10,
+  botFill: 5,       // ботов = botFill − живые люди; каждый новый живой зритель выбивает одного бота с трассы
+};
+const SLIDERS = [
+  ['laps','Кругов',1,10,1],
+  ['raceSec','Лимит гонки, с',30,300,10],
+  ['waitSec','Ожидание, с',5,60,1],
+  ['turboMul','Турбо: во сколько раз быстрее',1.5,6,0.1],
+  ['secPerCoin','Турбо за 1 монету, с',0.1,3,0.1],
+  ['sec10Likes','Нитро за 10 лайков, с',0,1,0.05],
+  ['secChat','Нитро за сообщение, с',0,1,0.05],
+  ['joinLikes','Лайков для входа',1,100,1],
+  ['botFill','Ботов при 0 людей',0,12,1],
+];
+
+// ───────────────────────── Трасса в «3D»: мир на плоскости земли + перспектива ─────────────────────────
+// Камера смотрит сверху под наклоном: дальняя часть (верх) мельче, ближняя (низ) крупнее.
+const P_D = 3800, P_H0 = 3040, P_NEAR = 1300, P_HOR = 900 - P_H0;
+function pScale(wy){ return P_D / (P_D + (P_NEAR - wy)); }
+function project(wx, wy){ const s = pScale(wy); return {x: 300 + (wx-300)*s, y: P_HOR + P_H0*s, s}; }
+function unproject(sx, sy){ const s = (sy - P_HOR)/P_H0; return {x: 300 + (sx-300)/s, y: P_NEAR - (P_D/s - P_D)}; }
+function scaleAtY(sy){ return (sy - P_HOR)/P_H0; }
+const SQ = 0.8;   // сплюснутость земли по вертикали (наклон камеры)
+const KART = 1.6; // размер машинки
+
+const TRACK_W = 196; // 4 полосы
+// форма задаётся так, как её видит зритель (экран), и переводится в мир
+const CTRL = [
+  [300,165],[430,170],[495,222],[505,305],[490,378],[454,467],[490,556],[505,635],[495,712],[430,762],
+  [300,770],[170,762],[105,712],[95,635],[110,556],[146,467],[110,378],[95,305],[105,222],[170,170]
+].map(([x,y])=>unproject(x,y));
+function catmull(p0,p1,p2,p3,t){
+  const t2=t*t, t3=t2*t;
+  const f=(a,b,c,d)=>0.5*((2*b)+(-a+c)*t+(2*a-5*b+4*c-d)*t2+(-a+3*b-3*c+d)*t3);
+  return {x:f(p0.x,p1.x,p2.x,p3.x), y:f(p0.y,p1.y,p2.y,p3.y)};
+}
+const raw = [];
+for (let i=0;i<CTRL.length;i++){
+  const n=CTRL.length, p0=CTRL[(i-1+n)%n], p1=CTRL[i], p2=CTRL[(i+1)%n], p3=CTRL[(i+2)%n];
+  for (let k=0;k<60;k++) raw.push(catmull(p0,p1,p2,p3,k/60));
+}
+const cum=[0];
+for (let i=1;i<raw.length;i++) cum.push(cum[i-1]+Math.hypot(raw[i].x-raw[i-1].x, raw[i].y-raw[i-1].y));
+const rawTotal = cum[cum.length-1] + Math.hypot(raw[0].x-raw[raw.length-1].x, raw[0].y-raw[raw.length-1].y);
+const STEP = 2, PTS = [];
+for (let d=0, j=0; d<rawTotal; d+=STEP){
+  while (j<raw.length-1 && cum[j+1]<d) j++;
+  const a=raw[j], b=raw[(j+1)%raw.length];
+  const segEnd = j+1<raw.length ? cum[j+1] : rawTotal;
+  const t = (segEnd-cum[j]) ? (d-cum[j])/(segEnd-cum[j]) : 0;
+  PTS.push({x:a.x+(b.x-a.x)*t, y:a.y+(b.y-a.y)*t});
+}
+const N = PTS.length, L = N*STEP; // длина круга (в мире)
+// базовая скорость: машинка без лайков/подарков проезжает все круги чуть раньше конца таймера
+const baseSpeed = () => (CFG.laps * L + 450) / Math.max(10, CFG.raceSec - 6);
+for (let i=0;i<N;i++){
+  const a=PTS[(i-1+N)%N], b=PTS[(i+1)%N];
+  PTS[i].a = Math.atan2(b.y-a.y, b.x-a.x);
+}
+// позиция в мире: s — пройденный путь, off — смещение поперёк дороги
+function trackPos(s, off){
+  s = ((s % L) + L) % L;
+  const i = Math.floor(s/STEP) % N, p = PTS[i];
+  return {x:p.x - Math.sin(p.a)*off, y:p.y + Math.cos(p.a)*off, a:p.a};
+}
+function trackScreen(s, off){ const q = trackPos(s, off), pr = project(q.x, q.y); return {x:pr.x, y:pr.y, s:pr.s, a:q.a}; }
+
+// места на парковке финиша (экранные координаты, нижняя половина внутреннего поля)
+const SPOTS = [];
+for (const [y, xs] of [[585,[260,300,340]],[630,[220,260,300,340,380]],[675,[240,280,320,360]],[545,[270,330]]])
+  for (const x of xs) SPOTS.push([x, y]);
+
+// ───────────────────────── Статичный фон (рисуется один раз) ─────────────────────────
+let seed = 7; const rnd = () => (seed = (seed*16807) % 2147483647) / 2147483647;
+function shade(hex, f){
+  const n = parseInt(hex.slice(1),16), r=(n>>16)&255, g=(n>>8)&255, b=n&255;
+  const m = v => Math.max(0, Math.min(255, Math.round(f<1 ? v*f : v + (255-v)*(f-1))));
+  return `rgb(${m(r)},${m(g)},${m(b)})`;
+}
+const centerPath = new Path2D();
+for (let i=0;i<N;i++){ const p = trackScreen(i*STEP,0); i ? centerPath.lineTo(p.x,p.y) : centerPath.moveTo(p.x,p.y); }
+centerPath.closePath();
+const trees = [];
+const bg = document.createElement('canvas'); bg.width = CW*DPR; bg.height = CH*DPR;
+(function drawBg(){
+  const g = bg.getContext('2d'); g.scale(DPR,DPR);
+  const sky = g.createLinearGradient(0,0,0,CH); sky.addColorStop(0,'#3f9a3c'); sky.addColorStop(1,'#6cc95a');
+  g.fillStyle = sky; g.fillRect(0,0,CW,CH);
+  // полосы газона (в перспективе)
+  for (let wy=-200; wy<P_NEAR+100; wy+=70){
+    const a = project(-400, wy), b = project(1000, wy), c = project(1000, wy+35), d = project(-400, wy+35);
+    g.fillStyle='rgba(255,255,255,0.045)'; g.beginPath(); g.moveTo(a.x,a.y); g.lineTo(b.x,b.y); g.lineTo(c.x,c.y); g.lineTo(d.x,d.y); g.fill();
+  }
+  const distToTrack = (wx,wy) => { let m=1e9; for (let i=0;i<N;i+=4){ const p=PTS[i]; m=Math.min(m, Math.hypot(p.x-wx,p.y-wy)); } return m; };
+  // деревья (рисуются каждый кадр вместе с машинками, чтобы правильно перекрываться) и цветы
+  for (let k=0;k<1500 && trees.length<48;k++){
+    const sx=rnd()*CW, sy=100+rnd()*(CH-100);
+    if (g.isPointInPath(centerPath, sx*DPR, sy*DPR)) continue;
+    const w = unproject(sx, sy);
+    if (distToTrack(w.x,w.y) < TRACK_W/2+34) continue;
+    if (trees.some(t=>Math.hypot(t.x-sx,t.y-sy)<26)) continue;
+    trees.push({x:sx, y:sy, s:scaleAtY(sy), r:13+rnd()*9, kind: rnd()<0.25 ? 'pink' : rnd()<0.2 ? 'bush' : 'green'});
+  }
+  for (let k=0;k<220;k++){
+    const sx=rnd()*CW, sy=100+rnd()*(CH-100);
+    if (g.isPointInPath(centerPath, sx*DPR, sy*DPR)) continue;
+    const w = unproject(sx, sy);
+    if (distToTrack(w.x,w.y) < TRACK_W/2+16) continue;
+    g.fillStyle = ['#ffe36e','#ff8fb3','#ffffff'][k%3]; g.beginPath(); g.ellipse(sx,sy,2.4*scaleAtY(sy),1.8*scaleAtY(sy),0,0,7); g.fill();
+  }
+  // кольцо дороги/бортика между двумя смещениями
+  const loop = (path, off) => { for (let i=0;i<=N;i++){ const p=trackScreen(i*STEP,off); i ? path.lineTo(p.x,p.y) : path.moveTo(p.x,p.y); } path.closePath(); };
+  const ring = (o1, o2, fill, dy) => { const p = new Path2D(); loop(p,o1); loop(p,o2); g.save(); g.translate(0,dy||0); g.fillStyle=fill; g.fill(p,'evenodd'); g.restore(); };
+  const quad = (s0, s1, o0, o1, fill) => {
+    const a=trackScreen(s0,o0), b=trackScreen(s1,o0), c=trackScreen(s1,o1), d=trackScreen(s0,o1);
+    g.fillStyle=fill; g.beginPath(); g.moveTo(a.x,a.y); g.lineTo(b.x,b.y); g.lineTo(c.x,c.y); g.lineTo(d.x,d.y); g.closePath(); g.fill();
+  };
+  const H = TRACK_W/2, CURB = 13;
+  ring(-H-CURB, H+CURB, 'rgba(0,0,0,0.22)', 5);      // тень от бортика — даёт объём
+  ring(-H-CURB, H+CURB, '#ffffff');
+  for (let s=0, k=0; s<L; s+=16, k++) if (k%2===0){ quad(s, s+16, -H-CURB, -H, '#e0332e'); quad(s, s+16, H, H+CURB, '#e0332e'); }
+  ring(-H, H, '#2a3150');
+  ring(-H, -H+5, 'rgba(0,0,0,0.25)'); ring(H-5, H, 'rgba(0,0,0,0.25)');
+  for (const off of [-TRACK_W/4, 0, TRACK_W/4]){
+    for (let s=0; s<L; s+=36) quad(s, s+16, off-1.5, off+1.5, 'rgba(255,255,255,0.3)');
+  }
+  // стартовая клетчатая линия
+  const cell = 10;
+  for (let col=0; col<2; col++) for (let r=0; r*cell<TRACK_W; r++)
+    quad(col*cell-cell, col*cell, -H + r*cell, -H + (r+1)*cell, (col+r)%2 ? '#111' : '#fff');
+})();
+function roundRect(g,x,y,w,h,r){ g.beginPath(); g.moveTo(x+r,y); g.arcTo(x+w,y,x+w,y+h,r); g.arcTo(x+w,y+h,x,y+h,r); g.arcTo(x,y+h,x,y,r); g.arcTo(x,y,x+w,y,r); g.closePath(); }
+function drawTree(t){
+  const s = t.s*1.25, r = t.r*s;
+  ctx.fillStyle='rgba(0,0,0,0.22)'; ctx.beginPath(); ctx.ellipse(t.x+4*s, t.y+2*s, r*1.0, r*0.45, 0, 0, 7); ctx.fill();
+  if (t.kind==='bush'){
+    ctx.fillStyle='#2f8a36'; ctx.beginPath(); ctx.arc(t.x-r*0.5,t.y-r*0.4,r*0.6,0,7); ctx.arc(t.x+r*0.5,t.y-r*0.4,r*0.6,0,7); ctx.arc(t.x,t.y-r*0.7,r*0.7,0,7); ctx.fill();
+    ctx.fillStyle='#4cb04f'; ctx.beginPath(); ctx.arc(t.x-r*0.15,t.y-r*0.95,r*0.35,0,7); ctx.fill();
+    return;
+  }
+  ctx.fillStyle='#7a4a2a'; ctx.fillRect(t.x-3*s, t.y-r*1.1, 6*s, r*1.1);
+  const [c1,c2,c3] = t.kind==='pink' ? ['#c96a98','#e48bb4','#f6c2da'] : ['#24742d','#2f8f3a','#55b558'];
+  ctx.fillStyle=c1; ctx.beginPath(); ctx.arc(t.x, t.y-r*1.55, r, 0, 7); ctx.fill();
+  ctx.fillStyle=c2; ctx.beginPath(); ctx.arc(t.x-r*0.12, t.y-r*1.7, r*0.86, 0, 7); ctx.fill();
+  ctx.fillStyle=c3; ctx.beginPath(); ctx.arc(t.x-r*0.35, t.y-r*2.0, r*0.4, 0, 7); ctx.fill();
+}
+
+// ───────────────────────── Игроки ─────────────────────────
+const COLORS = ['#e53935','#1e88e5','#43a047','#fdd835','#8e24aa','#fb8c00','#ec407a','#00acc1','#6d4c41','#7cb342','#3949ab','#f4511e'];
+const players = new Map();
+let colorIdx = 0;
+function makeCar(id, name){
+  return { id, name, color:COLORS[colorIdx++ % COLORS.length], s:0, lane:0, wob:Math.random()*6, speed:0, mul:1,
+           turbo:0, finished:false, place:0, finishSec:0, lastAction:0, park:null, popups:[] };
+}
+function getPlayer(id, name){
+  let p = players.get(id);
+  if (!p){
+    p = makeCar(id, name);
+    // реальный зритель пришёл во время ожидания — освобождаем место одного бота
+    const bot = [...players.values()].reverse().find(q => q.bot && !q.crash);
+    if (bot) crashBot(bot);
+    players.set(id, p);
+    placeNewcomer(p);
+    sfx.join();
+  }
+  p.lastAction = performance.now();
+  return p;
+}
+// ники ботов — как у обычных зрителей TikTok; каждую гонку берём 5 случайных
+const BOT_NAMES = ['alex_drift07','mariana.lpz','kevin_rx','sofi_✨','dani.gg','yung_marco','luisa2008','jxsh.07','nicole__m','tomas.rs','andreyka_95','vika.mur','ender_x','kiraa_','maxim.pro','camila_vb','brayan_23','lena.k','diego.mp4','oliver_fz'];
+function fillBots(){
+  for (const p of [...players.values()]) if (p.bot) players.delete(p.id);
+  const need = CFG.botFill - players.size;
+  const pool = BOT_NAMES.filter(n => ![...players.values()].some(q => q.name === n)).sort(() => Math.random() - 0.5);
+  for (let i=0; i<need; i++){ const p = makeCar('bot'+i, pool[i % pool.length]); p.bot = true; players.set(p.id, p); }
+}
+function crashBot(p){
+  const c = carPose(p), out = trackScreen(p.s, p.lane - 300);         // направление наружу от трассы
+  let vx = out.x - c.x, vy = out.y - c.y; const d = Math.hypot(vx, vy) || 1;
+  if (p.finished){ vx = (Math.random()<0.5?-1:1); vy = 0.3; } else { vx /= d; vy /= d; }
+  p.crash = {x:c.x, y:c.y, a:c.a, s:c.s, vx:vx*260, vy:vy*260, spin:(Math.random()<0.5?-1:1)*14, t:0};
+  sfx.crash();
+}
+function placeNewcomer(p){
+  if (phase === 'race'){ p.s = -10 - Math.random()*20; p.lane = ((Math.floor(Math.random()*4)-1.5)*46 + (Math.random()*2-1)*6); p.mul = 0.99+Math.random()*0.02; }
+  else arrangeGrid();
+}
+function arrangeGrid(){
+  let i=0;
+  for (const p of players.values()){
+    const row=Math.floor(i/4), col=i%4;
+    p.s = -24 - row*48; p.lane = (col-1.5)*46; i++;
+  }
+}
+
+// события эфира (в боевой версии сюда придут события из tiktokConnector)
+// Вход: любой подарок или сообщение — сразу; лайками — когда набрал CFG.joinLikes
+const pendingLikes = new Map();
+function onLike(id, name, count){
+  if (!players.has(id)){
+    const have = (pendingLikes.get(id) || 0) + count;
+    if (have < CFG.joinLikes){ pendingLikes.set(id, have); return; }
+    pendingLikes.delete(id); count = have;
+  }
+  const p = getPlayer(id, name);
+  p.likeAcc = (p.likeAcc || 0) + count;               // остаток лайков не теряется
+  const tens = Math.floor(p.likeAcc / 10);
+  if (tens > 0){ p.likeAcc -= tens*10; p.turbo += tens * CFG.sec10Likes; sfx.nitro(); }
+}
+function onChat(id, name){
+  const p = getPlayer(id, name);
+  p.turbo += CFG.secChat; sfx.nitro();
+}
+function setAvatar(p, url){
+  if (!url || p.avatarUrl === url) return;
+  p.avatarUrl = url; const img = new Image(); img.onload = () => { p.avatarImg = img; }; img.src = url;
+}
+function onGift(id, name, coins, emoji, giftName){
+  const p = getPlayer(id, name);
+  p.turbo += coins * CFG.secPerCoin; sfx.turbo(coins);
+  p.popups.push({text:`+${coins} TURBO`, color:'#ffd54a', t:0});
+  feed(`${emoji} ${p.name}  TURBO x${coins}!`, coins>=100 ? '#ffd54a' : '#fff');
+  if (coins >= 100) showBanner(`${emoji} ${p.name}`, `TURBO x${coins}!`, '#ff9d2e');
+}
+
+// ───────────────────────── Лента событий и баннеры ─────────────────────────
+const feedList = [];
+function feed(text, color){ feedList.push({text, color, t:0}); if (feedList.length>5) feedList.shift(); }
+let banner = null;
+function showBanner(name, msg, color){ banner = {name, msg, color, t:0}; }
+
+// ───────────────────────── Фазы: ожидание → гонка → итоги ─────────────────────────
+let phase = 'waiting', phaseT = CFG.waitSec, raceT = 0, finishCount = 0, results = [], goT = 0;
+function startWaiting(){
+  phase = 'waiting'; phaseT = CFG.waitSec;
+  const now = performance.now();
+  for (const p of [...players.values()]) if (!p.bot && now - p.lastAction > 5*60*1000) players.delete(p.id);
+  fillBots();
+  for (const p of players.values()){ p.finished=false; p.place=0; p.park=null; p.speed=0; }
+  finishCount = 0; arrangeGrid();
+}
+function startRace(){
+  phase = 'race'; phaseT = CFG.raceSec; raceT = 0; goT = 1; sfx.go();
+  for (const p of players.values()) p.mul = 0.99 + Math.random()*0.02;
+}
+function endRace(){
+  const all = [...players.values()].filter(p => !p.crash);
+  const fin = all.filter(p=>p.finished).sort((a,b)=>a.place-b.place);
+  const rest = all.filter(p=>!p.finished).sort((a,b)=>b.s-a.s);
+  results = fin.concat(rest).slice(0,10);
+  for (const p of all) p.turbo = 0; // остаток турбо сгорает с концом гонки
+  phase = 'results'; phaseT = CFG.resultsSec; sfx.results();
+}
+const lapsOf = p => p.s < 0 ? 0 : Math.min(CFG.laps, Math.floor(p.s / L));
+
+function update(dt){
+  const prevSec = Math.ceil(phaseT);
+  phaseT -= dt;
+  const nowSec = Math.ceil(phaseT);
+  if (phase === 'waiting' && players.size && nowSec !== prevSec && nowSec >= 1 && nowSec <= 3) sfx.count();
+  if (goT > 0) goT -= dt;
+  if (phase === 'waiting' && phaseT <= 0){ if (players.size) startRace(); else phaseT = CFG.waitSec; }
+  else if (phase === 'race'){
+    raceT += dt;
+    for (const p of players.values()){
+      if (p.crash) continue;
+      if (p.finished){ if (p.park && p.park.t < 1) p.park.t = Math.min(1, p.park.t + dt/1.4); continue; }
+      let target = baseSpeed() * p.mul;
+      // запас турбо распределяется на оставшееся время гонки: если секунд турбо больше, чем осталось
+      // гонки, турбо тратится быстрее и во столько же раз сильнее — монеты не сгорают впустую
+      p.rate = 0;
+      if (p.turbo > 0){
+        const r = Math.min(40, Math.max(1, p.turbo / Math.max(5, phaseT)));
+        target *= 1 + (CFG.turboMul - 1) * r;
+        p.turbo = Math.max(0, p.turbo - r*dt); p.rate = r;
+      }
+      p.speed += (target - p.speed) * Math.min(1, dt*4);
+      const before = lapsOf(p);
+      p.s += p.speed * dt;
+      const after = lapsOf(p);
+      if (after >= CFG.laps){
+        p.finished = true; p.place = ++finishCount; p.finishSec = raceT;
+        const from = trackScreen(p.s, p.lane), spot = SPOTS[Math.min(p.place-1, SPOTS.length-1)];
+        p.park = {fx:from.x, fy:from.y, fa:from.a, tx:spot[0], ty:spot[1], t:0};
+        showBanner(p.name, p.place===1 ? 'WINNER!' : `FINISH #${p.place}`, p.place<=3 ? '#ffd54a' : '#7cf0ff');
+        sfx.finish(p.place);
+      } else if (after > before){
+        showBanner(p.name, `LAP ${after}!`, '#2ee6c8'); sfx.lap();
+      }
+    }
+    const total = [...players.values()].filter(p => !p.crash).length;
+    if (phaseT <= 0 || (total && finishCount >= total)) endRace();
+  }
+  else if (phase === 'results' && phaseT <= 0) startWaiting();
+  for (const p of [...players.values()]) if (p.crash && (p.crash.t += dt) > 1.1) players.delete(p.id);
+  for (const p of players.values()) for (const pp of p.popups) pp.t += dt;
+  for (const p of players.values()) p.popups = p.popups.filter(pp => pp.t < (pp.small?0.8:1.6));
+  for (const f of feedList) f.t += dt;
+  if (banner){ banner.t += dt; if (banner.t > 1.8) banner = null; }
+}
+
+// ───────────────────────── Отрисовка ─────────────────────────
+function carPose(p){
+  if (p.crash){
+    const c = p.crash, t = c.t;
+    return {x: c.x + c.vx*t, y: c.y + c.vy*t - Math.sin(Math.min(1, t/0.9)*Math.PI)*55, a: c.a + c.spin*t, s: c.s*(1 + t*0.25), crash: c};
+  }
+  if (p.park){
+    const e = 1 - Math.pow(1 - p.park.t, 3);
+    const x = p.park.fx + (p.park.tx - p.park.fx)*e, y = p.park.fy + (p.park.ty - p.park.fy)*e;
+    const a = p.park.t < 0.85 ? Math.atan2((p.park.ty - p.park.fy)/SQ, p.park.tx - p.park.fx) : -Math.PI/2;
+    return {x, y, a, s:scaleAtY(y)};
+  }
+  return trackScreen(p.s, p.lane + Math.sin(performance.now()/1400 + p.wob)*6);
+}
+// машинка «в 3D»: картинг из слоёв на земле (сплюснуты под наклон камеры) + пилот, стоящий вертикально
+// оси карта: +x — вперёд, ±y — бока; длина ~32, ширина ~24
+function drawKart(p, x, y, a, s, time){
+  const k = s*KART;
+  const gnd = (dz, fn) => { ctx.save(); ctx.translate(x, y - dz*k); ctx.scale(k, k*SQ); ctx.rotate(a); fn(); ctx.restore(); };
+  const P = (gx, gy, dz) => ({ x: x + (Math.cos(a)*gx - Math.sin(a)*gy)*k, y: y + (Math.sin(a)*gx + Math.cos(a)*gy)*k*SQ - dz*k });
+  const body = p.color, dark = shade(p.color,0.55), light = shade(p.color,1.4);
+  // турбо: большое оранжевое пламя (подарки) / короткая синяя вспышка (мини-нитро)
+  if (p.turbo > 0 && phase === 'race' && !p.finished){
+    const big = p.turbo >= 1, mega = Math.min(2.2, 1 + Math.log10(Math.max(1, p.rate||1))*0.8);
+    gnd(5, () => {
+      const fl = ((big ? 18 : 10) + Math.sin(time*40 + p.wob*10)*(big ? 6 : 3)) * mega;
+      const g = ctx.createLinearGradient(-15,0,-15-fl,0);
+      if (big){ g.addColorStop(0,'#fff6a0'); g.addColorStop(0.4,'#ffae2a'); g.addColorStop(1,'rgba(255,60,0,0)'); }
+      else    { g.addColorStop(0,'#e8fbff'); g.addColorStop(0.4,'#5cc8ff'); g.addColorStop(1,'rgba(40,120,255,0)'); }
+      ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(-15,1); ctx.lineTo(-15-fl,5.5); ctx.lineTo(-15,10); ctx.fill();
+      if (big){ ctx.strokeStyle='rgba(255,255,255,0.6)'; ctx.lineWidth=1.6;
+        for (let j=-1;j<=1;j++){ const o=(time*300 + j*17 + p.wob*30)%26; ctx.beginPath(); ctx.moveTo(-20-o,j*11); ctx.lineTo(-34-o,j*11); ctx.stroke(); } }
+    });
+  }
+  // тень
+  gnd(0, () => { ctx.fillStyle='rgba(0,0,0,0.32)'; ctx.beginPath(); ctx.ellipse(0,0,19,14,0,0,7); ctx.fill(); });
+  // шины: нижний слой + верх с протектором и диском
+  const tires = [[-13,-13,9,6],[-13,7,9,6],[7,-12.5,7,5],[7,7.5,7,5]];
+  gnd(0, () => { ctx.fillStyle='#0b0b0b'; tires.forEach(([tx,ty,w,h]) => { roundRect(ctx,tx,ty,w,h,2); ctx.fill(); }); });
+  gnd(3.5, () => {
+    tires.forEach(([tx,ty,w,h]) => {
+      ctx.fillStyle='#262626'; roundRect(ctx,tx,ty,w,h,2); ctx.fill();
+      ctx.strokeStyle='rgba(255,255,255,0.12)'; ctx.lineWidth=0.8;
+      const ph = (p.s*0.35) % 3;
+      for (let tt = tx + ph; tt < tx + w; tt += 3){ ctx.beginPath(); ctx.moveTo(tt, ty); ctx.lineTo(tt, ty+h); ctx.stroke(); }
+      ctx.fillStyle='#b9c0c8'; ctx.beginPath(); ctx.ellipse(tx+w/2, ty+h/2, w*0.22, h*0.28, 0, 0, 7); ctx.fill();
+    });
+  });
+  // рама и задний бампер
+  gnd(3, () => {
+    ctx.strokeStyle='#3a3f47'; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.moveTo(-14,-6); ctx.lineTo(10,-6); ctx.moveTo(-14,6); ctx.lineTo(10,6); ctx.moveTo(-9,-11); ctx.lineTo(-9,11); ctx.moveTo(10,-10); ctx.lineTo(10,10); ctx.stroke();
+    ctx.fillStyle='#15171b'; roundRect(ctx,-17.5,-10,3.5,20,1.5); ctx.fill();
+  });
+  // кузов: тёмный «бок» (объём) снизу, сверху основной цвет
+  const pods = () => { roundRect(ctx,-6,-12,11,5,2); ctx.fill(); roundRect(ctx,-6,7,11,5,2); ctx.fill(); };
+  const nose = () => { ctx.beginPath(); ctx.moveTo(3,-8); ctx.quadraticCurveTo(13,-8,17,-3); ctx.quadraticCurveTo(18.5,0,17,3); ctx.quadraticCurveTo(13,8,3,8); ctx.closePath(); ctx.fill(); };
+  gnd(4, () => { ctx.fillStyle=dark; pods(); nose(); });
+  gnd(7, () => {
+    ctx.fillStyle=body; pods(); nose();
+    ctx.fillStyle=light; ctx.globalAlpha=0.55; roundRect(ctx,-5,-11.5,9,1.6,0.8); ctx.fill(); roundRect(ctx,-5,7.5,9,1.6,0.8); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(5,-6); ctx.quadraticCurveTo(12,-6,15,-2.5); ctx.lineTo(12,-2.5); ctx.quadraticCurveTo(10,-4.5,5,-4.5); ctx.fill(); ctx.globalAlpha=1;
+    ctx.fillStyle='#fff'; ctx.beginPath(); ctx.ellipse(12,0,3.2,3.6,0,0,7); ctx.fill();           // номерной круг
+    ctx.fillStyle=dark; ctx.beginPath(); ctx.ellipse(12,0,1.6,2,0,0,7); ctx.fill();
+  });
+  // сиденье, двигатель, выхлоп
+  gnd(6, () => {
+    ctx.fillStyle='#1d2026'; roundRect(ctx,-10,-5,8,10,3); ctx.fill();
+    ctx.fillStyle='#8d949e'; roundRect(ctx,-15,2.5,6,6,1.5); ctx.fill();
+    ctx.fillStyle='#c3c9d1'; roundRect(ctx,-14.5,3,2.5,5,1); ctx.fill();
+    ctx.fillStyle='#2b2f36'; ctx.beginPath(); ctx.arc(-16,-4,1.6,0,7); ctx.fill();
+  });
+  // пилот: торс, руки к рулю, шлем с визором
+  const seat = P(-6,0,10), wheel = P(3,0,10), sh1 = P(-4.5,-3.5,15), sh2 = P(-4.5,3.5,15);
+  ctx.strokeStyle='#15171b'; ctx.lineWidth=2.4*k; ctx.lineCap='round';
+  ctx.beginPath(); ctx.ellipse(wheel.x, wheel.y, 3.6*k, 3.6*k*SQ*0.6, a, 0, 7); ctx.stroke();
+  ctx.strokeStyle=dark; ctx.lineWidth=2.6*k;
+  ctx.beginPath(); ctx.moveTo(sh1.x, sh1.y); ctx.lineTo(wheel.x + (sh1.x-wheel.x)*0.15, wheel.y + (sh1.y-wheel.y)*0.15);
+  ctx.moveTo(sh2.x, sh2.y); ctx.lineTo(wheel.x + (sh2.x-wheel.x)*0.15, wheel.y + (sh2.y-wheel.y)*0.15); ctx.stroke();
+  ctx.fillStyle=dark; ctx.beginPath(); ctx.ellipse(seat.x, seat.y - 5*k, 5.2*k, 6*k, 0, 0, 7); ctx.fill();
+  ctx.fillStyle=body; ctx.beginPath(); ctx.ellipse(seat.x, seat.y - 6*k, 3.4*k, 4*k, 0, 0, 7); ctx.fill();
+  const hx = seat.x, hy = seat.y - 14*k;
+  ctx.fillStyle='#f4f6f8'; ctx.beginPath(); ctx.arc(hx, hy, 5.6*k, 0, 7); ctx.fill();
+  ctx.fillStyle=body; ctx.beginPath(); ctx.arc(hx, hy, 5.6*k, Math.PI*1.05, Math.PI*1.95); ctx.fill();
+  ctx.fillStyle='rgba(255,255,255,0.75)'; ctx.beginPath(); ctx.arc(hx-2*k, hy-2.6*k, 1.4*k, 0, 7); ctx.fill();
+  const fwd = Math.sin(a); // >0 — едет на камеру (визор виден), <0 — от камеры
+  if (fwd > -0.6){
+    ctx.fillStyle='#1b2333';
+    ctx.beginPath(); ctx.ellipse(hx + Math.cos(a)*3*k, hy + 0.8*k + fwd*1.2*k, 3.6*k*(0.4+0.6*Math.abs(fwd)), 2*k, 0, 0, 7); ctx.fill();
+    ctx.fillStyle='rgba(120,200,255,0.5)'; ctx.beginPath(); ctx.ellipse(hx + Math.cos(a)*3*k - 1*k, hy + 0.3*k + fwd*1.2*k, 1.4*k*(0.4+0.6*Math.abs(fwd)), 0.7*k, 0, 0, 7); ctx.fill();
+  }
+}
+function strokeText(t, x, y, font, fill, sw){
+  ctx.font = font; ctx.lineWidth = sw||3; ctx.strokeStyle='rgba(0,0,0,0.85)'; ctx.lineJoin='round';
+  if (sw!==0) ctx.strokeText(t,x,y); ctx.fillStyle=fill; ctx.fillText(t,x,y);
+}
+function fmt(sec){ sec=Math.max(0,Math.ceil(sec)); return `${Math.floor(sec/60)}:${String(sec%60).padStart(2,'0')}`; }
+function short(n, k){ return n.length > k ? n.slice(0,k-1)+'…' : n; }
+
+function draw(time){
+  ctx.save(); ctx.translate(0, -SCENE_UP); // вся сцена чуть выше — снизу место под картинку подарков
+  ctx.drawImage(bg, 0, 0, CW, CH);
+  const cars = [...players.values()].map(p => ({p, ...carPose(p)}));
+  for (const c of cars) if (c.p.finished && c.p.park.t > 0.6){
+    const k = c.s*KART, col = c.p.place===1?'#ffd54a':c.p.place===2?'#e3e9ee':c.p.place===3?'#ff9a52':'#ffffff';
+    ctx.globalAlpha = Math.min(1,(c.p.park.t-0.6)/0.3);
+    ctx.fillStyle='rgba(255,255,255,0.18)'; ctx.beginPath(); ctx.ellipse(c.x, c.y, 19*k, 19*k*SQ*0.75, 0, 0, 7); ctx.fill();
+    ctx.strokeStyle=col; ctx.lineWidth=2.5; ctx.stroke(); ctx.globalAlpha = 1;
+  }
+  const objs = cars.map(c => ({y:c.y, c})).concat(trees.map(t => ({y:t.y, t}))).sort((a,b)=>a.y-b.y);
+  for (const o of objs){
+    if (!o.c){ drawTree(o.t); continue; }
+    const cr = o.c.crash;
+    if (cr){
+      if (cr.t < 0.5){ const q = cr.t/0.5;
+        ctx.globalAlpha = 1-q; ctx.fillStyle = '#ffe36e';
+        for (let i=0;i<8;i++){ const ang = i/8*Math.PI*2; ctx.beginPath(); ctx.arc(cr.x + Math.cos(ang)*q*40, cr.y + Math.sin(ang)*q*30, 5*(1-q)+1, 0, 7); ctx.fill(); }
+        ctx.fillStyle = 'rgba(200,200,200,0.8)'; ctx.beginPath(); ctx.arc(cr.x, cr.y, 10 + q*26, 0, 7); ctx.fill();
+        ctx.globalAlpha = 1;
+        strokeText('BAM!', cr.x, cr.y - 30 - q*20, 'bold italic 22px Arial', '#ff5a2e', 4);
+      }
+      ctx.globalAlpha = Math.max(0, Math.min(1, (1.1 - cr.t)/0.35));
+    }
+    drawKart(o.c.p, o.c.x, o.c.y, o.c.a, o.c.s, time);
+    ctx.globalAlpha = 1;
+  }
+  ctx.textAlign='center';
+  for (const c of cars.sort((a,b)=>a.y-b.y)){
+    const p = c.p, k = c.s*KART;
+    if (p.crash) continue;
+    if (p.finished){
+      if (p.park.t > 0.9){
+        ctx.fillStyle = p.place===1?'#ffd54a':p.place===2?'#cfd8dc':p.place===3?'#ff8a3d':'#2ee6c8';
+        strokeText(String(p.place), c.x, c.y-36*k, 'bold 17px Arial', ctx.fillStyle, 3);
+        strokeText(short(p.name,8), c.x, c.y-47*k, 'bold 10px Arial', '#fff', 3);
+      }
+    } else {
+      strokeText(short(p.name,13), c.x, c.y-46*k, 'bold 13px Arial', '#fff', 3);
+      strokeText(`${lapsOf(p)}/${CFG.laps}`, c.x, c.y-33*k, 'bold 14px Arial', p.turbo>0&&phase==='race'?'#ffd54a':'#fff', 3);
+      if (phase==='race' && p.rate > 1.05){ const m = Math.round(1 + (CFG.turboMul-1)*p.rate); strokeText(`×${m}`, c.x + 24*k, c.y-33*k, 'bold italic 15px Arial', '#ff7a2e', 3); }
+    }
+    for (const pp of p.popups){
+      const life = pp.small?0.8:1.6, q = pp.t/life;
+      ctx.globalAlpha = 1 - q;
+      strokeText(pp.text, c.x + (pp.small?14:0), c.y - 60*k - q*30, pp.small?'15px Arial':'bold 17px Arial', pp.color, 3);
+      ctx.globalAlpha = 1;
+    }
+  }
+  drawBoard(); drawBanner();
+  ctx.restore();
+  drawHeader(); drawLegend();
+  if (phase==='waiting' && phaseT <= 3 && players.size) bigText(String(Math.ceil(phaseT)), '#fff');
+  if (goT > 0) { ctx.globalAlpha = Math.min(1, goT*2); bigText('GO!', '#4cff6a', 110); ctx.globalAlpha = 1; }
+  if (phase === 'results') drawResults();
+}
+function bigText(t, color, size){ ctx.textAlign='center'; strokeText(t, CW/2, 540, `bold italic ${size||110}px Arial`, color, 10); }
+function drawBoard(){
+  const x=215, y=258, w=170, h=100;
+  ctx.fillStyle='rgba(14,22,30,0.88)'; roundRect(ctx,x,y,w,h,14); ctx.fill();
+  ctx.strokeStyle='#ffd54a'; ctx.lineWidth=2; roundRect(ctx,x,y,w,h,14); ctx.stroke();
+  ctx.textAlign='center';
+  if (phase==='waiting'){
+    strokeText('WAITING', 300, y+24, 'bold 14px Arial', '#4cff9a', 0);
+    strokeText(players.size? 'Starts in' : 'Tap to join!', 300, y+42, '12px Arial', '#fff', 0);
+    strokeText(players.size? String(Math.ceil(phaseT)) : '—', 300, y+80, 'bold 36px Arial', '#ffd54a', 0);
+  } else {
+    const leader = Math.max(0, ...[...players.values()].map(p=>Math.min(CFG.laps, lapsOf(p)+(p.finished?0:1))));
+    strokeText(phase==='race'?'RACE!':'FINISHED', 300, y+24, 'bold 14px Arial', '#4cff9a', 0);
+    strokeText(fmt(phase==='race'?phaseT:0), 300, y+68, 'bold 42px Arial', '#ffd54a', 0);
+    strokeText(`Lap ${leader}/${CFG.laps}`, 300, y+92, 'bold 13px Arial', '#2ee6c8', 0);
+  }
+}
+function drawBanner(){
+  if (!banner) return;
+  const k = banner.t; ctx.globalAlpha = k<0.2 ? k/0.2 : k>1.5 ? (1.8-k)/0.3 : 1;
+  const w=320, h=42, x=CW/2-w/2, y=446;
+  ctx.fillStyle='rgba(14,22,30,0.92)'; roundRect(ctx,x,y,w,h,21); ctx.fill();
+  ctx.strokeStyle=banner.color; ctx.lineWidth=3; roundRect(ctx,x,y,w,h,21); ctx.stroke();
+  ctx.textAlign='right'; strokeText(short(banner.name,16).toUpperCase(), CW/2+10, y+27, 'bold 14px Arial', '#fff', 0);
+  ctx.textAlign='left';  strokeText(banner.msg, CW/2+20, y+28, 'bold italic 17px Arial', banner.color, 0);
+  ctx.globalAlpha = 1; ctx.textAlign='center';
+}
+function drawHeader(){
+  const g = ctx.createLinearGradient(0,0,0,112); g.addColorStop(0,'rgba(10,14,24,0.92)'); g.addColorStop(1,'rgba(10,14,24,0)');
+  ctx.fillStyle=g; ctx.fillRect(0,0,CW,112);
+  ctx.textAlign='left';
+  strokeText('NEPLOXO KART', 18, 48, 'bold italic 32px Arial', '#ffd54a', 5);
+  feedList.forEach((f,i)=>{
+    const a = f.t > 6 ? Math.max(0, 1-(f.t-6)) : 1; if (a<=0) return;
+    ctx.globalAlpha = a; ctx.textAlign='right';
+    strokeText(short(f.text,30), CW-14, 26 + i*18, 'bold 13px Arial', f.color, 3);
+    ctx.globalAlpha = 1;
+  });
+  ctx.textAlign='center';
+}
+// картинка подарков внизу (sprites/kart/gifts_legend.jpg, 3:1)
+const SCENE_UP = 40;
+const legendImg = new Image(); legendImg.src = 'sprites/kart/gifts_legend.jpg';
+function drawLegend(){
+  const y = CH - 200;
+  const g = ctx.createLinearGradient(0, y-30, 0, y+30); g.addColorStop(0,'rgba(0,0,0,0)'); g.addColorStop(1,'rgba(0,0,0,1)');
+  ctx.fillStyle = g; ctx.fillRect(0, y-30, CW, 60);
+  ctx.fillStyle = '#000'; ctx.fillRect(0, y+30, CW, CH-y-30);
+  if (legendImg.complete && legendImg.naturalWidth) ctx.drawImage(legendImg, 0, y+8, CW, 192);
+  ctx.textAlign='center';
+}
+function avatar(p, x, y, r){
+  if (p.avatarImg){
+    ctx.save(); ctx.beginPath(); ctx.arc(x,y,r,0,7); ctx.clip(); ctx.drawImage(p.avatarImg, x-r, y-r, r*2, r*2); ctx.restore();
+    ctx.strokeStyle='#fff'; ctx.lineWidth=3; ctx.beginPath(); ctx.arc(x,y,r,0,7); ctx.stroke(); return;
+  }
+  ctx.fillStyle=p.color; ctx.beginPath(); ctx.arc(x,y,r,0,7); ctx.fill();
+  ctx.strokeStyle='#fff'; ctx.lineWidth=3; ctx.stroke();
+  strokeText(p.name[0].toUpperCase(), x, y+r*0.38, `bold ${r}px Arial`, '#fff', 0);
+}
+function drawResults(){
+  ctx.fillStyle='rgba(5,8,14,0.82)'; ctx.fillRect(0,0,CW,CH);
+  ctx.textAlign='center';
+  strokeText('FINAL RESULTS', CW/2, 150, 'bold 46px Arial', '#ffd54a', 6);
+  const pods = [[1,250,290,150,'#f5c518'],[0,140,330,110,'#b0bec5'],[2,360,360,80,'#ef6c2f']];
+  for (const [i,x,top,h,col] of pods){
+    const p = results[i]; if (!p) continue;
+    ctx.fillStyle=col; roundRect(ctx,x,top,100,h,8); ctx.fill();
+    strokeText(String(i+1), x+50, top+52, 'bold 44px Arial', '#fff', 4);
+    avatar(p, x+50, top-50, i===0?30:24);
+    strokeText(short(p.name,11), x+50, top-10, 'bold 15px Arial', i===0?'#ffd54a':'#fff', 3);
+  }
+  for (let i=3;i<results.length;i++){
+    const p = results[i], y = 470 + (i-3)*46;
+    ctx.fillStyle='rgba(255,255,255,0.08)'; roundRect(ctx,130,y,340,38,8); ctx.fill();
+    ctx.textAlign='left';
+    strokeText(String(i+1), 145, y+25, 'bold 15px Arial', '#9fb3c8', 0);
+    strokeText(short(p.name,20), 178, y+25, 'bold 16px Arial', '#fff', 0);
+    ctx.textAlign='right';
+    strokeText(p.finished ? fmt(p.finishSec) : `${lapsOf(p)}/${CFG.laps}`, 455, y+25, 'bold 14px Arial', '#2ee6c8', 0);
+    ctx.textAlign='center';
+  }
+  if (!results.length) strokeText('No racers', CW/2, 450, 'bold 22px Arial', '#fff', 0);
+  strokeText(`Next race in ${Math.ceil(phaseT)}…`, CW/2, 860, 'bold 18px Arial', '#fff', 3);
+}
+
+// ───────────────────────── Звук: фоновая музыка + эффекты (всё синтезируется, без файлов и без голоса) ─────────────────────────
+const SND = { ac:null, master:null, music:null, sfx:null, musicOn:true, sfxOn:true, started:false, nextNote:0, step:0, timer:null, lastNitro:0, lastLap:0 };
+function audioInit(){
+  if (SND.ac) { if (SND.ac.state === 'suspended') SND.ac.resume(); return; }
+  const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
+  const ac = SND.ac = new AC(); SND.initAt = performance.now();
+  SND.master = ac.createGain(); SND.master.gain.value = 0.9; SND.master.connect(ac.destination);
+  SND.music = ac.createGain(); SND.music.gain.value = SND.musicOn ? 0.16 : 0; SND.music.connect(SND.master);
+  SND.sfx = ac.createGain(); SND.sfx.gain.value = SND.sfxOn ? 0.55 : 0; SND.sfx.connect(SND.master);
+  const len = ac.sampleRate; SND.noise = ac.createBuffer(1, len, ac.sampleRate);
+  const d = SND.noise.getChannelData(0); for (let i=0;i<len;i++) d[i] = Math.random()*2-1;
+  SND.nextNote = ac.currentTime + 0.1;
+  SND.timer = setInterval(musicTick, 25);
+}
+function setMusic(on){ SND.musicOn = on; if (SND.music) SND.music.gain.setTargetAtTime(on ? 0.16 : 0, SND.ac.currentTime, 0.1); }
+function setSfx(on){ SND.sfxOn = on; if (SND.sfx) SND.sfx.gain.setTargetAtTime(on ? 0.55 : 0, SND.ac.currentTime, 0.05); }
+const hz = n => 440 * Math.pow(2, (n - 69) / 12); // MIDI-нота → частота
+function tone(freq, t, dur, type, vol, dest, opt){
+  const ac = SND.ac, o = ac.createOscillator(), g = ac.createGain();
+  o.type = type; o.frequency.setValueAtTime(freq, t);
+  if (opt && opt.to) o.frequency.exponentialRampToValueAtTime(opt.to, t + dur);
+  const a = (opt && opt.a) || 0.005;
+  g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + a);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  let node = o;
+  if (opt && opt.lp){ const f = ac.createBiquadFilter(); f.type='lowpass'; f.frequency.value = opt.lp; o.connect(f); node = f; }
+  node.connect(g); g.connect(dest); o.start(t); o.stop(t + dur + 0.05);
+}
+function noise(t, dur, vol, dest, type, f1, f2){
+  const ac = SND.ac, src = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain();
+  src.buffer = SND.noise; f.type = type; f.frequency.setValueAtTime(f1, t);
+  if (f2) f.frequency.exponentialRampToValueAtTime(f2, t + dur);
+  g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + Math.min(0.05, dur*0.3));
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  src.connect(f); f.connect(g); g.connect(dest); src.start(t, Math.random()*0.5); src.stop(t + dur + 0.05);
+}
+
+// фоновая музыка: спокойный гоночный луп (ровная бочка, качающий бас, пэд, арпеджио и мелодия), Am–F–C–G, 124 BPM
+const BPM = 124, STEP16 = 60 / BPM / 4;
+const ROOTS = [45, 41, 48, 43];                                     // A, F, C, G (бас)
+const PADS  = [[69,72,76],[65,69,72],[67,72,76],[67,71,74]];        // аккорды пэда
+const MELODY = [ // по четвертям, 0 = пауза; 8 тактов
+  [76,74,72,69],[72,0,69,72],[76,79,76,74],[74,72,71,0],
+  [76,74,72,69],[72,74,76,0],[79,77,76,74],[76,0,0,0],
+];
+function musicTick(){
+  const ac = SND.ac; if (!ac) return;
+  while (SND.nextNote < ac.currentTime + 0.12){
+    const t = SND.nextNote, st = SND.step, bar = Math.floor(st/16) % 8, pos = st % 16, ci = bar % 4, root = ROOTS[ci], pad = PADS[ci];
+    const section = Math.floor(st/128) % 2; // каждые 8 тактов чередуем: с мелодией / без
+    if (pos % 4 === 0) tone(120, t, 0.22, 'sine', 0.7, SND.music, {to:42});                          // бочка
+    if (pos === 4 || pos === 12) noise(t, 0.14, 0.2, SND.music, 'bandpass', 1600);                   // хлопок
+    if (pos % 4 === 2) noise(t, 0.06, 0.1, SND.music, 'highpass', 8000);                             // хэт
+    if (pos % 2 === 0) tone(hz(root + (pos % 4 === 2 ? 12 : 0)), t, STEP16*1.7, 'sawtooth', 0.22, SND.music, {lp:520}); // бас
+    if (pos === 0) pad.forEach(n => { tone(hz(n-12), t, STEP16*15.5, 'sawtooth', 0.035, SND.music, {lp:1100, a:0.25}); tone(hz(n-12)*1.004, t, STEP16*15.5, 'sawtooth', 0.03, SND.music, {lp:1100, a:0.25}); });
+    const arp = [0,1,2,1][pos % 4] , oct = pos >= 8 ? 12 : 0;
+    tone(hz(pad[arp] + oct), t, STEP16*0.8, 'square', 0.035, SND.music, {lp:2600});                   // арпеджио
+    if (section === 0 && pos % 4 === 0){ const m = MELODY[bar][pos/4]; if (m) tone(hz(m), t, STEP16*3.6, 'triangle', 0.2, SND.music, {a:0.01}); }
+    SND.nextNote += STEP16; SND.step++;
+  }
+}
+
+// эффекты
+const sfx = {
+  ok(){ return SND.ac && SND.sfxOn; },
+  count(){ if (!this.ok()) return; const t = SND.ac.currentTime; tone(hz(69), t, 0.22, 'square', 0.35, SND.sfx, {lp:3000}); },
+  go(){ if (!this.ok()) return; const t = SND.ac.currentTime;
+    tone(hz(81), t, 0.6, 'square', 0.35, SND.sfx, {lp:4000}); tone(hz(76), t, 0.6, 'square', 0.2, SND.sfx, {lp:4000});
+    noise(t, 0.7, 0.25, SND.sfx, 'bandpass', 300, 2500); },
+  join(){ if (!this.ok()) return; const t = SND.ac.currentTime; tone(hz(72), t, 0.08, 'sine', 0.3, SND.sfx); tone(hz(79), t+0.06, 0.12, 'sine', 0.3, SND.sfx); },
+  nitro(){ if (!this.ok()) return; const now = performance.now(); if (now - SND.lastNitro < 140) return; SND.lastNitro = now;
+    const t = SND.ac.currentTime; tone(900, t, 0.12, 'sine', 0.12, SND.sfx, {to:2200}); },
+  turbo(coins){ if (!this.ok()) return; const t = SND.ac.currentTime, big = coins >= 100, huge = coins >= 1000, d = huge ? 1.6 : big ? 1.1 : 0.55;
+    noise(t, d, huge ? 0.6 : big ? 0.5 : 0.35, SND.sfx, 'bandpass', 350, 4500);
+    tone(110, t, d, 'sawtooth', big ? 0.18 : 0.12, SND.sfx, {to: huge ? 1400 : 880, lp:1800});
+    if (big){ [84,88,91,96].forEach((n,i)=>tone(hz(n), t + 0.08*i + 0.2, 0.25, 'triangle', 0.22, SND.sfx)); }
+    if (huge){ [96,100,103,108].forEach((n,i)=>tone(hz(n), t + 0.07*i + 0.6, 0.3, 'sine', 0.2, SND.sfx)); } },
+  lap(){ if (!this.ok()) return; const now = performance.now(); if (now - SND.lastLap < 120) return; SND.lastLap = now;
+    const t = SND.ac.currentTime; tone(hz(84), t, 0.1, 'triangle', 0.22, SND.sfx); tone(hz(91), t+0.07, 0.14, 'triangle', 0.22, SND.sfx); },
+  finish(place){ if (!this.ok()) return; const t = SND.ac.currentTime;
+    if (place === 1){ [72,76,79,84,79,84].forEach((n,i)=>{ const dt=[0,0.1,0.2,0.3,0.45,0.55][i]; tone(hz(n), t+dt, i===5?0.6:0.14, 'square', 0.22, SND.sfx, {lp:3500}); tone(hz(n-12), t+dt, i===5?0.6:0.14, 'triangle', 0.25, SND.sfx); }); }
+    else if (place <= 3){ tone(hz(79), t, 0.14, 'square', 0.2, SND.sfx, {lp:3000}); tone(hz(84), t+0.12, 0.3, 'square', 0.2, SND.sfx, {lp:3000}); }
+    else tone(hz(84), t, 0.18, 'triangle', 0.2, SND.sfx); },
+  crash(){ if (!this.ok()) return; const t = SND.ac.currentTime;
+    noise(t, 0.45, 0.6, SND.sfx, 'lowpass', 1800, 200); tone(320, t, 0.5, 'sawtooth', 0.18, SND.sfx, {to:60, lp:1200});
+    tone(hz(76), t+0.15, 0.12, 'square', 0.12, SND.sfx, {lp:3000}); tone(hz(70), t+0.27, 0.2, 'square', 0.12, SND.sfx, {lp:3000}); },
+  results(){ if (!this.ok()) return; const t = SND.ac.currentTime;
+    [[60,64,67],[65,69,72],[67,71,74],[72,76,79]].forEach((c,i)=>c.forEach(n=>tone(hz(n), t+i*0.22, i===3?1.0:0.2, 'triangle', 0.16, SND.sfx))); },
+};
+// звук можно включить только после клика пользователя (правило браузеров)
+window.addEventListener('pointerdown', audioInit);
+audioInit(); // пробуем сразу (в OBS звук стартует сам); в обычном браузере — после первого клика
+
+// ───────────────────────── Цикл ─────────────────────────
+let last = performance.now();
+function frame(now){
+  const dt = Math.min(0.05, (now-last)/1000); last = now;
+  update(dt); draw(now/1000); updatePanel(dt);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+// ───────────────────────── Тестовый пульт ─────────────────────────
+const GIFTS = [
+  {e:'🌹', n:'Rose', c:1}, {e:'🫰', n:'Finger Heart', c:5}, {e:'🍩', n:'Doughnut', c:30},
+  {e:'🤲', n:'Hand Hearts', c:100}, {e:'🔫', n:'Money Gun', c:500}, {e:'🌌', n:'Galaxy', c:1000},
+];
+const NAMES = ['Leha Neploxo','tea_bls','geennaam','SHIN','Leylani','ZeroTwo','Carmen','ninja','LUIS BB','Angxl Cazz','samuel','Godzin','ELN13','Kevin','Dani','mami','INSANO','Juli','GUAPO','PAPI'];
+let nextId = 1;
+const viewers = new Map(); // тестовые зрители (ещё не обязательно в гонке)
+function addPlayer(name){
+  const id = 'p'+(nextId++);
+  const v = {id, name: name || NAMES[(nextId-2)%NAMES.length] + (nextId>NAMES.length+1 ? ' '+nextId : ''), color: COLORS[(nextId-2)%COLORS.length]};
+  viewers.set(id, v); addRow(v); return id;
+}
+
+const sliders = document.getElementById('sliders');
+for (const [k,label,min,max,step] of SLIDERS){
+  const d = document.createElement('div'); d.className='sl';
+  d.innerHTML = `<span class="l">${label}</span><input type="range" min="${min}" max="${max}" step="${step}" value="${CFG[k]}"><span class="v">${CFG[k]}</span>`;
+  const inp = d.querySelector('input'), v = d.querySelector('.v');
+  inp.oninput = () => { CFG[k] = +inp.value; v.textContent = inp.value; };
+  sliders.appendChild(d);
+}
+
+const plist = document.getElementById('plist'), rows = new Map();
+function addRow(p){
+  const d = document.createElement('div'); d.className='pl'; d.style.borderLeftColor = p.color;
+  d.innerHTML = `<div class="top"><span class="nm"></span><button class="rm" title="Убрать">✕</button></div>
+    <div class="st"></div>
+    <div><button data-a="like1">❤️ 1</button><button data-a="like15">❤️ 15</button><button data-a="chat">💬 сообщение</button><button data-a="streak">🌹×10 комбо</button></div>
+    <div class="gifts">${GIFTS.map((g,i)=>`<button data-g="${i}" title="${g.n}">${g.e} ${g.c}</button>`).join('')}
+      <input type="number" min="1" value="50"><button data-a="custom">🪙 монеты</button></div>`;
+  d.querySelector('.nm').textContent = p.name;
+  d.onclick = (e) => {
+    const b = e.target.closest('button'); if (!b) return;
+    if (b.classList.contains('rm')){ players.delete(p.id); viewers.delete(p.id); pendingLikes.delete(p.id); removeRow(p.id); return; }
+    if (b.dataset.g){ const g = GIFTS[+b.dataset.g]; onGift(p.id, p.name, g.c, g.e, g.n); return; }
+    const a = b.dataset.a;
+    if (a==='like1') onLike(p.id, p.name, 1);
+    if (a==='like15') onLike(p.id, p.name, 15);
+    if (a==='chat') onChat(p.id, p.name);
+    if (a==='streak'){ let n=0; const t=setInterval(()=>{ onGift(p.id,p.name,1,'🌹','Rose'); if(++n>=10) clearInterval(t); },180); }
+    if (a==='custom'){ const c = Math.max(1, Math.floor(+d.querySelector('input').value||1)); onGift(p.id, p.name, c, '🎁', 'Gift'); }
+  };
+  plist.appendChild(d); rows.set(p.id, d);
+}
+function removeRow(id){ const r = rows.get(id); if (r) r.remove(); rows.delete(id); }
+
+let panelT = 0;
+function updatePanel(dt){
+  panelT += dt; if (panelT < 0.25) return; panelT = 0;
+  const names = {waiting:'ожидание', race:'гонка', results:'итоги'};
+  document.getElementById('phaseLbl').textContent = `${names[phase]} · ${Math.max(0,Math.ceil(phaseT))} с · игроков ${players.size}`;
+  for (const v of viewers.values()) if (!players.has(v.id)){ const r = rows.get(v.id); if (r) r.querySelector('.st').textContent = `👀 не в гонке · лайков ${pendingLikes.get(v.id)||0}/${CFG.joinLikes} (или любой подарок)`; }
+  const order = [...players.values()].filter(p=>!p.bot).sort((a,b)=> (a.finished&&b.finished) ? a.place-b.place : a.finished ? -1 : b.finished ? 1 : b.s-a.s);
+  order.forEach((p,i)=>{
+    const r = rows.get(p.id); if (!r) return;
+    r.querySelector('.st').textContent = p.finished
+      ? `🏁 финиш #${p.place} за ${fmt(p.finishSec)}`
+      : `место ${i+1} · круг ${lapsOf(p)}/${CFG.laps} · турбо ${p.turbo.toFixed(1)} с`;
+  });
+}
+
+document.getElementById('bMusic').onclick = (e) => { audioInit(); if (performance.now() - SND.initAt > 400) setMusic(!SND.musicOn); e.target.textContent = '🎵 Музыка: ' + (SND.musicOn ? 'вкл' : 'выкл'); };
+document.getElementById('bSfx').onclick = (e) => { audioInit(); if (performance.now() - SND.initAt > 400) setSfx(!SND.sfxOn); e.target.textContent = '💥 Эффекты: ' + (SND.sfxOn ? 'вкл' : 'выкл'); };
+document.getElementById('bAdd').onclick = () => { const n = document.getElementById('newName'); addPlayer(n.value.trim()); n.value=''; };
+document.getElementById('bAdd10').onclick = () => { for (let i=0;i<10;i++) addPlayer(); };
+document.getElementById('bStart').onclick = () => { if (phase!=='race' && players.size){ if (phase==='results') startWaiting(); startRace(); } };
+document.getElementById('bEnd').onclick = () => { if (phase==='race') endRace(); };
+document.getElementById('bReset').onclick = () => { players.clear(); pendingLikes.clear(); feedList.length=0; startWaiting(); };
+document.getElementById('bAllLike').onclick = () => { for (const v of viewers.values()) onLike(v.id, v.name, 15); };
+document.getElementById('bAllChat').onclick = () => { for (const v of viewers.values()) onChat(v.id, v.name); };
+
+// авто-боты: случайные лайки/сообщения, иногда розы и редко крупные подарки
+setInterval(() => {
+  if (!document.getElementById('autoBots').checked || !viewers.size) return;
+  const arr = [...viewers.values()], p = arr[Math.floor(Math.random()*arr.length)];
+  const r = Math.random();
+  if (r < 0.6) onLike(p.id, p.name, 1 + Math.floor(Math.random()*15));
+  else if (r < 0.85) onChat(p.id, p.name);
+  else if (r < 0.97) onGift(p.id, p.name, 1, '🌹', 'Rose');
+  else { const g = GIFTS[1+Math.floor(Math.random()*3)]; onGift(p.id, p.name, g.c, g.e, g.n); }
+}, 300);
+
+for (let i=0;i<6;i++) addPlayer();
+startWaiting();
+if (location.hash.startsWith('#demo')){ for (let i=0;i<14;i++) addPlayer(); document.getElementById('autoBots').checked=true; CFG.waitSec=phaseT=3; const sim=parseInt(location.hash.split('sim=')[1])||0; const pure=location.hash.includes('pure'); if(pure){ document.getElementById('autoBots').checked=false; for (const v of viewers.values()) onChat(v.id,v.name); } for (let i=0;i<sim*30;i++){ if(!pure && i%9===0){ const arr=[...viewers.values()], v=arr[i%arr.length]; onLike(v.id,v.name,15); if(i%90===0) onGift(v.id,v.name,30,'🍩','Doughnut'); } update(1/30); } }
+
+// ───────────────────────── Эфир TikTok (?username=ник) ─────────────────────────
+// Сервер шлёт всем играм одни и те же события: arena_like (лайки пачкой), arena_boxing_chat
+// (любое сообщение), arena_gift (подарок, монеты). Учитываем их только в режиме 'tiktok' —
+// демо-события сервера (когда стример не в эфире) игру не двигают.
+const LIVE_USER = (new URLSearchParams(location.search).get('username') || '').replace(/^@/, '').trim();
+let _ws = null, _mode = 'connecting', _statusHide = null;
+function setStatus(cls, text, autoHide){
+  const el = document.getElementById('statusBadge');
+  el.style.display = 'block'; el.className = cls; el.textContent = text;
+  if (_statusHide) clearTimeout(_statusHide);
+  if (autoHide) _statusHide = setTimeout(() => { el.style.display = 'none'; }, 5000);
+}
+const uid = name => 'tt:' + String(name || '').toLowerCase();
+function giftEmoji(n){ n = String(n || '').toLowerCase(); return n.includes('rose') ? '🌹' : n.includes('heart') ? '💗' : n.includes('donut') || n.includes('doughnut') ? '🍩' : '🎁'; }
+function wsConnect(){
+  if (_ws && _ws.readyState < 2){ _ws.onclose = null; _ws.close(); }
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  _ws = new WebSocket(proto + '//' + location.host + '?username=' + encodeURIComponent(LIVE_USER));
+  _ws.onopen = () => setStatus('demo', '⏳ @' + LIVE_USER + '…');
+  _ws.onmessage = (e) => {
+    try {
+      const d = JSON.parse(e.data);
+      if (d.type === 'init' || d.type === 'status'){
+        const m = d.tiktokMode || d.mode; _mode = m || 'connecting';
+        if (m === 'tiktok') setStatus('live', '🔴 LIVE @' + (d.username || LIVE_USER), true);
+        else if (m === 'demo') setStatus('demo', '🟡 Ожидание эфира…');
+        else setStatus('demo', '⏳ @' + LIVE_USER + '…');
+      }
+      if (_mode !== 'tiktok' || !d.username) return;
+      const id = uid(d.username);
+      if (d.type === 'arena_like') onLike(id, d.username, Math.max(1, Number(d.likes) || 1));
+      if (d.type === 'arena_boxing_chat') onChat(id, d.username);
+      if (d.type === 'arena_gift') onGift(id, d.username, Math.max(1, Number(d.coins) || 1), giftEmoji(d.giftName), d.giftName || '');
+      const p = players.get(id); if (p && d.avatarUrl) setAvatar(p, d.avatarUrl);
+    } catch(err){ console.error('[kart ws]', err); }
+  };
+  _ws.onclose = () => { setStatus('error', '❌ Disconnected…'); setTimeout(wsConnect, 3000); };
+  _ws.onerror = () => {};
+}
+document.getElementById('fsBtn').onclick = () => { if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(()=>{}); else document.exitFullscreen().catch(()=>{}); };
+if (LIVE_USER){
+  document.body.classList.add('live'); applyScale();
+  document.getElementById('autoBots').checked = false;
+  viewers.clear(); rows.forEach(r => r.remove()); rows.clear();
+  players.clear(); pendingLikes.clear(); startWaiting();
+  wsConnect();
+}
+</script>
+</body>
+</html>

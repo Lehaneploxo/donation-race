@@ -323,6 +323,22 @@
     <a class="btn-start" href="/streetwars-db" style="display:block;text-align:center;text-decoration:none;background:linear-gradient(90deg,#5a0a36,#ff4fa3);color:#fff;box-shadow:0 4px 20px rgba(255,79,163,0.4)">📊 ОТКРЫТЬ БАЗУ ДАННЫХ</a>
   </div>
 
+  <!-- ── NEPLOXO KART (гонка на картах, без базы данных) ── -->
+  <div class="game-panel panel-arena" style="border-left:1px solid rgba(255,200,40,0.3)">
+    <div class="panel-title" style="color:#ffd23f;text-shadow:0 0 18px #ff9d00">🏁 NEPLOXO KART 🏁</div>
+    <div class="panel-sub">Гонка 10 кругов · 1 монета = 1 сек турбо · 10 лайков / сообщение = нитро</div>
+
+    <input class="nick-input" id="kartInput" type="text"
+           placeholder="@your_username"
+           autocomplete="off" autocorrect="off" spellcheck="false">
+
+    <div class="error-msg" id="kartError">Введи никнейм TikTok</div>
+
+    <button class="btn-start" id="kartStart" style="background:linear-gradient(90deg,#8a5a00,#ffd23f);color:#111;box-shadow:0 4px 20px rgba(255,210,63,0.4)">🏁 START KART</button>
+
+    <div class="status-msg" id="kartStatus">⏳ Открываю игру…</div>
+  </div>
+
 </div>
 
 <div class="stripe"></div>
@@ -330,7 +346,7 @@
 <script>
   // Prefill saved nick into all inputs
   const saved = localStorage.getItem('tiktok_username') || '';
-  const NICK_INPUTS = ['boxingInput','streetfighterInput','streetfighter2Input','fantasyarenaInput','streetwarsInput'];
+  const NICK_INPUTS = ['boxingInput','streetfighterInput','streetfighter2Input','fantasyarenaInput','streetwarsInput','kartInput'];
   NICK_INPUTS.forEach(id => { document.getElementById(id).value = saved; });
 
   // Sync all inputs when typing
@@ -395,6 +411,13 @@
     handleClick('streetwarsInput','streetwarsError','streetwarsStatus','streetwarsStart','/streetwars'));
   document.getElementById('streetwarsInput').addEventListener('keydown', e => {
     if (e.key === 'Enter') document.getElementById('streetwarsStart').click();
+  });
+
+  // NEPLOXO KART
+  document.getElementById('kartStart').addEventListener('click', () =>
+    handleClick('kartInput','kartError','kartStatus','kartStart','/kart'));
+  document.getElementById('kartInput').addEventListener('keydown', e => {
+    if (e.key === 'Enter') document.getElementById('kartStart').click();
   });
 
 </script>
