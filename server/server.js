@@ -29,15 +29,20 @@ app.use((req, res, next) => {
   next();
 });
 
+// 13.10.2026: картинки/звук/видео кэшируются на сутки. Раньше no-store стоял на всём, и браузер
+// (и OBS) заново качал спрайты для каждого нового бойца — ~3 ГБ трафика в день на Railway.
+// HTML/JS по-прежнему без кэша, чтобы правки игр появлялись сразу.
 app.use(express.static(path.join(__dirname, '../client'), {
   index: false,
-  etag: false,
-  lastModified: false,
   setHeaders: (res, filePath) => {
     if (/\.(html|js)$/.test(filePath)) {
       res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
       res.setHeader('Pragma', 'no-cache');
       res.setHeader('Expires', '0');
+    } else {
+      res.setHeader('Cache-Control', 'public, max-age=86400');
+      res.removeHeader('Pragma');
+      res.removeHeader('Expires');
     }
   }
 }));
