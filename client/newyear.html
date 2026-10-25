@@ -187,7 +187,7 @@ const IMG = {};
 function loadImg(key, src){ const im = new Image(); im.src = src; IMG[key] = im; return im; }
 const SP = 'sprites/newyear/';
 for (let c=0;c<8;c++) for (let b=0;b<2;b++) loadImg(`elf_${c}_${b}`, `${SP}elf_${c}_${b}.png`);
-['santa_red','santa_gold','santa_blue','tree_bare','tree_full','tree_small','hmurych'].forEach(k => loadImg(k, SP + k + '.png'));
+['santa_red','santa_gold','santa_blue','tree_bare','tree_full','tree_small','hmurych','holiday16'].forEach(k => loadImg(k, SP + k + '.png'));
 const HOST_META = { idle:{n:16,w:162,h:256}, run:{n:11,w:211,h:266}, jump:{n:16,w:230,h:270}, dead:{n:17,w:313,h:275}, slide:{n:11,w:263,h:205} };
 for (const a in HOST_META) loadImg('host_'+a, `${SP}host_${a}.webp`);
 let TREE_ORN = [];
@@ -279,6 +279,7 @@ function onLike(name, count){
   const p = getPlayer(name); const n = Math.max(1, count|0);
   if (p.state === 'frozen') return;
   p.warmth += 10*n; p.warmthMax += 10*n; p.power += n; p.powerMax += n;
+  if (p.ws && p.ws.ph === 'craft' && modeNow().id === 'shop') p.ws.prog = Math.min(1, p.ws.prog + 0.06*n);
 }
 function onChat(name){ getPlayer(name); }
 function onGift(name, coins){
@@ -287,6 +288,13 @@ function onGift(name, coins){
   if (p.state === 'frozen'){ p.frozenT = 0; thaw(p); }
   p.warmth += 100*coins; p.warmthMax += 100*coins; p.power += 10*coins; p.powerMax += 10*coins;
   p.volley = Math.min(5, 1 + Math.floor(Math.log10(coins+1)*1.5));   // залп снежков сразу
+  if (modeNow().id === 'shop'){
+    // в мастерской монета — готовый подарок в руки сразу; крупный донат считается за несколько
+    const w = p.ws || (p.ws = { ph:'go', prog:0, c:0, cnt:1 });
+    if (w.ph !== 'carry'){ w.ph = 'carry'; w.c = Math.floor(Math.random()*7); w.cnt = 0; }
+    w.cnt = Math.min(20, w.cnt + 1 + Math.floor(coins/5));
+    p.volley = 0;
+  }
   floaters.push({ x:p.x, y:p.y-180, t:0, text:`🎁 +${fmtNum(coins)} ${plural(coins,'монета','монеты','монет')}`, color:'#c0182c' });
   sfxGift(coins);
   if (coins >= 50){ hostSay(`${short(name,16)}, спасибо за подарок! Хо-хо-хо!`, 'jump', 4, 'gift:' + name.toLowerCase()); puff(p.x, p.y-60, 40, '#fff6c8'); }
@@ -359,15 +367,20 @@ function puff(x, y, n, color){
 function updatePlayer(p, dt){
   if (p.hitT > 0) p.hitT -= dt;
   if (p.state === 'frozen'){ p.frozenT -= dt; if (p.frozenT <= 0) thaw(p); return; }
-  const raidMode = modeNow().id === 'raid';
-  if (raidMode) p.target = bossFightable() ? boss : null;
+  const raidMode = modeNow().id === 'raid', shopMode = modeNow().id === 'shop';
+  if (shopMode) p.target = null;
+  else if (raidMode) p.target = bossFightable() ? boss : null;
   else {
     p.retarget -= dt;
     if (!p.target || p.target === boss || p.retarget <= 0 || !players.has(p.target.key) || p.target.state === 'frozen'){ p.target = chooseTarget(p); p.retarget = rnd(2.5, 5); }
   }
   const q = p.target;
   let mx = 0, my = 0;
-  if (p.state === 'throw'){
+  if (shopMode && p.state !== 'throw'){
+    const v = shopStep(p, dt);
+    if (!v){ p.moving = false; return; }
+    mx = v[0]; my = v[1];
+  } else if (p.state === 'throw'){
     p.stateT += dt;
     if (!p.released && p.stateT >= 0.32){ p.released = true; if (q && (q === boss ? bossFightable() : players.has(q.key))) throwBall(p, q); }
     if (p.stateT >= 0.55){
@@ -419,7 +432,7 @@ function updatePlayer(p, dt){
     if (d < 90 && d > 0.01){ mx += dx/d * (90-d)/90 * 1.5; my += dy/d * (90-d)/90 * 1.0; }
   }
   if (boss){ const dx = p.x - boss.x, dy = (p.y - boss.y)*1.6, d = Math.hypot(dx,dy); if (d < 230 && d > 0.01){ mx += dx/d*2; my += dy/d*1.4; } }
-  const speed = 150;
+  const speed = shopMode ? 230 : 150;
   const len = Math.hypot(mx, my);
   if (len > 0.05 && p.state !== 'throw'){
     const k = Math.min(1, len);
@@ -436,8 +449,8 @@ function updatePlayer(p, dt){
 
 // ───────────────────────── Раунды и режимы ─────────────────────────
 // Режимы идут по кругу по 20 минут, привязка к киевским часам (перезагрузка страницы не сбивает).
-// Готовы «Снежная битва» и «Рейд на Хмурыча»; «Мастерская Санты» добавится в этот список.
-const MODES = [ { id:'battle', title:'СНЕЖНАЯ БИТВА', short:'битва', icon:'❄️' }, { id:'raid', title:'РЕЙД НА ХМУРЫЧА', short:'рейд', icon:'😈' } ];
+const MODES = [ { id:'battle', title:'СНЕЖНАЯ БИТВА', short:'битва', icon:'❄️' }, { id:'raid', title:'РЕЙД НА ХМУРЫЧА', short:'рейд', icon:'😈' },
+                { id:'shop', title:'МАСТЕРСКАЯ САНТЫ', short:'мастерская', icon:'🎁' } ];
 let modeOffset = 0;   // тест: ?mode=raid или кнопка на пульте
 const MODE_MIN = 20;
 let roundPts = {}, lastSlot = null;
@@ -448,13 +461,14 @@ function modeLeftMs(){ const w = wallNow(); return (modeSlot()+1)*MODE_MIN*60000
 function endRound(){
   const best = Object.entries(roundPts).sort((a,b) => b[1]-a[1])[0];
   const pl = best && players.get(best[0]);
-  const next = modeNow();
-  hostRun(`${next.icon} ${next.title}!`, best ? `Лучший снайпер раунда — ${short(pl ? pl.name : best[0], 16)}!` : 'Новый раунд!');
+  const next = modeNow(), prev = MODES[(modeSlot() + modeOffset + MODES.length - 1) % MODES.length];
+  hostRun(`${next.icon} ${next.title}!`, best ? `${prev.id === 'shop' ? 'Лучший мастер' : 'Лучший снайпер'} раунда — ${short(pl ? pl.name : best[0], 16)}!` : 'Новый раунд!');
   roundPts = {};
   setupMode(next);
 }
 function setupMode(m){
-  for (const p of players.values()) p.target = null;
+  for (const p of players.values()){ p.target = null; p.ws = null; }
+  if (m.id === 'shop'){ shop = { n:1, gifts:0, goal:20, fly:null, by:{} }; newSleigh(); }
   if (m.id === 'raid'){ raid = { wave:1, gifts:GIFTS_MAX, pause:4 }; boss = null; }
   else if (boss && boss.state !== 'down'){ boss.state = 'escape'; boss.goal = { x:boss.x, y:FIELD.y0 - 260 }; }
 }
@@ -612,6 +626,116 @@ function drawRaidBar(){
 }
 
 
+// ───────────────────────── Мастерская Санты ─────────────────────────
+// Каждый эльф мастерит подарок за своим верстаком и несёт его в сани. Лайк — работа быстрее,
+// монета — подарок готов сразу (и считается за несколько). Сани наполнились — улетают с салютом,
+// приезжают новые, побольше. ⭐ за подарок = сила × 5, в тот же топ дня.
+// Сани, олени и подарки — «16x16 Holiday Sprites» (jhanson9012, CC0).
+const SLEIGH = { x:200, y:720, sc:7 };
+const CRAFT_TIME = 4, GIFT_VALUE = 5;
+let shop = { n:1, gifts:0, goal:20, fly:null, by:{} };
+function shopGoal(){ return Math.min(400, Math.round((30 + 8*Math.max(3, players.size)) * (1 + 0.3*(shop.n-1)))); }
+function newSleigh(){ shop.gifts = 0; shop.by = {}; shop.goal = shopGoal(); }
+// места верстаков: по бокам и снизу от ёлки (не за кроной, не у саней и не под ведущим);
+// новый эльф занимает первое свободное — порядок подобран так, чтобы поле заполнялось равномерно
+const BENCH_SPOTS = [[520,1190],[890,840],[150,1040],[760,710],[330,1220],[700,1210],[285,900],[900,1000],
+  [420,1340],[900,680],[160,1200],[620,1340],[770,880],[300,1065],[250,1345],[130,880]].map(([x,y]) => ({ x, y }));
+function wsSpot(p){
+  const w = p.ws;
+  if (w.slot == null){
+    const taken = new Set([...players.values()].map(o => o.ws && o.ws.slot).filter(v => v != null));
+    w.slot = BENCH_SPOTS.findIndex((_, i) => !taken.has(i));
+    if (w.slot < 0) w.slot = hashStr(p.key) % BENCH_SPOTS.length;
+  }
+  return BENCH_SPOTS[w.slot];
+}
+// возвращает направление движения; null — эльф стоит за верстаком
+function shopStep(p, dt){
+  const w = p.ws || (p.ws = { ph:'go', prog:0, c:0, cnt:1 });
+  if (w.ph === 'craft'){
+    p.dir = 2; w.prog += dt / CRAFT_TIME;
+    if (w.prog >= 1){ w.ph = 'carry'; puff(p.x, p.y - 40, 10, '#fff6c8'); }
+    return null;
+  }
+  const t = w.ph === 'carry' ? { x:SLEIGH.x + 60, y:SLEIGH.y + 60 } : wsSpot(p);
+  const dx = t.x - p.x, dy = t.y - p.y, d = Math.hypot(dx, dy) || 1;
+  if (w.ph === 'carry' && d < 95){ deliverGift(p, w); w.ph = 'go'; return [0, 0]; }
+  if (w.ph === 'go' && d < 25){ w.ph = 'craft'; w.prog = 0; w.c = Math.floor(Math.random()*7); w.cnt = 1; return null; }
+  return [dx/d, dy/d];
+}
+function deliverGift(p, w){
+  const val = p.power * GIFT_VALUE * w.cnt;
+  if (!p.isBot){
+    reportStolen(p.name, val); p.lifetime += val;
+    roundPts[p.key] = (roundPts[p.key]||0) + val;
+    shop.by[p.key] = (shop.by[p.key]||0) + w.cnt;
+  }
+  if (!shop.fly) shop.gifts += w.cnt;
+  floaters.push({ x:SLEIGH.x + 40, y:SLEIGH.y - 150, t:0, text:`+${fmtNum(val)} ⭐`, color:'#d49a00' });
+  puff(SLEIGH.x, SLEIGH.y - 70, 8, '#ffe27a'); sfxGift(1);
+  if (!shop.fly && shop.gifts >= shop.goal) sleighFly();
+}
+function sleighFly(){
+  const best = Object.entries(shop.by).sort((a,b) => b[1]-a[1])[0];
+  const bp = best && players.get(best[0]);
+  shop.fly = { t:0 };
+  for (let i=0;i<5;i++) rockets.push({ x:rnd(150, CW-150), y:CH*0.75, vy:-rnd(900,1200), ty:rnd(450, 800), color:pick(['#ff4d6d','#ffd75e','#7fd3ff','#5dff8a']) });
+  hostSay(best ? `Сани №${shop.n} полетели! Лучший мастер — ${short(bp ? bp.name : best[0], 16)}!` : `Сани №${shop.n} полетели! Хо-хо-хо!`, 'jump', 5, 'shop');
+  sfxFanfare();
+}
+function updateShop(dt){
+  if (!shop.fly) return;
+  shop.fly.t += dt;
+  if (shop.fly.t > 6){ shop.fly = null; shop.n++; newSleigh(); puff(SLEIGH.x, SLEIGH.y - 50, 30, '#ffffff'); hostSay(`Новые сани! Нужно ${shop.goal} подарков!`, 'idle', 4, 'shop'); }
+}
+function drawSheet(sx, sy, sw, sh, x, y, sc, flip){
+  const im = IMG.holiday16; if (!im || !im.complete || !im.naturalWidth) return;
+  if (flip){ ctx.save(); ctx.translate(x + sw*sc, y); ctx.scale(-1, 1); ctx.drawImage(im, sx, sy, sw, sh, 0, 0, sw*sc, sh*sc); ctx.restore(); }
+  else ctx.drawImage(im, sx, sy, sw, sh, x, y, sw*sc, sh*sc);
+}
+function drawGiftIcon(c, x, y, sc){ drawSheet(64 + 16*c + 2, 3, 13, 13, Math.round(x - 6.5*sc), Math.round(y - 13*sc), sc); }   // x,y — низ по центру
+function drawSleigh(){
+  if (shop.fly) return;
+  const k = SLEIGH.sc, x = SLEIGH.x, y = SLEIGH.y;
+  ctx.fillStyle = 'rgba(60,90,130,0.3)'; ctx.beginPath(); ctx.ellipse(x + 60, y, 150, 22, 0, 0, Math.PI*2); ctx.fill();
+  // олень впереди саней
+  drawSheet(32, 2, 16, 14, x + 60, y - 14*k + 4, k);
+  // подарки горкой в санях — чем полнее, тем выше
+  const n = Math.min(14, Math.ceil(shop.gifts / shop.goal * 14));
+  for (let i=0;i<n;i++){ const row = i < 6 ? 0 : i < 11 ? 1 : 2, col = row === 0 ? i : row === 1 ? i-6 : i-11;
+    drawGiftIcon(i % 7, x - 62 + col*22 + row*14, y - 60 - row*26, 2.4); }
+  drawSheet(6, 2, 20, 14, x - 20*k/2 - 10, y - 14*k + 4, k);
+  ctx.textAlign = 'center'; strokeText(`САНИ №${shop.n}`, x + 20, y - 150, 'bold 26px Arial', '#c0182c', 6);
+}
+function drawBench(p){
+  const w = p.ws, x = p.x, y = p.y + 30;
+  ctx.fillStyle = '#5a3418'; ctx.fillRect(x-50, y-28, 12, 34); ctx.fillRect(x+38, y-28, 12, 34);
+  ctx.fillStyle = '#8a5428'; ctx.fillRect(x-60, y-42, 120, 18);
+  ctx.fillStyle = '#b07a44'; ctx.fillRect(x-60, y-46, 120, 6);
+  if (w.ph === 'craft'){
+    drawGiftIcon(w.c, x, y - 44, 1.2 + 2.4*w.prog);
+    if (Math.random() < 0.08) particles.push({ x:x + rnd(-30,30), y:y - 60, vx:rnd(-80,80), vy:-rnd(120,260), t:0, life:0.5, r:rnd(2,4), color:'#ffe27a' });
+  }
+}
+function drawFlyingSleigh(){
+  if (!shop.fly) return;
+  const t = shop.fly.t, k = 7, x = -360 + t/6 * (CW + 720), y = 540 - Math.sin(t*1.3)*40 - t*12;
+  const f = Math.floor(t*10) % 4;
+  for (let i=0;i<6;i++) particles.push({ x:x + rnd(0,60), y:y + 110 + rnd(-10,10), vx:-rnd(40,120), vy:rnd(-20,40), t:0, life:rnd(0.5,1.1), r:rnd(3,6), color:pick(['#ffe27a','#ffffff','#ff9db0']) });
+  drawSheet(64 + f*48, 24, 48, 24, x, y, k);
+}
+function drawShopBar(){
+  if (modeNow().id !== 'shop') return;
+  const x = 90, y = 412, w = CW - 180, h = 46;
+  ctx.fillStyle = 'rgba(14,26,52,0.9)'; roundRect(ctx, x-6, y-6, w+12, h+12, 14); ctx.fill();
+  ctx.textAlign = 'center';
+  if (shop.fly){ ctx.fillStyle = '#ffe27a'; ctx.font = 'bold 28px Arial'; ctx.fillText(`Сани №${shop.n} улетели! Хо-хо-хо!`, CW/2, y+34); return; }
+  ctx.fillStyle = '#3a2a10'; ctx.fillRect(x, y, w, h);
+  ctx.fillStyle = '#e0a325'; ctx.fillRect(x, y, w*clamp(shop.gifts/shop.goal, 0, 1), h);
+  strokeText(`САНИ №${shop.n} · 🎁 ${fmtNum(shop.gifts)} / ${fmtNum(shop.goal)}`, CW/2, y+34, 'bold 28px Arial', '#ffffff', 5, '#14203f');
+}
+
+
 // ───────────────────────── Ведущий Санта ─────────────────────────
 const host = { anim:'idle', t:0, x:900, y:1415, bubble:null, bubbleT:0, run:null, queue:[], lineT:20, lockT:0 };
 const HOST_LINES = [
@@ -640,7 +764,8 @@ function updateHost(dt){
   if (host.lineT <= 0){
     host.lineT = rnd(35, 55);
     const c = calendar();
-    const lines = modeNow().id === 'raid' ? ['Бейте Хмурыча снежками!', 'Не дайте Хмурычу утащить подарки!', 'Лайки — и снежки летят сильнее!', 'Каждая монетка — +10 к силе снежка!'] : HOST_LINES.slice();
+    const lines = modeNow().id === 'shop' ? ['Эльфы, за работу! Сани ждут!', 'Лайк — и подарок готов быстрее!', 'Монетка — и подарок готов сразу!', 'Наполним сани — и Санта полетит!']
+      : modeNow().id === 'raid' ? ['Бейте Хмурыча снежками!', 'Не дайте Хмурычу утащить подарки!', 'Лайки — и снежки летят сильнее!', 'Каждая монетка — +10 к силе снежка!'] : HOST_LINES.slice();
     if (c.sp) lines.push(c.sp.host, c.sp.host);
     const left = modeLeftMs();
     if (left < 70000 && left > 50000) lines.splice(0, lines.length, MODES.length > 1 ? `Через минуту — ${modeNext().title.toLowerCase()}!` : 'Через минуту новый раунд!');
@@ -756,19 +881,25 @@ function drawPlayer(p){
   ctx.fillStyle = 'rgba(80,110,150,0.28)'; ctx.beginPath(); ctx.ellipse(p.x, p.y-2, 34, 11, 0, 0, Math.PI*2); ctx.fill();
   if (im && im.complete && im.naturalWidth){
     let row, col;
+    const ws = modeNow().id === 'shop' ? p.ws : null;
     if (p.state === 'throw'){ row = 4 + p.dir; col = clamp(Math.floor(p.stateT/0.55*13), 0, 12); }
+    else if (ws && ws.ph === 'craft'){ row = 6; col = 4 + Math.floor((time + (hashStr(p.key)%10)/10)*8) % 4; }
     else if (p.moving){ row = p.dir; col = 1 + Math.floor(p.walkT*12) % 8; }
     else { row = p.dir; col = 0; }
     ctx.drawImage(im, col*64, row*64, 64, 64, Math.round(p.x - 32*S), Math.round(p.y - FEET*S), 64*S, 64*S);
     if (p.hitT > 0){ ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = p.hitT*2.4; ctx.drawImage(im, col*64, row*64, 64, 64, Math.round(p.x - 32*S), Math.round(p.y - FEET*S), 64*S, 64*S); ctx.restore(); }
+    if (ws && ws.ph === 'craft') drawBench(p);
+    if (ws && ws.ph === 'carry') drawGiftIcon(ws.c, p.x, p.y - (isGolden(p) ? 205 : 180), ws.cnt > 1 ? 5 : 3.6);
   }
 }
 function drawLabel(p, up){
   const y = p.y - up;
   // шкала тепла
-  const bw = 90, frac = clamp(p.warmth / Math.max(1, p.warmthMax), 0, 1);
+  // в мастерской вместо тепла — сколько готово подарка
+  const ws = modeNow().id === 'shop' ? (p.ws || {}) : null;
+  const bw = 90, frac = ws ? (ws.ph === 'craft' ? clamp(ws.prog, 0, 1) : ws.ph === 'carry' ? 1 : 0) : clamp(p.warmth / Math.max(1, p.warmthMax), 0, 1);
   ctx.fillStyle = 'rgba(20,30,60,0.55)'; ctx.fillRect(p.x - bw/2, y, bw, 9);
-  ctx.fillStyle = frac > 0.5 ? '#ff7a3d' : frac > 0.25 ? '#ffb13d' : '#4fb7ff'; ctx.fillRect(p.x - bw/2 + 1, y+1, (bw-2)*frac, 7);
+  ctx.fillStyle = ws ? '#3fbf5f' : frac > 0.5 ? '#ff7a3d' : frac > 0.25 ? '#ffb13d' : '#4fb7ff'; ctx.fillRect(p.x - bw/2 + 1, y+1, (bw-2)*frac, 7);
   ctx.textAlign = 'center';
   const gold = isGolden(p);
   if (gold) strokeText('ЗОЛОТОЙ САНТА', p.x, y - 40, 'bold 22px Arial', '#c0182c', 5);
@@ -788,6 +919,7 @@ let dayTop = [], dayLeader = null, yesterdayChampion = null;
 const RULES_BY_MODE = {
   battle: [ ['💬','Напиши в чат —','ты в игре'], ['❤️','Лайк =','+1 сила снежка'], ['coin','1 монета =','+10 силы'], ['🎅','Топ-1 дня =','Золотой Санта'] ],
   raid:   [ ['💬','Напиши в чат —','бей Хмурыча'], ['❤️','Лайк =','+1 сила снежка'], ['coin','1 монета =','+10 силы'], ['🎁','Спаси подарки','под ёлкой!'] ],
+  shop:   [ ['💬','Напиши в чат —','ты в игре'], ['❤️','Лайк =','работа быстрее'], ['coin','1 монета =','подарок сразу'], ['🎄','Полные сани —','салют!'] ],
 };
 function drawCoin(x, y, r){
   ctx.fillStyle = '#ffc428'; ctx.strokeStyle = '#b87a0a'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI*2); ctx.fill(); ctx.stroke();
@@ -887,6 +1019,7 @@ function update(dt){
   updateFlakes(dt, c.snow);
   updateFireworks(dt, c.fireworks);
   updateRaid(dt);
+  updateShop(dt);
   updateHost(dt);
   // смена Золотого Санты
   if (dayLeader !== prevLeader){
@@ -906,8 +1039,10 @@ function draw(c){
   ents.push({ y:TREE.y, f:() => drawTree(c, time) });
   ents.push({ y:TREE.y + 60, f:drawGiftPile });
   if (boss) ents.push({ y:boss.y, f:drawBoss });
+  if (modeNow().id === 'shop') ents.push({ y:SLEIGH.y, f:drawSleigh });
   ents.sort((a,b) => a.y - b.y).forEach(e => e.f());
   for (const p of [...players.values()].sort((a,b) => a.y - b.y)) drawLabel(p, p.state === 'frozen' ? 190 : 132);
+  drawFlyingSleigh();
   for (const b of snowballs) drawBall(b);
   for (const q of particles){ ctx.globalAlpha = 1 - q.t/q.life; ctx.fillStyle = q.color; ctx.beginPath(); ctx.arc(q.x, q.y, q.r, 0, Math.PI*2); ctx.fill(); }
   ctx.globalAlpha = 1;
@@ -919,6 +1054,7 @@ function draw(c){
   drawFireworks();
   drawHeader(c);
   drawRaidBar();
+  drawShopBar();
   drawCountdown(c);
   drawRatingCard();
   drawHost();
