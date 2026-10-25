@@ -199,6 +199,37 @@ async function init() {
     )
   `);
 
+  // ── НОВОГОДНИЙ ПЕРЕПОЛОХ (25.10.2026) — сезонная игра ноябрь–январь. Схема 1-в-1 как у
+  // streetwars_stolen выше: total_stolen = ⭐ за день (сброс в полночь по Киеву),
+  // lifetime_stolen = ⭐ за всё время (уровень эльфа и топ сезона), СВОЯ таблица/архив/метка сброса.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS newyear_stolen (
+      username TEXT PRIMARY KEY,
+      total_stolen INTEGER NOT NULL DEFAULT 0
+    )
+  `);
+  await pool.query(`ALTER TABLE newyear_stolen ADD COLUMN IF NOT EXISTS total_kos INTEGER NOT NULL DEFAULT 0`);
+  await pool.query(`ALTER TABLE newyear_stolen ADD COLUMN IF NOT EXISTS belt_seconds INTEGER NOT NULL DEFAULT 0`);
+  await pool.query(`ALTER TABLE newyear_stolen ADD COLUMN IF NOT EXISTS lifetime_stolen INTEGER NOT NULL DEFAULT 0`);
+  await pool.query(`ALTER TABLE newyear_stolen ADD COLUMN IF NOT EXISTS weekly_belt_seconds INTEGER NOT NULL DEFAULT 0`);
+  await pool.query(`ALTER TABLE newyear_stolen ADD COLUMN IF NOT EXISTS weekly_king_wins INTEGER NOT NULL DEFAULT 0`);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS newyear_weekly_kings (
+      id SERIAL PRIMARY KEY,
+      week_start TIMESTAMPTZ NOT NULL,
+      username TEXT NOT NULL,
+      weekly_belt_seconds INTEGER NOT NULL,
+      weekly_points INTEGER NOT NULL DEFAULT 0,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS newyear_weekly_meta (
+      id INTEGER PRIMARY KEY DEFAULT 1,
+      last_reset_at TIMESTAMPTZ NOT NULL
+    )
+  `);
+
   // ── Снапшоты энергии/силы бойцов Street Fighter / Boxing Arena (2026-08-11) ──
   // Резервная копия в БД для восстановления после ПЕРЕЗАПУСКА СЕРВЕРА
   // (обычный ре-коннект/обновление страницы восстанавливается быстрее — из
@@ -218,7 +249,7 @@ async function init() {
   // снапшоты бойцов убранных игр (см. DROP TABLE выше)
   await pool.query(`DELETE FROM game_state_snapshots WHERE game IN ('boxing_en', 'fantasyarenatv')`);
 
-  console.log('[DB] Таблицы kills, boss_damage, race_donations, boxing_stolen, streetfighter_stolen, fantasyarena_stolen, streetwars_stolen и game_state_snapshots готовы');
+  console.log('[DB] Таблицы kills, boss_damage, race_donations, boxing_stolen, streetfighter_stolen, fantasyarena_stolen, streetwars_stolen, newyear_stolen и game_state_snapshots готовы');
 }
 
 // снапшот текущей энергии/силы реальных бойцов на ринге — бэкап на случай
@@ -959,6 +990,153 @@ async function getStreetWarsWeeklyHistory() {
   }));
 }
 
+// ── НОВОГОДНИЙ ПЕРЕПОЛОХ: 1-в-1 логика Street Wars выше, своя таблица/архив/метка сброса. ──
+const newYear = makeBoxingApi('newyear_stolen');
+const getTopNewYearStolen = newYear.getTop;
+const addNewYearKO = newYear.addKO;
+const resetNewYearRating = newYear.reset;
+const setNewYearStolen = newYear.setStolen;
+const deleteNewYearUser = newYear.deleteUser;
+const setNewYearWeeklyKingWins = newYear.setWeeklyKingWins;
+
+async function addNewYearStolen(username, amount) {
+  if (!pool || !username || !amount) return;
+  await pool.query(`
+    INSERT INTO newyear_stolen (username, total_stolen, lifetime_stolen)
+    VALUES ($1, $2, $2)
+    ON CONFLICT (username)
+    DO UPDATE SET total_stolen = newyear_stolen.total_stolen + $2,
+                  lifetime_stolen = newyear_stolen.lifetime_stolen + $2
+  `, [username, Math.floor(amount)]);
+}
+
+async function addNewYearBeltSeconds(username, seconds) {
+  if (!pool || !username || !seconds) return;
+  await pool.query(`
+    INSERT INTO newyear_stolen (username, belt_seconds, weekly_belt_seconds)
+    VALUES ($1, $2, $2)
+    ON CONFLICT (username)
+    DO UPDATE SET belt_seconds = newyear_stolen.belt_seconds + $2,
+                  weekly_belt_seconds = newyear_stolen.weekly_belt_seconds + $2
+  `, [username, Math.floor(seconds)]);
+}
+
+async function getUserNewYearRank(username) {
+  if (!pool || !username) return null;
+  const res = await pool.query(`
+    SELECT username, total_stolen, total_kos, belt_seconds, lifetime_stolen, weekly_king_wins, weekly_belt_seconds,
+           RANK() OVER (ORDER BY total_stolen DESC) AS rank
+    FROM newyear_stolen
+  `);
+  const row = res.rows.find(r => r.username.toLowerCase() === username.toLowerCase());
+  return row ? {
+    rank: Number(row.rank),
+    total_stolen: Number(row.total_stolen),
+    total_kos: Number(row.total_kos),
+    belt_seconds: Number(row.belt_seconds),
+    lifetime_stolen: Number(row.lifetime_stolen),
+    weekly_king_wins: Number(row.weekly_king_wins),
+    weekly_belt_seconds: Number(row.weekly_belt_seconds),
+  } : null;
+}
+
+async function getAllNewYearStolen() {
+  if (!pool) return [];
+  const res = await pool.query(`
+    SELECT username, total_stolen, total_kos, belt_seconds, lifetime_stolen, weekly_king_wins, weekly_belt_seconds,
+           ROW_NUMBER() OVER (ORDER BY total_stolen DESC, username ASC) AS rank
+    FROM newyear_stolen
+    ORDER BY total_stolen DESC, username ASC
+  `);
+  return res.rows.map(r => ({
+    rank: Number(r.rank),
+    username: r.username,
+    total_stolen: Number(r.total_stolen),
+    total_kos: Number(r.total_kos),
+    belt_seconds: Number(r.belt_seconds),
+    lifetime_stolen: Number(r.lifetime_stolen),
+    weekly_king_wins: Number(r.weekly_king_wins),
+    weekly_belt_seconds: Number(r.weekly_belt_seconds),
+  }));
+}
+
+async function performNewYearWeeklyResetIfNeeded() {
+  if (!pool) return null;
+  const boundaryMs = mostRecentMidnightKyivMs(Date.now());
+  const boundary = new Date(boundaryMs);
+
+  const metaRes = await pool.query(`SELECT last_reset_at FROM newyear_weekly_meta WHERE id=1`);
+  if (metaRes.rows.length === 0) {
+    await pool.query(`INSERT INTO newyear_weekly_meta (id, last_reset_at) VALUES (1, $1)`, [boundary]);
+    return null;
+  }
+
+  const lastReset = metaRes.rows[0].last_reset_at;
+  if (boundary <= lastReset) return null;
+
+  const winnerRes = await pool.query(`
+    SELECT username, total_stolen, weekly_belt_seconds FROM newyear_stolen
+    WHERE total_stolen > 0
+    ORDER BY total_stolen DESC LIMIT 1
+  `);
+  let winner = null;
+  if (winnerRes.rows.length) {
+    winner = winnerRes.rows[0];
+    await pool.query(`
+      INSERT INTO newyear_weekly_kings (week_start, username, weekly_belt_seconds, weekly_points)
+      VALUES ($1, $2, $3, $4)
+    `, [lastReset, winner.username, winner.weekly_belt_seconds, winner.total_stolen]);
+    await pool.query(`
+      UPDATE newyear_stolen SET weekly_king_wins = weekly_king_wins + 1
+      WHERE LOWER(username) = LOWER($1)
+    `, [winner.username]);
+  }
+
+  await pool.query(`UPDATE newyear_stolen SET total_stolen = 0, weekly_belt_seconds = 0`);
+  await pool.query(`UPDATE newyear_weekly_meta SET last_reset_at = $1 WHERE id=1`, [boundary]);
+
+  console.log(`[NEWYEAR] Дневной сброс выполнен, граница=${boundary.toISOString()}, король дня: ${winner ? winner.username + ' (' + winner.total_stolen + ' очков)' : 'нет (очков никто не набрал)'}`);
+
+  return { winner: winner ? winner.username : null, weekStart: lastReset.toISOString() };
+}
+
+async function getLastNewYearWeeklyChampion() {
+  if (!pool) return null;
+  const res = await pool.query(`
+    SELECT username, weekly_points, week_start FROM newyear_weekly_kings
+    ORDER BY week_start DESC LIMIT 1
+  `);
+  return res.rows.length ? {
+    username: res.rows[0].username,
+    weeklyPoints: Number(res.rows[0].weekly_points),
+    weekStart: res.rows[0].week_start,
+  } : null;
+}
+
+async function getNewYearWeeklyHistory() {
+  if (!pool) return [];
+  const res = await pool.query(`
+    SELECT username, weekly_points, weekly_belt_seconds, week_start, created_at
+    FROM newyear_weekly_kings ORDER BY week_start ASC
+  `);
+  return res.rows.map(r => ({
+    username: r.username,
+    weeklyPoints: Number(r.weekly_points),
+    weekStart: r.week_start,
+    createdAt: r.created_at,
+  }));
+}
+
+// топ сезона (ноябрь–январь) — по ⭐ за всё время
+async function getTopNewYearSeason(limit = 5) {
+  if (!pool) return [];
+  const res = await pool.query(
+    `SELECT username, lifetime_stolen FROM newyear_stolen WHERE lifetime_stolen > 0 ORDER BY lifetime_stolen DESC LIMIT $1`,
+    [limit]
+  );
+  return res.rows.map(r => ({ username: r.username, lifetime_stolen: Number(r.lifetime_stolen) }));
+}
+
 // ── Boxing Arena RU: тот же еженедельный "Пояс чемпиона" (2026-08-08) ──
 // 1-в-1 логика Street Fighter выше, только своя таблица/архив/метка сброса.
 
@@ -1130,6 +1308,11 @@ module.exports = {
   setStreetWarsStolen, deleteStreetWarsUser, getAllStreetWarsStolen,
   performStreetWarsWeeklyResetIfNeeded, getLastStreetWarsWeeklyChampion,
   setStreetWarsWeeklyKingWins, getStreetWarsWeeklyHistory,
+  addNewYearStolen, getTopNewYearStolen, getUserNewYearRank,
+  addNewYearKO, resetNewYearRating,
+  setNewYearStolen, deleteNewYearUser, getAllNewYearStolen,
+  performNewYearWeeklyResetIfNeeded, getLastNewYearWeeklyChampion,
+  setNewYearWeeklyKingWins, getNewYearWeeklyHistory, getTopNewYearSeason,
   saveGameStateSnapshot, getGameStateSnapshot,
   isConnected,
 };

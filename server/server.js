@@ -134,6 +134,10 @@ app.get('/streetwars',    serveHtml('streetwars/streetwars.html'));
 app.get('/streetwars-db', serveHtml('streetwars/streetwars_db.html'));
 // 12.10.2026: NEPLOXO KART — гонка на картах, без базы данных (вся логика в client/kart.html)
 app.get('/kart',          serveHtml('kart.html'));
+// 25.10.2026: НОВОГОДНИЙ ПЕРЕПОЛОХ — сезонная игра ноябрь–январь (снежная битва эльфов у ёлки),
+// своя база (таблицы newyear_*), логика в client/newyear.html
+app.get('/newyear',       serveHtml('newyear.html'));
+app.get('/newyear-db',    serveHtml('newyear_db.html'));
 // 06.10.2026: Boxing Arena EN, Рыбалка, Fantasy Arena TV, Взаимки и Цивилизация убраны
 // с сайта — файлы лежат в archive/ (вне client/, поэтому не раздаются), базы EN/Рыбалки/TV стёрты
 
@@ -627,6 +631,110 @@ app.get('/admin/streetwars-weekly-check', async (req, res) => {
   }
 });
 
+// ─── NEPLOXO STREET WARS — те же ручки, что у Street Fighter, по своей таблице ───
+app.get('/api/newyear-db', async (req, res) => {
+  try {
+    const rows = await db.getAllNewYearStolen();
+    res.json({ ok: true, count: rows.length, rows });
+  } catch(e) {
+    res.json({ ok: false, error: e.message });
+  }
+});
+
+app.get('/admin/reset-newyear-rating', async (req, res) => {
+  try {
+    await db.resetNewYearRating();
+    res.json({ ok: true });
+  } catch(e) {
+    res.json({ ok: false, error: e.message });
+  }
+});
+
+app.get('/admin/set-newyear-stolen', async (req, res) => {
+  try {
+    const username = req.query.username || '';
+    const value = parseInt(req.query.value);
+    if (!username || Number.isNaN(value)) return res.json({ ok: false, error: 'username and value required' });
+    await db.setNewYearStolen(username, value);
+    console.log(`[ADMIN-SET-NEWYEAR-STOLEN] username="${username}" value=${value}`);
+    res.json({ ok: true, username, value });
+  } catch(e) {
+    res.json({ ok: false, error: e.message });
+  }
+});
+
+app.get('/admin/set-newyear-wins', async (req, res) => {
+  try {
+    const username = req.query.username || '';
+    const value = parseInt(req.query.value);
+    if (!username || Number.isNaN(value)) return res.json({ ok: false, error: 'username and value required' });
+    await db.setNewYearWeeklyKingWins(username, value);
+    console.log(`[ADMIN-SET-NEWYEAR-WINS] username="${username}" value=${value}`);
+    res.json({ ok: true, username, value });
+  } catch(e) {
+    res.json({ ok: false, error: e.message });
+  }
+});
+
+app.get('/admin/delete-newyear-user', async (req, res) => {
+  try {
+    const username = req.query.username || '';
+    if (!username) return res.json({ ok: false, error: 'username required' });
+    await db.deleteNewYearUser(username);
+    console.log(`[ADMIN-DELETE-NEWYEAR-USER] username="${username}"`);
+    res.json({ ok: true, username });
+  } catch(e) {
+    res.json({ ok: false, error: e.message });
+  }
+});
+
+app.get('/top-newyear', async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 100;
+    const top = await db.getTopNewYearStolen(limit);
+    res.json({ ok: true, count: top.length, top });
+  } catch(e) {
+    res.json({ ok: false, error: e.message });
+  }
+});
+
+app.get('/newyear-weekly-champion', async (req, res) => {
+  try {
+    const champion = await db.getLastNewYearWeeklyChampion();
+    res.json({ ok: true, champion });
+  } catch(e) {
+    res.json({ ok: false, error: e.message });
+  }
+});
+
+app.get('/admin/newyear-weekly-history', async (req, res) => {
+  try {
+    const history = await db.getNewYearWeeklyHistory();
+    res.json({ ok: true, count: history.length, history });
+  } catch(e) {
+    res.json({ ok: false, error: e.message });
+  }
+});
+
+app.get('/admin/newyear-weekly-check', async (req, res) => {
+  try {
+    const result = await checkNewYearWeeklyReset();
+    res.json({ ok: true, result });
+  } catch(e) {
+    res.json({ ok: false, error: e.message });
+  }
+});
+
+app.get('/top-newyear-season', async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 5;
+    const top = await db.getTopNewYearSeason(limit);
+    res.json({ ok: true, count: top.length, top });
+  } catch(e) {
+    res.json({ ok: false, error: e.message });
+  }
+});
+
 // ─── Rooms ───────────────────────────────────────────────────────────────────
 const rooms = new Map();
 
@@ -638,6 +746,7 @@ const STATE_RESTORE_TYPE = {
   boxing: 'boxing_state_restore',
   fantasyarena: 'fantasyarena_state_restore',
   streetwars: 'streetwars_state_restore',
+  newyear: 'newyear_state_restore',
 };
 
 class Room {
@@ -904,6 +1013,22 @@ class Room {
             })
             .catch(() => {
               this.broadcast({ type: 'arena_streetwars_rating', username: data.username, rank: null, stolen: 0, kos: 0, lifetimeStolen: 0, weeklyKingWins: 0, weeklyBeltSeconds: 0 });
+            });
+          // Новогодний переполох: свой топ по своей таблице
+          db.getUserNewYearRank(data.username)
+            .then(rank => {
+              this.broadcast({
+                type: 'arena_newyear_rating',
+                username: data.username,
+                rank: rank ? rank.rank : null,
+                stolen: rank ? rank.total_stolen : 0,
+                kos: rank ? rank.total_kos : 0,
+                lifetimeStolen: rank ? rank.lifetime_stolen : 0,
+                weeklyKingWins: rank ? rank.weekly_king_wins : 0,
+              });
+            })
+            .catch(() => {
+              this.broadcast({ type: 'arena_newyear_rating', username: data.username, rank: null, stolen: 0, kos: 0, lifetimeStolen: 0, weeklyKingWins: 0 });
             });
         }
 
@@ -1192,6 +1317,32 @@ wss.on('connection', (ws, req) => {
             room.broadcast({ type: 'streetwars_tier_info', username: msg.username, lifetimeStolen: 0 });
           });
       }
+      if (msg.type === 'newyear_stolen' && msg.username && msg.amount) {
+        db.addNewYearStolen(msg.username, msg.amount)
+          .then(() => db.getTopNewYearStolen(5))
+          .then(top => {
+            room.broadcast({ type: 'top_newyear', data: top });
+          })
+          .catch(e => console.error('[DB] newyear_stolen error:', e.message));
+      }
+      if (msg.type === 'newyear_ko' && msg.username) {
+        db.addNewYearKO(msg.username).catch(e => console.error('[DB] newyear_ko error:', e.message));
+      }
+      if (msg.type === 'newyear_tier_request' && msg.username) {
+        db.getUserNewYearRank(msg.username)
+          .then(rank => {
+            room.broadcast({ type: 'newyear_tier_info', username: msg.username, lifetimeStolen: rank ? rank.lifetime_stolen : 0 });
+          })
+          .catch(() => {
+            room.broadcast({ type: 'newyear_tier_info', username: msg.username, lifetimeStolen: 0 });
+          });
+      }
+      if (msg.type === 'newyear_state_save') {
+        room.saveStateSnapshot('newyear', msg.players);
+      }
+      if (msg.type === 'newyear_state_request') {
+        room.sendStateSnapshot(ws, 'newyear');
+      }
       if (msg.type === 'fantasyarena_state_save') {
         room.saveStateSnapshot('fantasyarena', msg.players);
       }
@@ -1347,6 +1498,26 @@ async function checkStreetWarsWeeklyReset() {
 }
 setInterval(() => { checkStreetWarsWeeklyReset().catch(e => console.error('[STREETWARS] weekly-check error:', e.message)); }, 10*60*1000);
 setTimeout(() => { checkStreetWarsWeeklyReset().catch(e => console.error('[STREETWARS] weekly-check (startup) error:', e.message)); }, 15*1000);
+
+// ─── Новогодний переполох: ЕЖЕДНЕВНЫЙ сброс ⭐ (полночь по Киеву) ─────
+// 1-в-1 паттерн Street Wars выше, но по своей таблице.
+async function checkNewYearWeeklyReset() {
+  const result = await db.performNewYearWeeklyResetIfNeeded();
+  if (result) {
+    console.log('[NEWYEAR] Рассылаю обновлённый топ и Золотого Санту вчерашнего дня во все активные комнаты после сброса');
+    for (const room of rooms.values()) {
+      db.getTopNewYearStolen(5)
+        .then(top => room.broadcast({ type: 'top_newyear', data: top }))
+        .catch(e => console.error('[NEWYEAR] Ошибка рассылки топа после сброса:', e.message));
+      db.getLastNewYearWeeklyChampion()
+        .then(champion => room.broadcast({ type: 'newyear_weekly_champion', champion }))
+        .catch(e => console.error('[NEWYEAR] Ошибка рассылки чемпиона после сброса:', e.message));
+    }
+  }
+  return result;
+}
+setInterval(() => { checkNewYearWeeklyReset().catch(e => console.error('[NEWYEAR] weekly-check error:', e.message)); }, 10*60*1000);
+setTimeout(() => { checkNewYearWeeklyReset().catch(e => console.error('[NEWYEAR] weekly-check (startup) error:', e.message)); }, 15*1000);
 
 // ─── Старт ───────────────────────────────────────────────────────────────────
 server.on('error', (err) => {

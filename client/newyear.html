@@ -1,0 +1,939 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>🎄 Новогодний переполох</title>
+<style>
+html,body{margin:0;height:100%;background:#0b1530;color:#e8e8e8;font-family:Arial,sans-serif;overflow:hidden}
+#stage{position:absolute;left:0;top:0;bottom:0;right:300px;overflow:hidden}
+#wrap{position:absolute;left:0;top:0;width:1080px;height:1920px;transform-origin:0 0}
+canvas{display:block;image-rendering:pixelated}
+#panel{position:absolute;right:0;top:0;bottom:0;width:300px;background:#18203a;border-left:1px solid #2c3658;overflow-y:auto;padding:10px;box-sizing:border-box;font-size:13px}
+#panel h3{margin:2px 0 8px;font-size:16px;color:#ffd75e}
+.sec{background:#222c4c;border-radius:8px;padding:8px;margin-bottom:8px}
+.sec b{color:#ffd75e}
+button{background:#33406a;color:#fff;border:1px solid #4a5888;border-radius:6px;padding:5px 8px;margin:2px;cursor:pointer;font-size:12px}
+button:hover{background:#43528a}
+.hint{color:#8f9bc0;font-size:11px;line-height:1.35}
+#statusBadge{position:absolute;left:8px;bottom:8px;font-size:12px;padding:3px 8px;border-radius:6px;background:rgba(0,0,0,.55);border:1px solid #888;display:none;z-index:5}
+#statusBadge.live{color:#ff4d4d;border-color:#ff4d4d}
+#statusBadge.demo{color:#FF9900;border-color:#FF9900}
+#statusBadge.connecting{color:#aaa}
+#statusBadge.error{color:#ff4d4d}
+/* боевой режим (?username=): тест-пульт скрыт, игра на весь экран */
+body.live #panel{display:none}
+body.live #stage{right:0}
+</style>
+</head>
+<body>
+<div id="stage"><div id="wrap"><canvas id="c" width="1080" height="1920"></canvas></div><div id="statusBadge"></div></div>
+<div id="panel">
+  <h3>🎄 Новогодний переполох</h3>
+  <div class="hint" style="margin-bottom:8px">Черновой режим: эфир имитируется, в базу ничего не пишется. Для эфира открой /newyear?username=твой_ник — пульт исчезнет.</div>
+  <div class="sec"><b>Зрители</b><br>
+    <button id="bAdd">+ зритель</button><button id="bAdd5">+5 зрителей</button>
+    <button id="bLike">❤️ лайки случайному</button><button id="bSim">🤖 авто-эфир: вкл</button>
+  </div>
+  <div class="sec"><b>Подарки случайному</b><br>
+    <button data-g="1">1 монета</button><button data-g="10">10</button><button data-g="99">99</button><button data-g="1000">1000</button>
+  </div>
+  <div class="sec"><b>Календарь (тест даты)</b><br>
+    <button data-d="2026-11-05T19:00:00">5 ноября</button>
+    <button data-d="2026-12-06T19:00:00">6.12 Николай</button>
+    <button data-d="2026-12-15T19:00:00">15 декабря</button>
+    <button data-d="2026-12-24T20:00:00">24.12 Сочельник</button>
+    <button data-d="2026-12-25T19:00:00">25.12 Рождество</button>
+    <button data-d="2026-12-31T23:59:40">31.12 23:59:40</button>
+    <button data-d="2027-01-06T20:00:00">6.01 Сочельник</button>
+    <button data-d="2027-01-07T19:00:00">7.01 Рождество</button>
+    <button data-d="2027-01-13T23:59:40">13.01 23:59:40</button>
+    <button data-d="">сейчас</button>
+    <div class="hint" id="dateNow"></div>
+  </div>
+  <div class="sec"><b>Ведущий и режимы</b><br>
+    <button id="bRound">⏭ конец раунда</button><button id="bSay">💬 фраза ведущего</button>
+  </div>
+  <div class="sec"><b>Звук</b><br>
+    <button id="bMusic">🎵 Музыка: вкл</button><button id="bNext">⏭ трек</button><button id="bSfx">💥 Эффекты: вкл</button>
+    <div class="hint" id="trackName"></div>
+  </div>
+</div>
+<script>
+'use strict';
+// ════════════════════════════════════════════════════════════════════════════
+//  НОВОГОДНИЙ ПЕРЕПОЛОХ (25.10.2026) — сезонная игра ноябрь–январь.
+//  Режим «Снежная битва»: зрители — эльфы, кидаются снежками вокруг ёлки.
+//  Тепло = энергия (лайк +10, монета +100), Сила снежка (лайк +1, монета +10).
+//  Отнятое тепло = ⭐ (топ дня, сброс в полночь по Киеву). ⭐ за всё время = уровень:
+//  с 40-го уровня эльф навсегда становится Сантой, лидер дня — Золотой Санта.
+//  Календарь (оба Рождества, отсчёт, салют) — по киевскому времени, тест: ?date=2026-12-31T23:59:40
+// ════════════════════════════════════════════════════════════════════════════
+const Q = new URLSearchParams(location.search);
+const LIVE_USER = (Q.get('username') || '').replace(/^@/, '').trim();
+const DEMO = !LIVE_USER;
+if (!DEMO) document.body.classList.add('live');
+const CW = 1080, CH = 1920;
+const cv = document.getElementById('c'), ctx = cv.getContext('2d');
+ctx.imageSmoothingEnabled = false;
+
+function applyScale(){
+  const st = document.getElementById('stage');
+  const w = st.clientWidth, h = st.clientHeight;
+  const s = Math.min(w/CW, h/CH);
+  const wrap = document.getElementById('wrap');
+  wrap.style.transform = `scale(${s})`;
+  wrap.style.left = Math.round((w - CW*s)/2) + 'px';
+}
+window.addEventListener('resize', applyScale); applyScale();
+
+const rnd = (a,b) => a + Math.random()*(b-a);
+const pick = a => a[Math.floor(Math.random()*a.length)];
+const clamp = (v,a,b) => v<a?a:v>b?b:v;
+function hashStr(s){ let h = 2166136261; for (let i=0;i<s.length;i++){ h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h>>>0; }
+function short(n,k){ return n.length>k ? n.slice(0,k-1)+'…' : n; }
+function fmtNum(n){ return Math.floor(n).toLocaleString('ru-RU'); }
+
+// ───────────────────────── Время по Киеву и календарь ─────────────────────────
+// «стенные часы» Киева: число мс, у которого UTC-поля = местное киевское время
+let TEST_WALL = null, TEST_T0 = 0;
+function kyivOffsetMs(ms){
+  const p = new Intl.DateTimeFormat('en-US', { timeZone:'Europe/Kyiv', hourCycle:'h23', year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', second:'2-digit' }).formatToParts(new Date(ms));
+  const g = t => +p.find(x => x.type===t).value;
+  return Date.UTC(g('year'), g('month')-1, g('day'), g('hour'), g('minute'), g('second')) - Math.floor(ms/1000)*1000;
+}
+let KYIV_OFF = kyivOffsetMs(Date.now());
+setInterval(() => { KYIV_OFF = kyivOffsetMs(Date.now()); }, 60000);
+function parseWall(str){
+  const m = /^(\d{4})-(\d\d)-(\d\d)(?:T(\d\d):(\d\d)(?::(\d\d))?)?$/.exec(str || '');
+  return m ? Date.UTC(+m[1], +m[2]-1, +m[3], +(m[4]||12), +(m[5]||0), +(m[6]||0)) : null;
+}
+function setTestDate(str){ const w = parseWall(str); TEST_WALL = w; TEST_T0 = Date.now(); }
+if (Q.get('date')) setTestDate(Q.get('date'));
+function wallNow(){ return TEST_WALL != null ? TEST_WALL + (Date.now() - TEST_T0) : Date.now() + KYIV_OFF; }
+
+const DAY = 86400000;
+const SPECIAL = {
+  '12-06': { title:'🎁 День святого Николая', host:'Сегодня День святого Николая! Подарки под подушкой у всех, кто в игре!' },
+  '12-19': { title:'🎁 Николай (по старому стилю)', host:'Святой Николай снова в гостях — по старому стилю!' },
+  '12-24': { title:'⭐ Сочельник', host:'Сочельник! Ждём первую звезду — и за стол!', star:true, eve:true },
+  '12-25': { title:'🔔 Рождество Христово', host:'С Рождеством Христовым! Хо-хо-хо!', star:true, bells:true },
+  '12-31': { title:'🥂 Канун Нового года', host:'Сегодня последний день года! Готовьтесь к отсчёту!' },
+  '01-01': { title:'🎆 С Новым годом!', host:'С Новым годом! Пусть всё сбудется!', star:true },
+  '01-06': { title:'⭐ Сочельник', host:'Сочельник! Кутья на столе, ждём первую звезду!', star:true, eve:true },
+  '01-07': { title:'🔔 Рождество Христово', host:'Христос рождается! С Рождеством!', star:true, bells:true },
+  '01-13': { title:'🎶 Щедрый вечер', host:'Щедрый вечер, добрый вечер! Колядуем!', shchedryk:true },
+  '01-14': { title:'🎆 Старый Новый год', host:'Со Старым Новым годом!', star:true },
+};
+
+function calendar(){
+  const w = wallNow(), d = new Date(w);
+  const Y = d.getUTCFullYear(), M = d.getUTCMonth()+1, D = d.getUTCDate();
+  const key = String(M).padStart(2,'0') + '-' + String(D).padStart(2,'0');
+  const sy = M >= 7 ? Y : Y-1;                         // год начала сезона
+  const nov1 = Date.UTC(sy,10,1), dec24 = Date.UTC(sy,11,24);
+  const ny = Date.UTC(sy+1,0,1), oldNy = Date.UTC(sy+1,0,14), xmas2 = Date.UTC(sy+1,0,7), xmas1 = Date.UTC(sy,11,25);
+  const frac = w < nov1 ? 0 : clamp((w - nov1)/(dec24 - nov1), 0, 1);
+  const sp = SPECIAL[key] || null;
+  const hour = d.getUTCHours();
+  const night = hour >= 17 || hour < 7 || (sp && sp.eve);
+  return {
+    w, Y, M, D, key, sp, hour, night,
+    ornaments: w < nov1 ? 2 : Math.ceil(TREE_ORN.length * (0.06 + 0.94*frac)),
+    snow: M === 10 ? 0.35 : M === 11 ? 0.65 : 1,
+    star: (w >= Date.UTC(sy,11,24,17)) || (sp && sp.star),
+    toNY: ny - w, toOldNY: oldNy - w, toXmas1: xmas1 - w, toXmas2: xmas2 - w,
+    fireworks: (w >= ny && w < ny + 15*60000) || (w >= oldNy && w < oldNy + 10*60000),
+  };
+}
+function plural(n, a, b, c){ n = Math.abs(n) % 100; const n1 = n % 10; if (n > 10 && n < 20) return c; if (n1 > 1 && n1 < 5) return b; if (n1 === 1) return a; return c; }
+function hms(ms){ const s = Math.max(0, Math.ceil(ms/1000)); return `${String(Math.floor(s/3600)).padStart(2,'0')}:${String(Math.floor(s/60)%60).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`; }
+function infoLine(c){
+  if (c.toNY > 0 && c.toNY <= DAY) return '🥂 До Нового года ' + hms(c.toNY);
+  if (c.toOldNY > 0 && c.toOldNY <= DAY && c.key === '01-13') return '🎆 До Старого Нового года ' + hms(c.toOldNY);
+  if (c.sp) return c.sp.title;
+  const alt = Math.floor(performance.now()/8000) % 2;
+  const days = ms => Math.ceil(ms/DAY);
+  if (c.toXmas1 > 0 && alt) return `🔔 До Рождества (25 декабря) ${days(c.toXmas1)} ${plural(days(c.toXmas1),'день','дня','дней')}`;
+  if (c.toNY > 0) return `🎄 До Нового года ${days(c.toNY)} ${plural(days(c.toNY),'день','дня','дней')}`;
+  if (c.toXmas2 > 0) return `🔔 До Рождества (7 января) ${days(c.toXmas2)} ${plural(days(c.toXmas2),'день','дня','дней')}`;
+  if (c.toOldNY > 0) return `🎆 До Старого Нового года ${days(c.toOldNY)} ${plural(days(c.toOldNY),'день','дня','дней')}`;
+  return '❄️ Зимние каникулы — играем дальше!';
+}
+
+// ───────────────────────── Уровни ─────────────────────────
+// ⭐ за всё время → уровень 1..100. Порог Санты — 40 уровень (~275 тыс. ⭐), рассчитан на постоянных
+// зрителей за несколько недель сезона.
+const LEVEL_THRESHOLDS = Array.from({length:100}, (_, i) => i === 0 ? 0 : Math.round(60 * Math.pow(i, 2.3) / 10) * 10);
+const SANTA_LEVEL = 40;
+const LEVEL_RANKS = [
+  { name:'Снежинка',          from:1,  to:4,   color:'#bfe3ff' },
+  { name:'Эльф-новичок',      from:5,  to:9,   color:'#7fd37a' },
+  { name:'Эльф-помощник',     from:10, to:14,  color:'#3fbf5f' },
+  { name:'Мастер снежков',    from:15, to:19,  color:'#3fa9f5' },
+  { name:'Снежный воин',      from:20, to:24,  color:'#17c9b2' },
+  { name:'Ледяной ас',        from:25, to:29,  color:'#9b59f6' },
+  { name:'Хранитель ёлки',    from:30, to:34,  color:'#ef4bb0' },
+  { name:'Правая рука Санты', from:35, to:39,  color:'#ff8c1a' },
+  { name:'Санта',             from:40, to:49,  color:'#ff2e4d' },
+  { name:'Великий Санта',     from:50, to:69,  color:'#ffd700' },
+  { name:'Легенда Рождества', from:70, to:100, color:'#ffffff' },
+];
+function levelOf(total){ total = total||0; let l = 1; for (let i=0;i<LEVEL_THRESHOLDS.length;i++){ if (total >= LEVEL_THRESHOLDS[i]) l = i+1; else break; } return l; }
+function rankOfLevel(l){ return LEVEL_RANKS.find(r => l>=r.from && l<=r.to) || LEVEL_RANKS[0]; }
+
+// ───────────────────────── Графика ─────────────────────────
+const IMG = {};
+function loadImg(key, src){ const im = new Image(); im.src = src; IMG[key] = im; return im; }
+const SP = 'sprites/newyear/';
+for (let c=0;c<8;c++) for (let b=0;b<2;b++) loadImg(`elf_${c}_${b}`, `${SP}elf_${c}_${b}.png`);
+['santa_red','santa_gold','santa_blue','tree_bare','tree_full','tree_small'].forEach(k => loadImg(k, SP + k + '.png'));
+const HOST_META = { idle:{n:16,w:162,h:256}, run:{n:11,w:211,h:266}, jump:{n:16,w:230,h:270}, dead:{n:17,w:313,h:275}, slide:{n:11,w:263,h:205} };
+for (const a in HOST_META) loadImg('host_'+a, `${SP}host_${a}.webp`);
+let TREE_ORN = [];
+fetch(SP + 'tree_ornaments.json').then(r => r.json()).then(j => {
+  // порядок появления игрушек по дням — перемешан один раз, всегда одинаково
+  const arr = j.ornaments.slice(); let s = 12345;
+  for (let i=arr.length-1;i>0;i--){ s = (s*1103515245+12345) & 0x7fffffff; const k = s % (i+1); [arr[i],arr[k]] = [arr[k],arr[i]]; }
+  TREE_ORN = arr;
+}).catch(()=>{});
+
+// поле боя
+const FIELD = { x0:60, x1:1020, y0:600, y1:1400 };
+const TREE = { x:540, y:1000, sc:4.6, rx:150, ry:62 };   // y — основание ствола; rx/ry — «следа» ёлки на снегу
+const S = 2.5;            // масштаб эльфов (кадр 64 → 160)
+const FEET = 60;          // ступни в кадре LPC
+
+// фон: снег, следы, ёлочки по краям — рисуется один раз
+const bg = document.createElement('canvas'); bg.width = CW; bg.height = CH;
+function drawBg(){
+  const g = bg.getContext('2d'); g.imageSmoothingEnabled = false;
+  const grd = g.createLinearGradient(0,0,0,CH); grd.addColorStop(0,'#dfeaf7'); grd.addColorStop(1,'#eef4fb');
+  g.fillStyle = grd; g.fillRect(0,0,CW,CH);
+  let s = 7; const r = () => (s = (s*16807) % 2147483647) / 2147483647;
+  for (let i=0;i<1400;i++){ const x = r()*CW, y = r()*CH; g.fillStyle = r()<0.5 ? 'rgba(170,195,225,0.35)' : 'rgba(255,255,255,0.8)'; g.fillRect(x, y, 6 + r()*14, 3); }
+  for (let i=0;i<60;i++){ const x = r()*CW, y = r()*CH; g.fillStyle = 'rgba(150,180,215,0.25)'; g.beginPath(); g.ellipse(x, y, 40+r()*80, 10+r()*16, 0, 0, Math.PI*2); g.fill(); }
+}
+const DECOR = [[40,520],[1040,500],[30,860],[1050,900],[70,1250],[1010,1290],[300,440],[790,430]];
+
+// ───────────────────────── Игроки ─────────────────────────
+const players = new Map();       // ключ — ник (lowercase)
+let snowballs = [], particles = [], floaters = [], flakes = [];
+const BOT_NAMES = ['Снежок','Пломбир','Морозко','Сосулька','Пряник','Леденец','Хлопушка','Мандаринка','Шишка','Метелица'];
+const MIN_FIGHTERS = 6;
+const BASE_WARMTH = 100, BASE_POWER = 10;
+
+function makePlayer(name, isBot){
+  const h = hashStr(name.toLowerCase());
+  const side = Math.floor(Math.random()*4);
+  const x = side===0 ? FIELD.x0 : side===1 ? FIELD.x1 : rnd(FIELD.x0, FIELD.x1);
+  const y = side===2 ? FIELD.y0 : side===3 ? FIELD.y1 : rnd(FIELD.y0, FIELD.y1);
+  return {
+    name, key:name.toLowerCase(), isBot,
+    color: h % 8, beard: (h >> 3) & 1,
+    x, y, vx:0, vy:0, dir:2, walkT:0,
+    warmth:BASE_WARMTH, warmthMax:BASE_WARMTH, power:BASE_POWER, powerMax:BASE_POWER,
+    state:'walk', stateT:0, throwAt:rnd(0.5,1.5), target:null, retarget:0,
+    frozenT:0, hitT:0, lastActive:performance.now(), lifetime:0, tierKnown:isBot, joinT:0,
+    strafe: Math.random()<0.5 ? 1 : -1, wanderX:rnd(FIELD.x0,FIELD.x1), wanderY:rnd(FIELD.y0,FIELD.y1),
+  };
+}
+function realPlayers(){ return [...players.values()].filter(p => !p.isBot); }
+function getPlayer(name){
+  const k = name.toLowerCase();
+  let p = players.get(k);
+  if (!p){
+    p = makePlayer(name, false); players.set(k, p);
+    requestTier(name);
+    if (DEMO){ p.lifetime = demoLifetime[k] || 0; p.tierKnown = true; }
+    floaters.push({ x:p.x, y:p.y-170, t:0, text:'❄ ' + short(name,14) + ' в игре!', color:'#1d5fa8' });
+    balanceBots();
+  }
+  p.lastActive = performance.now();
+  return p;
+}
+function balanceBots(){
+  const real = realPlayers().length;
+  const bots = [...players.values()].filter(p => p.isBot);
+  const need = Math.max(0, MIN_FIGHTERS - real);
+  for (let i = bots.length; i < need; i++){
+    const used = new Set(bots.map(b => b.name));
+    const name = BOT_NAMES.find(n => !used.has(n) && !players.has(n.toLowerCase())) || ('Эльф ' + Math.floor(rnd(10,99)));
+    const b = makePlayer(name, true); players.set(b.key, b); bots.push(b);
+  }
+  // живой зритель вытесняет бота — тот растворяется облачком снега
+  while (bots.length > need){
+    const b = bots.pop(); puff(b.x, b.y-60, 18, '#ffffff'); players.delete(b.key);
+  }
+}
+function isSanta(p){ return !p.isBot && levelOf(p.lifetime) >= SANTA_LEVEL; }
+function isGolden(p){ return !p.isBot && dayLeader && dayLeader.toLowerCase() === p.key; }
+function skinOf(p){
+  if (isGolden(p)) return IMG.santa_gold;
+  if (isSanta(p)){ const c = calendar(); return (c.key === '12-31' || c.key === '01-13') ? IMG.santa_blue : IMG.santa_red; }
+  return IMG[`elf_${p.color}_${p.beard}`];
+}
+
+// рост от лайков/подарков — как в Street Fighters: растёт и текущее, и максимум
+function onLike(name, count){
+  const p = getPlayer(name); const n = Math.max(1, count|0);
+  if (p.state === 'frozen') return;
+  p.warmth += 10*n; p.warmthMax += 10*n; p.power += n; p.powerMax += n;
+}
+function onChat(name){ getPlayer(name); }
+function onGift(name, coins){
+  coins = Math.max(1, Math.floor(Number(coins)||1));
+  const p = getPlayer(name);
+  if (p.state === 'frozen'){ p.frozenT = 0; thaw(p); }
+  p.warmth += 100*coins; p.warmthMax += 100*coins; p.power += 10*coins; p.powerMax += 10*coins;
+  p.volley = Math.min(5, 1 + Math.floor(Math.log10(coins+1)*1.5));   // залп снежков сразу
+  floaters.push({ x:p.x, y:p.y-180, t:0, text:`🎁 +${fmtNum(coins)} ${plural(coins,'монета','монеты','монет')}`, color:'#c0182c' });
+  sfxGift(coins);
+  if (coins >= 50){ hostSay(`${short(name,16)}, спасибо за подарок! Хо-хо-хо!`, 'jump', 4, 'gift:' + name.toLowerCase()); puff(p.x, p.y-60, 40, '#fff6c8'); }
+}
+
+// ───────────────────────── Бой ─────────────────────────
+function treeBlocks(x1,y1,x2,y2){
+  // пересекает ли отрезок «след» ёлки (эллипс)
+  const ax = (x1-TREE.x)/TREE.rx, ay = (y1-TREE.y)/TREE.ry, bx = (x2-TREE.x)/TREE.rx, by = (y2-TREE.y)/TREE.ry;
+  const dx = bx-ax, dy = by-ay, L = dx*dx+dy*dy || 1;
+  const t = clamp(-(ax*dx+ay*dy)/L, 0, 1);
+  const cx = ax+dx*t, cy = ay+dy*t;
+  return cx*cx+cy*cy < 1;
+}
+function dist(a,b){ return Math.hypot(a.x-b.x, (a.y-b.y)*1.3); }
+function chooseTarget(p){
+  let best = null, bd = 1e9;
+  for (const q of players.values()){
+    if (q === p || q.state === 'frozen') continue;
+    let d = dist(p,q) + (treeBlocks(p.x,p.y-40,q.x,q.y-40) ? 260 : 0) + rnd(0,120);
+    if (isGolden(q)) d -= 120;       // Золотого Санту все хотят «заснежить»
+    if (d < bd){ bd = d; best = q; }
+  }
+  return best;
+}
+function throwBall(p, q, big){
+  const pw = p.power * (big ? 1 : 1);
+  const r = 9 + Math.min(18, Math.log2(pw/BASE_POWER + 1) * 4);
+  const sx = p.x + (p.dir===3 ? 30 : p.dir===1 ? -30 : 0), sy = p.y - 80;
+  const tx = q.x + rnd(-14,14), ty = q.y - 60 + rnd(-10,10);
+  const d = Math.hypot(tx-sx, ty-sy);
+  snowballs.push({ from:p, to:q, x:sx, y:sy, sx, sy, tx, ty, t:0, dur:clamp(d/950, 0.22, 0.7), r, power:pw, arc:clamp(d*0.18, 20, 90) });
+  sfxThrow();
+}
+function hit(b){
+  const q = b.to, p = b.from;
+  if (!players.has(q.key) || q.state === 'frozen'){ puff(b.tx, b.ty, 8, '#ffffff'); return; }
+  const dmg = Math.min(b.power, q.warmth);
+  q.warmth -= dmg; q.hitT = 0.25;
+  q.x += clamp(q.x - b.sx, -1, 1) * 10;
+  puff(b.tx, b.ty, 10 + Math.min(20, b.r), '#ffffff');
+  sfxHit(b.r);
+  if (players.has(p.key) && !p.isBot && dmg > 0){
+    reportStolen(p.name, dmg);
+    p.lifetime += dmg;
+    roundPts[p.key] = (roundPts[p.key]||0) + dmg;
+  }
+  if (dmg >= 25) floaters.push({ x:q.x, y:q.y-150, t:0, text:'-' + fmtNum(dmg), color:'#2a7fd4' });
+  if (q.warmth <= 0) freeze(q, p);
+}
+function freeze(q, by){
+  q.state = 'frozen'; q.frozenT = 6; q.warmth = 0;
+  puff(q.x, q.y-60, 30, '#e6f4ff'); sfxFreeze();
+  if (by && !by.isBot && players.has(by.key)){
+    reportKO(by.name);
+    if (!q.isBot && Math.random() < 0.5) hostSay(pick([
+      `${short(by.name,14)} заморозил ${short(q.name,14)}!`, `Бррр! ${short(q.name,14)} теперь снеговик!`, `${short(q.name,14)}, оттаивай скорее!`]), 'idle', 3, 'freeze');
+  }
+}
+function thaw(q){
+  // нокаут обнуляет бойца — как в Street Fighters
+  q.state = 'walk'; q.warmth = q.warmthMax = BASE_WARMTH; q.power = q.powerMax = BASE_POWER;
+  puff(q.x, q.y-60, 16, '#ffffff');
+}
+function puff(x, y, n, color){
+  for (let i=0;i<n;i++){ const a = rnd(0, Math.PI*2), s = rnd(60, 260); particles.push({ x, y, vx:Math.cos(a)*s, vy:Math.sin(a)*s - 80, t:0, life:rnd(0.35,0.8), r:rnd(3,8), color }); }
+}
+
+function updatePlayer(p, dt){
+  if (p.hitT > 0) p.hitT -= dt;
+  if (p.state === 'frozen'){ p.frozenT -= dt; if (p.frozenT <= 0) thaw(p); return; }
+  p.retarget -= dt;
+  if (!p.target || p.retarget <= 0 || !players.has(p.target.key) || p.target.state === 'frozen'){ p.target = chooseTarget(p); p.retarget = rnd(2.5, 5); }
+  const q = p.target;
+  let mx = 0, my = 0;
+  if (p.state === 'throw'){
+    p.stateT += dt;
+    if (!p.released && p.stateT >= 0.32){ p.released = true; if (q && players.has(q.key)) throwBall(p, q); }
+    if (p.stateT >= 0.55){
+      p.state = 'walk';
+      if (p.volley > 1 && q){ p.volley--; p.state = 'throw'; p.stateT = 0.18; p.released = false; }
+      else p.volley = 0;
+    }
+  } else if (q){
+    const dx = q.x - p.x, dy = q.y - p.y, d = Math.hypot(dx, dy) || 1;
+    const blocked = treeBlocks(p.x, p.y-40, q.x, q.y-40);
+    const want = 300;
+    if (blocked){ mx = -dy/d * p.strafe; my = dx/d * p.strafe; mx += dx/d*0.3; my += dy/d*0.3; }
+    else if (d > want + 80){ mx = dx/d; my = dy/d; }
+    else if (d < want - 120){ mx = -dx/d; my = -dy/d; }
+    else { mx = -dy/d * p.strafe * 0.5; my = dx/d * p.strafe * 0.5; }
+    p.throwAt -= dt;
+    if (p.throwAt <= 0 && !blocked && d < 560){
+      p.state = 'throw'; p.stateT = 0; p.released = false; p.throwAt = rnd(1.0, 1.7);
+      p.dir = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 3 : 1) : (dy > 0 ? 2 : 0);
+      if (!p.volley) p.volley = 1;
+    }
+    if (Math.random() < dt*0.25) p.strafe *= -1;
+  } else {
+    const dx = p.wanderX - p.x, dy = p.wanderY - p.y, d = Math.hypot(dx,dy);
+    if (d < 20){ p.wanderX = rnd(FIELD.x0, FIELD.x1); p.wanderY = rnd(FIELD.y0, FIELD.y1); }
+    else { mx = dx/d*0.6; my = dy/d*0.6; }
+  }
+  // мягко тянемся к середине поля, чтобы не жаться к краям
+  const fcx = (FIELD.x0+FIELD.x1)/2, fcy = (FIELD.y0+FIELD.y1)/2;
+  mx += (fcx - p.x)/(FIELD.x1-FIELD.x0)*0.9; my += (fcy - p.y)/(FIELD.y1-FIELD.y0)*0.9;
+  // расталкиваемся, не налезаем друг на друга
+  for (const o of players.values()){
+    if (o === p) continue;
+    const dx = p.x - o.x, dy = (p.y - o.y)*1.6, d = Math.hypot(dx,dy);
+    if (d < 90 && d > 0.01){ mx += dx/d * (90-d)/90 * 1.5; my += dy/d * (90-d)/90 * 1.0; }
+  }
+  const speed = 150;
+  const len = Math.hypot(mx, my);
+  if (len > 0.05 && p.state !== 'throw'){
+    const k = Math.min(1, len);
+    p.x += mx/len * speed * k * dt; p.y += my/len * speed * k * dt * 0.8;
+    p.walkT += dt * k;
+    p.dir = Math.abs(mx) > Math.abs(my) ? (mx > 0 ? 3 : 1) : (my > 0 ? 2 : 0);
+    p.moving = true;
+  } else p.moving = false;
+  // ёлку обходим: выталкиваем из её «следа»
+  const ex = (p.x - TREE.x)/(TREE.rx+30), ey = (p.y - TREE.y)/(TREE.ry+24), e = Math.hypot(ex, ey);
+  if (e < 1 && e > 0.001){ p.x = TREE.x + ex/e*(TREE.rx+30); p.y = TREE.y + ey/e*(TREE.ry+24); }
+  p.x = clamp(p.x, FIELD.x0, FIELD.x1); p.y = clamp(p.y, FIELD.y0, FIELD.y1);
+}
+
+// ───────────────────────── Раунды и режимы ─────────────────────────
+// Режимы идут по кругу по 20 минут, привязка к киевским часам (перезагрузка страницы не сбивает).
+// Пока готова только «Снежная битва»; «Рейд на злодея» и «Мастерская Санты» добавятся в этот список.
+const MODES = [ { id:'battle', title:'СНЕЖНАЯ БИТВА', icon:'❄️' } ];
+const MODE_MIN = 20;
+let roundPts = {}, lastSlot = null;
+function modeSlot(){ const w = wallNow(); return Math.floor(w / (MODE_MIN*60000)); }
+function modeNow(){ return MODES[modeSlot() % MODES.length]; }
+function modeLeftMs(){ const w = wallNow(); return (modeSlot()+1)*MODE_MIN*60000 - w; }
+function endRound(){
+  const best = Object.entries(roundPts).sort((a,b) => b[1]-a[1])[0];
+  const pl = best && players.get(best[0]);
+  const next = MODES[(modeSlot()) % MODES.length];
+  hostRun(`${next.icon} ${next.title}!`, best ? `Лучший снайпер раунда — ${short(pl ? pl.name : best[0], 16)}!` : 'Новый раунд!');
+  roundPts = {};
+}
+
+// ───────────────────────── Ведущий Санта ─────────────────────────
+const host = { anim:'idle', t:0, x:900, y:1415, bubble:null, bubbleT:0, run:null, queue:[], lineT:20, lockT:0 };
+const HOST_LINES = [
+  'Пишите в чат — и вы в игре!', 'Лайк — и снежок летит сильнее!', 'Каждая монетка — +10 к силе снежка!',
+  'Лидер дня становится Золотым Сантой!', 'С 40-го уровня эльф навсегда становится Сантой!',
+  'Прячьтесь за ёлкой от снежков!', 'Хо-хо-хо! Кто тут самый меткий?', 'Замёрз — стал снеговиком. Оттаешь через 6 секунд!',
+];
+// tag — фразы одного вида не копятся: новая заменяет старую в очереди; очередь не длиннее 3
+function hostSay(text, anim, dur, tag){
+  const m = { text, anim:anim||'idle', dur:dur||4, tag };
+  const i = tag ? host.queue.findIndex(q => q.tag === tag) : -1;
+  if (i >= 0) host.queue[i] = m; else host.queue.push(m);
+  while (host.queue.length > 3) host.queue.shift();
+}
+function hostRun(banner, text){ host.run = { t:0, banner, text }; sfxFanfare(); }
+function updateHost(dt){
+  host.t += dt;
+  if (host.run){
+    host.run.t += dt;
+    if (host.run.t > 3.2){ const txt = host.run.text; host.run = null; if (txt) hostSay(txt, 'jump', 4); }
+    return;
+  }
+  if (host.bubbleT > 0){ host.bubbleT -= dt; if (host.bubbleT <= 0){ host.bubble = null; host.anim = 'idle'; } return; }
+  if (host.queue.length){ const m = host.queue.shift(); host.bubble = m.text; host.bubbleT = m.dur; host.anim = m.anim; host.t = 0; return; }
+  host.lineT -= dt;
+  if (host.lineT <= 0){
+    host.lineT = rnd(35, 55);
+    const c = calendar();
+    const lines = HOST_LINES.slice();
+    if (c.sp) lines.push(c.sp.host, c.sp.host);
+    const left = modeLeftMs();
+    if (left < 70000 && left > 50000) lines.splice(0, lines.length, 'Через минуту новый раунд!');
+    hostSay(pick(lines), 'idle', 4.5);
+  }
+}
+function drawHostFrame(anim, x, y, sc, flip, t){
+  const m = HOST_META[anim], im = IMG['host_'+anim];
+  if (!im || !im.complete || !im.naturalWidth) return;
+  const loop = anim !== 'dead';
+  let f = Math.floor(t * 18); f = loop ? f % m.n : Math.min(m.n-1, f);
+  const w = m.w*sc, h = m.h*sc;
+  ctx.save(); ctx.imageSmoothingEnabled = true;
+  if (flip){ ctx.translate(x, 0); ctx.scale(-1, 1); x = 0; }
+  ctx.drawImage(im, f*m.w, 0, m.w, m.h, x - w/2, y - h, w, h);
+  ctx.restore();
+}
+function drawHost(){
+  if (host.run){
+    const t = host.run.t, k = clamp(t/3.2, 0, 1);
+    ctx.fillStyle = `rgba(10,20,50,${0.45*Math.sin(Math.PI*k)})`; ctx.fillRect(0,0,CW,CH);
+    const bw = clamp(Math.sin(Math.PI*k)*1.6, 0, 1);
+    ctx.fillStyle = '#c0182c'; ctx.fillRect(0, 760 - 110*bw, CW, 220*bw);
+    if (bw > 0.6){ ctx.textAlign = 'center'; strokeText(host.run.banner, CW/2, 800, 'bold 84px Arial', '#ffffff', 10, '#7a0d18'); }
+    drawHostFrame('run', -200 + k*(CW+400), 1150, 1.5, false, t);
+    for (let i=0;i<5;i++){ const lx = -200 + k*(CW+400) - 200 - i*30; ctx.fillStyle = 'rgba(255,255,255,0.7)'; ctx.fillRect(lx - 220, 960 + i*40, 200, 8); }
+    return;
+  }
+  drawHostFrame(host.anim, host.x, host.y, 1.25, true, host.t);
+  if (host.bubble){
+    ctx.font = 'bold 36px Arial';
+    const lines = wrapText(host.bubble, 520);
+    const bw = Math.max(...lines.map(l => ctx.measureText(l).width)) + 50, bh = lines.length*46 + 34;
+    const bx = Math.min(host.x - 140 - bw, CW - bw - 20), by = host.y - 330 - bh;
+    ctx.fillStyle = '#ffffff'; ctx.strokeStyle = '#c0182c'; ctx.lineWidth = 5;
+    roundRect(ctx, bx, by, bw, bh, 26); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(bx+bw-70, by+bh-3); ctx.lineTo(bx+bw-10, by+bh+40); ctx.lineTo(bx+bw-120, by+bh-3); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#1c2848'; ctx.textAlign = 'left';
+    lines.forEach((l,i) => ctx.fillText(l, bx+25, by+52+i*46));
+  }
+}
+function wrapText(t, maxW){
+  const words = t.split(' '), out = []; let cur = '';
+  for (const w of words){ const s = cur ? cur + ' ' + w : w; if (ctx.measureText(s).width > maxW && cur){ out.push(cur); cur = w; } else cur = s; }
+  if (cur) out.push(cur); return out;
+}
+
+// ───────────────────────── Салют ─────────────────────────
+let rockets = [], sparks = [], fwT = 0;
+function updateFireworks(dt, on){
+  if (on){ fwT -= dt; if (fwT <= 0){ fwT = rnd(0.25, 0.6); rockets.push({ x:rnd(120, CW-120), y:CH*0.75, vy:-rnd(900,1250), ty:rnd(380, 900), color:pick(['#ff4d6d','#ffd75e','#7fd3ff','#9b59f6','#5dff8a','#ffffff']) }); } }
+  for (let i=rockets.length-1;i>=0;i--){
+    const r = rockets[i]; r.y += r.vy*dt;
+    if (r.y <= r.ty){ for (let k=0;k<70;k++){ const a = Math.PI*2*k/70, s = rnd(180, 420); sparks.push({ x:r.x, y:r.y, vx:Math.cos(a)*s, vy:Math.sin(a)*s, t:0, life:rnd(1,1.6), color:r.color }); } sfxBoom(); rockets.splice(i,1); }
+  }
+  for (let i=sparks.length-1;i>=0;i--){ const s = sparks[i]; s.t += dt; s.vy += 260*dt; s.vx *= 0.985; s.x += s.vx*dt; s.y += s.vy*dt; if (s.t > s.life) sparks.splice(i,1); }
+}
+function drawFireworks(){
+  ctx.save(); ctx.globalCompositeOperation = 'lighter';
+  for (const r of rockets){ ctx.fillStyle = '#fff3c0'; ctx.fillRect(r.x-3, r.y-14, 6, 18); }
+  for (const s of sparks){ ctx.globalAlpha = 1 - s.t/s.life; ctx.fillStyle = s.color; ctx.fillRect(s.x-4, s.y-4, 8, 8); }
+  ctx.restore();
+}
+
+// ───────────────────────── Отрисовка ─────────────────────────
+function roundRect(g,x,y,w,h,r){ g.beginPath(); g.moveTo(x+r,y); g.arcTo(x+w,y,x+w,y+h,r); g.arcTo(x+w,y+h,x,y+h,r); g.arcTo(x,y+h,x,y,r); g.arcTo(x,y,x+w,y,r); g.closePath(); }
+function strokeText(t, x, y, font, fill, sw, stroke){ ctx.font = font; ctx.lineJoin = 'round'; ctx.lineWidth = sw; ctx.strokeStyle = stroke || '#ffffff'; ctx.strokeText(t, x, y); ctx.fillStyle = fill; ctx.fillText(t, x, y); }
+
+function drawTree(c, time){
+  const bare = IMG.tree_bare, full = IMG.tree_full;
+  if (!bare.complete || !bare.naturalWidth) return;
+  const w = bare.naturalWidth*TREE.sc, h = bare.naturalHeight*TREE.sc, x0 = TREE.x - w/2, y0 = TREE.y - h;
+  ctx.fillStyle = 'rgba(80,110,150,0.25)'; ctx.beginPath(); ctx.ellipse(TREE.x, TREE.y-6, TREE.rx+20, TREE.ry, 0, 0, Math.PI*2); ctx.fill();
+  ctx.drawImage(bare, x0, y0, w, h);
+  const n = Math.min(c.ornaments, TREE_ORN.length);
+  for (let i=0;i<n;i++){ const [ox,oy,ow,oh] = TREE_ORN[i]; ctx.drawImage(full, ox, oy, ow, oh, x0+ox*TREE.sc, y0+oy*TREE.sc, ow*TREE.sc, oh*TREE.sc); }
+  // огоньки мерцают на открытых игрушках (вечером ярче)
+  ctx.save(); ctx.globalCompositeOperation = 'lighter';
+  for (let i=0;i<n;i++){
+    const [ox,oy,ow,oh] = TREE_ORN[i];
+    const a = (0.5 + 0.5*Math.sin(time*2.2 + i*1.7)) * (c.night ? 0.55 : 0.25);
+    const gx = x0+(ox+ow/2)*TREE.sc, gy = y0+(oy+oh/2)*TREE.sc;
+    const g = ctx.createRadialGradient(gx,gy,0,gx,gy,34); g.addColorStop(0,`rgba(255,220,150,${a})`); g.addColorStop(1,'rgba(255,220,150,0)');
+    ctx.fillStyle = g; ctx.fillRect(gx-34, gy-34, 68, 68);
+  }
+  ctx.restore();
+  if (c.star) drawStar(TREE.x, y0 + 14, 34 + 4*Math.sin(time*3), time);
+}
+function drawStar(x, y, r, time){
+  ctx.save(); ctx.globalCompositeOperation = 'lighter';
+  const g = ctx.createRadialGradient(x,y,0,x,y,r*3); g.addColorStop(0,'rgba(255,240,170,0.9)'); g.addColorStop(1,'rgba(255,240,170,0)');
+  ctx.fillStyle = g; ctx.fillRect(x-r*3, y-r*3, r*6, r*6); ctx.restore();
+  ctx.fillStyle = '#ffd75e'; ctx.strokeStyle = '#b8860b'; ctx.lineWidth = 3; ctx.beginPath();
+  for (let i=0;i<10;i++){ const a = -Math.PI/2 + i*Math.PI/5, rr = i%2 ? r*0.45 : r; ctx.lineTo(x+Math.cos(a)*rr, y+Math.sin(a)*rr); }
+  ctx.closePath(); ctx.fill(); ctx.stroke();
+}
+function drawSnowman(p){
+  const x = p.x, y = p.y, wob = Math.sin(performance.now()/120)*2;
+  ctx.fillStyle = 'rgba(80,110,150,0.25)'; ctx.beginPath(); ctx.ellipse(x, y, 46, 14, 0, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#fbfdff'; ctx.strokeStyle = '#9fb8d8'; ctx.lineWidth = 4;
+  ctx.beginPath(); ctx.arc(x, y-40, 42, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.arc(x+wob, y-100, 30, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+  const hue = ['#2f8a3c','#c0302f','#d9772a','#d4b52a','#2a8fb3','#2f4fc0','#7a33b8','#c02f86'][p.color];
+  ctx.fillStyle = hue; ctx.beginPath(); ctx.moveTo(x-28+wob, y-122); ctx.lineTo(x+28+wob, y-122); ctx.lineTo(x+16+wob, y-168); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#ffffff'; ctx.fillRect(x-30+wob, y-128, 60, 10); ctx.beginPath(); ctx.arc(x+16+wob, y-170, 7, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#222'; ctx.fillRect(x-11+wob, y-108, 6, 6); ctx.fillRect(x+6+wob, y-108, 6, 6);
+  ctx.fillStyle = '#f08a24'; ctx.beginPath(); ctx.moveTo(x+wob, y-98); ctx.lineTo(x+24+wob, y-94); ctx.lineTo(x+wob, y-90); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = hue; ctx.fillRect(x-30, y-76, 60, 10);
+}
+function drawPlayer(p){
+  if (p.state === 'frozen'){ drawSnowman(p); return; }
+  const im = skinOf(p);
+  ctx.fillStyle = 'rgba(80,110,150,0.28)'; ctx.beginPath(); ctx.ellipse(p.x, p.y-2, 34, 11, 0, 0, Math.PI*2); ctx.fill();
+  if (im && im.complete && im.naturalWidth){
+    let row, col;
+    if (p.state === 'throw'){ row = 4 + p.dir; col = clamp(Math.floor(p.stateT/0.55*13), 0, 12); }
+    else if (p.moving){ row = p.dir; col = 1 + Math.floor(p.walkT*12) % 8; }
+    else { row = p.dir; col = 0; }
+    ctx.drawImage(im, col*64, row*64, 64, 64, Math.round(p.x - 32*S), Math.round(p.y - FEET*S), 64*S, 64*S);
+    if (p.hitT > 0){ ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = p.hitT*2.4; ctx.drawImage(im, col*64, row*64, 64, 64, Math.round(p.x - 32*S), Math.round(p.y - FEET*S), 64*S, 64*S); ctx.restore(); }
+  }
+}
+function drawLabel(p, up){
+  const y = p.y - up;
+  // шкала тепла
+  const bw = 90, frac = clamp(p.warmth / Math.max(1, p.warmthMax), 0, 1);
+  ctx.fillStyle = 'rgba(20,30,60,0.55)'; ctx.fillRect(p.x - bw/2, y, bw, 9);
+  ctx.fillStyle = frac > 0.5 ? '#ff7a3d' : frac > 0.25 ? '#ffb13d' : '#4fb7ff'; ctx.fillRect(p.x - bw/2 + 1, y+1, (bw-2)*frac, 7);
+  ctx.textAlign = 'center';
+  const gold = isGolden(p);
+  if (gold) strokeText('ЗОЛОТОЙ САНТА', p.x, y - 40, 'bold 22px Arial', '#c0182c', 5);
+  const lv = p.isBot ? '' : `ур.${levelOf(p.lifetime)} `;
+  strokeText(lv + short(p.name, 13), p.x, y - 10, 'bold 24px Arial', gold ? '#d49a00' : p.isBot ? '#6b7a99' : '#1c2848', 5);
+  if (!p.isBot && p.power > BASE_POWER) strokeText('❄' + fmtNum(p.power), p.x, y + 30, 'bold 18px Arial', '#2a7fd4', 4);
+}
+function drawBall(b){
+  const k = b.t / b.dur, x = b.sx + (b.tx-b.sx)*k, gy = b.sy + (b.ty-b.sy)*k, z = Math.sin(Math.PI*k) * b.arc;
+  ctx.fillStyle = 'rgba(80,110,150,0.25)'; ctx.beginPath(); ctx.ellipse(x, gy + 70, b.r*0.9, b.r*0.35, 0, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#ffffff'; ctx.strokeStyle = '#a9c2e0'; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.arc(x, gy - z, b.r, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+}
+
+// ── верхняя плашка: режим + таймер, топ-5 дня, правила ──
+let dayTop = [], dayLeader = null, yesterdayChampion = null;
+const RULES = [ ['💬','Напиши в чат —','ты в игре'], ['❤️','Лайк =','+1 сила снежка'], ['coin','1 монета =','+10 силы'], ['🎅','Топ-1 дня =','Золотой Санта'] ];
+function drawCoin(x, y, r){
+  ctx.fillStyle = '#ffc428'; ctx.strokeStyle = '#b87a0a'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+  ctx.strokeStyle = '#e39a1a'; ctx.beginPath(); ctx.arc(x, y, r*0.55, 0, Math.PI*2); ctx.stroke();
+}
+function drawHeader(c){
+  const X = 10, Y = 10, W = CW-20, H = 330;
+  ctx.fillStyle = 'rgba(14,26,52,0.92)'; roundRect(ctx, X, Y, W, H, 22); ctx.fill();
+  ctx.strokeStyle = '#ffd75e'; ctx.lineWidth = 3; ctx.stroke();
+  ctx.save(); roundRect(ctx, X, Y, W, H, 22); ctx.clip(); ctx.fillStyle = '#b01c2e'; ctx.fillRect(X, Y, W, 60); ctx.restore();
+  const m = modeNow();
+  ctx.textAlign = 'left'; ctx.fillStyle = '#fff'; ctx.font = 'bold 34px Arial'; ctx.fillText(`${m.icon} ${m.title}`, X+18, Y+43);
+  const left = modeLeftMs(), s = Math.ceil(left/1000), t = `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;
+  ctx.textAlign = 'right'; ctx.font = 'bold 36px Arial'; ctx.fillStyle = '#ffe27a'; ctx.fillText(t, X+W-20, Y+44);
+  ctx.font = 'bold 22px Arial'; ctx.fillStyle = '#ffc9c9'; ctx.fillText(MODES.length > 1 ? 'до смены' : 'до конца раунда', X+W-130, Y+40);
+  // топ-5 дня
+  ctx.textAlign = 'left'; ctx.font = 'bold 28px Arial'; ctx.fillStyle = '#ffd75e'; ctx.fillText('ТОП ДНЯ', X+20, Y+100);
+  for (let i=0;i<5;i++){
+    const r = dayTop[i], y = Y + 142 + i*40;
+    ctx.font = 'bold 26px Arial'; ctx.textAlign = 'left';
+    if (i === 0){ ctx.font = '28px Arial'; ctx.fillText('🎅', X+16, y); ctx.font = 'bold 26px Arial'; }
+    else { ctx.fillStyle = '#aab9dc'; ctx.fillText((i+1)+'.', X+22, y); }
+    if (!r){ ctx.fillStyle = '#56648a'; ctx.fillText('—', X+64, y); continue; }
+    ctx.fillStyle = i === 0 ? '#ffe27a' : '#ffffff'; ctx.fillText(short(r.username, 15), X+64, y);
+    ctx.textAlign = 'right'; ctx.fillText(fmtNum(r.stars) + ' ⭐', X+500, y);
+  }
+  ctx.strokeStyle = '#3b4d7a'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(X+530, Y+76); ctx.lineTo(X+530, Y+H-16); ctx.stroke();
+  ctx.textAlign = 'left'; ctx.font = 'bold 28px Arial'; ctx.fillStyle = '#ffd75e'; ctx.fillText('КАК ИГРАТЬ', X+548, Y+100);
+  RULES.forEach(([ic,a,b], i) => {
+    const y = Y + 144 + i*46;
+    if (ic === 'coin') drawCoin(X+562, y-10, 15); else { ctx.font = '28px Arial'; ctx.fillStyle = '#fff'; ctx.fillText(ic, X+546, y); }
+    ctx.font = 'bold 25px Arial'; ctx.fillStyle = '#c8d2eb'; ctx.fillText(a, X+590, y);
+    const w = ctx.measureText(a + ' ').width; ctx.fillStyle = '#ffffff'; ctx.fillText(b, X+590+w, y);
+  });
+  // строка календаря под плашкой
+  const info = infoLine(c);
+  ctx.font = 'bold 30px Arial'; const iw = ctx.measureText(info).width + 44;
+  ctx.fillStyle = 'rgba(176,28,46,0.92)'; roundRect(ctx, CW/2 - iw/2, Y+H+10, iw, 46, 23); ctx.fill();
+  ctx.textAlign = 'center'; ctx.fillStyle = '#fff'; ctx.fillText(info, CW/2, Y+H+44);
+}
+function drawCountdown(c){
+  const ms = c.toNY > 0 && c.toNY <= 60000 ? c.toNY : (c.toOldNY > 0 && c.toOldNY <= 60000 ? c.toOldNY : 0);
+  if (ms > 0){
+    const n = Math.ceil(ms/1000), k = 1 - (ms/1000 - Math.floor(ms/1000));
+    ctx.textAlign = 'center';
+    strokeText(String(n), CW/2, 980, `bold ${Math.round(220 + k*80)}px Arial`, '#ffd75e', 16, '#7a0d18');
+  }
+  if (c.fireworks){
+    const ny = c.M === 1 && c.D === 1;
+    ctx.textAlign = 'center'; strokeText(ny ? 'С НОВЫМ ГОДОМ!' : 'СО СТАРЫМ НОВЫМ ГОДОМ!', CW/2, 600, `bold ${ny ? 92 : 70}px Arial`, '#ffd75e', 12, '#7a0d18');
+  }
+}
+let ratingCard = null;
+function drawRatingCard(){
+  if (!ratingCard) return;
+  ratingCard.t += 1/60; if (ratingCard.t > 6){ ratingCard = null; return; }
+  const d = ratingCard.d, x = 140, y = 440, w = 800, h = 210;
+  ctx.fillStyle = 'rgba(14,26,52,0.94)'; roundRect(ctx, x, y, w, h, 20); ctx.fill(); ctx.strokeStyle = '#ffd75e'; ctx.lineWidth = 3; ctx.stroke();
+  ctx.textAlign = 'center'; ctx.fillStyle = '#ff9db0'; ctx.font = 'bold 34px Arial'; ctx.fillText('📊 @' + short(d.username, 20), CW/2, y+50);
+  const lt = Number(d.lifetimeStolen||0), lv = levelOf(lt), rk = rankOfLevel(lv);
+  ctx.fillStyle = rk.color; ctx.font = 'bold 30px Arial'; ctx.fillText(`${lv} уровень — ${rk.name}`, CW/2, y+100);
+  ctx.fillStyle = '#ffe27a'; ctx.font = 'bold 28px Arial';
+  ctx.fillText(d.rank ? `#${d.rank} за день · ${fmtNum(d.stolen||0)} ⭐ · заморозил: ${d.kos||0}` : 'пока не в рейтинге', CW/2, y+148);
+  if (lv < SANTA_LEVEL) { ctx.fillStyle = '#aab9dc'; ctx.font = 'bold 24px Arial'; ctx.fillText(`до Санты: ${fmtNum(LEVEL_THRESHOLDS[SANTA_LEVEL-1] - lt)} ⭐`, CW/2, y+188); }
+}
+
+// снег
+function updateFlakes(dt, amount){
+  const want = Math.round(160*amount);
+  while (flakes.length < want) flakes.push({ x:rnd(0,CW), y:rnd(-CH,0), vy:rnd(60,160), r:rnd(2,6), ph:rnd(0,7) });
+  if (flakes.length > want) flakes.length = want;
+  for (const f of flakes){ f.y += f.vy*dt; f.x += Math.sin(f.ph + f.y/90)*20*dt; if (f.y > CH){ f.y = rnd(-80,-10); f.x = rnd(0,CW); } }
+}
+function drawFlakes(){ ctx.fillStyle = 'rgba(255,255,255,0.9)'; for (const f of flakes){ ctx.beginPath(); ctx.arc(f.x, f.y, f.r, 0, Math.PI*2); ctx.fill(); } }
+
+// ───────────────────────── Главный цикл ─────────────────────────
+let lastT = performance.now(), time = 0, lastSpecialKey = null, prevLeader = null;
+function update(dt){
+  time += dt;
+  const c = calendar();
+  const slot = modeSlot();
+  if (lastSlot !== null && slot !== lastSlot) endRound();
+  lastSlot = slot;
+  if (c.key !== lastSpecialKey){ if (c.sp) hostSay(c.sp.host, 'jump', 5, 'special'); lastSpecialKey = c.key; }
+  if (c.fireworks && !fireworksWas){ hostSay(c.M === 1 && c.D === 1 ? 'С Новым годом! Хо-хо-хо!' : 'Со Старым Новым годом!', 'jump', 6); }
+  fireworksWas = c.fireworks;
+  for (const p of players.values()) updatePlayer(p, dt);
+  // неактивные зрители уходят с поля через 15 минут
+  const now = performance.now();
+  for (const p of [...players.values()]) if (!p.isBot && now - p.lastActive > 15*60000){ puff(p.x, p.y-60, 16, '#ffffff'); players.delete(p.key); balanceBots(); }
+  for (let i=snowballs.length-1;i>=0;i--){ const b = snowballs[i]; b.t += dt;
+    const k = b.t/b.dur, x = b.sx + (b.tx-b.sx)*k, y = b.sy + (b.ty-b.sy)*k;
+    if (k > 0.15 && k < 0.95 && Math.hypot((x-TREE.x)/TREE.rx, (y+60-TREE.y)/TREE.ry) < 1){ puff(x, y, 12, '#ffffff'); snowballs.splice(i,1); continue; }   // в ёлку
+    if (k >= 1){ hit(b); snowballs.splice(i,1); } }
+  for (let i=particles.length-1;i>=0;i--){ const q = particles[i]; q.t += dt; q.vy += 500*dt; q.x += q.vx*dt; q.y += q.vy*dt; if (q.t > q.life) particles.splice(i,1); }
+  for (let i=floaters.length-1;i>=0;i--){ const f = floaters[i]; f.t += dt; f.y -= 40*dt; if (f.t > 1.8) floaters.splice(i,1); }
+  updateFlakes(dt, c.snow);
+  updateFireworks(dt, c.fireworks);
+  updateHost(dt);
+  // смена Золотого Санты
+  if (dayLeader !== prevLeader){
+    if (dayLeader && prevLeader !== null && players.has(dayLeader.toLowerCase()) && time - leaderSaidAt > 45){ leaderSaidAt = time; hostSay(`Новый Золотой Санта — ${short(dayLeader,16)}!`, 'jump', 4, 'leader'); }
+    prevLeader = dayLeader;
+  }
+  musicTick(c);
+  return c;
+}
+let fireworksWas = false, leaderSaidAt = -999;
+function draw(c){
+  ctx.drawImage(bg, 0, 0);
+  const small = IMG.tree_small;
+  if (small.complete && small.naturalWidth) for (const [x,y] of DECOR) ctx.drawImage(small, x - small.naturalWidth*1.2, y - small.naturalHeight*2.4, small.naturalWidth*2.4, small.naturalHeight*2.4);
+  // всё, что стоит на снегу, — по глубине (y), ёлка тоже
+  const ents = [...players.values()].map(p => ({ y:p.y, f:() => drawPlayer(p) }));
+  ents.push({ y:TREE.y, f:() => drawTree(c, time) });
+  ents.sort((a,b) => a.y - b.y).forEach(e => e.f());
+  for (const p of [...players.values()].sort((a,b) => a.y - b.y)) drawLabel(p, p.state === 'frozen' ? 190 : 132);
+  for (const b of snowballs) drawBall(b);
+  for (const q of particles){ ctx.globalAlpha = 1 - q.t/q.life; ctx.fillStyle = q.color; ctx.beginPath(); ctx.arc(q.x, q.y, q.r, 0, Math.PI*2); ctx.fill(); }
+  ctx.globalAlpha = 1;
+  ctx.textAlign = 'center';
+  for (const f of floaters){ ctx.globalAlpha = clamp(1.8 - f.t, 0, 1); strokeText(f.text, f.x, f.y, 'bold 30px Arial', f.color, 6); }
+  ctx.globalAlpha = 1;
+  if (c.night){ ctx.fillStyle = 'rgba(18,30,85,0.22)'; ctx.fillRect(0,0,CW,CH); }
+  drawFlakes();
+  drawFireworks();
+  drawHeader(c);
+  drawCountdown(c);
+  drawRatingCard();
+  drawHost();
+}
+function frame(now){
+  const dt = Math.min(0.05, (now - lastT)/1000); lastT = now;
+  const c = update(dt); draw(c);
+  requestAnimationFrame(frame);
+}
+
+// ───────────────────────── Звук (синтез, без файлов) ─────────────────────────
+// Рождественские мелодии — народные/классические (авторских прав нет), исполнение
+// синтезом прямо в браузере, поэтому TikTok не за что глушить звук.
+const SND = { ac:null, music:null, sfx:null, musicOn:true, sfxOn:true, song:null, idx:0, next:0, songEnd:0, order:[] };
+const NOTE = n => { const m = /^([A-G])(#|b)?(\d)$/.exec(n); const base = { C:0, D:2, E:4, F:5, G:7, A:9, B:11 }[m[1]] + (m[2]==='#'?1:m[2]==='b'?-1:0); return 440*Math.pow(2, (base + (+m[3]+1)*12 - 69)/12); };
+function seq(str){ return str.trim().split(/\s+/).map(t => { const [n,d] = t.split(':'); return [n, +d]; }); }
+const SONGS = [
+  { name:'Jingle Bells', bpm:150, bells:true, bass:'C C C C F C D G C C C C F C G C', bar:4, mel:seq(`
+    E4:1 E4:1 E4:2 E4:1 E4:1 E4:2 E4:1 G4:1 C4:1.5 D4:0.5 E4:4 F4:1 F4:1 F4:1.5 F4:0.5 F4:1 E4:1 E4:1 E4:0.5 E4:0.5 E4:1 D4:1 D4:1 E4:1 D4:2 G4:2
+    E4:1 E4:1 E4:2 E4:1 E4:1 E4:2 E4:1 G4:1 C4:1.5 D4:0.5 E4:4 F4:1 F4:1 F4:1.5 F4:0.5 F4:1 E4:1 E4:1 E4:0.5 E4:0.5 G4:1 G4:1 F4:1 D4:1 C4:4`) },
+  { name:'We Wish You a Merry Christmas', bpm:170, bells:true, bass:'G C A D E C D G', bar:3, pick:1, mel:seq(`
+    D4:1 G4:1 G4:0.5 A4:0.5 G4:0.5 F#4:0.5 E4:1 E4:1 E4:1 A4:1 A4:0.5 B4:0.5 A4:0.5 G4:0.5 F#4:1 D4:1 D4:1
+    B4:1 B4:0.5 C5:0.5 B4:0.5 A4:0.5 G4:1 E4:1 D4:0.5 D4:0.5 E4:1 A4:1 F#4:1 G4:3`) },
+  { name:'Deck the Halls', bpm:150, bells:true, bass:'C C G C C C G C G G D G C C F C', bar:4, mel:seq(`
+    G4:1.5 F4:0.5 E4:1 D4:1 C4:1 D4:1 E4:1 C4:1 D4:0.5 E4:0.5 F4:0.5 D4:0.5 E4:1.5 D4:0.5 C4:1 B3:1 C4:2
+    G4:1.5 F4:0.5 E4:1 D4:1 C4:1 D4:1 E4:1 C4:1 D4:0.5 E4:0.5 F4:0.5 D4:0.5 E4:1.5 D4:0.5 C4:1 B3:1 C4:2
+    D4:1.5 E4:0.5 F4:1 D4:1 E4:1.5 F4:0.5 G4:1 D4:1 E4:0.5 F#4:0.5 G4:1 A4:0.5 B4:0.5 C5:1 B4:1 A4:1 G4:2
+    G4:1.5 F4:0.5 E4:1 D4:1 C4:1 D4:1 E4:1 C4:1 A4:0.5 A4:0.5 A4:0.5 A4:0.5 G4:1.5 F4:0.5 E4:1 D4:1 C4:2`) },
+  { name:'Щедрик (Carol of the Bells)', bpm:180, bells:false, bass:'G F Eb D G F Eb D G F Eb D G F Eb D', bar:3, mel:seq(`
+    Bb4:1 A4:0.5 Bb4:0.5 G4:1 Bb4:1 A4:0.5 Bb4:0.5 G4:1 Bb4:1 A4:0.5 Bb4:0.5 G4:1 Bb4:1 A4:0.5 Bb4:0.5 G4:1
+    D5:1 C5:0.5 D5:0.5 Bb4:1 D5:1 C5:0.5 D5:0.5 Bb4:1 D5:1 C5:0.5 D5:0.5 Bb4:1 D5:1 C5:0.5 D5:0.5 Bb4:1
+    G5:0.5 G5:0.5 G5:0.5 F5:0.5 Eb5:0.5 D5:0.5 C5:0.5 C5:0.5 C5:0.5 Bb4:0.5 A4:0.5 G4:0.5 A4:0.5 Bb4:0.5 C5:0.5 A4:0.5 Bb4:0.5 C5:0.5 D5:1 C5:0.5 D5:0.5 Bb4:1
+    Bb4:1 A4:0.5 Bb4:0.5 G4:1 Bb4:1 A4:0.5 Bb4:0.5 G4:1 Bb4:1 A4:0.5 Bb4:0.5 G4:1 Bb4:1 A4:0.5 Bb4:0.5 G4:1`) },
+  { name:'Silent Night (Тихая ночь)', bpm:110, bells:false, bass:'C C C C G G C C F F C C F F C C G G C C C G C C', bar:3, mel:seq(`
+    G4:1.5 A4:0.5 G4:1 E4:3 G4:1.5 A4:0.5 G4:1 E4:3 D5:2 D5:1 B4:3 C5:2 C5:1 G4:3
+    A4:2 A4:1 C5:1.5 B4:0.5 A4:1 G4:1.5 A4:0.5 G4:1 E4:3 A4:2 A4:1 C5:1.5 B4:0.5 A4:1 G4:1.5 A4:0.5 G4:1 E4:3
+    D5:2 D5:1 F5:1.5 D5:0.5 B4:1 C5:3 E5:3 C5:1 G4:1 E4:1 G4:1.5 F4:0.5 D4:1 C4:6`) },
+];
+function audioInit(){
+  if (SND.ac){ if (SND.ac.state === 'suspended') SND.ac.resume(); return; }
+  const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
+  SND.ac = new AC();
+  SND.music = SND.ac.createGain(); SND.music.gain.value = SND.musicOn ? 0.16 : 0; SND.music.connect(SND.ac.destination);
+  SND.sfx = SND.ac.createGain(); SND.sfx.gain.value = SND.sfxOn ? 0.5 : 0; SND.sfx.connect(SND.ac.destination);
+  SND.noiseBuf = SND.ac.createBuffer(1, SND.ac.sampleRate, SND.ac.sampleRate);
+  const d = SND.noiseBuf.getChannelData(0); for (let i=0;i<d.length;i++) d[i] = Math.random()*2-1;
+}
+function tone(freq, t, dur, type, vol, dest, opt){
+  const ac = SND.ac, o = ac.createOscillator(), g = ac.createGain(); opt = opt || {};
+  o.type = type; o.frequency.setValueAtTime(freq, t); if (opt.to) o.frequency.exponentialRampToValueAtTime(opt.to, t+dur);
+  g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + (opt.att||0.006)); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  o.connect(g); g.connect(dest); o.start(t); o.stop(t + dur + 0.05);
+}
+function noise(t, dur, vol, dest, type, f1, f2){
+  const ac = SND.ac, s = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain();
+  s.buffer = SND.noiseBuf; f.type = type; f.frequency.setValueAtTime(f1, t); if (f2) f.frequency.exponentialRampToValueAtTime(f2, t+dur);
+  g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t+dur);
+  s.connect(f); f.connect(g); g.connect(dest); s.start(t); s.stop(t+dur+0.05);
+}
+function bell(freq, t, dur, vol){
+  tone(freq, t, dur*1.3+0.35, 'sine', vol, SND.music);
+  tone(freq*2, t, dur*0.7+0.2, 'sine', vol*0.35, SND.music);
+  tone(freq*3.01, t, 0.25, 'sine', vol*0.12, SND.music);
+}
+function shuffleOrder(){ SND.order = SONGS.map((_,i)=>i).sort(() => Math.random()-0.5); SND.idx = 0; }
+function startSong(i, t){
+  const s = SONGS[i]; SND.song = s; const beat = 60/s.bpm; let tt = t + 0.1;
+  for (const [n, d] of s.mel){ bell(NOTE(n), tt, d*beat, 0.5); tt += d*beat; }
+  const roots = s.bass.split(' '); let bt = t + 0.1 + (s.pick||0)*beat;
+  for (const r of roots){ const f = NOTE(r + '2'); for (let k=0;k<s.bar;k++){ tone(k===0 ? f : f*1.5, bt + k*beat, beat*0.9, 'triangle', k===0 ? 0.35 : 0.18, SND.music); if (s.bells) noise(bt + k*beat, 0.09, k%2 ? 0.05 : 0.09, SND.music, 'highpass', 7000); } bt += s.bar*beat; }
+  SND.songEnd = Math.max(tt, bt) + 2.5;
+  const el = document.getElementById('trackName'); if (el) el.textContent = '♪ ' + s.name;
+}
+let forceNext = false;
+function musicTick(c){
+  if (!SND.ac || SND.ac.state !== 'running') return;
+  const t = SND.ac.currentTime;
+  if (t < SND.songEnd && !forceNext) return;
+  forceNext = false;
+  if (!SND.order.length || SND.idx >= SND.order.length) shuffleOrder();
+  let i = SND.order[SND.idx++];
+  if (c && c.sp && c.sp.shchedryk && Math.random() < 0.6) i = 3;      // Щедрый вечер — «Щедрик»
+  if (c && c.sp && c.sp.eve && Math.random() < 0.5) i = 4;            // сочельник — «Тихая ночь»
+  startSong(i, t);
+}
+function setMusic(on){ SND.musicOn = on; if (SND.music) SND.music.gain.setTargetAtTime(on ? 0.16 : 0, SND.ac.currentTime, 0.1); }
+function setSfx(on){ SND.sfxOn = on; if (SND.sfx) SND.sfx.gain.setTargetAtTime(on ? 0.5 : 0, SND.ac.currentTime, 0.05); }
+function sfxOk(){ return SND.ac && SND.ac.state === 'running'; }
+let lastThrowSfx = 0;
+function sfxThrow(){ if (!sfxOk()) return; const t = SND.ac.currentTime; if (t - lastThrowSfx < 0.06) return; lastThrowSfx = t; noise(t, 0.16, 0.18, SND.sfx, 'bandpass', 900, 2400); }
+function sfxHit(r){ if (!sfxOk()) return; const t = SND.ac.currentTime; noise(t, 0.12 + r/200, 0.35, SND.sfx, 'lowpass', 1800, 300); tone(140, t, 0.08, 'sine', 0.2, SND.sfx, { to:60 }); }
+function sfxFreeze(){ if (!sfxOk()) return; const t = SND.ac.currentTime; [1568, 2093, 2637, 3136].forEach((f,i) => tone(f, t + i*0.05, 0.4, 'sine', 0.12, SND.sfx)); }
+function sfxGift(c){ if (!sfxOk()) return; const t = SND.ac.currentTime; const n = c >= 50 ? 8 : 4; for (let i=0;i<n;i++) tone([1047,1319,1568,2093][i%4]*(i>=4?2:1), t + i*0.07, 0.5, 'sine', 0.14, SND.sfx); noise(t, 0.3, 0.12, SND.sfx, 'highpass', 6000); }
+function sfxFanfare(){ if (!sfxOk()) return; const t = SND.ac.currentTime; [523,659,784,1047].forEach((f,i) => { tone(f, t+i*0.12, 0.35, 'square', 0.06, SND.sfx); tone(f, t+i*0.12, 0.5, 'sine', 0.12, SND.sfx); }); }
+function sfxBoom(){ if (!sfxOk()) return; const t = SND.ac.currentTime; noise(t, 0.6, 0.3, SND.sfx, 'lowpass', 900, 120); }
+audioInit();     // в OBS звук стартует сам; в обычном браузере — после первого клика
+window.addEventListener('pointerdown', audioInit);
+window.addEventListener('keydown', audioInit);
+
+// ───────────────────────── Эфир TikTok (?username=ник) ─────────────────────────
+let _ws = null, _gameMode = 'connecting';
+function setStatus(cls, text){ const el = document.getElementById('statusBadge'); el.style.display = 'block'; el.className = cls; el.textContent = text; }
+function wsConnect(){
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  _ws = new WebSocket(`${proto}//${location.host}?username=${encodeURIComponent(LIVE_USER)}`);
+  _ws.onopen = () => { setStatus('connecting', '⏳ @' + LIVE_USER + '…'); _ws.send(JSON.stringify({ type:'newyear_state_request' })); };
+  _ws.onmessage = (e) => {
+    try {
+      const d = JSON.parse(e.data);
+      if (d.type === 'init' || d.type === 'status'){
+        const m = d.tiktokMode || d.mode; _gameMode = m || 'connecting';
+        if (m === 'tiktok') setStatus('live', '🔴 LIVE @' + (d.username || LIVE_USER));
+        else if (m === 'demo') setStatus('demo', '🟡 Ожидание эфира…');
+        else setStatus('connecting', '⏳ @' + LIVE_USER + '…');
+      }
+      if (d.type === 'newyear_state_restore') (d.players || []).forEach(restorePlayer);
+      // только настоящий эфир: демо-боты сервера в игру и базу не попадают
+      if (_gameMode === 'tiktok' && d.username){
+        if (d.type === 'arena_like') onLike(d.username, Math.max(1, Number(d.likes) || 1));
+        if (d.type === 'arena_boxing_chat') onChat(d.username);
+        if (d.type === 'arena_gift') onGift(d.username, d.coins);
+      }
+      if (d.type === 'top_newyear') setDayTop((d.data || []).map(r => ({ username:r.username, stars:Number(r.total_stolen)||0 })));
+      if (d.type === 'newyear_weekly_champion') yesterdayChampion = d.champion || null;
+      if (d.type === 'newyear_tier_info'){ const p = players.get(String(d.username).toLowerCase()); if (p){ p.lifetime = Math.max(p.lifetime, Number(d.lifetimeStolen) || 0); p.tierKnown = true; } }
+      if (d.type === 'arena_newyear_rating') ratingCard = { d, t:0 };
+    } catch(err){ console.error('[newyear ws]', err); }
+  };
+  _ws.onclose = () => { setStatus('error', '❌ Нет связи…'); setTimeout(wsConnect, 3000); };
+  _ws.onerror = () => {};
+}
+function restorePlayer(s){
+  if (!s || !s.username) return;
+  const p = getPlayer(s.username);
+  p.warmthMax = Math.max(BASE_WARMTH, s.energyMax|0); p.warmth = clamp(s.energy|0, 1, p.warmthMax);
+  p.powerMax = Math.max(BASE_POWER, s.powerMax|0); p.power = Math.max(BASE_POWER, s.power|0);
+}
+function setDayTop(rows){ dayTop = rows.slice(0,5); dayLeader = dayTop[0] && dayTop[0].stars > 0 ? dayTop[0].username : null; }
+let _pending = {};
+function reportStolen(username, amount){
+  if (DEMO){ const k = username.toLowerCase(); demoDaily[k] = { username, stars:(demoDaily[k] ? demoDaily[k].stars : 0) + amount }; demoLifetime[k] = (demoLifetime[k]||0) + amount; return; }
+  _pending[username] = (_pending[username] || 0) + amount;
+}
+function reportKO(username){ if (!DEMO && _ws && _ws.readyState === 1) _ws.send(JSON.stringify({ type:'newyear_ko', username })); }
+function requestTier(username){ if (!DEMO && _ws && _ws.readyState === 1) _ws.send(JSON.stringify({ type:'newyear_tier_request', username })); }
+if (!DEMO){
+  setInterval(() => {
+    if (!_ws || _ws.readyState !== 1) return;
+    for (const u in _pending) if (_pending[u] > 0) _ws.send(JSON.stringify({ type:'newyear_stolen', username:u, amount:_pending[u] }));
+    _pending = {};
+  }, 4000);
+  const saveState = () => {
+    if (!_ws || _ws.readyState !== 1) return;
+    const list = realPlayers().filter(p => p.state !== 'frozen').map(p => ({ username:p.name, energyMax:p.warmthMax, energy:p.warmth, powerMax:p.powerMax, power:p.power }));
+    _ws.send(JSON.stringify({ type:'newyear_state_save', players:list }));
+  };
+  setInterval(saveState, 15000);
+  document.addEventListener('visibilitychange', () => { if (document.hidden) saveState(); });
+  window.addEventListener('pagehide', saveState);
+  fetch('/top-newyear?limit=5').then(r => r.json()).then(d => { if (d.ok && d.top) setDayTop(d.top.map(r => ({ username:r.username, stars:Number(r.total_stolen)||0 }))); }).catch(()=>{});
+  fetch('/newyear-weekly-champion').then(r => r.json()).then(d => { if (d.ok) yesterdayChampion = d.champion || null; }).catch(()=>{});
+  wsConnect();
+}
+
+// ───────────────────────── Черновик: имитация эфира ─────────────────────────
+const demoDaily = {}, demoLifetime = {};
+const DEMO_NAMES = ['sasha_01','katya.mur','DIMON','oleg777','lera_k','max_pro','nastya','vovan','ira.snow','bogdan','yana_x','tima','roma_ua','olya.k','serega'];
+let simOn = true;
+if (DEMO){
+  // пара «старичков», уже доросших до Санты, чтобы было видно
+  demoLifetime['dimon'] = 400000; demoLifetime['katya.mur'] = 300000;
+  setInterval(() => {
+    const rows = Object.values(demoDaily).sort((a,b) => b.stars - a.stars);
+    setDayTop(rows);
+    const el = document.getElementById('dateNow'); const w = new Date(wallNow());
+    el.textContent = 'Киев: ' + w.toISOString().slice(0,19).replace('T',' ') + (TEST_WALL != null ? ' (тест)' : '');
+  }, 500);
+  for (let i=0;i<8;i++) onChat(DEMO_NAMES[i]);
+  setInterval(() => {
+    if (!simOn) return;
+    const real = realPlayers();
+    if (real.length < 12 && Math.random() < 0.15) onChat(pick(DEMO_NAMES));
+    if (real.length){ const p = pick(real); onLike(p.name, Math.ceil(rnd(1,8))); if (Math.random() < 0.06) onGift(p.name, pick([1,1,1,5,10,30,99])); }
+  }, 700);
+  const randomReal = () => { const r = realPlayers(); return r.length ? pick(r).name : DEMO_NAMES[0]; };
+  document.getElementById('bAdd').onclick = () => onChat(pick(DEMO_NAMES.filter(n => !players.has(n.toLowerCase()))) || ('elf_' + Math.floor(rnd(100,999))));
+  document.getElementById('bAdd5').onclick = () => { for (let i=0;i<5;i++) onChat('elf_' + Math.floor(rnd(100,999))); };
+  document.getElementById('bLike').onclick = () => onLike(randomReal(), 20);
+  document.getElementById('bSim').onclick = (e) => { simOn = !simOn; e.target.textContent = '🤖 авто-эфир: ' + (simOn ? 'вкл' : 'выкл'); };
+  document.querySelectorAll('[data-g]').forEach(b => b.onclick = () => onGift(randomReal(), +b.dataset.g));
+  document.querySelectorAll('[data-d]').forEach(b => b.onclick = () => setTestDate(b.dataset.d));
+  document.getElementById('bRound').onclick = () => endRound();
+  document.getElementById('bSay').onclick = () => { host.lineT = 0; };
+  document.getElementById('bMusic').onclick = (e) => { audioInit(); setMusic(!SND.musicOn); e.target.textContent = '🎵 Музыка: ' + (SND.musicOn ? 'вкл' : 'выкл'); };
+  document.getElementById('bSfx').onclick = (e) => { audioInit(); setSfx(!SND.sfxOn); e.target.textContent = '💥 Эффекты: ' + (SND.sfxOn ? 'вкл' : 'выкл'); };
+  document.getElementById('bNext').onclick = () => { audioInit(); forceNext = true; if (SND.music){ SND.music.disconnect(); SND.music = SND.ac.createGain(); SND.music.gain.value = SND.musicOn ? 0.16 : 0; SND.music.connect(SND.ac.destination); } };
+} else {
+  balanceBots();
+}
+
+drawBg();
+hostSay('Хо-хо-хо! Добро пожаловать в Новогодний переполох!', 'jump', 5);
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
