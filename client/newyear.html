@@ -209,7 +209,7 @@ fetch(SP + 'tree_ornaments.json').then(r => r.json()).then(j => {
 
 // поле боя
 const FIELD = { x0:60, x1:1020, y0:600, y1:1400 };
-const TREE = { x:540, y:1000, sc:4.6, rx:150, ry:62 };   // y — основание ствола; rx/ry — «следа» ёлки на снегу
+const TREE = { x:540, y:1150, sc:4.6, rx:150, ry:62 };   // y — основание ствола; rx/ry — «следа» ёлки на снегу
 const S = 2.5;            // масштаб эльфов (кадр 64 → 160)
 const FEET = 60;          // ступни в кадре LPC
 
@@ -365,7 +365,7 @@ function bgShop(){
   g.strokeStyle = '#c9ced8'; g.lineWidth = 3;
   for (const d of [-9, 9]){ g.beginPath(); g.ellipse(TREE.x, TREE.y + 10, TRACK.rx + d, TRACK.ry + d*0.85, 0, 0, Math.PI*2); g.stroke(); }
   g.fillStyle = '#2f7a3c'; for (let i=0;i<16;i++){ const a = i/16*Math.PI*2; g.beginPath(); g.arc(TREE.x + Math.cos(a)*385, TREE.y + 10 + Math.sin(a)*179, 9, 0, Math.PI*2); g.fill(); }
-  for (const [x,y] of [[175,1030],[895,1030],[330,1175],[770,1175]]) candyCane(g, x, y);
+  for (const [x,y] of [[175,TREE.y+30],[895,TREE.y+30],[330,TREE.y+175],[770,TREE.y+175]]) candyCane(g, x, y);
   // кресло с клетчатым пледом
   g.fillStyle = '#5e1019'; g.fillRect(40, 1500, 180, 120); g.fillStyle = '#8a1a26'; g.fillRect(52, 1510, 156, 100);
   g.fillStyle = '#6e131d'; g.fillRect(30, 1580, 40, 120); g.fillRect(190, 1580, 40, 120); g.fillStyle = '#9a2230'; g.fillRect(60, 1600, 140, 80);
@@ -386,7 +386,7 @@ function bgShop(){
   g.fillStyle = '#8a5a2e'; g.beginPath(); g.moveTo(940, 1690); g.lineTo(955, 1668); g.lineTo(1005, 1668); g.lineTo(1020, 1690); g.closePath(); g.fill();
   g.fillStyle = '#6b4220'; for (let i=0;i<5;i++) g.fillRect(950 + i*14, 1676, 3, 18);
   g.fillStyle = '#c0182c'; g.fillRect(944, 1690, 72, 9); g.fillRect(1012, 1694, 8, 26); g.fillRect(1020, 1694, 8, 20);
-  const vg = g.createRadialGradient(TREE.x, 1050, 300, TREE.x, 1050, 900); vg.addColorStop(0,'rgba(40,15,5,0)'); vg.addColorStop(1,'rgba(40,15,5,0.45)');
+  const vg = g.createRadialGradient(TREE.x, TREE.y + 50, 300, TREE.x, TREE.y + 50, 900); vg.addColorStop(0,'rgba(40,15,5,0)'); vg.addColorStop(1,'rgba(40,15,5,0.45)');
   g.fillStyle = vg; g.fillRect(0, G.y1 + 12, CW, CH - G.y1 - 12);
   return c;
 }
@@ -834,8 +834,8 @@ function shopGoal(){ return Math.min(400, Math.round((30 + 8*Math.max(3, players
 function newSleigh(){ shop.gifts = 0; shop.by = {}; shop.goal = shopGoal(); }
 // места верстаков: по бокам и снизу от ёлки (не за кроной, не у саней и не под ведущим);
 // новый эльф занимает первое свободное — порядок подобран так, чтобы поле заполнялось равномерно
-const BENCH_SPOTS = [[520,1190],[890,840],[150,1040],[760,780],[330,1220],[700,1210],[285,900],[900,1000],
-  [420,1340],[930,760],[160,1200],[620,1340],[770,880],[300,1065],[250,1345],[130,880]].map(([x,y]) => ({ x, y }));
+const BENCH_SPOTS = [[540,1290],[930,790],[150,1060],[790,960],[380,1320],[700,1320],[300,880],[940,950],
+  [290,1210],[780,800],[140,900],[220,1370],[300,1050],[130,1220],[400,770],[680,760]].map(([x,y]) => ({ x, y }));
 function wsSpot(p){
   const w = p.ws;
   if (w.slot == null){
