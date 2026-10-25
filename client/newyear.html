@@ -24,10 +24,11 @@ button:hover{background:#43528a}
 /* боевой режим (?username=): тест-пульт скрыт, игра на весь экран */
 body.live #panel{display:none}
 body.live #stage{right:0}
+#soundBtn{position:absolute;left:50%;top:42%;transform:translateX(-50%);z-index:6;display:none;font-size:22px;padding:14px 26px;border-radius:30px;background:#c0182c;border:3px solid #ffd75e;box-shadow:0 6px 24px rgba(0,0,0,.5)}
 </style>
 </head>
 <body>
-<div id="stage"><div id="wrap"><canvas id="c" width="1080" height="1920"></canvas></div><div id="statusBadge"></div></div>
+<div id="stage"><div id="wrap"><canvas id="c" width="1080" height="1920"></canvas></div><div id="statusBadge"></div><button id="soundBtn">🔊 Включить музыку</button></div>
 <div id="panel">
   <h3>🎄 Новогодний переполох</h3>
   <div class="hint" style="margin-bottom:8px">Черновой режим: эфир имитируется, в базу ничего не пишется. Для эфира открой /newyear?username=твой_ник — пульт исчезнет.</div>
@@ -72,7 +73,8 @@ body.live #stage{right:0}
 const Q = new URLSearchParams(location.search);
 const LIVE_USER = (Q.get('username') || '').replace(/^@/, '').trim();
 const DEMO = !LIVE_USER;
-if (!DEMO) document.body.classList.add('live');
+const AUTO = DEMO && Q.has('auto');     // тест из списка игр: имитация эфира на весь экран, без пульта
+if (!DEMO || AUTO) document.body.classList.add('live');
 const CW = 1080, CH = 1920;
 const cv = document.getElementById('c'), ctx = cv.getContext('2d');
 ctx.imageSmoothingEnabled = false;
@@ -219,8 +221,13 @@ const DECOR = [[40,520],[1040,500],[30,860],[1050,900],[70,1250],[1010,1290],[30
 // ───────────────────────── Игроки ─────────────────────────
 const players = new Map();       // ключ — ник (lowercase)
 let snowballs = [], particles = [], floaters = [], flakes = [];
-const BOT_NAMES = ['Снежок','Пломбир','Морозко','Сосулька','Пряник','Леденец','Хлопушка','Мандаринка','Шишка','Метелица'];
-const MIN_FIGHTERS = 6;
+const BOT_NAMES = ['dasha_2010','misha.ff','kira_love','artem777','polina.ks','egor_tt','vika_mur','nikita.pro','alina_kis','denis_x',
+  'sonya.v','kostya_ua','masha_2012','ilya.games','liza_sun','timur_07','anya.snow','vlad_top','katyusha_k','ruslan.rs'];
+// Боты: людей нет — заходят по одному раз в 15 с, до 10. Живой зритель сразу выбивает одного бота.
+// 1 человек — максимум 1 бот (чтобы было с кем играть), 2 и больше — новые боты не заходят.
+// Лишние боты уходят: в битве — когда их заморозят, в рейде и мастерской — по одному раз в 15 с.
+const BOT_MAX = 10, BOT_STEP = 15;
+let botT = 0;
 const BASE_WARMTH = 100, BASE_POWER = 10;
 
 function makePlayer(name, isBot){
@@ -234,7 +241,7 @@ function makePlayer(name, isBot){
     x, y, vx:0, vy:0, dir:2, walkT:0,
     warmth:BASE_WARMTH, warmthMax:BASE_WARMTH, power:BASE_POWER, powerMax:BASE_POWER,
     state:'walk', stateT:0, throwAt:rnd(0.5,1.5), target:null, retarget:0,
-    frozenT:0, hitT:0, lastActive:performance.now(), lifetime:0, tierKnown:isBot, joinT:0,
+    frozenT:0, hitT:0, lastActive:performance.now(), lifetime:0, tierKnown:isBot, joinT:0, fakeLv: 1 + (h % 12),
     strafe: Math.random()<0.5 ? 1 : -1, wanderX:rnd(FIELD.x0,FIELD.x1), wanderY:rnd(FIELD.y0,FIELD.y1),
   };
 }
@@ -247,24 +254,27 @@ function getPlayer(name){
     requestTier(name);
     if (DEMO){ p.lifetime = demoLifetime[k] || 0; p.tierKnown = true; }
     floaters.push({ x:p.x, y:p.y-170, t:0, text:'❄ ' + short(name,14) + ' в игре!', color:'#1d5fa8' });
-    balanceBots();
+    replaceBot();
   }
   p.lastActive = performance.now();
   return p;
 }
-function balanceBots(){
-  const real = realPlayers().length;
-  const bots = [...players.values()].filter(p => p.isBot);
-  const need = Math.max(0, MIN_FIGHTERS - real);
-  for (let i = bots.length; i < need; i++){
-    const used = new Set(bots.map(b => b.name));
-    const name = BOT_NAMES.find(n => !used.has(n) && !players.has(n.toLowerCase())) || ('Эльф ' + Math.floor(rnd(10,99)));
-    const b = makePlayer(name, true); players.set(b.key, b); bots.push(b);
-  }
-  // живой зритель вытесняет бота — тот растворяется облачком снега
-  while (bots.length > need){
-    const b = bots.pop(); puff(b.x, b.y-60, 18, '#ffffff'); players.delete(b.key);
-  }
+function botList(){ return [...players.values()].filter(p => p.isBot); }
+function botTarget(){ const n = realPlayers().length; return n === 0 ? BOT_MAX : n === 1 ? 1 : 0; }
+function addBot(){
+  const name = pick(BOT_NAMES.filter(n => !players.has(n))) || ('elf_' + Math.floor(rnd(100, 999)));
+  const b = makePlayer(name, true); players.set(b.key, b);
+  floaters.push({ x:b.x, y:b.y-170, t:0, text:'❄ ' + short(name,14) + ' в игре!', color:'#1d5fa8' });
+}
+function removeBot(b){ puff(b.x, b.y-60, 18, '#ffffff'); players.delete(b.key); }
+// живой зритель вытесняет одного бота — тот растворяется облачком снега
+function replaceBot(){ const bots = botList(); if (bots.length) removeBot(pick(bots)); }
+function updateBots(dt){
+  botT -= dt;
+  const n = botList().length, want = botTarget();
+  if (botT > 0) return;
+  if (n < want){ addBot(); botT = BOT_STEP; }
+  else if (n > want && modeNow().id !== 'battle'){ removeBot(botList()[0]); botT = BOT_STEP; }
 }
 function isSanta(p){ return !p.isBot && levelOf(p.lifetime) >= SANTA_LEVEL; }
 function isGolden(p){ return !p.isBot && dayLeader && dayLeader.toLowerCase() === p.key; }
@@ -356,6 +366,8 @@ function freeze(q, by){
   }
 }
 function thaw(q){
+  // лишний бот после заморозки уходит с поля, а не оттаивает
+  if (q.isBot && botList().length > botTarget()){ removeBot(q); return; }
   // нокаут обнуляет бойца — как в Street Fighters
   q.state = 'walk'; q.warmth = q.warmthMax = BASE_WARMTH; q.power = q.powerMax = BASE_POWER;
   puff(q.x, q.y-60, 16, '#ffffff');
@@ -903,9 +915,9 @@ function drawLabel(p, up){
   ctx.textAlign = 'center';
   const gold = isGolden(p);
   if (gold) strokeText('ЗОЛОТОЙ САНТА', p.x, y - 40, 'bold 22px Arial', '#c0182c', 5);
-  const lv = p.isBot ? '' : `ур.${levelOf(p.lifetime)} `;
-  strokeText(lv + short(p.name, 13), p.x, y - 10, 'bold 24px Arial', gold ? '#d49a00' : p.isBot ? '#6b7a99' : '#1c2848', 5);
-  if (!p.isBot && p.power > BASE_POWER) strokeText('❄' + fmtNum(p.power), p.x, y + 30, 'bold 18px Arial', '#2a7fd4', 4);
+  const lv = `ур.${p.isBot ? p.fakeLv : levelOf(p.lifetime)} `;
+  strokeText(lv + short(p.name, 13), p.x, y - 10, 'bold 24px Arial', gold ? '#d49a00' : '#1c2848', 5);
+  if (p.power > BASE_POWER) strokeText('❄' + fmtNum(p.power), p.x, y + 30, 'bold 18px Arial', '#2a7fd4', 4);
 }
 function drawBall(b){
   const k = b.t / b.dur, x = b.sx + (b.tx-b.sx)*k, gy = b.sy + (b.ty-b.sy)*k, z = Math.sin(Math.PI*k) * b.arc;
@@ -1009,7 +1021,7 @@ function update(dt){
   for (const p of players.values()) updatePlayer(p, dt);
   // неактивные зрители уходят с поля через 15 минут
   const now = performance.now();
-  for (const p of [...players.values()]) if (!p.isBot && now - p.lastActive > 15*60000){ puff(p.x, p.y-60, 16, '#ffffff'); players.delete(p.key); balanceBots(); }
+  for (const p of [...players.values()]) if (!p.isBot && now - p.lastActive > 15*60000){ puff(p.x, p.y-60, 16, '#ffffff'); players.delete(p.key); }
   for (let i=snowballs.length-1;i>=0;i--){ const b = snowballs[i]; b.t += dt;
     const k = b.t/b.dur, x = b.sx + (b.tx-b.sx)*k, y = b.sy + (b.ty-b.sy)*k;
     if (k > 0.15 && k < 0.95 && Math.hypot((x-TREE.x)/TREE.rx, (y+60-TREE.y)/TREE.ry) < 1){ puff(x, y, 12, '#ffffff'); snowballs.splice(i,1); continue; }   // в ёлку
@@ -1018,6 +1030,7 @@ function update(dt){
   for (let i=floaters.length-1;i>=0;i--){ const f = floaters[i]; f.t += dt; f.y -= 40*dt; if (f.t > 1.8) floaters.splice(i,1); }
   updateFlakes(dt, c.snow);
   updateFireworks(dt, c.fireworks);
+  updateBots(dt);
   updateRaid(dt);
   updateShop(dt);
   updateHost(dt);
@@ -1152,6 +1165,8 @@ function sfxFanfare(){ if (!sfxOk()) return; const t = SND.ac.currentTime; [523,
 function sfxBoom(){ if (!sfxOk()) return; const t = SND.ac.currentTime; noise(t, 0.6, 0.3, SND.sfx, 'lowpass', 900, 120); }
 audioInit();     // в OBS звук стартует сам; в обычном браузере — после первого клика
 window.addEventListener('pointerdown', audioInit);
+setInterval(() => { document.getElementById('soundBtn').style.display = SND.ac && SND.ac.state === 'running' ? 'none' : 'block'; }, 500);
+document.getElementById('soundBtn').onclick = () => audioInit();
 window.addEventListener('keydown', audioInit);
 
 // ───────────────────────── Эфир TikTok (?username=ник) ─────────────────────────
@@ -1232,11 +1247,15 @@ if (DEMO){
     const el = document.getElementById('dateNow'); const w = new Date(wallNow());
     el.textContent = 'Киев: ' + w.toISOString().slice(0,19).replace('T',' ') + (TEST_WALL != null ? ' (тест)' : '');
   }, 500);
-  for (let i=0;i<8;i++) onChat(DEMO_NAMES[i]);
+  if (!AUTO) for (let i=0;i<8;i++) onChat(DEMO_NAMES[i]);
   setInterval(() => {
     if (!simOn) return;
     const real = realPlayers();
-    if (real.length < 12 && Math.random() < 0.15) onChat(pick(DEMO_NAMES));
+    if (AUTO){
+      // зрители приходят примерно раз в полминуты (до 7) и иногда уходят — видно, как боты уступают место
+      if (real.length < 7 && Math.random() < 0.025) onChat(pick(DEMO_NAMES.filter(n => !players.has(n.toLowerCase()))) || DEMO_NAMES[0]);
+      if (real.length && Math.random() < 0.005){ const q = pick(real); puff(q.x, q.y-60, 16, '#ffffff'); players.delete(q.key); }
+    } else if (real.length < 12 && Math.random() < 0.15) onChat(pick(DEMO_NAMES));
     if (real.length){ const p = pick(real); onLike(p.name, Math.ceil(rnd(1,8))); if (Math.random() < 0.06) onGift(p.name, pick([1,1,1,5,10,30,99])); }
   }, 700);
   const randomReal = () => { const r = realPlayers(); return r.length ? pick(r).name : DEMO_NAMES[0]; };
@@ -1252,8 +1271,6 @@ if (DEMO){
   document.getElementById('bMusic').onclick = (e) => { audioInit(); setMusic(!SND.musicOn); e.target.textContent = '🎵 Музыка: ' + (SND.musicOn ? 'вкл' : 'выкл'); };
   document.getElementById('bSfx').onclick = (e) => { audioInit(); setSfx(!SND.sfxOn); e.target.textContent = '💥 Эффекты: ' + (SND.sfxOn ? 'вкл' : 'выкл'); };
   document.getElementById('bNext').onclick = () => { audioInit(); forceNext = true; if (SND.music){ SND.music.disconnect(); SND.music = SND.ac.createGain(); SND.music.gain.value = SND.musicOn ? 0.16 : 0; SND.music.connect(SND.ac.destination); } };
-} else {
-  balanceBots();
 }
 
 if (Q.get('mode')){ const i = MODES.findIndex(m => m.id === Q.get('mode')); if (i >= 0) modeOffset = ((i - modeSlot()) % MODES.length + MODES.length) % MODES.length; }

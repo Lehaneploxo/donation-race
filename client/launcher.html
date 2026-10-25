@@ -307,6 +307,24 @@
     <div class="status-msg" id="kartStatus">⏳ Открываю игру…</div>
   </div>
 
+  <!-- ── НОВОГОДНИЙ ПЕРЕПОЛОХ (сезон ноябрь–январь, своя база newyear_*) ── -->
+  <div class="game-panel panel-arena" style="border-left:1px solid rgba(255,90,90,0.3)">
+    <div class="panel-title" style="color:#ff5a6e;text-shadow:0 0 18px #ff2d44">🎄 НОВОГОДНИЙ ПЕРЕПОЛОХ 🎄</div>
+    <div class="panel-sub">Битва снежками · Рейд на Хмурыча · Мастерская Санты — по 20 мин · пиши "rating" в чате</div>
+
+    <input class="nick-input" id="newyearInput" type="text"
+           placeholder="@your_username"
+           autocomplete="off" autocorrect="off" spellcheck="false">
+
+    <div class="error-msg" id="newyearError">Введи никнейм TikTok</div>
+
+    <button class="btn-start" id="newyearStart" style="background:linear-gradient(90deg,#9e1020,#ff5a6e);color:#fff;box-shadow:0 4px 20px rgba(255,60,80,0.4)">🎄 START НОВОГОДНИЙ ПЕРЕПОЛОХ</button>
+    <!-- тест: посмотреть игру без эфира (зрители имитируются, в базу ничего не пишется) — потом убрать -->
+    <button class="btn-start" id="newyearAuto" style="background:#1d2a4a;color:#ffd75e;border:2px solid #ffd75e;margin-top:8px">🤖 АВТОРЕЖИМ (тест)</button>
+
+    <div class="status-msg" id="newyearStatus">⏳ Открываю игру…</div>
+  </div>
+
 </div>
 
 <div class="stripe"></div>
@@ -314,7 +332,7 @@
 <script>
   // Prefill saved nick into all inputs
   const saved = localStorage.getItem('tiktok_username') || '';
-  const NICK_INPUTS = ['boxingInput','streetfighterInput','streetfighter2Input','fantasyarenaInput','streetwarsInput','kartInput'];
+  const NICK_INPUTS = ['boxingInput','streetfighterInput','streetfighter2Input','fantasyarenaInput','streetwarsInput','kartInput','newyearInput'];
   NICK_INPUTS.forEach(id => { document.getElementById(id).value = saved; });
 
   // Sync all inputs when typing
@@ -387,6 +405,14 @@
   document.getElementById('kartInput').addEventListener('keydown', e => {
     if (e.key === 'Enter') document.getElementById('kartStart').click();
   });
+
+  // Новогодний переполох
+  document.getElementById('newyearStart').addEventListener('click', () =>
+    handleClick('newyearInput','newyearError','newyearStatus','newyearStart','/newyear'));
+  document.getElementById('newyearInput').addEventListener('keydown', e => {
+    if (e.key === 'Enter') document.getElementById('newyearStart').click();
+  });
+  document.getElementById('newyearAuto').addEventListener('click', () => { window.location.href = '/newyear?auto=1'; });
 
 </script>
 
