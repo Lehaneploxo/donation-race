@@ -274,7 +274,24 @@ function bgShop(){
   const [c, g] = bgCanvas(), r = seeded(53);
   // стена избы: бревна и окна со снегом
   for (let y=0, i=0; y<640; y+=44, i++){ g.fillStyle = i%2 ? '#6b3d1e' : '#5b3218'; g.fillRect(0, y, CW, 44); g.fillStyle = 'rgba(0,0,0,0.25)'; g.fillRect(0, y+40, CW, 4); }
-  for (const wx of [90, 800]){
+  // распахнутые ворота: за ними ночной двор со снегом
+  const G = GATE;
+  g.fillStyle = '#2a1a0c'; g.fillRect(G.x0-16, G.y0-16, G.x1-G.x0+32, G.y1-G.y0+16);
+  const ys = g.createLinearGradient(0,G.y0,0,G.y1); ys.addColorStop(0,'#1d2d63'); ys.addColorStop(1,'#5a78c0');
+  g.fillStyle = ys; g.fillRect(G.x0, G.y0, G.x1-G.x0, G.y1-G.y0);
+  for (let i=0;i<30;i++){ g.fillStyle = 'rgba(255,255,255,0.8)'; g.fillRect(G.x0 + r()*(G.x1-G.x0), G.y0 + r()*90, 3, 3); }
+  for (const [tx,ty,k] of [[80,560,0.8],[370,555,0.9],[230,548,0.6]]){
+    g.fillStyle = '#1c3a3a'; for (let i=0;i<3;i++){ const w = (60 - i*14)*k, yy = ty - i*26*k; g.beginPath(); g.moveTo(tx-w, yy); g.lineTo(tx, yy-44*k); g.lineTo(tx+w, yy); g.closePath(); g.fill(); }
+    g.fillStyle = 'rgba(240,246,255,0.85)'; for (let i=0;i<3;i++){ const w = (60 - i*14)*k, yy = ty - i*26*k; g.fillRect(tx-w*0.6, yy-6*k, w*1.2, 4*k); }
+  }
+  const sn = g.createLinearGradient(0,570,0,G.y1); sn.addColorStop(0,'#c9d6ef'); sn.addColorStop(1,'#eef4fb');
+  g.fillStyle = sn; g.beginPath(); g.moveTo(G.x0, 586); for (let x=G.x0; x<=G.x1; x+=20) g.lineTo(x, 574 + Math.sin(x/37)*8); g.lineTo(G.x1, G.y1); g.lineTo(G.x0, G.y1); g.closePath(); g.fill();
+  // створки ворот откинуты внутрь, по бокам
+  for (const [sx, dirx] of [[G.x0-16, -1], [G.x1+16, 1]]){
+    g.fillStyle = '#7a4a24'; g.beginPath(); g.moveTo(sx, G.y0-10); g.lineTo(sx + dirx*60, G.y0+10); g.lineTo(sx + dirx*60, G.y1+30); g.lineTo(sx, G.y1); g.closePath(); g.fill();
+    g.strokeStyle = '#4a2a10'; g.lineWidth = 4; g.beginPath(); g.moveTo(sx, G.y0+50); g.lineTo(sx + dirx*60, G.y0+70); g.moveTo(sx, G.y1-40); g.lineTo(sx + dirx*60, G.y1-15); g.stroke();
+  }
+  for (const wx of [800]){
     g.fillStyle = '#3a2410'; g.fillRect(wx-12, 448, 214, 164);
     const sk = g.createLinearGradient(0,460,0,600); sk.addColorStop(0,'#1d2d63'); sk.addColorStop(1,'#4c6bb3'); g.fillStyle = sk; g.fillRect(wx, 460, 190, 140);
     for (let i=0;i<26;i++){ g.fillStyle = '#ffffff'; g.fillRect(wx + r()*186, 460 + r()*136, 4, 4); }
@@ -286,7 +303,7 @@ function bgShop(){
   g.strokeStyle = '#1f4d2a'; g.lineWidth = 6; g.beginPath();
   for (let x=0; x<=CW; x+=10) g.lineTo(x, 440 + Math.sin(x/90)*18); g.stroke();
   for (let x=30, i=0; x<CW; x+=60, i++){ g.fillStyle = ['#ff4d6d','#ffd75e','#5dff8a','#7fd3ff'][i%4]; g.beginPath(); g.arc(x, 452 + Math.sin(x/90)*18, 8, 0, Math.PI*2); g.fill(); }
-  g.fillStyle = '#3a2410'; g.fillRect(0, 628, CW, 22);
+  g.fillStyle = '#3a2410'; g.fillRect(0, 628, GATE.x0-16, 22); g.fillRect(GATE.x1+16, 628, CW-GATE.x1-16, 22);
   // пол из досок
   for (let y=650, i=0; y<CH; y+=48, i++){
     g.fillStyle = i%2 ? '#b07a44' : '#a36d3a'; g.fillRect(0, y, CW, 48);
@@ -294,6 +311,7 @@ function bgShop(){
     for (let x = (i*137)%260; x < CW; x += 220 + r()*120) g.fillRect(x, y, 3, 45);
     for (let k=0;k<6;k++){ g.fillStyle = 'rgba(80,45,20,0.18)'; g.fillRect(r()*CW, y + 8 + r()*30, 30 + r()*60, 2); }
   }
+  g.fillStyle = 'rgba(238,244,251,0.8)'; g.beginPath(); g.ellipse((GATE.x0+GATE.x1)/2, 652, (GATE.x1-GATE.x0)/2, 18, 0, 0, Math.PI); g.fill();
   // ковёр под ёлкой
   g.fillStyle = '#7a1622'; g.beginPath(); g.ellipse(TREE.x, TREE.y + 10, 400, 190, 0, 0, Math.PI*2); g.fill();
   g.fillStyle = '#b52a35'; g.beginPath(); g.ellipse(TREE.x, TREE.y + 10, 370, 168, 0, 0, Math.PI*2); g.fill();
@@ -730,7 +748,8 @@ function drawRaidBar(){
 // монета — подарок готов сразу (и считается за несколько). Сани наполнились — улетают с салютом,
 // приезжают новые, побольше. ⭐ за подарок = сила × 5, в тот же топ дня.
 // Сани, олени и подарки — «16x16 Holiday Sprites» (jhanson9012, CC0).
-const SLEIGH = { x:200, y:720, sc:7 };
+const SLEIGH = { x:200, y:630, sc:7 };
+const GATE = { x0:30, x1:430, y0:452, y1:646 };   // ворота в задней стене избы — за ними двор с санями
 const CRAFT_TIME = 4, GIFT_VALUE = 5;
 let shop = { n:1, gifts:0, goal:20, fly:null, by:{} };
 function shopGoal(){ return Math.min(400, Math.round((30 + 8*Math.max(3, players.size)) * (1 + 0.3*(shop.n-1)))); }
@@ -1163,6 +1182,7 @@ function draw(c){
   ctx.globalAlpha = 1;
   if (c.night){ ctx.fillStyle = 'rgba(18,30,85,0.22)'; ctx.fillRect(0,0,CW,CH); }
   if (room !== 'shop') drawFlakes();
+  else { ctx.save(); ctx.beginPath(); ctx.rect(GATE.x0, GATE.y0, GATE.x1-GATE.x0, GATE.y1-GATE.y0); ctx.clip(); drawFlakes(); ctx.restore(); }
   drawFireworks();
   drawHeader(c);
   drawRaidBar();
