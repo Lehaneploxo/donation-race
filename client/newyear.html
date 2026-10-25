@@ -24,11 +24,18 @@ button:hover{background:#43528a}
 /* боевой режим (?username=): тест-пульт скрыт, игра на весь экран */
 body.live #panel{display:none}
 body.live #stage{right:0}
+.ui-btn{position:fixed;z-index:99999;width:34px;height:34px;font-size:16px;padding:0;margin:0;background:rgba(0,0,0,0.55);color:rgba(255,255,255,0.8);border:1px solid rgba(255,255,255,0.25);border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+#backBtn{top:calc(50% - 90px);right:10px} #voiceBtn{top:calc(50% - 45px);right:10px} #musicBtn{top:calc(50%);right:10px} #fsBtn{top:calc(50% + 45px);right:10px}
+body:not(.live) .ui-btn{right:310px}
 #soundBtn{position:absolute;left:50%;top:42%;transform:translateX(-50%);z-index:6;display:none;font-size:22px;padding:14px 26px;border-radius:30px;background:#c0182c;border:3px solid #ffd75e;box-shadow:0 6px 24px rgba(0,0,0,.5)}
 </style>
 </head>
 <body>
-<div id="stage"><div id="wrap"><canvas id="c" width="1080" height="1920"></canvas></div><div id="statusBadge"></div><button id="soundBtn">🔊 Включить музыку</button></div>
+<div id="stage"><div id="wrap"><canvas id="c" width="1080" height="1920"></canvas></div><div id="statusBadge"></div><button id="soundBtn">🔊 Нажми — включить музыку</button></div>
+<button id="backBtn" class="ui-btn" title="Все игры">⌂</button>
+<button id="voiceBtn" class="ui-btn" title="Голос ведущего">🗣️</button>
+<button id="musicBtn" class="ui-btn" title="Музыка">🎵</button>
+<button id="fsBtn" class="ui-btn" title="На весь экран">⛶</button>
 <div id="panel">
   <h3>🎄 Новогодний переполох</h3>
   <div class="hint" style="margin-bottom:8px">Черновой режим: эфир имитируется, в базу ничего не пишется. Для эфира открой /newyear?username=твой_ник — пульт исчезнет.</div>
@@ -762,7 +769,17 @@ function hostSay(text, anim, dur, tag){
   if (i >= 0) host.queue[i] = m; else host.queue.push(m);
   while (host.queue.length > 3) host.queue.shift();
 }
-function hostRun(banner, text){ host.run = { t:0, banner, text }; sfxFanfare(); }
+function hostRun(banner, text){ host.run = { t:0, banner, text }; sfxFanfare(); speak(banner); }
+let voiceOn = true, ruVoice = null;
+function speak(t){
+  if (!voiceOn || !window.speechSynthesis) return;
+  try {
+    const clean = t.replace(/[^\p{L}\p{N}\s.,!?—-]/gu, '').trim(); if (!clean) return;
+    if (!ruVoice) ruVoice = speechSynthesis.getVoices().find(v => /^ru/i.test(v.lang)) || null;
+    const u = new SpeechSynthesisUtterance(clean); u.lang = 'ru-RU'; u.pitch = 0.6; u.rate = 1.0; if (ruVoice) u.voice = ruVoice;
+    speechSynthesis.cancel(); speechSynthesis.speak(u);
+  } catch(e){}
+}
 function updateHost(dt){
   host.t += dt;
   if (host.run){
@@ -771,7 +788,7 @@ function updateHost(dt){
     return;
   }
   if (host.bubbleT > 0){ host.bubbleT -= dt; if (host.bubbleT <= 0){ host.bubble = null; host.anim = 'idle'; } return; }
-  if (host.queue.length){ const m = host.queue.shift(); host.bubble = m.text; host.bubbleT = m.dur; host.anim = m.anim; host.t = 0; return; }
+  if (host.queue.length){ const m = host.queue.shift(); host.bubble = m.text; speak(m.text); host.bubbleT = m.dur; host.anim = m.anim; host.t = 0; return; }
   host.lineT -= dt;
   if (host.lineT <= 0){
     host.lineT = rnd(35, 55);
@@ -1106,11 +1123,26 @@ const SONGS = [
     A4:2 A4:1 C5:1.5 B4:0.5 A4:1 G4:1.5 A4:0.5 G4:1 E4:3 A4:2 A4:1 C5:1.5 B4:0.5 A4:1 G4:1.5 A4:0.5 G4:1 E4:3
     D5:2 D5:1 F5:1.5 D5:0.5 B4:1 C5:3 E5:3 C5:1 G4:1 E4:1 G4:1.5 F4:0.5 D4:1 C4:6`) },
 ];
+let silentOk = false;
+function silentWavUrl(){
+  const n = 4000, buf = new ArrayBuffer(44 + n), v = new DataView(buf);
+  const w = (o, t) => { for (let i=0;i<t.length;i++) v.setUint8(o+i, t.charCodeAt(i)); };
+  w(0,'RIFF'); v.setUint32(4, 36+n, true); w(8,'WAVE'); w(12,'fmt '); v.setUint32(16,16,true); v.setUint16(20,1,true); v.setUint16(22,1,true);
+  v.setUint32(24,8000,true); v.setUint32(28,8000,true); v.setUint16(32,1,true); v.setUint16(34,8,true); w(36,'data'); v.setUint32(40,n,true);
+  for (let i=0;i<n;i++) v.setUint8(44+i, 128);
+  return URL.createObjectURL(new Blob([buf], { type:'audio/wav' }));
+}
+function iosUnlock(){
+  try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch(e){}
+  if (silentOk) return;
+  try { const a = new Audio(silentWavUrl()); a.loop = true; a.volume = 0.01; a.play().then(() => { silentOk = true; }).catch(() => {}); } catch(e){}
+}
 function audioInit(){
+  iosUnlock();
   if (SND.ac){ if (SND.ac.state === 'suspended') SND.ac.resume(); return; }
   const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
   SND.ac = new AC();
-  SND.music = SND.ac.createGain(); SND.music.gain.value = SND.musicOn ? 0.16 : 0; SND.music.connect(SND.ac.destination);
+  SND.music = SND.ac.createGain(); SND.music.gain.value = SND.musicOn ? 0.3 : 0; SND.music.connect(SND.ac.destination);
   SND.sfx = SND.ac.createGain(); SND.sfx.gain.value = SND.sfxOn ? 0.5 : 0; SND.sfx.connect(SND.ac.destination);
   SND.noiseBuf = SND.ac.createBuffer(1, SND.ac.sampleRate, SND.ac.sampleRate);
   const d = SND.noiseBuf.getChannelData(0); for (let i=0;i<d.length;i++) d[i] = Math.random()*2-1;
@@ -1153,7 +1185,7 @@ function musicTick(c){
   if (c && c.sp && c.sp.eve && Math.random() < 0.5) i = 4;            // сочельник — «Тихая ночь»
   startSong(i, t);
 }
-function setMusic(on){ SND.musicOn = on; if (SND.music) SND.music.gain.setTargetAtTime(on ? 0.16 : 0, SND.ac.currentTime, 0.1); }
+function setMusic(on){ SND.musicOn = on; if (SND.music) SND.music.gain.setTargetAtTime(on ? 0.3 : 0, SND.ac.currentTime, 0.1); }
 function setSfx(on){ SND.sfxOn = on; if (SND.sfx) SND.sfx.gain.setTargetAtTime(on ? 0.5 : 0, SND.ac.currentTime, 0.05); }
 function sfxOk(){ return SND.ac && SND.ac.state === 'running'; }
 let lastThrowSfx = 0;
@@ -1165,8 +1197,20 @@ function sfxFanfare(){ if (!sfxOk()) return; const t = SND.ac.currentTime; [523,
 function sfxBoom(){ if (!sfxOk()) return; const t = SND.ac.currentTime; noise(t, 0.6, 0.3, SND.sfx, 'lowpass', 900, 120); }
 audioInit();     // в OBS звук стартует сам; в обычном браузере — после первого клика
 window.addEventListener('pointerdown', audioInit);
+window.addEventListener('touchend', audioInit);
+window.addEventListener('click', audioInit);
 setInterval(() => { document.getElementById('soundBtn').style.display = SND.ac && SND.ac.state === 'running' ? 'none' : 'block'; }, 500);
-document.getElementById('soundBtn').onclick = () => audioInit();
+document.getElementById('soundBtn').onclick = () => { audioInit(); try { speechSynthesis.speak(new SpeechSynthesisUtterance(' ')); } catch(e){} };
+document.getElementById('backBtn').onclick = () => { location.href = '/games'; };
+document.getElementById('musicBtn').onclick = (e) => { e.stopPropagation(); audioInit(); setMusic(!SND.musicOn); e.currentTarget.textContent = SND.musicOn ? '🎵' : '🔇'; };
+document.getElementById('voiceBtn').onclick = (e) => { e.stopPropagation(); voiceOn = !voiceOn; e.currentTarget.textContent = voiceOn ? '🗣️' : '🤐'; if (!voiceOn) try { speechSynthesis.cancel(); } catch(_){} };
+document.getElementById('fsBtn').onclick = () => {
+  if (document.fullscreenElement) { document.exitFullscreen && document.exitFullscreen(); }
+  else if (document.documentElement.requestFullscreen) {
+    document.documentElement.requestFullscreen().then(() => { if (screen.orientation && screen.orientation.lock) screen.orientation.lock('portrait').catch(() => {}); }).catch(() => {});
+  }
+};
+document.addEventListener('fullscreenchange', applyScale);
 window.addEventListener('keydown', audioInit);
 
 // ───────────────────────── Эфир TikTok (?username=ник) ─────────────────────────
@@ -1270,7 +1314,7 @@ if (DEMO){
   document.getElementById('bSay').onclick = () => { host.lineT = 0; };
   document.getElementById('bMusic').onclick = (e) => { audioInit(); setMusic(!SND.musicOn); e.target.textContent = '🎵 Музыка: ' + (SND.musicOn ? 'вкл' : 'выкл'); };
   document.getElementById('bSfx').onclick = (e) => { audioInit(); setSfx(!SND.sfxOn); e.target.textContent = '💥 Эффекты: ' + (SND.sfxOn ? 'вкл' : 'выкл'); };
-  document.getElementById('bNext').onclick = () => { audioInit(); forceNext = true; if (SND.music){ SND.music.disconnect(); SND.music = SND.ac.createGain(); SND.music.gain.value = SND.musicOn ? 0.16 : 0; SND.music.connect(SND.ac.destination); } };
+  document.getElementById('bNext').onclick = () => { audioInit(); forceNext = true; if (SND.music){ SND.music.disconnect(); SND.music = SND.ac.createGain(); SND.music.gain.value = SND.musicOn ? 0.3 : 0; SND.music.connect(SND.ac.destination); } };
 }
 
 if (Q.get('mode')){ const i = MODES.findIndex(m => m.id === Q.get('mode')); if (i >= 0) modeOffset = ((i - modeSlot()) % MODES.length + MODES.length) % MODES.length; }
