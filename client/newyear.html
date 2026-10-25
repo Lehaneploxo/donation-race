@@ -270,52 +270,82 @@ function bgRaid(){
   for (const [x,y,k] of [[150,650,1.1],[950,660,1]]) deadTree(g, x, y, k);
   return c;
 }
+function candyCane(g, x, y){
+  g.lineCap = 'round'; g.lineWidth = 12; g.strokeStyle = '#ffffff';
+  g.beginPath(); g.moveTo(x, y); g.lineTo(x, y-56); g.arc(x+14, y-56, 14, Math.PI, 0); g.stroke();
+  g.lineWidth = 12; g.strokeStyle = '#d4202e'; g.setLineDash([8, 9]);
+  g.beginPath(); g.moveTo(x, y); g.lineTo(x, y-56); g.arc(x+14, y-56, 14, Math.PI, 0); g.stroke(); g.setLineDash([]);
+}
 function bgShop(){
-  const [c, g] = bgCanvas(), r = seeded(53);
-  // стена избы: бревна и окна со снегом
-  for (let y=0, i=0; y<640; y+=44, i++){ g.fillStyle = i%2 ? '#6b3d1e' : '#5b3218'; g.fillRect(0, y, CW, 44); g.fillStyle = 'rgba(0,0,0,0.25)'; g.fillRect(0, y+40, CW, 4); }
-  // распахнутые ворота: за ними ночной двор со снегом
-  const G = GATE;
-  g.fillStyle = '#2a1a0c'; g.fillRect(G.x0-16, G.y0-16, G.x1-G.x0+32, G.y1-G.y0+16);
-  const ys = g.createLinearGradient(0,G.y0,0,G.y1); ys.addColorStop(0,'#1d2d63'); ys.addColorStop(1,'#5a78c0');
-  g.fillStyle = ys; g.fillRect(G.x0, G.y0, G.x1-G.x0, G.y1-G.y0);
-  for (let i=0;i<30;i++){ g.fillStyle = 'rgba(255,255,255,0.8)'; g.fillRect(G.x0 + r()*(G.x1-G.x0), G.y0 + r()*90, 3, 3); }
-  for (const [tx,ty,k] of [[80,560,0.8],[370,555,0.9],[230,548,0.6]]){
-    g.fillStyle = '#1c3a3a'; for (let i=0;i<3;i++){ const w = (60 - i*14)*k, yy = ty - i*26*k; g.beginPath(); g.moveTo(tx-w, yy); g.lineTo(tx, yy-44*k); g.lineTo(tx+w, yy); g.closePath(); g.fill(); }
-    g.fillStyle = 'rgba(240,246,255,0.85)'; for (let i=0;i<3;i++){ const w = (60 - i*14)*k, yy = ty - i*26*k; g.fillRect(tx-w*0.6, yy-6*k, w*1.2, 4*k); }
+  const [c, g] = bgCanvas(), r = seeded(53), G = GATE;
+  for (let y=0, i=0; y<G.y0; y+=44, i++){ g.fillStyle = i%2 ? '#6b3d1e' : '#5b3218'; g.fillRect(0, y, CW, 44); }
+  // ночное небо и северное сияние
+  const sky = g.createLinearGradient(0,G.y0,0,G.y1); sky.addColorStop(0,'#0b1236'); sky.addColorStop(1,'#3d3f8e');
+  g.fillStyle = sky; g.fillRect(0, G.y0, CW, G.y1-G.y0);
+  for (let b=0;b<3;b++){
+    g.fillStyle = ['rgba(93,255,176,0.16)','rgba(120,220,255,0.12)','rgba(190,120,255,0.10)'][b];
+    g.beginPath(); g.moveTo(0, 470 + b*14);
+    for (let x=0; x<=CW; x+=20) g.lineTo(x, 470 + b*14 + Math.sin(x/140 + b*1.7)*16);
+    for (let x=CW; x>=0; x-=20) g.lineTo(x, 506 + b*14 + Math.sin(x/110 + b)*20);
+    g.closePath(); g.fill();
   }
-  const sn = g.createLinearGradient(0,570,0,G.y1); sn.addColorStop(0,'#c9d6ef'); sn.addColorStop(1,'#eef4fb');
-  g.fillStyle = sn; g.beginPath(); g.moveTo(G.x0, 586); for (let x=G.x0; x<=G.x1; x+=20) g.lineTo(x, 574 + Math.sin(x/37)*8); g.lineTo(G.x1, G.y1); g.lineTo(G.x0, G.y1); g.closePath(); g.fill();
-  // створки ворот откинуты внутрь, по бокам
-  for (const [sx, dirx] of [[G.x0-16, -1], [G.x1+16, 1]]){
-    g.fillStyle = '#7a4a24'; g.beginPath(); g.moveTo(sx, G.y0-10); g.lineTo(sx + dirx*60, G.y0+10); g.lineTo(sx + dirx*60, G.y1+30); g.lineTo(sx, G.y1); g.closePath(); g.fill();
-    g.strokeStyle = '#4a2a10'; g.lineWidth = 4; g.beginPath(); g.moveTo(sx, G.y0+50); g.lineTo(sx + dirx*60, G.y0+70); g.moveTo(sx, G.y1-40); g.lineTo(sx + dirx*60, G.y1-15); g.stroke();
+  for (let i=0;i<90;i++){ g.fillStyle = `rgba(255,255,255,${0.4 + r()*0.6})`; g.fillRect(r()*CW, G.y0 + r()*110, 2 + (r()<0.15 ? 2 : 0), 2 + (r()<0.15 ? 2 : 0)); }
+  const mg = g.createRadialGradient(975,492,0,975,492,70); mg.addColorStop(0,'rgba(255,248,220,0.5)'); mg.addColorStop(1,'rgba(255,248,220,0)');
+  g.fillStyle = mg; g.fillRect(900, G.y0, 160, 120);
+  g.fillStyle = '#fff6d8'; g.beginPath(); g.arc(975, 492, 22, 0, Math.PI*2); g.fill();
+  // холмы и деревня с огоньками в окнах (нарисованы под низ проёма 646, сдвигаем к настоящему)
+  g.save(); g.translate(0, G.y1 - 646);
+  g.fillStyle = '#6f82c0'; g.beginPath(); g.moveTo(0, G.y1); for (let x=0; x<=CW; x+=20) g.lineTo(x, 580 + Math.sin(x/170)*14); g.lineTo(CW, G.y1); g.closePath(); g.fill();
+  for (const [hx, hw, hh] of [[600,46,30],[656,38,26],[712,52,34],[790,40,28],[846,48,30],[1010,44,28]]){
+    const by = 586 + Math.sin(hx/170)*14;
+    g.fillStyle = '#2b2f5e'; g.fillRect(hx, by-hh, hw, hh);
+    g.fillStyle = '#eef4fb'; g.beginPath(); g.moveTo(hx-6, by-hh); g.lineTo(hx+hw/2, by-hh-20); g.lineTo(hx+hw+6, by-hh); g.closePath(); g.fill();
+    g.fillStyle = '#ffd27a'; g.fillRect(hx+8, by-hh+10, 8, 8); if (hw > 42) g.fillRect(hx+hw-16, by-hh+10, 8, 8);
   }
-  for (const wx of [800]){
-    g.fillStyle = '#3a2410'; g.fillRect(wx-12, 448, 214, 164);
-    const sk = g.createLinearGradient(0,460,0,600); sk.addColorStop(0,'#1d2d63'); sk.addColorStop(1,'#4c6bb3'); g.fillStyle = sk; g.fillRect(wx, 460, 190, 140);
-    for (let i=0;i<26;i++){ g.fillStyle = '#ffffff'; g.fillRect(wx + r()*186, 460 + r()*136, 4, 4); }
-    g.fillStyle = '#eef4fb'; g.fillRect(wx, 578, 190, 22);
-    g.fillStyle = '#3a2410'; g.fillRect(wx+91, 460, 8, 140); g.fillRect(wx, 526, 190, 8);
-    g.fillStyle = '#c9a06a'; g.fillRect(wx-18, 606, 226, 12);
+  // церквушка со звездой
+  g.fillStyle = '#2b2f5e'; g.fillRect(940, 560, 34, 34); g.fillRect(950, 530, 14, 30);
+  g.fillStyle = '#eef4fb'; g.beginPath(); g.moveTo(946, 530); g.lineTo(957, 506); g.lineTo(968, 530); g.closePath(); g.fill();
+  g.fillStyle = '#ffd75e'; g.fillRect(954, 498, 6, 6); g.fillStyle = '#ffd27a'; g.fillRect(952, 572, 10, 14);
+  g.fillStyle = '#a9bbe6'; g.beginPath(); g.moveTo(0, G.y1); for (let x=0; x<=CW; x+=20) g.lineTo(x, 604 + Math.sin(x/120 + 2)*8); g.lineTo(CW, G.y1); g.closePath(); g.fill();
+  // заснеженные ёлки за двором
+  for (const [tx, k] of [[470,0.8],[520,1],[1050,0.9]]){
+    for (let i=0;i<3;i++){ const w = (34 - i*8)*k, yy = 612 - i*20*k; g.fillStyle = '#17363a'; g.beginPath(); g.moveTo(tx-w, yy); g.lineTo(tx, yy-34*k); g.lineTo(tx+w, yy); g.closePath(); g.fill();
+      g.fillStyle = '#e6eefb'; g.fillRect(tx-w*0.55, yy-5*k, w*1.1, 3*k); }
   }
-  // гирлянда вдоль стены
-  g.strokeStyle = '#1f4d2a'; g.lineWidth = 6; g.beginPath();
-  for (let x=0; x<=CW; x+=10) g.lineTo(x, 440 + Math.sin(x/90)*18); g.stroke();
-  for (let x=30, i=0; x<CW; x+=60, i++){ g.fillStyle = ['#ff4d6d','#ffd75e','#5dff8a','#7fd3ff'][i%4]; g.beginPath(); g.arc(x, 452 + Math.sin(x/90)*18, 8, 0, Math.PI*2); g.fill(); }
-  g.fillStyle = '#3a2410'; g.fillRect(0, 628, GATE.x0-16, 22); g.fillRect(GATE.x1+16, 628, CW-GATE.x1-16, 22);
+  // снег во дворе и колея от саней
+  const sn = g.createLinearGradient(0,610,0,G.y1); sn.addColorStop(0,'#d6e2f6'); sn.addColorStop(1,'#f4f8fd');
+  g.fillStyle = sn; g.beginPath(); g.moveTo(0, G.y1); for (let x=0; x<=CW; x+=20) g.lineTo(x, 616 + Math.sin(x/60)*3); g.lineTo(CW, G.y1); g.closePath(); g.fill();
+  g.fillStyle = 'rgba(140,160,200,0.45)'; g.fillRect(0, 636, CW, 2); g.fillRect(0, 642, CW, 2);
+  for (let i=0;i<40;i++){ g.fillStyle = 'rgba(255,255,255,0.95)'; g.fillRect(r()*CW, 618 + r()*26, 2, 2); }
+  // фонари во дворе
+  for (const lx of [620, 880]){
+    g.fillStyle = '#1c1c2c'; g.fillRect(lx-3, 566, 6, 74); g.fillRect(lx-10, 556, 20, 12);
+    const lg = g.createRadialGradient(lx,562,0,lx,562,60); lg.addColorStop(0,'rgba(255,210,120,0.55)'); lg.addColorStop(1,'rgba(255,210,120,0)');
+    g.fillStyle = lg; g.fillRect(lx-60, 502, 120, 120); g.fillStyle = '#ffe49a'; g.fillRect(lx-6, 558, 12, 8);
+  }
+  g.restore();
+  // каркас веранды: балка и столбы
+  g.fillStyle = '#3a2410'; g.fillRect(0, G.y0-10, CW, 14);
+  for (const px of [0, 528, 1058]){ g.fillStyle = '#5b3218'; g.fillRect(px, G.y0, 22, G.y1-G.y0); g.fillStyle = '#7a4a24'; g.fillRect(px+3, G.y0, 5, G.y1-G.y0); }
+  // порог, на нём намело снега
+  g.fillStyle = '#3a2410'; g.fillRect(0, G.y1-4, CW, 16);
+  for (let i=0;i<9;i++){ const x = 40 + i*120 + r()*40; g.fillStyle = 'rgba(240,246,255,0.9)'; g.beginPath(); g.ellipse(x, G.y1+6, 30 + r()*30, 9, 0, 0, Math.PI); g.fill(); }
   // пол из досок
-  for (let y=650, i=0; y<CH; y+=48, i++){
+  for (let y=G.y1+12, i=0; y<CH; y+=48, i++){
     g.fillStyle = i%2 ? '#b07a44' : '#a36d3a'; g.fillRect(0, y, CW, 48);
     g.fillStyle = 'rgba(60,30,10,0.35)'; g.fillRect(0, y+45, CW, 3);
     for (let x = (i*137)%260; x < CW; x += 220 + r()*120) g.fillRect(x, y, 3, 45);
     for (let k=0;k<6;k++){ g.fillStyle = 'rgba(80,45,20,0.18)'; g.fillRect(r()*CW, y + 8 + r()*30, 30 + r()*60, 2); }
   }
-  g.fillStyle = 'rgba(238,244,251,0.8)'; g.beginPath(); g.ellipse((GATE.x0+GATE.x1)/2, 652, (GATE.x1-GATE.x0)/2, 18, 0, 0, Math.PI); g.fill();
+  // тёплый свет от ёлки на полу
+  const wg = g.createRadialGradient(TREE.x, TREE.y, 0, TREE.x, TREE.y, 560); wg.addColorStop(0,'rgba(255,196,110,0.28)'); wg.addColorStop(1,'rgba(255,196,110,0)');
+  g.fillStyle = wg; g.fillRect(0, G.y1, CW, CH-G.y1);
   // ковёр под ёлкой
   g.fillStyle = '#7a1622'; g.beginPath(); g.ellipse(TREE.x, TREE.y + 10, 400, 190, 0, 0, Math.PI*2); g.fill();
   g.fillStyle = '#b52a35'; g.beginPath(); g.ellipse(TREE.x, TREE.y + 10, 370, 168, 0, 0, Math.PI*2); g.fill();
   g.strokeStyle = '#ffd75e'; g.lineWidth = 6; g.setLineDash([18, 12]); g.beginPath(); g.ellipse(TREE.x, TREE.y + 10, 330, 145, 0, 0, Math.PI*2); g.stroke(); g.setLineDash([]);
+  g.fillStyle = '#2f7a3c'; for (let i=0;i<16;i++){ const a = i/16*Math.PI*2; g.beginPath(); g.arc(TREE.x + Math.cos(a)*385, TREE.y + 10 + Math.sin(a)*179, 9, 0, Math.PI*2); g.fill(); }
+  for (const [x,y] of [[175,1030],[895,1030],[330,1175],[770,1175]]) candyCane(g, x, y);
   return c;
 }
 function drawBg(){ BG.battle = bgBattle(); BG.raid = bgRaid(); BG.shop = bgShop(); }
@@ -748,16 +778,17 @@ function drawRaidBar(){
 // монета — подарок готов сразу (и считается за несколько). Сани наполнились — улетают с салютом,
 // приезжают новые, побольше. ⭐ за подарок = сила × 5, в тот же топ дня.
 // Сани, олени и подарки — «16x16 Holiday Sprites» (jhanson9012, CC0).
-const SLEIGH = { x:200, y:630, sc:7 };
-const GATE = { x0:30, x1:430, y0:452, y1:646 };   // ворота в задней стене избы — за ними двор с санями
+const SLEIGH = { x:140, y:680 };                 // у саней эльфы отдают подарки (x+60, y+60 — у порога)
+const GATE = { x0:0, x1:CW, y0:452, y1:690 };    // веранда открыта во двор во всю стену — там стоят сани
+const TEAM_X = 40;                                // левый край саней на стоянке
 const CRAFT_TIME = 4, GIFT_VALUE = 5;
 let shop = { n:1, gifts:0, goal:20, fly:null, by:{} };
 function shopGoal(){ return Math.min(400, Math.round((30 + 8*Math.max(3, players.size)) * (1 + 0.3*(shop.n-1)))); }
 function newSleigh(){ shop.gifts = 0; shop.by = {}; shop.goal = shopGoal(); }
 // места верстаков: по бокам и снизу от ёлки (не за кроной, не у саней и не под ведущим);
 // новый эльф занимает первое свободное — порядок подобран так, чтобы поле заполнялось равномерно
-const BENCH_SPOTS = [[520,1190],[890,840],[150,1040],[760,710],[330,1220],[700,1210],[285,900],[900,1000],
-  [420,1340],[900,680],[160,1200],[620,1340],[770,880],[300,1065],[250,1345],[130,880]].map(([x,y]) => ({ x, y }));
+const BENCH_SPOTS = [[520,1190],[890,840],[150,1040],[760,780],[330,1220],[700,1210],[285,900],[900,1000],
+  [420,1340],[930,760],[160,1200],[620,1340],[770,880],[300,1065],[250,1345],[130,880]].map(([x,y]) => ({ x, y }));
 function wsSpot(p){
   const w = p.ws;
   if (w.slot == null){
@@ -789,7 +820,7 @@ function deliverGift(p, w){
     shop.by[p.key] = (shop.by[p.key]||0) + w.cnt;
   }
   if (!shop.fly) shop.gifts += w.cnt;
-  floaters.push({ x:SLEIGH.x + 40, y:SLEIGH.y - 150, t:0, text:`+${fmtNum(val)} ⭐`, color:'#d49a00' });
+  floaters.push({ x:SLEIGH.x - 30, y:SLEIGH.y - 110, t:0, text:`+${fmtNum(val)} ⭐`, color:'#d49a00' });
   puff(SLEIGH.x, SLEIGH.y - 70, 8, '#ffe27a'); sfxGift(1);
   if (!shop.fly && shop.gifts >= shop.goal) sleighFly();
 }
@@ -797,14 +828,23 @@ function sleighFly(){
   const best = Object.entries(shop.by).sort((a,b) => b[1]-a[1])[0];
   const bp = best && players.get(best[0]);
   shop.fly = { t:0 };
+  puff(TEAM_X + 60, SLEIGH.y - 60, 24, '#ffffff');   // Санта запрыгивает в сани
   for (let i=0;i<5;i++) rockets.push({ x:rnd(150, CW-150), y:CH*0.75, vy:-rnd(900,1200), ty:rnd(450, 800), color:pick(['#ff4d6d','#ffd75e','#7fd3ff','#5dff8a']) });
   hostSay(best ? `Сани №${shop.n} полетели! Лучший мастер — ${short(bp ? bp.name : best[0], 16)}!` : `Сани №${shop.n} полетели! Хо-хо-хо!`, 'jump', 5, 'shop');
   sfxFanfare();
 }
 function updateShop(dt){
+  if (shop.arrive && (shop.arrive.t += dt) > 2.5) shop.arrive = null;
   if (!shop.fly) return;
   shop.fly.t += dt;
-  if (shop.fly.t > 6){ shop.fly = null; shop.n++; newSleigh(); puff(SLEIGH.x, SLEIGH.y - 50, 30, '#ffffff'); hostSay(`Новые сани! Нужно ${shop.goal} подарков!`, 'idle', 4, 'shop'); }
+  if (shop.fly.t > 6){ shop.fly = null; shop.n++; newSleigh(); shop.arrive = { t:0 }; hostSay(`Новые сани! Нужно ${shop.goal} подарков!`, 'idle', 4, 'shop'); }
+}
+// где сейчас упряжка: на стоянке, уезжает (Санта в санях) или подъезжает
+function teamPos(){
+  const f = shop.fly, a = shop.arrive;
+  if (f){ if (f.t < 1) return { x:TEAM_X, run:false, santa:true }; const u = f.t - 1; return { x:TEAM_X + 70*u*u + 40*u, run:true, santa:true }; }
+  if (a){ const u = clamp(a.t/2.5, 0, 1), e = 1 - (1-u)*(1-u); return { x:TEAM_X - 760*(1-e), run:u < 0.97, santa:false }; }
+  return { x:TEAM_X, run:false, santa:false };
 }
 function drawSheet(sx, sy, sw, sh, x, y, sc, flip){
   const im = IMG.holiday16; if (!im || !im.complete || !im.naturalWidth) return;
@@ -813,17 +853,60 @@ function drawSheet(sx, sy, sw, sh, x, y, sc, flip){
 }
 function drawGiftIcon(c, x, y, sc){ drawSheet(64 + 16*c + 2, 3, 13, 13, Math.round(x - 6.5*sc), Math.round(y - 13*sc), sc); }   // x,y — низ по центру
 function drawSleigh(){
-  if (shop.fly) return;
-  const k = SLEIGH.sc, x = SLEIGH.x, y = SLEIGH.y;
-  ctx.fillStyle = 'rgba(60,90,130,0.3)'; ctx.beginPath(); ctx.ellipse(x + 60, y, 150, 22, 0, 0, Math.PI*2); ctx.fill();
-  // олень впереди саней
-  drawSheet(32, 2, 16, 14, x + 60, y - 14*k + 4, k);
-  // подарки горкой в санях — чем полнее, тем выше
-  const n = Math.min(14, Math.ceil(shop.gifts / shop.goal * 14));
-  for (let i=0;i<n;i++){ const row = i < 6 ? 0 : i < 11 ? 1 : 2, col = row === 0 ? i : row === 1 ? i-6 : i-11;
-    drawGiftIcon(i % 7, x - 62 + col*22 + row*14, y - 60 - row*26, 2.4); }
-  drawSheet(6, 2, 20, 14, x - 20*k/2 - 10, y - 14*k + 4, k);
-  ctx.textAlign = 'center'; strokeText(`САНИ №${shop.n}`, x + 20, y - 150, 'bold 26px Arial', '#c0182c', 6);
+  const P = teamPos(), x0 = Math.round(P.x), y = SLEIGH.y, kr = 5, ks = 6, G = GATE;
+  ctx.save(); ctx.beginPath(); ctx.rect(G.x0, G.y0, G.x1-G.x0, G.y1-G.y0+6); ctx.clip();
+  // мерцающие ёлочки во дворе
+  for (const [tx, i] of [[700,0],[770,2],[1000,1]]) drawSheet(112 + ((Math.floor(time*3) + i) % 4)*16, 96, 16, 16, tx, y - 4 - 16*4, 4);
+  ctx.fillStyle = 'rgba(60,80,130,0.25)'; ctx.beginPath(); ctx.ellipse(x0 + 230, y + 2, 250, 12, 0, 0, Math.PI*2); ctx.fill();
+  const fr = P.run ? Math.floor(time*12) % 4 : 0;
+  const deer = [];
+  for (const row of [1, 0]) for (let i=0;i<3;i++) deer.push({ row, i, x:x0 + 128 + i*80 + (row ? 16 : 0), y:y - (row ? 12 : 0) });
+  // вожжи от саней к каждому оленю
+  ctx.strokeStyle = '#4a2a14'; ctx.lineWidth = 3;
+  for (const d of deer){ ctx.beginPath(); ctx.moveTo(x0 + 110, y - 44); ctx.lineTo(d.x + 44, d.y - 42); ctx.stroke(); }
+  for (const d of deer){
+    const bob = P.run ? 0 : Math.round(Math.sin(time*2.2 + d.i*1.3 + d.row)*1.5);
+    const f = P.run ? (fr + d.i + d.row*2) % 4 : 0;
+    if (d.row){ ctx.save(); ctx.filter = 'brightness(0.72)'; }
+    drawSheet(f*16, 16, 16, 16, d.x, d.y - 16*kr + bob, kr);
+    if (d.row) ctx.restore();
+    // упряжь: красный ошейник с бубенчиком
+    ctx.fillStyle = '#c0182c'; ctx.fillRect(d.x + 50, d.y - 48 + bob, 14, 5); ctx.fillStyle = '#ffd75e'; ctx.fillRect(d.x + 55, d.y - 43 + bob, 5, 5);
+    if (P.run && Math.random() < 0.3) particles.push({ x:d.x + 20 + rnd(0,40), y:d.y - 4, vx:-rnd(40,120), vy:-rnd(20,80), t:0, life:0.5, r:rnd(2,4), color:'#ffffff' });
+  }
+  // Рудольф ведёт упряжку — нос светится
+  const lead = deer[deer.length-1], nb = 0.55 + 0.45*Math.sin(time*5);
+  const nx = lead.x + 14.5*kr, ny = lead.y - 16*kr + 7.5*kr;
+  ctx.save(); ctx.globalCompositeOperation = 'lighter';
+  const ng = ctx.createRadialGradient(nx,ny,0,nx,ny,26); ng.addColorStop(0,`rgba(255,60,60,${0.8*nb})`); ng.addColorStop(1,'rgba(255,60,60,0)');
+  ctx.fillStyle = ng; ctx.fillRect(nx-26, ny-26, 52, 52); ctx.restore();
+  if (P.santa){
+    // Санта в санях — кадры из «полётной» анимации, только сани с Сантой
+    drawSheet(64 + (Math.floor(time*8) % 4)*48, 24, 24, 24, x0 - 4, y - 24*5 + 4, 5);
+    if (P.run) for (let i=0;i<3;i++) particles.push({ x:x0 + rnd(0,90), y:y - rnd(0,20), vx:-rnd(60,160), vy:rnd(-30,10), t:0, life:rnd(0.5,1), r:rnd(2,5), color:pick(['#ffe27a','#ffffff','#ff9db0']) });
+  } else {
+    // подарки горкой в санях — чем полнее, тем выше
+    const n = P.run ? 0 : Math.min(12, Math.ceil(shop.gifts / shop.goal * 12));
+    for (let i=0;i<n;i++){ const row = i < 5 ? 0 : i < 9 ? 1 : i < 11 ? 2 : 3, col = [i, i-5, i-9, i-11][row];
+      drawGiftIcon(i % 7, x0 + 30 + col*18 + row*9, y - 46 - row*18, 2.2); }
+    drawSheet(6, 2, 20, 14, x0, y - 14*ks, ks);
+  }
+  ctx.restore();
+  if (!shop.fly && !shop.arrive){ ctx.textAlign = 'center'; strokeText(`САНИ №${shop.n}`, x0 + 300, 506, 'bold 26px Arial', '#c0182c', 6); }
+}
+// гирлянда под балкой веранды — огоньки перемигиваются
+function drawVerandaLights(){
+  const y0 = GATE.y0 + 8;
+  ctx.strokeStyle = '#1f4d2a'; ctx.lineWidth = 4; ctx.beginPath();
+  for (let x=0; x<=CW; x+=12) ctx.lineTo(x, y0 + 10 + Math.abs(Math.sin(x/135*Math.PI/2))*16);
+  ctx.stroke();
+  const cols = ['#ff4d6d','#ffd75e','#5dff8a','#7fd3ff','#ff9de2'];
+  for (let x=20, i=0; x<CW; x+=45, i++){
+    const yy = y0 + 18 + Math.abs(Math.sin(x/135*Math.PI/2))*16, on = (Math.floor(time*2.5) + i) % 3 !== 0;
+    ctx.fillStyle = cols[i % 5]; ctx.globalAlpha = on ? 1 : 0.35; ctx.beginPath(); ctx.ellipse(x, yy, 6, 9, 0, 0, Math.PI*2); ctx.fill();
+    if (on){ ctx.globalAlpha = 0.25; ctx.beginPath(); ctx.arc(x, yy, 18, 0, Math.PI*2); ctx.fill(); }
+  }
+  ctx.globalAlpha = 1;
 }
 function drawBench(p){
   const w = p.ws, x = p.x, y = p.y + 30;
@@ -834,13 +917,6 @@ function drawBench(p){
     drawGiftIcon(w.c, x, y - 44, 1.2 + 2.4*w.prog);
     if (Math.random() < 0.08) particles.push({ x:x + rnd(-30,30), y:y - 60, vx:rnd(-80,80), vy:-rnd(120,260), t:0, life:0.5, r:rnd(2,4), color:'#ffe27a' });
   }
-}
-function drawFlyingSleigh(){
-  if (!shop.fly) return;
-  const t = shop.fly.t, k = 7, x = -360 + t/6 * (CW + 720), y = 540 - Math.sin(t*1.3)*40 - t*12;
-  const f = Math.floor(t*10) % 4;
-  for (let i=0;i<6;i++) particles.push({ x:x + rnd(0,60), y:y + 110 + rnd(-10,10), vx:-rnd(40,120), vy:rnd(-20,40), t:0, life:rnd(0.5,1.1), r:rnd(3,6), color:pick(['#ffe27a','#ffffff','#ff9db0']) });
-  drawSheet(64 + f*48, 24, 48, 24, x, y, k);
 }
 function drawShopBar(){
   if (modeNow().id !== 'shop') return;
@@ -1163,6 +1239,7 @@ function draw(c){
   const room = modeNow().id;
   ctx.drawImage(BG[room] || BG.battle, 0, 0);
   const small = IMG.tree_small;
+  if (room === 'shop') drawVerandaLights();
   if (room === 'shop') for (const [x,y] of SHOP_DECOR){ drawGiftIcon(1, x-34, y, 4.2); drawGiftIcon(4, x+34, y, 4.2); drawGiftIcon(6, x, y-50, 4.2); }
   else if (room === 'battle' && small.complete && small.naturalWidth) for (const [x,y] of DECOR) ctx.drawImage(small, x - small.naturalWidth*1.2, y - small.naturalHeight*2.4, small.naturalWidth*2.4, small.naturalHeight*2.4);
   // всё, что стоит на снегу, — по глубине (y), ёлка тоже
@@ -1173,7 +1250,6 @@ function draw(c){
   if (modeNow().id === 'shop') ents.push({ y:SLEIGH.y, f:drawSleigh });
   ents.sort((a,b) => a.y - b.y).forEach(e => e.f());
   for (const p of [...players.values()].sort((a,b) => a.y - b.y)) drawLabel(p, p.state === 'frozen' ? 190 : 132);
-  drawFlyingSleigh();
   for (const b of snowballs) drawBall(b);
   for (const q of particles){ ctx.globalAlpha = 1 - q.t/q.life; ctx.fillStyle = q.color; ctx.beginPath(); ctx.arc(q.x, q.y, q.r, 0, Math.PI*2); ctx.fill(); }
   ctx.globalAlpha = 1;
