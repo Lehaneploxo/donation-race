@@ -377,7 +377,8 @@ function bgShop(){
   g.fillStyle = '#b8782f'; for (const [cx, cy] of [[250,1679],[262,1676],[266,1683]]){ g.beginPath(); g.arc(cx, cy, 7, 0, Math.PI*2); g.fill(); }
   g.fillStyle = '#5a3418'; g.fillRect(248, 1677, 2, 2); g.fillRect(262, 1674, 2, 2);
   g.fillStyle = 'rgba(230,240,255,0.7)'; g.fillRect(286, 1650, 16, 36); g.fillStyle = '#ffffff'; g.fillRect(288, 1662, 12, 22);
-  // поленница и мешок с подарками справа
+  // поленница и мешок с подарками (правее кресла; справа внизу стоит Санта-ведущий)
+  g.save(); g.translate(-470, 0);
   for (let row=0; row<3; row++) for (let i=0;i<4-row;i++){ const lx = 820 + i*30 + row*15, ly = 1780 - row*26;
     g.fillStyle = '#3e220e'; g.beginPath(); g.arc(lx, ly, 15, 0, Math.PI*2); g.fill(); g.fillStyle = '#e2b574'; g.beginPath(); g.arc(lx, ly, 11, 0, Math.PI*2); g.fill();
     g.strokeStyle = '#b5844a'; g.lineWidth = 2; g.beginPath(); g.arc(lx, ly, 6, 0, Math.PI*2); g.stroke(); g.fillStyle = '#8a5a2e'; g.fillRect(lx-1, ly-1, 2, 2); }
@@ -386,6 +387,7 @@ function bgShop(){
   g.fillStyle = '#8a5a2e'; g.beginPath(); g.moveTo(940, 1690); g.lineTo(955, 1668); g.lineTo(1005, 1668); g.lineTo(1020, 1690); g.closePath(); g.fill();
   g.fillStyle = '#6b4220'; for (let i=0;i<5;i++) g.fillRect(950 + i*14, 1676, 3, 18);
   g.fillStyle = '#c0182c'; g.fillRect(944, 1690, 72, 9); g.fillRect(1012, 1694, 8, 26); g.fillRect(1020, 1694, 8, 20);
+  g.restore();
   const vg = g.createRadialGradient(TREE.x, TREE.y + 50, 300, TREE.x, TREE.y + 50, 900); vg.addColorStop(0,'rgba(40,15,5,0)'); vg.addColorStop(1,'rgba(40,15,5,0.45)');
   g.fillStyle = vg; g.fillRect(0, G.y1 + 12, CW, CH - G.y1 - 12);
   return c;
@@ -1042,7 +1044,7 @@ function drawHearth(){
   // носки на камине
   for (const [sx, c] of [[F.x-75,'#c0182c'],[F.x-8,'#2f7a3c'],[F.x+58,'#2a5fb3']]) drawStocking(sx + Math.sin(time*1.2 + sx)*1.2, F.y+18, c, 0.9);
   // подарки торчат из мешка
-  drawGiftIcon(1, 960, 1676, 2.8); drawGiftIcon(4, 985, 1672, 3.2); drawGiftIcon(6, 1008, 1678, 2.4);
+  drawGiftIcon(1, 490, 1676, 2.8); drawGiftIcon(4, 515, 1672, 3.2); drawGiftIcon(6, 538, 1678, 2.4);
 }
 // гирлянда под балкой веранды — огоньки перемигиваются
 function drawVerandaLights(){
@@ -1081,7 +1083,7 @@ function drawShopBar(){
 
 
 // ───────────────────────── Ведущий Санта ─────────────────────────
-const host = { anim:'idle', t:0, x:900, y:1415, bubble:null, bubbleT:0, run:null, queue:[], lineT:20, lockT:0 };
+const host = { anim:'idle', t:0, x:900, y:1690, bubble:null, bubbleT:0, run:null, queue:[], lineT:20, lockT:0 };
 const HOST_LINES = [
   'Пишите в чат — и вы в игре!', 'Лайк — и снежок летит сильнее!', 'Каждая монетка — +10 к силе снежка!',
   'Лидер дня становится Золотым Сантой!', 'С 40-го уровня эльф навсегда становится Сантой!',
