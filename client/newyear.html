@@ -52,7 +52,7 @@ body.live #stage{right:0}
     <div class="hint" id="dateNow"></div>
   </div>
   <div class="sec"><b>Ведущий и режимы</b><br>
-    <button id="bRound">⏭ конец раунда</button><button id="bSay">💬 фраза ведущего</button>
+    <button id="bRound">⏭ конец раунда</button><button id="bMode">🔁 сменить режим</button><button id="bSay">💬 фраза ведущего</button>
   </div>
   <div class="sec"><b>Звук</b><br>
     <button id="bMusic">🎵 Музыка: вкл</button><button id="bNext">⏭ трек</button><button id="bSfx">💥 Эффекты: вкл</button>
@@ -187,7 +187,7 @@ const IMG = {};
 function loadImg(key, src){ const im = new Image(); im.src = src; IMG[key] = im; return im; }
 const SP = 'sprites/newyear/';
 for (let c=0;c<8;c++) for (let b=0;b<2;b++) loadImg(`elf_${c}_${b}`, `${SP}elf_${c}_${b}.png`);
-['santa_red','santa_gold','santa_blue','tree_bare','tree_full','tree_small'].forEach(k => loadImg(k, SP + k + '.png'));
+['santa_red','santa_gold','santa_blue','tree_bare','tree_full','tree_small','hmurych'].forEach(k => loadImg(k, SP + k + '.png'));
 const HOST_META = { idle:{n:16,w:162,h:256}, run:{n:11,w:211,h:266}, jump:{n:16,w:230,h:270}, dead:{n:17,w:313,h:275}, slide:{n:11,w:263,h:205} };
 for (const a in HOST_META) loadImg('host_'+a, `${SP}host_${a}.webp`);
 let TREE_ORN = [];
@@ -316,18 +316,19 @@ function throwBall(p, q, big){
   const pw = p.power * (big ? 1 : 1);
   const r = 9 + Math.min(18, Math.log2(pw/BASE_POWER + 1) * 4);
   const sx = p.x + (p.dir===3 ? 30 : p.dir===1 ? -30 : 0), sy = p.y - 80;
-  const tx = q.x + rnd(-14,14), ty = q.y - 60 + rnd(-10,10);
+  const tx = q.x + rnd(-14,14), ty = q.y - (q === boss ? 28*BS : 60) + rnd(-10,10);
   const d = Math.hypot(tx-sx, ty-sy);
   snowballs.push({ from:p, to:q, x:sx, y:sy, sx, sy, tx, ty, t:0, dur:clamp(d/950, 0.22, 0.7), r, power:pw, arc:clamp(d*0.18, 20, 90) });
   sfxThrow();
 }
 function hit(b){
   const q = b.to, p = b.from;
-  if (!players.has(q.key) || q.state === 'frozen'){ puff(b.tx, b.ty, 8, '#ffffff'); return; }
+  if (q === boss){ bossHit(b); return; }
+  if (!players.has(q.key) || q.state === 'frozen'){ puff(b.tx, b.ty, 8, b.coal ? '#333' : '#ffffff'); return; }
   const dmg = Math.min(b.power, q.warmth);
   q.warmth -= dmg; q.hitT = 0.25;
   q.x += clamp(q.x - b.sx, -1, 1) * 10;
-  puff(b.tx, b.ty, 10 + Math.min(20, b.r), '#ffffff');
+  puff(b.tx, b.ty, 10 + Math.min(20, b.r), b.coal ? '#3a3a44' : '#ffffff');
   sfxHit(b.r);
   if (players.has(p.key) && !p.isBot && dmg > 0){
     reportStolen(p.name, dmg);
@@ -358,17 +359,35 @@ function puff(x, y, n, color){
 function updatePlayer(p, dt){
   if (p.hitT > 0) p.hitT -= dt;
   if (p.state === 'frozen'){ p.frozenT -= dt; if (p.frozenT <= 0) thaw(p); return; }
-  p.retarget -= dt;
-  if (!p.target || p.retarget <= 0 || !players.has(p.target.key) || p.target.state === 'frozen'){ p.target = chooseTarget(p); p.retarget = rnd(2.5, 5); }
+  const raidMode = modeNow().id === 'raid';
+  if (raidMode) p.target = bossFightable() ? boss : null;
+  else {
+    p.retarget -= dt;
+    if (!p.target || p.target === boss || p.retarget <= 0 || !players.has(p.target.key) || p.target.state === 'frozen'){ p.target = chooseTarget(p); p.retarget = rnd(2.5, 5); }
+  }
   const q = p.target;
   let mx = 0, my = 0;
   if (p.state === 'throw'){
     p.stateT += dt;
-    if (!p.released && p.stateT >= 0.32){ p.released = true; if (q && players.has(q.key)) throwBall(p, q); }
+    if (!p.released && p.stateT >= 0.32){ p.released = true; if (q && (q === boss ? bossFightable() : players.has(q.key))) throwBall(p, q); }
     if (p.stateT >= 0.55){
       p.state = 'walk';
       if (p.volley > 1 && q){ p.volley--; p.state = 'throw'; p.stateT = 0.18; p.released = false; }
       else p.volley = 0;
+    }
+  } else if (q && q === boss){
+    // встаём кольцом вокруг Хмурыча, у каждого своё место на кольце
+    const a = (hashStr(p.key) % 360) * Math.PI/180 + time*0.05;
+    const gx = clamp(boss.x + Math.cos(a)*420, FIELD.x0, FIELD.x1), gy = clamp(boss.y + Math.sin(a)*280, FIELD.y0, FIELD.y1);
+    const dx = gx - p.x, dy = gy - p.y, d = Math.hypot(dx, dy) || 1;
+    if (d > 40){ mx = dx/d; my = dy/d; }
+    const bx = boss.x - p.x, by = boss.y - p.y, bd = Math.hypot(bx, by);
+    const blocked = treeBlocks(p.x, p.y-40, boss.x, boss.y-80);
+    p.throwAt -= dt;
+    if (p.throwAt <= 0 && !blocked && bd < 700){
+      p.state = 'throw'; p.stateT = 0; p.released = false; p.throwAt = rnd(1.0, 1.6);
+      p.dir = Math.abs(bx) > Math.abs(by) ? (bx > 0 ? 3 : 1) : (by > 0 ? 2 : 0);
+      if (!p.volley) p.volley = 1;
     }
   } else if (q){
     const dx = q.x - p.x, dy = q.y - p.y, d = Math.hypot(dx, dy) || 1;
@@ -399,6 +418,7 @@ function updatePlayer(p, dt){
     const dx = p.x - o.x, dy = (p.y - o.y)*1.6, d = Math.hypot(dx,dy);
     if (d < 90 && d > 0.01){ mx += dx/d * (90-d)/90 * 1.5; my += dy/d * (90-d)/90 * 1.0; }
   }
+  if (boss){ const dx = p.x - boss.x, dy = (p.y - boss.y)*1.6, d = Math.hypot(dx,dy); if (d < 230 && d > 0.01){ mx += dx/d*2; my += dy/d*1.4; } }
   const speed = 150;
   const len = Math.hypot(mx, my);
   if (len > 0.05 && p.state !== 'throw'){
@@ -416,20 +436,181 @@ function updatePlayer(p, dt){
 
 // ───────────────────────── Раунды и режимы ─────────────────────────
 // Режимы идут по кругу по 20 минут, привязка к киевским часам (перезагрузка страницы не сбивает).
-// Пока готова только «Снежная битва»; «Рейд на злодея» и «Мастерская Санты» добавятся в этот список.
-const MODES = [ { id:'battle', title:'СНЕЖНАЯ БИТВА', icon:'❄️' } ];
+// Готовы «Снежная битва» и «Рейд на Хмурыча»; «Мастерская Санты» добавится в этот список.
+const MODES = [ { id:'battle', title:'СНЕЖНАЯ БИТВА', short:'битва', icon:'❄️' }, { id:'raid', title:'РЕЙД НА ХМУРЫЧА', short:'рейд', icon:'😈' } ];
+let modeOffset = 0;   // тест: ?mode=raid или кнопка на пульте
 const MODE_MIN = 20;
 let roundPts = {}, lastSlot = null;
 function modeSlot(){ const w = wallNow(); return Math.floor(w / (MODE_MIN*60000)); }
-function modeNow(){ return MODES[modeSlot() % MODES.length]; }
+function modeNow(){ return MODES[(modeSlot() + modeOffset) % MODES.length]; }
+function modeNext(){ return MODES[(modeSlot() + modeOffset + 1) % MODES.length]; }
 function modeLeftMs(){ const w = wallNow(); return (modeSlot()+1)*MODE_MIN*60000 - w; }
 function endRound(){
   const best = Object.entries(roundPts).sort((a,b) => b[1]-a[1])[0];
   const pl = best && players.get(best[0]);
-  const next = MODES[(modeSlot()) % MODES.length];
+  const next = modeNow();
   hostRun(`${next.icon} ${next.title}!`, best ? `Лучший снайпер раунда — ${short(pl ? pl.name : best[0], 16)}!` : 'Новый раунд!');
   roundPts = {};
+  setupMode(next);
 }
+function setupMode(m){
+  for (const p of players.values()) p.target = null;
+  if (m.id === 'raid'){ raid = { wave:1, gifts:GIFTS_MAX, pause:4 }; boss = null; }
+  else if (boss && boss.state !== 'down'){ boss.state = 'escape'; boss.goal = { x:boss.x, y:FIELD.y0 - 260 }; }
+}
+
+// ───────────────────────── Рейд на Хмурыча ─────────────────────────
+// Хмурыч тащит подарки из-под ёлки в мешок, все эльфы бьют его снежками. Отбили — подарки
+// возвращаются, следующая волна сильнее. Утащил все — убегает, через 15 с приходит снова.
+// ⭐ за урон по Хмурычу идут в тот же топ дня.
+const GIFTS_MAX = 12, BS = 6.5;    // BS — масштаб Хмурыча (кадр 64 → 416, вдвое выше эльфа)
+const GIFT_SPOTS = Array.from({length:GIFTS_MAX}, (_, i) => {
+  const a = Math.PI*(0.08 + 0.84*i/(GIFTS_MAX-1)), row = i % 2;
+  return { x: TREE.x - Math.cos(a)*(150 - row*40), y: TREE.y + 18 + Math.sin(a)*(34 + row*10), c: ['#d4303f','#2f7fd8','#2fa34f','#e0a325','#9b4fd4','#e0633a'][i%6], w: 40 + (i*7)%18 };
+});
+let raid = { wave:1, gifts:GIFTS_MAX, pause:4 }, boss = null;
+function bossFightable(){ return !!boss && (boss.state === 'fight' || boss.state === 'steal' || boss.state === 'enter'); }
+function spawnBoss(){
+  const n = Math.max(3, players.size);
+  const hpMax = Math.round((3000 + 900*n) * (1 + 0.6*(raid.wave-1)));
+  raid.gifts = GIFTS_MAX;
+  boss = { key:'__boss', name:'Хмурыч', isBot:true, x:rnd(300, 780), y:FIELD.y0 - 200, dir:2, walkT:0, moving:false,
+    state:'enter', goal:{ x:rnd(300,780), y:FIELD.y0 + 120 }, hp:hpMax, hpMax, power:30 + 20*raid.wave,
+    throwT:3, stealT:8, hitT:0, angry:false, sack:0, t:0, throwAnim:0, dmgBy:{} };
+  hostSay(raid.wave === 1 ? 'Хмурыч пришёл за подарками! Бейте его снежками!' : `Хмурыч вернулся! Волна ${raid.wave} — он ещё злее!`, 'jump', 4, 'raid');
+  sfxFanfare();
+}
+function bossGoalAroundTree(){ const a = rnd(0, Math.PI*2); return { x:clamp(TREE.x + Math.cos(a)*rnd(280,380), FIELD.x0+120, FIELD.x1-120), y:clamp(TREE.y + Math.sin(a)*rnd(170,300), FIELD.y0+180, FIELD.y1-40) }; }
+function bossThrow(){
+  const cands = [...players.values()].filter(q => q.state !== 'frozen' && Math.hypot(q.x-boss.x, q.y-boss.y) < 800);
+  if (!cands.length) return;
+  const n = boss.angry ? Math.min(3, cands.length) : 1;
+  for (let k=0;k<n;k++){
+    const q = cands.splice(Math.floor(Math.random()*cands.length), 1)[0];
+    const sx = boss.x, sy = boss.y - 34*BS, tx = q.x, ty = q.y - 60, d = Math.hypot(tx-sx, ty-sy);
+    snowballs.push({ from:boss, to:q, x:sx, y:sy, sx, sy, tx, ty, t:0, dur:clamp(d/800, 0.3, 0.85), r:16, power:boss.power, arc:clamp(d*0.25, 40, 140), coal:true });
+  }
+  boss.throwAnim = 0.55; boss.dir = 2; sfxThrow();
+}
+function bossHit(b){
+  if (!bossFightable()){ puff(b.tx, b.ty, 8, '#ffffff'); return; }
+  const dmg = Math.min(b.power, boss.hp), p = b.from;
+  boss.hp -= dmg; boss.hitT = 0.15;
+  puff(b.tx, b.ty, 10 + Math.min(20, b.r), '#ffffff'); sfxHit(b.r);
+  if (players.has(p.key) && !p.isBot && dmg > 0){
+    reportStolen(p.name, dmg); p.lifetime += dmg;
+    roundPts[p.key] = (roundPts[p.key]||0) + dmg;
+    boss.dmgBy[p.key] = (boss.dmgBy[p.key]||0) + dmg;
+  }
+  if (dmg >= 25) floaters.push({ x:boss.x + rnd(-60,60), y:boss.y - 56*BS, t:0, text:'-' + fmtNum(dmg), color:'#c0182c' });
+  if (!boss.angry && boss.hp < boss.hpMax/2){ boss.angry = true; hostSay('Хмурыч разозлился! Кидается углём во всех!', 'idle', 3.5, 'raid'); }
+  if (boss.hp <= 0){
+    boss.state = 'down'; boss.t = 0;
+    const best = Object.entries(boss.dmgBy).sort((a,b) => b[1]-a[1])[0];
+    const bp = best && players.get(best[0]);
+    raid.gifts = GIFTS_MAX;
+    puff(boss.x, boss.y - 100, 60, '#fff6c8');
+    for (let i=0;i<4;i++) rockets.push({ x:rnd(150, CW-150), y:CH*0.75, vy:-rnd(900,1200), ty:rnd(450, 800), color:pick(['#ff4d6d','#ffd75e','#7fd3ff','#5dff8a']) });
+    hostSay(best ? `Ура! Хмурыч повержен! Больше всех снежков — ${short(bp ? bp.name : best[0], 16)}!` : 'Ура! Хмурыч повержен, подарки спасены!', 'jump', 5, 'raid');
+    sfxGift(100);
+  }
+}
+function moveBoss(dt, speed){
+  const dx = boss.goal.x - boss.x, dy = boss.goal.y - boss.y, d = Math.hypot(dx, dy);
+  if (d < 12){ boss.moving = false; return true; }
+  boss.x += dx/d*speed*dt; boss.y += dy/d*speed*dt; boss.walkT += dt; boss.moving = true;
+  boss.dir = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 3 : 1) : (dy > 0 ? 2 : 0);
+  if (boss.state === 'fight'){
+    const ex = (boss.x - TREE.x)/(TREE.rx+90), ey = (boss.y - TREE.y)/(TREE.ry+40), e = Math.hypot(ex, ey);
+    if (e < 1 && e > 0.001){ boss.x = TREE.x + ex/e*(TREE.rx+90); boss.y = TREE.y + ey/e*(TREE.ry+40); }
+  }
+  return false;
+}
+function updateRaid(dt){
+  if (!boss){
+    if (modeNow().id !== 'raid') return;
+    raid.pause -= dt; if (raid.pause <= 0) spawnBoss();
+    return;
+  }
+  const b = boss; b.t += dt; if (b.hitT > 0) b.hitT -= dt; if (b.throwAnim > 0) b.throwAnim -= dt;
+  if (b.state === 'enter'){ if (moveBoss(dt, 160)){ b.state = 'fight'; b.goal = bossGoalAroundTree(); } }
+  else if (b.state === 'fight' || b.state === 'steal'){
+    b.throwT -= dt;
+    if (b.throwT <= 0 && b.throwAnim <= 0){ bossThrow(); b.throwT = b.angry ? rnd(1.8, 2.8) : rnd(3, 4.5); }
+    if (b.throwAnim > 0) b.moving = false;
+    else if (b.state === 'fight'){
+      if (moveBoss(dt, 110)) b.goal = bossGoalAroundTree();
+      b.stealT -= dt;
+      if (b.stealT <= 0 && raid.gifts > 0){ const g = GIFT_SPOTS[raid.gifts-1]; b.state = 'steal'; b.goal = { x:g.x, y:g.y + 40 }; }
+    } else if (moveBoss(dt, 150)){
+      raid.gifts--; b.sack++;
+      const g = GIFT_SPOTS[raid.gifts]; puff(g.x, g.y, 14, g.c); sfxThrow();
+      if (raid.gifts <= 0){ b.state = 'escape'; b.goal = { x:b.x, y:FIELD.y0 - 260 }; hostSay('Хмурыч утащил все подарки и убегает!', 'dead', 4, 'raid'); }
+      else { b.state = 'fight'; b.goal = bossGoalAroundTree(); b.stealT = clamp(15 - raid.wave, 9, 15);
+        if (raid.gifts % 3 === 0) hostSay(`Хмурыч стащил подарок! Осталось ${raid.gifts}!`, 'idle', 3, 'raid'); }
+    }
+  }
+  else if (b.state === 'escape'){
+    if (moveBoss(dt, 240)){
+      const lost = modeNow().id === 'raid' && raid.gifts <= 0;
+      boss = null; raid.pause = 15;
+      if (lost) hostSay('Санта уже везёт новые подарки! Готовьтесь!', 'idle', 4, 'raid');
+    }
+  }
+  else if (b.state === 'down'){
+    if (b.t > 4){ boss = null; raid.wave++; raid.pause = 12; }
+  }
+}
+function drawSack(x, y, k){
+  const r = (30 + k*4) * BS/4;
+  ctx.fillStyle = '#ab7a46'; ctx.strokeStyle = '#4a2f16'; ctx.lineWidth = 5;
+  ctx.beginPath(); ctx.ellipse(x, y, r, r*1.05, 0, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#8f6236'; ctx.fillRect(x-10, y-r-14, 20, 18); ctx.strokeRect(x-10, y-r-14, 20, 18);
+  if (k > 0){ ctx.fillStyle = '#d4303f'; ctx.fillRect(x-22, y-r-34, 22, 22); ctx.fillStyle = '#2f7fd8'; ctx.fillRect(x+2, y-r-28, 18, 18); }
+}
+function drawBoss(){
+  const b = boss, im = IMG.hmurych;
+  if (!im || !im.complete || !im.naturalWidth) return;
+  ctx.fillStyle = 'rgba(60,90,130,0.3)'; ctx.beginPath(); ctx.ellipse(b.x, b.y, 22*BS, 6*BS, 0, 0, Math.PI*2); ctx.fill();
+  let row, col;
+  if (b.state === 'down'){ row = 8; col = Math.min(5, Math.floor(b.t*8)); }
+  else if (b.throwAnim > 0){ row = 4 + b.dir; col = clamp(Math.floor((0.55 - b.throwAnim)/0.55*13), 0, 12); }
+  else if (b.moving){ row = b.dir; col = 1 + Math.floor(b.walkT*10) % 8; }
+  else { row = b.dir; col = 0; }
+  const sackK = Math.min(12, b.sack), sx = b.x + (b.dir === 1 ? 18*BS : -18*BS), sy = b.y - 30*BS;
+  if (b.state !== 'down' && b.dir !== 0) drawSack(sx, sy, sackK);
+  const dx = Math.round(b.x - 32*BS), dy = Math.round(b.y - FEET*BS);
+  ctx.drawImage(im, col*64, row*64, 64, 64, dx, dy, 64*BS, 64*BS);
+  if (b.hitT > 0){ ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.6; ctx.drawImage(im, col*64, row*64, 64, 64, dx, dy, 64*BS, 64*BS); ctx.restore(); }
+  if (b.state !== 'down' && b.dir === 0) drawSack(sx, sy, sackK);
+  ctx.textAlign = 'center';
+  strokeText(b.angry ? 'ХМУРЫЧ 😡' : 'ХМУРЫЧ', b.x, b.y - 53*BS, 'bold 38px Arial', '#2f8a3c', 7);
+}
+function drawGiftPile(){
+  const n = modeNow().id === 'raid' ? raid.gifts : GIFTS_MAX;
+  for (let i=0;i<n;i++){
+    const g = GIFT_SPOTS[i], w = g.w, h = w*0.8;
+    ctx.fillStyle = g.c; ctx.strokeStyle = 'rgba(0,0,0,0.45)'; ctx.lineWidth = 3;
+    ctx.fillRect(g.x - w/2, g.y - h, w, h); ctx.strokeRect(g.x - w/2, g.y - h, w, h);
+    ctx.fillStyle = '#ffe27a'; ctx.fillRect(g.x - 4, g.y - h, 8, h); ctx.fillRect(g.x - w/2, g.y - h*0.55, w, 7);
+  }
+}
+function drawRaidBar(){
+  if (modeNow().id !== 'raid') return;
+  const x = 90, y = 412, w = CW - 180, h = 46;
+  ctx.fillStyle = 'rgba(14,26,52,0.9)'; roundRect(ctx, x-6, y-6, w+12, h+12, 14); ctx.fill();
+  if (boss && boss.state !== 'escape'){
+    const f = clamp(boss.hp / boss.hpMax, 0, 1);
+    ctx.fillStyle = '#3a1520'; ctx.fillRect(x, y, w, h);
+    ctx.fillStyle = boss.angry ? '#ff3b4f' : '#3fbf5f'; ctx.fillRect(x, y, w*f, h);
+    ctx.textAlign = 'center'; strokeText(`ХМУРЫЧ · волна ${raid.wave} · ${fmtNum(Math.max(0,boss.hp))}`, CW/2, y+34, 'bold 28px Arial', '#ffffff', 5, '#14203f');
+  } else {
+    ctx.textAlign = 'center'; ctx.fillStyle = '#ffe27a'; ctx.font = 'bold 28px Arial';
+    ctx.fillText(`Хмурыч придёт через ${Math.max(1, Math.ceil(raid.pause))} с…`, CW/2, y+34);
+  }
+  ctx.textAlign = 'right'; ctx.font = 'bold 26px Arial'; ctx.fillStyle = '#ffffff'; ctx.fillText(`🎁 ${raid.gifts}/${GIFTS_MAX}`, x + w, y + h + 40);
+}
+
 
 // ───────────────────────── Ведущий Санта ─────────────────────────
 const host = { anim:'idle', t:0, x:900, y:1415, bubble:null, bubbleT:0, run:null, queue:[], lineT:20, lockT:0 };
@@ -459,10 +640,10 @@ function updateHost(dt){
   if (host.lineT <= 0){
     host.lineT = rnd(35, 55);
     const c = calendar();
-    const lines = HOST_LINES.slice();
+    const lines = modeNow().id === 'raid' ? ['Бейте Хмурыча снежками!', 'Не дайте Хмурычу утащить подарки!', 'Лайки — и снежки летят сильнее!', 'Каждая монетка — +10 к силе снежка!'] : HOST_LINES.slice();
     if (c.sp) lines.push(c.sp.host, c.sp.host);
     const left = modeLeftMs();
-    if (left < 70000 && left > 50000) lines.splice(0, lines.length, 'Через минуту новый раунд!');
+    if (left < 70000 && left > 50000) lines.splice(0, lines.length, MODES.length > 1 ? `Через минуту — ${modeNext().title.toLowerCase()}!` : 'Через минуту новый раунд!');
     hostSay(pick(lines), 'idle', 4.5);
   }
 }
@@ -598,13 +779,16 @@ function drawLabel(p, up){
 function drawBall(b){
   const k = b.t / b.dur, x = b.sx + (b.tx-b.sx)*k, gy = b.sy + (b.ty-b.sy)*k, z = Math.sin(Math.PI*k) * b.arc;
   ctx.fillStyle = 'rgba(80,110,150,0.25)'; ctx.beginPath(); ctx.ellipse(x, gy + 70, b.r*0.9, b.r*0.35, 0, 0, Math.PI*2); ctx.fill();
-  ctx.fillStyle = '#ffffff'; ctx.strokeStyle = '#a9c2e0'; ctx.lineWidth = 3;
+  ctx.fillStyle = b.coal ? '#2b2b33' : '#ffffff'; ctx.strokeStyle = b.coal ? '#111' : '#a9c2e0'; ctx.lineWidth = 3;
   ctx.beginPath(); ctx.arc(x, gy - z, b.r, 0, Math.PI*2); ctx.fill(); ctx.stroke();
 }
 
 // ── верхняя плашка: режим + таймер, топ-5 дня, правила ──
 let dayTop = [], dayLeader = null, yesterdayChampion = null;
-const RULES = [ ['💬','Напиши в чат —','ты в игре'], ['❤️','Лайк =','+1 сила снежка'], ['coin','1 монета =','+10 силы'], ['🎅','Топ-1 дня =','Золотой Санта'] ];
+const RULES_BY_MODE = {
+  battle: [ ['💬','Напиши в чат —','ты в игре'], ['❤️','Лайк =','+1 сила снежка'], ['coin','1 монета =','+10 силы'], ['🎅','Топ-1 дня =','Золотой Санта'] ],
+  raid:   [ ['💬','Напиши в чат —','бей Хмурыча'], ['❤️','Лайк =','+1 сила снежка'], ['coin','1 монета =','+10 силы'], ['🎁','Спаси подарки','под ёлкой!'] ],
+};
 function drawCoin(x, y, r){
   ctx.fillStyle = '#ffc428'; ctx.strokeStyle = '#b87a0a'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI*2); ctx.fill(); ctx.stroke();
   ctx.strokeStyle = '#e39a1a'; ctx.beginPath(); ctx.arc(x, y, r*0.55, 0, Math.PI*2); ctx.stroke();
@@ -618,7 +802,7 @@ function drawHeader(c){
   ctx.textAlign = 'left'; ctx.fillStyle = '#fff'; ctx.font = 'bold 34px Arial'; ctx.fillText(`${m.icon} ${m.title}`, X+18, Y+43);
   const left = modeLeftMs(), s = Math.ceil(left/1000), t = `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;
   ctx.textAlign = 'right'; ctx.font = 'bold 36px Arial'; ctx.fillStyle = '#ffe27a'; ctx.fillText(t, X+W-20, Y+44);
-  ctx.font = 'bold 22px Arial'; ctx.fillStyle = '#ffc9c9'; ctx.fillText(MODES.length > 1 ? 'до смены' : 'до конца раунда', X+W-130, Y+40);
+  ctx.font = 'bold 22px Arial'; ctx.fillStyle = '#ffc9c9'; ctx.fillText(MODES.length > 1 ? 'дальше ' + modeNext().short : 'до конца раунда', X+W-130, Y+40);
   // топ-5 дня
   ctx.textAlign = 'left'; ctx.font = 'bold 28px Arial'; ctx.fillStyle = '#ffd75e'; ctx.fillText('ТОП ДНЯ', X+20, Y+100);
   for (let i=0;i<5;i++){
@@ -632,7 +816,7 @@ function drawHeader(c){
   }
   ctx.strokeStyle = '#3b4d7a'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(X+530, Y+76); ctx.lineTo(X+530, Y+H-16); ctx.stroke();
   ctx.textAlign = 'left'; ctx.font = 'bold 28px Arial'; ctx.fillStyle = '#ffd75e'; ctx.fillText('КАК ИГРАТЬ', X+548, Y+100);
-  RULES.forEach(([ic,a,b], i) => {
+  RULES_BY_MODE[m.id].forEach(([ic,a,b], i) => {
     const y = Y + 144 + i*46;
     if (ic === 'coin') drawCoin(X+562, y-10, 15); else { ctx.font = '28px Arial'; ctx.fillStyle = '#fff'; ctx.fillText(ic, X+546, y); }
     ctx.font = 'bold 25px Arial'; ctx.fillStyle = '#c8d2eb'; ctx.fillText(a, X+590, y);
@@ -702,6 +886,7 @@ function update(dt){
   for (let i=floaters.length-1;i>=0;i--){ const f = floaters[i]; f.t += dt; f.y -= 40*dt; if (f.t > 1.8) floaters.splice(i,1); }
   updateFlakes(dt, c.snow);
   updateFireworks(dt, c.fireworks);
+  updateRaid(dt);
   updateHost(dt);
   // смена Золотого Санты
   if (dayLeader !== prevLeader){
@@ -719,6 +904,8 @@ function draw(c){
   // всё, что стоит на снегу, — по глубине (y), ёлка тоже
   const ents = [...players.values()].map(p => ({ y:p.y, f:() => drawPlayer(p) }));
   ents.push({ y:TREE.y, f:() => drawTree(c, time) });
+  ents.push({ y:TREE.y + 60, f:drawGiftPile });
+  if (boss) ents.push({ y:boss.y, f:drawBoss });
   ents.sort((a,b) => a.y - b.y).forEach(e => e.f());
   for (const p of [...players.values()].sort((a,b) => a.y - b.y)) drawLabel(p, p.state === 'frozen' ? 190 : 132);
   for (const b of snowballs) drawBall(b);
@@ -731,6 +918,7 @@ function draw(c){
   drawFlakes();
   drawFireworks();
   drawHeader(c);
+  drawRaidBar();
   drawCountdown(c);
   drawRatingCard();
   drawHost();
@@ -923,6 +1111,7 @@ if (DEMO){
   document.querySelectorAll('[data-g]').forEach(b => b.onclick = () => onGift(randomReal(), +b.dataset.g));
   document.querySelectorAll('[data-d]').forEach(b => b.onclick = () => setTestDate(b.dataset.d));
   document.getElementById('bRound').onclick = () => endRound();
+  document.getElementById('bMode').onclick = () => { modeOffset++; endRound(); };
   document.getElementById('bSay').onclick = () => { host.lineT = 0; };
   document.getElementById('bMusic').onclick = (e) => { audioInit(); setMusic(!SND.musicOn); e.target.textContent = '🎵 Музыка: ' + (SND.musicOn ? 'вкл' : 'выкл'); };
   document.getElementById('bSfx').onclick = (e) => { audioInit(); setSfx(!SND.sfxOn); e.target.textContent = '💥 Эффекты: ' + (SND.sfxOn ? 'вкл' : 'выкл'); };
@@ -931,6 +1120,8 @@ if (DEMO){
   balanceBots();
 }
 
+if (Q.get('mode')){ const i = MODES.findIndex(m => m.id === Q.get('mode')); if (i >= 0) modeOffset = ((i - modeSlot()) % MODES.length + MODES.length) % MODES.length; }
+setupMode(modeNow());
 drawBg();
 hostSay('Хо-хо-хо! Добро пожаловать в Новогодний переполох!', 'jump', 5);
 requestAnimationFrame(frame);
