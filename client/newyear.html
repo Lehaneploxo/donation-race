@@ -290,9 +290,9 @@ function bgShop(){
     g.closePath(); g.fill();
   }
   for (let i=0;i<90;i++){ g.fillStyle = `rgba(255,255,255,${0.4 + r()*0.6})`; g.fillRect(r()*CW, G.y0 + r()*110, 2 + (r()<0.15 ? 2 : 0), 2 + (r()<0.15 ? 2 : 0)); }
-  const mg = g.createRadialGradient(975,492,0,975,492,70); mg.addColorStop(0,'rgba(255,248,220,0.5)'); mg.addColorStop(1,'rgba(255,248,220,0)');
-  g.fillStyle = mg; g.fillRect(900, G.y0, 160, 120);
-  g.fillStyle = '#fff6d8'; g.beginPath(); g.arc(975, 492, 22, 0, Math.PI*2); g.fill();
+  const mg = g.createRadialGradient(470,492,0,470,492,70); mg.addColorStop(0,'rgba(255,248,220,0.5)'); mg.addColorStop(1,'rgba(255,248,220,0)');
+  g.fillStyle = mg; g.fillRect(400, G.y0, 140, 120);
+  g.fillStyle = '#fff6d8'; g.beginPath(); g.arc(470, 492, 22, 0, Math.PI*2); g.fill();
   // холмы и деревня с огоньками в окнах (нарисованы под низ проёма 646, сдвигаем к настоящему)
   g.save(); g.translate(0, G.y1 - 646);
   g.fillStyle = '#6f82c0'; g.beginPath(); g.moveTo(0, G.y1); for (let x=0; x<=CW; x+=20) g.lineTo(x, 580 + Math.sin(x/170)*14); g.lineTo(CW, G.y1); g.closePath(); g.fill();
@@ -317,16 +317,8 @@ function bgShop(){
   g.fillStyle = sn; g.beginPath(); g.moveTo(0, G.y1); for (let x=0; x<=CW; x+=20) g.lineTo(x, 616 + Math.sin(x/60)*3); g.lineTo(CW, G.y1); g.closePath(); g.fill();
   g.fillStyle = 'rgba(140,160,200,0.45)'; g.fillRect(0, 636, CW, 2); g.fillRect(0, 642, CW, 2);
   for (let i=0;i<40;i++){ g.fillStyle = 'rgba(255,255,255,0.95)'; g.fillRect(r()*CW, 618 + r()*26, 2, 2); }
-  // снеговик во дворе
-  g.fillStyle = '#f4f8fd'; g.strokeStyle = '#a9bbe6'; g.lineWidth = 2;
-  for (const [cy, cr] of [[626,16],[600,12],[580,9]]){ g.beginPath(); g.arc(946, cy, cr, 0, Math.PI*2); g.fill(); g.stroke(); }
-  g.fillStyle = '#222'; g.fillRect(942, 577, 3, 3); g.fillRect(949, 577, 3, 3); g.fillRect(944, 596, 3, 3); g.fillRect(944, 604, 3, 3);
-  g.fillStyle = '#f08a24'; g.fillRect(946, 581, 8, 3);
-  g.fillStyle = '#c0182c'; g.fillRect(936, 588, 20, 4); g.fillRect(950, 590, 4, 10);
-  g.fillStyle = '#1c1c2c'; g.fillRect(938, 568, 16, 4); g.fillRect(941, 558, 10, 10);
-  g.strokeStyle = '#4a2a14'; g.lineWidth = 2; g.beginPath(); g.moveTo(934, 600); g.lineTo(920, 590); g.moveTo(958, 600); g.lineTo(972, 588); g.stroke();
   // фонари во дворе
-  for (const lx of [620, 880]){
+  for (const lx of [620]){
     g.fillStyle = '#1c1c2c'; g.fillRect(lx-3, 566, 6, 74); g.fillRect(lx-10, 556, 20, 12);
     const lg = g.createRadialGradient(lx,562,0,lx,562,60); lg.addColorStop(0,'rgba(255,210,120,0.55)'); lg.addColorStop(1,'rgba(255,210,120,0)');
     g.fillStyle = lg; g.fillRect(lx-60, 502, 120, 120); g.fillStyle = '#ffe49a'; g.fillRect(lx-6, 558, 12, 8);
@@ -334,10 +326,24 @@ function bgShop(){
   g.restore();
   // каркас веранды: балка и столбы
   g.fillStyle = '#3a2410'; g.fillRect(0, G.y0-10, CW, 14);
-  for (const px of [0, 528, 1058]){ g.fillStyle = '#5b3218'; g.fillRect(px, G.y0, 22, G.y1-G.y0); g.fillStyle = '#7a4a24'; g.fillRect(px+3, G.y0, 5, G.y1-G.y0); }
+  for (const px of [0, 648]){ g.fillStyle = '#5b3218'; g.fillRect(px, G.y0, 22, G.y1-G.y0); g.fillStyle = '#7a4a24'; g.fillRect(px+3, G.y0, 5, G.y1-G.y0); }
+  // правая часть — бревенчатая стена избы с камином
+  for (let y=G.y0, i=0; y<G.y1; y+=34, i++){ g.fillStyle = i%2 ? '#6b3d1e' : '#5b3218'; g.fillRect(670, y, CW-670, 34); g.fillStyle = 'rgba(0,0,0,0.25)'; g.fillRect(670, y+30, CW-670, 4);
+    g.fillStyle = '#4a2a10'; g.beginPath(); g.arc(674, y+17, 15, 0, Math.PI*2); g.fill(); g.fillStyle = '#b5844a'; g.beginPath(); g.arc(674, y+17, 9, 0, Math.PI*2); g.fill(); }
+  const F = FIREPLACE;
+  g.fillStyle = '#7d3524'; g.fillRect(F.x-150, G.y0, 300, G.y1-G.y0);
+  for (let y = G.y0, i = 0; y < G.y1; y += 18, i++) for (let x = F.x-150 - (i%2)*20; x < F.x+150; x += 40){
+    g.fillStyle = (x*7 + y*3) % 5 ? '#93412c' : '#a34c33'; const x0 = Math.max(F.x-150, x+2); g.fillRect(x0, y+2, Math.min(x+38, F.x+150) - x0, 14); }
+  g.fillStyle = '#b8b0a4'; g.fillRect(F.x-120, F.y+14, 240, G.y1-F.y-14); g.fillStyle = '#9a9286'; for (let i=0;i<6;i++) g.fillRect(F.x-120 + i*48, F.y+14, 3, G.y1-F.y-14);
+  g.fillStyle = '#1a0d08'; g.beginPath(); g.moveTo(F.x-95, G.y1); g.lineTo(F.x-95, F.y+52); g.quadraticCurveTo(F.x, F.y+22, F.x+95, F.y+52); g.lineTo(F.x+95, G.y1); g.closePath(); g.fill();
+  g.fillStyle = '#3a2410'; g.fillRect(F.x-172, F.y, 344, 16); g.fillStyle = '#6b3d1e'; g.fillRect(F.x-172, F.y, 344, 5);
+  // венок над полкой
+  for (let i=0;i<14;i++){ const a = i/14*Math.PI*2; g.fillStyle = i%2 ? '#1f5a2e' : '#2f7a3c'; g.beginPath(); g.arc(F.x + Math.cos(a)*20, F.y-40 + Math.sin(a)*20, 9, 0, Math.PI*2); g.fill(); }
+  for (const a of [0.4, 1.9, 3.3, 4.8]){ g.fillStyle = '#d4202e'; g.beginPath(); g.arc(F.x + Math.cos(a)*20, F.y-40 + Math.sin(a)*20, 4, 0, Math.PI*2); g.fill(); }
+  g.fillStyle = '#c0182c'; g.beginPath(); g.moveTo(F.x, F.y-20); g.lineTo(F.x-14, F.y-28); g.lineTo(F.x-14, F.y-12); g.closePath(); g.moveTo(F.x, F.y-20); g.lineTo(F.x+14, F.y-28); g.lineTo(F.x+14, F.y-12); g.closePath(); g.fill();
   // порог, на нём намело снега
   g.fillStyle = '#3a2410'; g.fillRect(0, G.y1-4, CW, 16);
-  for (let i=0;i<9;i++){ const x = 40 + i*120 + r()*40; g.fillStyle = 'rgba(240,246,255,0.9)'; g.beginPath(); g.ellipse(x, G.y1+6, 30 + r()*30, 9, 0, 0, Math.PI); g.fill(); }
+  for (let i=0;i<5;i++){ const x = 40 + i*120 + r()*40; g.fillStyle = 'rgba(240,246,255,0.9)'; g.beginPath(); g.ellipse(x, G.y1+6, 30 + r()*30, 9, 0, 0, Math.PI); g.fill(); }
   // пол из досок
   for (let y=G.y1+12, i=0; y<CH; y+=48, i++){
     g.fillStyle = i%2 ? '#b07a44' : '#a36d3a'; g.fillRect(0, y, CW, 48);
@@ -345,6 +351,8 @@ function bgShop(){
     for (let x = (i*137)%260; x < CW; x += 220 + r()*120) g.fillRect(x, y, 3, 45);
     for (let k=0;k<6;k++){ g.fillStyle = 'rgba(80,45,20,0.18)'; g.fillRect(r()*CW, y + 8 + r()*30, 30 + r()*60, 2); }
   }
+  // каменная плита перед камином
+  g.fillStyle = '#8c857a'; g.fillRect(FIREPLACE.x-140, G.y1+4, 280, 22); g.fillStyle = '#a8a196'; g.fillRect(FIREPLACE.x-140, G.y1+4, 280, 5);
   // тёплый свет от ёлки на полу
   const wg = g.createRadialGradient(TREE.x, TREE.y, 0, TREE.x, TREE.y, 560); wg.addColorStop(0,'rgba(255,196,110,0.28)'); wg.addColorStop(1,'rgba(255,196,110,0)');
   g.fillStyle = wg; g.fillRect(0, G.y1, CW, CH-G.y1);
@@ -358,20 +366,6 @@ function bgShop(){
   for (const d of [-9, 9]){ g.beginPath(); g.ellipse(TREE.x, TREE.y + 10, TRACK.rx + d, TRACK.ry + d*0.85, 0, 0, Math.PI*2); g.stroke(); }
   g.fillStyle = '#2f7a3c'; for (let i=0;i<16;i++){ const a = i/16*Math.PI*2; g.beginPath(); g.arc(TREE.x + Math.cos(a)*385, TREE.y + 10 + Math.sin(a)*179, 9, 0, Math.PI*2); g.fill(); }
   for (const [x,y] of [[175,1030],[895,1030],[330,1175],[770,1175]]) candyCane(g, x, y);
-  // коврик перед камином
-  g.fillStyle = '#7a1622'; g.beginPath(); g.ellipse(540, 1850, 260, 70, 0, 0, Math.PI*2); g.fill();
-  g.fillStyle = '#c0182c'; g.beginPath(); g.ellipse(540, 1850, 236, 58, 0, 0, Math.PI*2); g.fill();
-  g.strokeStyle = '#ffd75e'; g.lineWidth = 4; g.beginPath(); g.ellipse(540, 1850, 200, 44, 0, 0, Math.PI*2); g.stroke();
-  // камин: кирпичная кладка, полка, каменный портал, топка
-  const F = FIREPLACE;
-  g.fillStyle = '#7d3524'; g.fillRect(F.x-230, F.y-70, 460, 380);
-  for (let y = F.y-70, i = 0; y < F.y+310; y += 20, i++) for (let x = F.x-230 - (i%2)*22; x < F.x+230; x += 44){
-    g.fillStyle = (x*7 + y*3) % 5 ? '#93412c' : '#a34c33'; g.fillRect(Math.max(F.x-230, x+2), y+2, Math.min(40, F.x+230-x-2), 16); }
-  g.fillStyle = '#3a2410'; g.fillRect(F.x-250, F.y, 500, 26); g.fillStyle = '#6b3d1e'; g.fillRect(F.x-250, F.y, 500, 8);
-  g.font = 'bold 34px Arial'; g.textAlign = 'center'; g.lineWidth = 7; g.strokeStyle = '#5a1410'; g.strokeText('С РОЖДЕСТВОМ!', F.x, F.y-24); g.fillStyle = '#ffd75e'; g.fillText('С РОЖДЕСТВОМ!', F.x, F.y-24);
-  g.fillStyle = '#b8b0a4'; g.fillRect(F.x-165, F.y+56, 330, 240); g.fillStyle = '#9a9286'; for (let i=0;i<7;i++) g.fillRect(F.x-165 + i*48, F.y+56, 3, 240);
-  g.fillStyle = '#1a0d08'; g.beginPath(); g.moveTo(F.x-130, F.y+296); g.lineTo(F.x-130, F.y+130); g.quadraticCurveTo(F.x, F.y+70, F.x+130, F.y+130); g.lineTo(F.x+130, F.y+296); g.closePath(); g.fill();
-  g.fillStyle = '#8c857a'; g.fillRect(F.x-200, F.y+296, 400, 26); g.fillStyle = '#a8a196'; g.fillRect(F.x-200, F.y+296, 400, 6);
   // кресло с клетчатым пледом
   g.fillStyle = '#5e1019'; g.fillRect(40, 1500, 180, 120); g.fillStyle = '#8a1a26'; g.fillRect(52, 1510, 156, 100);
   g.fillStyle = '#6e131d'; g.fillRect(30, 1580, 40, 120); g.fillRect(190, 1580, 40, 120); g.fillStyle = '#9a2230'; g.fillRect(60, 1600, 140, 80);
@@ -392,18 +386,15 @@ function bgShop(){
   g.fillStyle = '#8a5a2e'; g.beginPath(); g.moveTo(940, 1690); g.lineTo(955, 1668); g.lineTo(1005, 1668); g.lineTo(1020, 1690); g.closePath(); g.fill();
   g.fillStyle = '#6b4220'; for (let i=0;i<5;i++) g.fillRect(950 + i*14, 1676, 3, 18);
   g.fillStyle = '#c0182c'; g.fillRect(944, 1690, 72, 9); g.fillRect(1012, 1694, 8, 26); g.fillRect(1020, 1694, 8, 20);
-  // тёплый отсвет камина на полу
-  const fg = g.createRadialGradient(F.x, F.y+300, 0, F.x, F.y+300, 520); fg.addColorStop(0,'rgba(255,150,60,0.3)'); fg.addColorStop(1,'rgba(255,150,60,0)');
-  g.fillStyle = fg; g.fillRect(0, F.y-100, CW, CH-F.y+100);
   const vg = g.createRadialGradient(TREE.x, 1050, 300, TREE.x, 1050, 900); vg.addColorStop(0,'rgba(40,15,5,0)'); vg.addColorStop(1,'rgba(40,15,5,0.45)');
-  g.fillStyle = vg; g.fillRect(0, G.y1 + 12, CW, F.y - 120 - G.y1);
+  g.fillStyle = vg; g.fillRect(0, G.y1 + 12, CW, CH - G.y1 - 12);
   return c;
 }
 function drawBg(){ BG.battle = bgBattle(); BG.raid = bgRaid(); BG.shop = bgShop(); }
 const DECOR = [[40,520],[1040,500],[30,860],[1050,900],[70,1250],[1010,1290],[300,440],[790,430]];
 // в мастерской вместо ёлочек по углам — горки готовых подарков
 const SHOP_DECOR = [[1030,760],[60,1290],[90,1430]];
-const FIREPLACE = { x:540, y:1520 };   // верх каминной полки
+const FIREPLACE = { x:870, y:560 };    // камин в задней стене: центр и верх полки
 
 // ───────────────────────── Игроки ─────────────────────────
 const players = new Map();       // ключ — ник (lowercase)
@@ -831,7 +822,7 @@ function drawRaidBar(){
 // приезжают новые, побольше. ⭐ за подарок = сила × 5, в тот же топ дня.
 // Сани, олени и подарки — «16x16 Holiday Sprites» (jhanson9012, CC0).
 const SLEIGH = { x:140, y:680 };                 // у саней эльфы отдают подарки (x+60, y+60 — у порога)
-const GATE = { x0:0, x1:CW, y0:452, y1:690 };    // веранда открыта во двор во всю стену — там стоят сани
+const GATE = { x0:0, x1:660, y0:452, y1:690 };   // слева стена открыта во двор (там сани), справа — сплошная стена с камином
 const TEAM_X = 40;
 const TRACK = { rx:352, ry:157 };                 // рельсы игрушечной железной дороги вокруг ёлки
 let trainA = 0;
@@ -921,7 +912,6 @@ function drawSleigh(){
   const P = teamPos(), x0 = Math.round(P.x), y = SLEIGH.y, kr = 5, ks = 6, G = GATE;
   ctx.save(); ctx.beginPath(); ctx.rect(G.x0, G.y0, G.x1-G.x0, G.y1-G.y0+6); ctx.clip();
   // мерцающие ёлочки во дворе
-  for (const [tx, i] of [[700,0],[770,2],[1000,1]]) drawSheet(112 + ((Math.floor(time*3) + i) % 4)*16, 96, 16, 16, tx, y - 4 - 16*4, 4);
   ctx.fillStyle = 'rgba(60,80,130,0.25)'; ctx.beginPath(); ctx.ellipse(x0 + 230, y + 2, 250, 12, 0, 0, Math.PI*2); ctx.fill();
   const fr = P.run ? Math.floor(time*12) % 4 : 0;
   const deer = [];
@@ -1003,7 +993,7 @@ function drawSwag(){
     ctx.beginPath(); ctx.moveTo(x, y0 + 8); ctx.lineTo(x + 16, y0 - 2); ctx.lineTo(x + 16, y0 + 18); ctx.closePath(); ctx.fill();
     ctx.fillRect(x - 4, y0 + 8, 4, 24); ctx.fillRect(x + 1, y0 + 8, 4, 20); ctx.fillStyle = '#ffd75e'; ctx.fillRect(x - 5, y0 + 3, 10, 10);
   }
-  for (const [sx, c] of [[170,'#c0182c'],[470,'#2f7a3c'],[650,'#c0182c'],[810,'#2a5fb3']]){
+  for (const [sx, c] of [[110,'#c0182c'],[220,'#2f7a3c'],[470,'#2a5fb3']]){
     const sw = Math.sin(time*1.4 + sx)*2, top = y0 + 24;
     ctx.strokeStyle = '#ffd75e'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(sx, y0 + 12); ctx.lineTo(sx + sw, top); ctx.stroke();
     drawStocking(sx + sw, top, c, 1);
@@ -1017,41 +1007,40 @@ function drawStocking(x, y, c, k){
 }
 // камин живой: огонь, свечи, носки и гирлянда на полке, подарки из мешка
 function drawHearth(){
-  const F = FIREPLACE, fl = 0.8 + 0.2*Math.sin(time*9) + 0.1*Math.sin(time*23);
+  const F = FIREPLACE, base = GATE.y1, fl = 0.8 + 0.2*Math.sin(time*9) + 0.1*Math.sin(time*23);
   ctx.save(); ctx.globalCompositeOperation = 'lighter';
-  const g1 = ctx.createRadialGradient(F.x, F.y+250, 0, F.x, F.y+250, 330); g1.addColorStop(0,`rgba(255,140,40,${0.42*fl})`); g1.addColorStop(1,'rgba(255,140,40,0)');
-  ctx.fillStyle = g1; ctx.fillRect(F.x-330, F.y-80, 660, 500); ctx.restore();
+  const g1 = ctx.createRadialGradient(F.x, base, 0, F.x, base, 300); g1.addColorStop(0,`rgba(255,140,40,${0.45*fl})`); g1.addColorStop(1,'rgba(255,140,40,0)');
+  ctx.fillStyle = g1; ctx.fillRect(F.x-300, base-200, 600, 460); ctx.restore();
   // языки пламени за поленьями
-  for (let i=0;i<7;i++){
-    const bx = F.x - 96 + i*32, h = (70 + 40*Math.sin(time*7 + i*1.9) + 18*Math.sin(time*17 + i)) * (i === 0 || i === 6 ? 0.6 : 1), by = F.y + 270, sway = Math.sin(time*5 + i)*8;
-    ctx.fillStyle = '#ff5a1a'; ctx.beginPath(); ctx.moveTo(bx-22, by); ctx.quadraticCurveTo(bx-18 + sway, by - h*0.6, bx + sway*1.5, by - h); ctx.quadraticCurveTo(bx+18 + sway, by - h*0.6, bx+22, by); ctx.closePath(); ctx.fill();
-    ctx.fillStyle = '#ffc93a'; ctx.beginPath(); ctx.moveTo(bx-12, by); ctx.quadraticCurveTo(bx-9 + sway, by - h*0.4, bx + sway, by - h*0.65); ctx.quadraticCurveTo(bx+9 + sway, by - h*0.4, bx+12, by); ctx.closePath(); ctx.fill();
+  for (let i=0;i<5;i++){
+    const bx = F.x - 60 + i*30, h = (48 + 26*Math.sin(time*7 + i*1.9) + 12*Math.sin(time*17 + i)) * (i === 0 || i === 4 ? 0.65 : 1), by = base - 12, sway = Math.sin(time*5 + i)*6;
+    ctx.fillStyle = '#ff5a1a'; ctx.beginPath(); ctx.moveTo(bx-18, by); ctx.quadraticCurveTo(bx-14 + sway, by - h*0.6, bx + sway*1.5, by - h); ctx.quadraticCurveTo(bx+14 + sway, by - h*0.6, bx+18, by); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#ffc93a'; ctx.beginPath(); ctx.moveTo(bx-10, by); ctx.quadraticCurveTo(bx-7 + sway, by - h*0.4, bx + sway, by - h*0.65); ctx.quadraticCurveTo(bx+7 + sway, by - h*0.4, bx+10, by); ctx.closePath(); ctx.fill();
   }
-  if (Math.random() < 0.3) particles.push({ x:F.x + rnd(-80,80), y:F.y + 200, vx:rnd(-20,20), vy:-rnd(60,140), t:0, life:rnd(0.6,1.2), r:rnd(2,3), color:'#ffb347' });
+  if (Math.random() < 0.25) particles.push({ x:F.x + rnd(-50,50), y:base - 40, vx:rnd(-20,20), vy:-rnd(50,110), t:0, life:rnd(0.4,0.8), r:rnd(2,3), color:'#ffb347' });
   const fr = Math.floor(time*8) % 4;
-  drawSheet(((fr+2)%4)*16, 48, 16, 16, F.x-110, F.y+296-16*5, 5);
-  drawSheet(((fr+1)%4)*16, 48, 16, 16, F.x+30, F.y+296-16*5, 5);
-  drawSheet(fr*16, 48, 16, 16, F.x-64, F.y+296-16*8, 8);
+  drawSheet(((fr+2)%4)*16, 48, 16, 16, F.x-78, base-16*3.5+2, 3.5);
+  drawSheet(((fr+1)%4)*16, 48, 16, 16, F.x+22, base-16*3.5+2, 3.5);
+  drawSheet(fr*16, 48, 16, 16, F.x-40, base-16*5+2, 5);
   // гирлянда вдоль полки
-  for (let x = F.x-246; x < F.x+246; x += 6){ ctx.fillStyle = (x/6) % 2 ? '#1f5a2e' : '#2f7a3c'; ctx.fillRect(x, F.y+22 + Math.sin((x-F.x)/40)*4, 8, 12); }
-  for (let i=0, x = F.x-230; x < F.x+240; x += 46, i++){
+  for (let x = F.x-168; x < F.x+168; x += 6){ ctx.fillStyle = (x/6) % 2 ? '#1f5a2e' : '#2f7a3c'; ctx.fillRect(x, F.y+12 + Math.sin((x-F.x)/30)*3, 8, 10); }
+  for (let i=0, x = F.x-156; x < F.x+165; x += 39, i++){
     const on = (Math.floor(time*2.5) + i) % 3 !== 0; ctx.globalAlpha = on ? 1 : 0.35;
-    ctx.fillStyle = ['#ff4d6d','#ffd75e','#5dff8a','#7fd3ff'][i%4]; ctx.beginPath(); ctx.arc(x, F.y+32 + Math.sin((x-F.x)/40)*4, 5, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = ['#ff4d6d','#ffd75e','#5dff8a','#7fd3ff'][i%4]; ctx.beginPath(); ctx.arc(x, F.y+20 + Math.sin((x-F.x)/30)*3, 4, 0, Math.PI*2); ctx.fill();
   }
   ctx.globalAlpha = 1;
   // свечи по краям полки
-  for (const cx of [F.x-226, F.x-196, F.x+196, F.x+226]){
-    const h = cx === F.x-196 || cx === F.x+196 ? 30 : 44;
-    ctx.fillStyle = '#f2ead8'; ctx.fillRect(cx-6, F.y-h, 12, h); ctx.fillStyle = '#c0182c'; ctx.fillRect(cx-8, F.y-6, 16, 6);
-    const fy = F.y - h - 10 + Math.sin(time*11 + cx)*1.5;
+  for (const [cx, h] of [[F.x-158,36],[F.x-134,24],[F.x+134,24],[F.x+158,36]]){
+    ctx.fillStyle = '#f2ead8'; ctx.fillRect(cx-5, F.y-h, 10, h); ctx.fillStyle = '#c0182c'; ctx.fillRect(cx-7, F.y-5, 14, 5);
+    const fy = F.y - h - 8 + Math.sin(time*11 + cx)*1.5;
     ctx.save(); ctx.globalCompositeOperation = 'lighter';
-    const cg = ctx.createRadialGradient(cx, fy, 0, cx, fy, 34); cg.addColorStop(0,'rgba(255,200,90,0.5)'); cg.addColorStop(1,'rgba(255,200,90,0)');
-    ctx.fillStyle = cg; ctx.fillRect(cx-34, fy-34, 68, 68); ctx.restore();
-    ctx.fillStyle = '#ffcf4a'; ctx.beginPath(); ctx.ellipse(cx, fy, 5, 9, 0, 0, Math.PI*2); ctx.fill();
-    ctx.fillStyle = '#fff6d0'; ctx.beginPath(); ctx.ellipse(cx, fy+2, 2, 4, 0, 0, Math.PI*2); ctx.fill();
+    const cg = ctx.createRadialGradient(cx, fy, 0, cx, fy, 28); cg.addColorStop(0,'rgba(255,200,90,0.5)'); cg.addColorStop(1,'rgba(255,200,90,0)');
+    ctx.fillStyle = cg; ctx.fillRect(cx-28, fy-28, 56, 56); ctx.restore();
+    ctx.fillStyle = '#ffcf4a'; ctx.beginPath(); ctx.ellipse(cx, fy, 4, 8, 0, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#fff6d0'; ctx.beginPath(); ctx.ellipse(cx, fy+2, 2, 3, 0, 0, Math.PI*2); ctx.fill();
   }
   // носки на камине
-  for (const [sx, c] of [[F.x-150,'#c0182c'],[F.x-60,'#2f7a3c'],[F.x+30,'#2a5fb3'],[F.x+120,'#c0182c']]) drawStocking(sx + Math.sin(time*1.2 + sx)*1.5, F.y+30, c, 1.4);
+  for (const [sx, c] of [[F.x-75,'#c0182c'],[F.x-8,'#2f7a3c'],[F.x+58,'#2a5fb3']]) drawStocking(sx + Math.sin(time*1.2 + sx)*1.2, F.y+18, c, 0.9);
   // подарки торчат из мешка
   drawGiftIcon(1, 960, 1676, 2.8); drawGiftIcon(4, 985, 1672, 3.2); drawGiftIcon(6, 1008, 1678, 2.4);
 }
