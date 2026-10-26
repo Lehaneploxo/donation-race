@@ -205,7 +205,7 @@ const IMG = {};
 function loadImg(key, src){ const im = new Image(); im.src = src; IMG[key] = im; return im; }
 const SP = 'sprites/newyear/';
 for (let c=0;c<8;c++) for (let b=0;b<2;b++) loadImg(`elf_${c}_${b}`, `${SP}elf_${c}_${b}.png`);
-['santa_red','santa_gold','santa_blue','tree_bare','tree_full','tree_small','hmurych','holiday16'].forEach(k => loadImg(k, SP + k + '.png'));
+['santa_red','santa_gold','santa_blue','tree_bare','tree_full','hmurych','holiday16'].forEach(k => loadImg(k, SP + k + '.png'));
 const HOST_META = { idle:{n:16,w:162,h:256}, run:{n:11,w:211,h:266}, jump:{n:16,w:230,h:270}, dead:{n:17,w:313,h:275}, slide:{n:11,w:263,h:205} };
 for (const a in HOST_META) loadImg('host_'+a, `${SP}host_${a}.webp`);
 let TREE_ORN = [];
@@ -223,16 +223,68 @@ const S = 2.5;            // масштаб эльфов (кадр 64 → 160)
 const FEET = 60;          // ступни в кадре LPC
 
 // фоны — у каждого режима своя локация, рисуются один раз:
-// битва — снежная поляна, рейд — сумеречная ледяная пустошь Хмурыча, мастерская — тёплая изба Санты
+// битва — ночная лесная опушка, рейд — сумеречная ледяная пустошь Хмурыча, мастерская — тёплая изба Санты
 const BG = {};
 function bgCanvas(){ const c = document.createElement('canvas'); c.width = CW; c.height = CH; const g = c.getContext('2d'); g.imageSmoothingEnabled = false; return [c, g]; }
 function seeded(seed){ let s = seed; return () => (s = (s*16807) % 2147483647) / 2147483647; }
+// ёлки, снеговик и санки для фона битвы
+function forestPine(g, x, y, h, dark, snow){
+  const w = h*0.55;
+  for (let i=0;i<4;i++){
+    const ty = y - h + i*h*0.22, bw = w*(0.35 + i*0.22);
+    g.fillStyle = dark; g.beginPath(); g.moveTo(x, ty); g.lineTo(x - bw/2, ty + h*0.32); g.lineTo(x + bw/2, ty + h*0.32); g.closePath(); g.fill();
+    if (snow){ g.fillStyle = snow; g.beginPath(); g.moveTo(x, ty); g.lineTo(x - bw*0.22, ty + h*0.12); g.lineTo(x + bw*0.22, ty + h*0.12); g.closePath(); g.fill(); g.fillRect(x - bw/2, ty + h*0.3, bw, h*0.03); }
+  }
+  g.fillStyle = '#3a2410'; g.fillRect(x - h*0.04, y - h*0.06, h*0.08, h*0.08);
+}
+function fieldSnowman(g, x, y, k){
+  g.fillStyle = 'rgba(90,120,170,0.25)'; g.beginPath(); g.ellipse(x + 10*k, y + 4*k, 44*k, 12*k, 0, 0, Math.PI*2); g.fill();
+  g.fillStyle = '#f7fbff'; g.strokeStyle = '#a9bbe6'; g.lineWidth = 3;
+  for (const [dy, rr] of [[-30,34],[-84,26],[-124,19]]){ g.beginPath(); g.arc(x, y + dy*k, rr*k, 0, Math.PI*2); g.fill(); g.stroke(); }
+  g.fillStyle = '#222'; g.fillRect(x - 9*k, y - 130*k, 5*k, 5*k); g.fillRect(x + 5*k, y - 130*k, 5*k, 5*k);
+  g.fillStyle = '#f08a24'; g.fillRect(x, y - 122*k, 16*k, 5*k);
+  g.fillStyle = '#c0182c'; g.fillRect(x - 22*k, y - 106*k, 44*k, 8*k); g.fillRect(x + 12*k, y - 102*k, 8*k, 24*k);
+  g.fillStyle = '#1c1c2c'; g.fillRect(x - 16*k, y - 146*k, 32*k, 8*k); g.fillRect(x - 10*k, y - 168*k, 20*k, 24*k);
+  g.strokeStyle = '#5b3218'; g.lineWidth = 4*k; g.beginPath(); g.moveTo(x - 24*k, y - 84*k); g.lineTo(x - 56*k, y - 108*k); g.moveTo(x + 24*k, y - 84*k); g.lineTo(x + 56*k, y - 100*k); g.stroke();
+}
+function fieldSled(g, x, y){
+  g.fillStyle = '#c0182c'; g.fillRect(x, y, 130, 20); g.fillStyle = '#8a1020'; g.fillRect(x, y + 14, 130, 6);
+  g.fillStyle = '#5b3218'; g.fillRect(x - 8, y + 30, 150, 6); g.fillRect(x + 10, y + 20, 6, 12); g.fillRect(x + 116, y + 20, 6, 12); g.fillRect(x + 136, y + 10, 6, 26);
+  g.strokeStyle = '#7a4a24'; g.lineWidth = 3; g.beginPath(); g.moveTo(x - 8, y + 34); g.quadraticCurveTo(x - 60, y + 10, x - 90, y + 40); g.stroke();
+}
 function bgBattle(){
-  const [c, g] = bgCanvas(), r = seeded(7);
-  const grd = g.createLinearGradient(0,0,0,CH); grd.addColorStop(0,'#dfeaf7'); grd.addColorStop(1,'#eef4fb');
-  g.fillStyle = grd; g.fillRect(0,0,CW,CH);
-  for (let i=0;i<1400;i++){ const x = r()*CW, y = r()*CH; g.fillStyle = r()<0.5 ? 'rgba(170,195,225,0.35)' : 'rgba(255,255,255,0.8)'; g.fillRect(x, y, 6 + r()*14, 3); }
-  for (let i=0;i<60;i++){ const x = r()*CW, y = r()*CH; g.fillStyle = 'rgba(150,180,215,0.25)'; g.beginPath(); g.ellipse(x, y, 40+r()*80, 10+r()*16, 0, 0, Math.PI*2); g.fill(); }
+  // ночная лесная опушка: сияние, луна, лес по горизонту, огни деревни
+  const [c, g] = bgCanvas(), r = seeded(12);
+  const HZ = 640;   // линия горизонта
+  const sky = g.createLinearGradient(0,0,0,HZ); sky.addColorStop(0,'#070b26'); sky.addColorStop(0.6,'#16225a'); sky.addColorStop(1,'#2d4386');
+  g.fillStyle = sky; g.fillRect(0,0,CW,HZ);
+  for (let i=0;i<220;i++){ g.fillStyle = `rgba(255,255,255,${0.3 + r()*0.7})`; const s = r()<0.1 ? 4 : 2; g.fillRect(r()*CW, r()*HZ*0.9, s, s); }
+  for (const [col, y0, amp] of [['rgba(80,255,170,0.20)',430,40],['rgba(120,255,200,0.16)',470,55],['rgba(170,120,255,0.13)',400,30]]){
+    g.fillStyle = col; g.beginPath(); g.moveTo(0, y0);
+    for (let x=0;x<=CW;x+=20) g.lineTo(x, y0 + Math.sin(x/140 + y0)*amp);
+    for (let x=CW;x>=0;x-=20) g.lineTo(x, y0 + 70 + Math.sin(x/120 + y0)*amp*0.6);
+    g.closePath(); g.fill();
+  }
+  g.fillStyle = 'rgba(255,250,220,0.15)'; g.beginPath(); g.arc(850, 450, 80, 0, Math.PI*2); g.fill();
+  g.fillStyle = '#fff6d8'; g.beginPath(); g.arc(850, 450, 46, 0, Math.PI*2); g.fill();
+  g.fillStyle = '#e8dfbf'; g.beginPath(); g.arc(836, 440, 9, 0, Math.PI*2); g.arc(864, 462, 6, 0, Math.PI*2); g.fill();
+  // дальние холмы с деревней
+  g.fillStyle = '#25356e'; g.beginPath(); g.moveTo(0, 590); for (let x=0;x<=CW;x+=40) g.lineTo(x, 570 + Math.sin(x/180)*24); g.lineTo(CW, HZ); g.lineTo(0, HZ); g.closePath(); g.fill();
+  for (const hx of [180, 260, 610, 690]){ g.fillStyle = '#1a2552'; g.fillRect(hx, 548, 40, 30); g.beginPath(); g.moveTo(hx - 6, 550); g.lineTo(hx + 20, 530); g.lineTo(hx + 46, 550); g.fill(); g.fillStyle = '#ffd27a'; g.fillRect(hx + 14, 560, 10, 9); }
+  // тёмный лес вдоль горизонта
+  for (let x=-30; x<CW+40; x+=38 + r()*20) forestPine(g, x, HZ + 10 + r()*16, 110 + r()*70, '#0f1a38', '#c8d6f0');
+  // земля в лунном свете
+  const gr = g.createLinearGradient(0,HZ,0,CH); gr.addColorStop(0,'#aebfe2'); gr.addColorStop(0.35,'#cdd9ef'); gr.addColorStop(1,'#e3ebf8');
+  g.fillStyle = gr; g.fillRect(0,HZ,CW,CH-HZ);
+  for (let i=0;i<500;i++){ g.fillStyle = r()<0.5 ? 'rgba(150,170,215,0.3)' : 'rgba(255,255,255,0.6)'; g.fillRect(r()*CW, HZ + r()*(CH-HZ), 6 + r()*14, 3); }
+  // лунная дорожка
+  g.fillStyle = 'rgba(255,250,220,0.10)'; g.beginPath(); g.moveTo(800, HZ); g.lineTo(900, HZ); g.lineTo(700, CH); g.lineTo(380, CH); g.closePath(); g.fill();
+  // ёлки по бокам поля
+  for (const [x, y, h] of [[40,820,200],[1040,800,190],[20,1180,230],[1060,1220,240],[110,1500,170]]) forestPine(g, x, y, h, '#1d3a2c', '#f2f7ff');
+  // фонарики у края поля
+  for (const [lx, ly] of [[150,980],[930,980]]){ g.fillStyle = 'rgba(255,200,90,0.22)'; g.beginPath(); g.arc(lx, ly - 70, 60, 0, Math.PI*2); g.fill(); g.fillStyle = '#1c1c2c'; g.fillRect(lx - 3, ly - 70, 6, 70); g.fillStyle = '#ffd27a'; g.fillRect(lx - 9, ly - 88, 18, 20); g.fillStyle = '#f4f8fd'; g.fillRect(lx - 12, ly - 94, 24, 6); }
+  fieldSnowman(g, 230, 1640, 0.9);
+  fieldSled(g, 420, 1640);
   return c;
 }
 // домики вдоль верхнего края площади: x, ширина, высота, цвет стены, вывеска
@@ -482,7 +534,6 @@ function bgShop(){
   return c;
 }
 function drawBg(){ BG.battle = bgBattle(); BG.raid = bgRaid(); BG.shop = bgShop(); }
-const DECOR = [[40,520],[1040,500],[30,860],[1050,900],[70,1250],[1010,1290],[300,440],[790,430]];
 // в мастерской вместо ёлочек по углам — горки готовых подарков
 const SHOP_DECOR = [[1030,760],[60,1290],[90,1430]];
 const FIREPLACE = { x:870, y:560 };    // камин в задней стене: центр и верх полки
@@ -1591,11 +1642,9 @@ let fireworksWas = false, leaderSaidAt = -999;
 function draw(c){
   const room = modeNow().id;
   ctx.drawImage(BG[room] || BG.battle, 0, 0);
-  const small = IMG.tree_small;
   if (room === 'shop'){ drawSwag(); drawVerandaLights(); drawHearth(); }
   if (room === 'raid') drawTownLive();
   if (room === 'shop') for (const [x,y] of SHOP_DECOR){ drawGiftIcon(1, x-34, y, 4.2); drawGiftIcon(4, x+34, y, 4.2); drawGiftIcon(6, x, y-50, 4.2); }
-  else if (room === 'battle' && small.complete && small.naturalWidth) for (const [x,y] of DECOR) ctx.drawImage(small, x - small.naturalWidth*1.2, y - small.naturalHeight*2.4, small.naturalWidth*2.4, small.naturalHeight*2.4);
   // всё, что стоит на снегу, — по глубине (y), ёлка тоже
   const ents = [...players.values()].map(p => ({ y:p.y, f:() => drawPlayer(p) }));
   ents.push({ y:TREE.y, f:() => drawTree(c, time) });
