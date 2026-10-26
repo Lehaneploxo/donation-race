@@ -648,6 +648,121 @@ function candyCane(g, x, y){
   g.lineWidth = 12; g.strokeStyle = '#d4202e'; g.setLineDash([8, 9]);
   g.beginPath(); g.moveTo(x, y); g.lineTo(x, y-56); g.arc(x+14, y-56, 14, Math.PI, 0); g.stroke(); g.setLineDash([]);
 }
+// мастерская Санты — «изумрудный зал» (вариант 3 из черновика) поверх избы, механика та же
+const SV = 3;
+function svGlow(g, x, y, rad, rgb, a){ g.save(); g.globalCompositeOperation = 'lighter'; const gl = g.createRadialGradient(x, y, 0, x, y, rad); gl.addColorStop(0, `rgba(${rgb},${a})`); gl.addColorStop(0.45, `rgba(${rgb},${a*0.3})`); gl.addColorStop(1, `rgba(${rgb},0)`); g.fillStyle = gl; g.fillRect(x - rad, y - rad, rad*2, rad*2); g.restore(); }
+function svBulbs(g, pts, step, cols, size){ let acc = 0, n = 0; for (let i=0;i<pts.length-1;i++){ const [x0,y0] = pts[i], [x1,y1] = pts[i+1], L = Math.hypot(x1-x0, y1-y0); for (; acc < L; acc += step, n++){ const x = x0 + (x1-x0)*acc/L, y = y0 + (y1-y0)*acc/L, c = cols[n % cols.length]; svGlow(g, x, y, size*5, c, 0.55); g.fillStyle = `rgb(${c})`; g.beginPath(); g.arc(x, y, size, 0, Math.PI*2); g.fill(); } acc -= L; } }
+const SV_WARM = ['255,214,140','255,236,190','255,190,100'];
+function svWreath(g, x, y, R, bow){
+  for (let i=0;i<46;i++){ const a = i/46*Math.PI*2, rr = R + (i%3 - 1)*R*0.12; g.fillStyle = ['#123a20','#1f5a2e','#2f7a3c'][i%3]; g.beginPath(); g.arc(x + Math.cos(a)*rr, y + Math.sin(a)*rr, R*0.32, 0, Math.PI*2); g.fill(); }
+  for (let i=0;i<12;i++){ const a = i/12*Math.PI*2 + 0.3; g.fillStyle = ['#c0182c','#e8b030','#d8dce8'][i%3]; g.beginPath(); g.arc(x + Math.cos(a)*R, y + Math.sin(a)*R, R*0.12, 0, Math.PI*2); g.fill(); }
+  svBulbs(g, Array.from({length:25}, (_, i) => { const a = i/24*Math.PI*2; return [x + Math.cos(a)*R*1.25, y + Math.sin(a)*R*1.25]; }), R*0.32, SV_WARM, R*0.06 + 1);
+  if (bow){ const by = y + R*0.75, s = R*0.55;
+    g.fillStyle = '#b0141e'; g.beginPath(); g.moveTo(x, by); g.lineTo(x - s, by - s*0.6); g.lineTo(x - s*0.9, by + s*0.5); g.closePath(); g.moveTo(x, by); g.lineTo(x + s, by - s*0.6); g.lineTo(x + s*0.9, by + s*0.5); g.closePath(); g.fill();
+    g.fillStyle = '#d42030'; g.beginPath(); g.moveTo(x, by); g.lineTo(x - s*0.8, by - s*0.45); g.lineTo(x - s*0.7, by + s*0.2); g.closePath(); g.fill();
+    g.fillStyle = '#8a0c18'; g.beginPath(); g.arc(x, by, s*0.2, 0, Math.PI*2); g.fill();
+    g.fillStyle = '#b0141e'; g.beginPath(); g.moveTo(x - 4, by); g.lineTo(x - s*0.6, by + s*1.6); g.lineTo(x - s*0.3, by + s*1.5); g.lineTo(x + 2, by + 4); g.fill(); g.beginPath(); g.moveTo(x + 4, by); g.lineTo(x + s*0.6, by + s*1.7); g.lineTo(x + s*0.3, by + s*1.6); g.lineTo(x - 2, by + 4); g.fill(); }
+}
+function svGift(g, x, y, w, h, c1, c2){ // подарок с золотым бантом, x,y — низ по центру
+  const x0 = x - w/2, y0 = y - h;
+  const gg = g.createLinearGradient(x0, 0, x0 + w, 0); gg.addColorStop(0, c1); gg.addColorStop(1, c2); g.fillStyle = gg; g.fillRect(x0, y0, w, h);
+  g.fillStyle = 'rgba(255,255,255,0.12)'; g.fillRect(x0, y0, w, h*0.18);
+  g.fillStyle = '#e8b830'; g.fillRect(x - w*0.07, y0, w*0.14, h); g.fillRect(x0, y0 + h*0.42, w, h*0.12);
+  g.fillStyle = '#f6d460'; g.beginPath(); g.ellipse(x - w*0.16, y0 - 4, w*0.16, h*0.1, -0.4, 0, Math.PI*2); g.ellipse(x + w*0.16, y0 - 4, w*0.16, h*0.1, 0.4, 0, Math.PI*2); g.fill();
+  g.fillStyle = '#c8961e'; g.beginPath(); g.arc(x, y0 - 2, w*0.06 + 2, 0, Math.PI*2); g.fill();
+}
+function shopUpgrade(g, v, r){
+  const G = GATE, F = FIREPLACE;
+  // ── камин из камня вместо кирпича, большой венок с бантом
+  const SX0 = F.x - 150, SX1 = F.x + 150;
+  g.fillStyle = v === 3 ? '#4a4a52' : '#6a5e52'; g.fillRect(SX0, G.y0, SX1 - SX0, G.y1 - G.y0);
+  for (let y = G.y0, row = 0; y < G.y1; row++){ const h = 20 + r()*12;
+    for (let x = SX0 - r()*30; x < SX1; ){ const w = 30 + r()*34, t = r(); const base = v === 3 ? [110,110,122] : [150,136,118];
+      g.fillStyle = `rgb(${base[0]*(0.75+t*0.35)|0},${base[1]*(0.75+t*0.35)|0},${base[2]*(0.75+t*0.35)|0})`;
+      g.beginPath(); g.roundRect(Math.max(SX0, x + 2), y + 2, Math.min(w - 4, SX1 - Math.max(SX0, x + 2)), h - 4, 6); g.fill();
+      g.fillStyle = 'rgba(255,255,255,0.12)'; g.fillRect(Math.max(SX0, x + 4), y + 3, Math.max(0, Math.min(w - 8, SX1 - x - 6)), 3);
+      x += w; }
+    y += h; }
+  // топка — тёмная арка, как была
+  g.fillStyle = '#1a0d08'; g.beginPath(); g.moveTo(F.x-95, G.y1); g.lineTo(F.x-95, F.y+52); g.quadraticCurveTo(F.x, F.y+22, F.x+95, F.y+52); g.lineTo(F.x+95, G.y1); g.closePath(); g.fill();
+  g.strokeStyle = v === 3 ? '#8a8a96' : '#b8a888'; g.lineWidth = 8; g.beginPath(); g.moveTo(F.x-99, G.y1); g.lineTo(F.x-99, F.y+50); g.quadraticCurveTo(F.x, F.y+18, F.x+99, F.y+50); g.lineTo(F.x+99, G.y1); g.stroke();
+  // массивная деревянная полка
+  const mg = g.createLinearGradient(0, F.y, 0, F.y + 20); mg.addColorStop(0, '#8a5a2e'); mg.addColorStop(1, '#3a2410'); g.fillStyle = mg; g.fillRect(F.x-180, F.y, 360, 20);
+  svWreath(g, F.x, F.y - 52, 34, true);
+  // ── окна во двор: рамы рисуются живыми поверх саней (drawShopWindowFrame), здесь только иней по углам стёкол
+  // ── фонари на цепях с балки
+  for (const lx of (v === 2 ? [330, 700] : [330, 700])) {
+    g.strokeStyle = '#2a1a10'; g.lineWidth = 3; g.beginPath(); g.moveTo(lx, G.y0 - 6); g.lineTo(lx, G.y0 + 40); g.stroke();
+    svGlow(g, lx, G.y0 + 66, 120, '255,200,110', 0.6);
+    g.fillStyle = '#1c140c'; g.beginPath(); g.moveTo(lx - 20, G.y0 + 44); g.lineTo(lx + 20, G.y0 + 44); g.lineTo(lx + 14, G.y0 + 90); g.lineTo(lx - 14, G.y0 + 90); g.closePath(); g.fill();
+    g.fillStyle = '#ffe2a0'; g.fillRect(lx - 11, G.y0 + 50, 22, 34); g.fillStyle = '#ff9a3a'; g.beginPath(); g.ellipse(lx, G.y0 + 72, 4, 8, 0, 0, Math.PI*2); g.fill();
+    g.fillStyle = '#1c140c'; g.beginPath(); g.moveTo(lx - 24, G.y0 + 46); g.lineTo(lx, G.y0 + 30); g.lineTo(lx + 24, G.y0 + 46); g.fill(); g.fillRect(lx - 16, G.y0 + 88, 32, 5);
+  }
+  // ── правая стена: в варианте 3 — тёмно-зелёные панели с золотом
+  if (v === 3){
+    const wx0 = 670;
+    g.fillStyle = '#163a2a'; g.fillRect(wx0, G.y0, SX0 - wx0, G.y1 - G.y0); g.fillRect(SX1, G.y0, CW - SX1, G.y1 - G.y0);
+    for (const [a, b] of [[wx0 + 6, SX0 - 6], [SX1 + 6, CW - 6]]){ g.strokeStyle = '#c8a040'; g.lineWidth = 3; g.strokeRect(a, G.y0 + 20, b - a, G.y1 - G.y0 - 40); }
+  }
+  // ── пол: тёплые блики и узорный ковёр под ёлкой
+  const RX = 400, RY = 190, cx = TREE.x, cy = TREE.y + 10;
+  g.fillStyle = v === 3 ? '#1f4a34' : '#7a1622'; g.beginPath(); g.ellipse(cx, cy, RX, RY, 0, 0, Math.PI*2); g.fill();
+  g.fillStyle = v === 3 ? '#2a6046' : '#a8202c'; g.beginPath(); g.ellipse(cx, cy, RX - 26, RY - 20, 0, 0, Math.PI*2); g.fill();
+  g.strokeStyle = '#d8a840'; g.lineWidth = 4; g.beginPath(); g.ellipse(cx, cy, RX - 14, RY - 10, 0, 0, Math.PI*2); g.stroke();
+  for (let i=0;i<40;i++){ const a = i/40*Math.PI*2, x = cx + Math.cos(a)*(RX - 13), y = cy + Math.sin(a)*(RY - 10); g.fillStyle = i%2 ? '#e8c060' : (v === 3 ? '#c0182c' : '#1f5a2e'); g.beginPath(); g.moveTo(x, y - 6); g.lineTo(x + 6, y); g.lineTo(x, y + 6); g.lineTo(x - 6, y); g.closePath(); g.fill(); }
+  for (let i=0;i<8;i++){ const a = i/8*Math.PI*2, x = cx + Math.cos(a)*(RX - 70), y = cy + Math.sin(a)*(RY - 40); g.fillStyle = 'rgba(232,192,96,0.55)'; for (let k=0;k<6;k++){ const b = k/6*Math.PI*2; g.beginPath(); g.ellipse(x + Math.cos(b)*9, y + Math.sin(b)*5, 6, 3, b, 0, Math.PI*2); g.fill(); } }
+  // рельсы игрушечной дороги — заново поверх ковра
+  g.strokeStyle = '#6b3d1e'; g.lineWidth = 5;
+  for (let i=0;i<72;i++){ const a = i/72*Math.PI*2, c1 = Math.cos(a), s1 = Math.sin(a); g.beginPath(); g.moveTo(cx + c1*(TRACK.rx-14), cy + s1*(TRACK.ry-12)); g.lineTo(cx + c1*(TRACK.rx+14), cy + s1*(TRACK.ry+12)); g.stroke(); }
+  g.strokeStyle = '#c9ced8'; g.lineWidth = 3; for (const d of [-9, 9]){ g.beginPath(); g.ellipse(cx, cy, TRACK.rx + d, TRACK.ry + d*0.85, 0, 0, Math.PI*2); g.stroke(); }
+  // ── стол Санты вместо кресла: лампа, свиток-список, снежный шар, книги, печенье
+  const dx = 20, dy = 1560, dw = 300;
+  g.fillStyle = '#2a1608'; g.fillRect(dx - 6, dy - 70, dw + 16, 260);   // закрываем старое кресло тенью-фоном
+  const tg = g.createLinearGradient(0, dy - 60, 0, dy); tg.addColorStop(0, '#9a6232'); tg.addColorStop(1, '#6a3e1c'); g.fillStyle = tg; g.fillRect(dx, dy - 60, dw, 60);
+  g.fillStyle = '#4a2a12'; g.fillRect(dx, dy, dw, 160); g.fillStyle = '#5a3418'; for (const k of [0, 1]){ g.fillRect(dx + 14 + k*150, dy + 18, 120, 60); g.fillRect(dx + 14 + k*150, dy + 88, 120, 60); g.fillStyle = '#c8a040'; g.fillRect(dx + 64 + k*150, dy + 44, 20, 5); g.fillRect(dx + 64 + k*150, dy + 114, 20, 5); g.fillStyle = '#5a3418'; }
+  g.fillStyle = '#b07a44'; g.fillRect(dx - 8, dy - 66, dw + 16, 10);
+  // свиток свисает со стола
+  g.fillStyle = '#f2e6c8'; g.fillRect(dx + 120, dy - 58, 110, 50); g.beginPath(); g.moveTo(dx + 140, dy - 8); g.lineTo(dx + 200, dy - 8); g.lineTo(dx + 196, dy + 120); g.quadraticCurveTo(dx + 170, dy + 134, dx + 144, dy + 120); g.closePath(); g.fill();
+  g.fillStyle = '#d8c8a0'; g.beginPath(); g.ellipse(dx + 170, dy + 122, 28, 8, 0, 0, Math.PI*2); g.fill();
+  g.fillStyle = 'rgba(80,50,30,0.6)'; for (let i=0;i<10;i++) g.fillRect(dx + 150, dy + 4 + i*11, 26 + (i*13)%18, 2);
+  // настольная лампа
+  svGlow(g, dx + 52, dy - 120, 170, '255,200,110', 0.7);
+  g.fillStyle = '#3a2a1a'; g.fillRect(dx + 46, dy - 110, 10, 52); g.fillRect(dx + 30, dy - 64, 42, 6);
+  g.fillStyle = '#1f5a2e'; g.beginPath(); g.moveTo(dx + 22, dy - 108); g.lineTo(dx + 82, dy - 108); g.lineTo(dx + 70, dy - 140); g.lineTo(dx + 34, dy - 140); g.closePath(); g.fill();
+  g.fillStyle = '#ffe9a8'; g.fillRect(dx + 28, dy - 110, 48, 4);
+  // стопка книг, снежный шар, перо
+  for (let i=0;i<3;i++){ g.fillStyle = ['#7a1622','#1f5a2e','#2a4a7a'][i]; g.fillRect(dx + 236 - i*3, dy - 66 - (i+1)*14, 58 + i*4, 14); g.fillStyle = '#e8c060'; g.fillRect(dx + 240 - i*3, dy - 62 - (i+1)*14, 3, 6); }
+  g.fillStyle = '#3a2410'; g.fillRect(dx + 96, dy - 70, 30, 8);
+  const sg = g.createRadialGradient(dx + 106, dy - 96, 2, dx + 111, dy - 90, 22); sg.addColorStop(0, 'rgba(255,255,255,0.95)'); sg.addColorStop(1, 'rgba(170,200,240,0.55)'); g.fillStyle = sg; g.beginPath(); g.arc(dx + 111, dy - 90, 22, 0, Math.PI*2); g.fill();
+  g.fillStyle = '#1f5a2e'; g.beginPath(); g.moveTo(dx + 111, dy - 104); g.lineTo(dx + 103, dy - 80); g.lineTo(dx + 119, dy - 80); g.fill();
+  // ── гора подарков с золотыми бантами на переднем плане
+  const GIFTS = [[420,1790,110,90,'#c0182c','#7a0c18'],[530,1795,96,120,'#1f6a3a','#0f3a20'],[640,1790,120,80,'#c0182c','#8a1020'],[480,1712,80,70,'#2a4a8a','#16285a'],[590,1700,90,80,'#e8e0d0','#b8b0a0'],[540,1630,70,60,'#c0182c','#7a0c18'],[740,1795,90,100,'#2a6a4a','#123a26']];
+  for (const [x, y, w, h, c1, c2] of GIFTS) svGift(g, x, y, w, h, c1, c2);
+  svGlow(g, 560, 1700, 260, '255,200,120', 0.25);
+  // ── вариант 2: полки с игрушками по бокам
+  if (v === 2) for (const sx of [0, CW - 70]){
+    g.fillStyle = '#4a2a12'; g.fillRect(sx, 720, 70, 760); g.fillStyle = '#6a3e1c'; g.fillRect(sx + (sx ? 0 : 60), 720, 10, 760);
+    for (let k=0;k<6;k++){ const sy = 820 + k*120; g.fillStyle = '#8a5a2e'; g.fillRect(sx, sy, 70, 10);
+      const t = (k + sx) % 4, tx = sx + 35;
+      if (t === 0){ g.fillStyle = '#9a6a3a'; g.beginPath(); g.arc(tx, sy - 22, 16, 0, Math.PI*2); g.arc(tx, sy - 46, 12, 0, Math.PI*2); g.fill(); g.beginPath(); g.arc(tx - 10, sy - 56, 5, 0, Math.PI*2); g.arc(tx + 10, sy - 56, 5, 0, Math.PI*2); g.fill(); g.fillStyle = '#c0182c'; g.fillRect(tx - 10, sy - 36, 20, 4); }
+      else if (t === 1){ g.fillStyle = '#c0182c'; g.fillRect(tx - 10, sy - 60, 20, 34); g.fillStyle = '#1a1a2a'; g.fillRect(tx - 9, sy - 76, 18, 16); g.fillStyle = '#e8c8a0'; g.fillRect(tx - 8, sy - 62, 16, 8); g.fillStyle = '#2a4a8a'; g.fillRect(tx - 10, sy - 26, 20, 26); g.fillStyle = '#e8c060'; g.fillRect(tx - 10, sy - 44, 20, 3); }
+      else if (t === 2){ g.fillStyle = '#c0182c'; g.fillRect(tx - 26, sy - 26, 30, 18); g.fillStyle = '#1f5a2e'; g.fillRect(tx + 6, sy - 20, 20, 12); g.fillStyle = '#222'; for (const wx of [-20, -6, 10, 20]){ g.beginPath(); g.arc(tx + wx, sy - 6, 5, 0, Math.PI*2); g.fill(); } g.fillStyle = '#e8c060'; g.fillRect(tx - 22, sy - 38, 8, 12); }
+      else { svGift(g, tx - 12, sy, 22, 24, '#2a4a8a', '#16285a'); svGift(g, tx + 14, sy, 20, 30, '#c0182c', '#7a0c18'); }
+    }
+    svBulbs(g, Array.from({length:30}, (_, i) => [sx + 35 + Math.sin(i)*28, 730 + i*25]), 30, SV_WARM, 3);
+  }
+}
+// живые рамы окон поверх саней: средник, перекладины, иней по углам; в варианте 3 — свечи на подоконнике
+function drawShopWindowFrame(){
+  if (!SV) return;
+  const G = GATE, wood = '#3a2410', lt = '#6b3d1e';
+  for (const [x, w] of [[322, 18], [160, 8], [490, 8]]){ ctx.fillStyle = wood; ctx.fillRect(x, G.y0, w, G.y1 - G.y0 - 6); ctx.fillStyle = lt; ctx.fillRect(x + 2, G.y0, 3, G.y1 - G.y0 - 6); }
+  ctx.fillStyle = wood; ctx.fillRect(0, G.y0 + 70, 660, 8); ctx.fillStyle = lt; ctx.fillRect(0, G.y0 + 70, 660, 2);
+  for (const [x0, x1] of [[22, 160], [168, 322], [340, 490], [498, 648]]) for (const [y0, y1] of [[G.y0, G.y0 + 70], [G.y0 + 78, G.y1 - 6]]){
+    for (const [cx, cy] of [[x0, y1], [x1, y1]]){ const fg = ctx.createRadialGradient(cx, cy, 0, cx, cy, 46); fg.addColorStop(0, 'rgba(235,245,255,0.7)'); fg.addColorStop(1, 'rgba(235,245,255,0)'); ctx.fillStyle = fg; ctx.fillRect(Math.max(x0, cx - 46), cy - 46, 46, 46); }
+  }
+  if (SV === 3) for (const x of [90, 250, 420, 580]){ const y = G.y1 - 6; ctx.fillStyle = '#f2ead8'; ctx.fillRect(x - 5, y - 30, 10, 30); const fy = y - 38 + Math.sin(time*9 + x)*1.5; ctx.save(); ctx.globalCompositeOperation = 'lighter'; const cg = ctx.createRadialGradient(x, fy, 0, x, fy, 34); cg.addColorStop(0, 'rgba(255,200,90,0.55)'); cg.addColorStop(1, 'rgba(255,200,90,0)'); ctx.fillStyle = cg; ctx.fillRect(x - 34, fy - 34, 68, 68); ctx.restore(); ctx.fillStyle = '#ffcf4a'; ctx.beginPath(); ctx.ellipse(x, fy, 4, 8, 0, 0, Math.PI*2); ctx.fill(); }
+}
 function bgShop(){
   const [c, g] = bgCanvas(), r = seeded(53), G = GATE;
   for (let y=0, i=0; y<G.y0; y+=44, i++){ g.fillStyle = i%2 ? '#6b3d1e' : '#5b3218'; g.fillRect(0, y, CW, 44); }
@@ -760,6 +875,7 @@ function bgShop(){
   g.fillStyle = '#6b4220'; for (let i=0;i<5;i++) g.fillRect(950 + i*14, 1676, 3, 18);
   g.fillStyle = '#c0182c'; g.fillRect(944, 1690, 72, 9); g.fillRect(1012, 1694, 8, 26); g.fillRect(1020, 1694, 8, 20);
   g.restore();
+  if (SV) shopUpgrade(g, SV, r);
   const vg = g.createRadialGradient(TREE.x, TREE.y + 50, 300, TREE.x, TREE.y + 50, 900); vg.addColorStop(0,'rgba(40,15,5,0)'); vg.addColorStop(1,'rgba(40,15,5,0.45)');
   g.fillStyle = vg; g.fillRect(0, G.y1 + 12, CW, CH - G.y1 - 12);
   return c;
@@ -1421,6 +1537,7 @@ function drawSleigh(){
     ctx.save(); ctx.translate(sx, sy); ctx.scale(-k, k); drawTeam(0, 0, true, true, false); ctx.restore();
   }
   ctx.restore();
+  drawShopWindowFrame();
   if (!shop.fly && !shop.arrive){ ctx.textAlign = 'center'; strokeText(`САНИ №${shop.n}`, x0 + 300, 506, 'bold 26px Arial', '#c0182c', 6); }
 }
 // упряжка: сани (с Сантой или с горкой подарков) и 6 оленей парами, Рудольф впереди; fx — снег и искры из-под копыт
