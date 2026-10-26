@@ -205,7 +205,7 @@ const IMG = {};
 function loadImg(key, src){ const im = new Image(); im.src = src; IMG[key] = im; return im; }
 const SP = 'sprites/newyear/';
 for (let c=0;c<8;c++) for (let b=0;b<2;b++) loadImg(`elf_${c}_${b}`, `${SP}elf_${c}_${b}.png`);
-['santa_red','santa_gold','santa_blue','tree_bare','tree_full','hmurych','holiday16'].forEach(k => loadImg(k, SP + k + '.png'));
+['santa_red','santa_gold','santa_blue','tree_bare','tree_full','grinchich','holiday16'].forEach(k => loadImg(k, SP + k + '.png'));
 const HOST_META = { idle:{n:16,w:162,h:256}, run:{n:11,w:211,h:266}, jump:{n:16,w:230,h:270}, dead:{n:17,w:313,h:275}, slide:{n:11,w:263,h:205} };
 for (const a in HOST_META) loadImg('host_'+a, `${SP}host_${a}.webp`);
 let TREE_ORN = [];
@@ -984,7 +984,7 @@ function updatePlayer(p, dt){
       else p.volley = 0;
     }
   } else if (q && q === boss){
-    // встаём кольцом вокруг Хмурыча, у каждого своё место на кольце
+    // встаём кольцом вокруг Гринчича, у каждого своё место на кольце
     const a = (hashStr(p.key) % 360) * Math.PI/180 + time*0.05;
     const gx = clamp(boss.x + Math.cos(a)*420, FIELD.x0, FIELD.x1), gy = clamp(boss.y + Math.sin(a)*280, FIELD.y0, FIELD.y1);
     const dx = gx - p.x, dy = gy - p.y, d = Math.hypot(dx, dy) || 1;
@@ -1046,7 +1046,7 @@ function updatePlayer(p, dt){
 
 // ───────────────────────── Раунды и режимы ─────────────────────────
 // Режимы идут по кругу по 20 минут, привязка к киевским часам (перезагрузка страницы не сбивает).
-const MODES = [ { id:'battle', title:'СНЕЖНАЯ БИТВА', short:'битва', icon:'❄️' }, { id:'raid', title:'РЕЙД НА ХМУРЫЧА', short:'рейд', icon:'😈' },
+const MODES = [ { id:'battle', title:'СНЕЖНАЯ БИТВА', short:'битва', icon:'❄️' }, { id:'raid', title:'РЕЙД НА ГРИНЧИЧА', short:'рейд', icon:'😈' },
                 { id:'shop', title:'МАСТЕРСКАЯ САНТЫ', short:'мастерская', icon:'🎁' } ];
 let modeOffset = 0;   // тест: ?mode=raid или кнопка на пульте
 const MODE_MIN = 20;
@@ -1070,11 +1070,11 @@ function setupMode(m){
   else if (boss && boss.state !== 'down'){ boss.state = 'escape'; boss.goal = { x:boss.x, y:FIELD.y0 - 260 }; }
 }
 
-// ───────────────────────── Рейд на Хмурыча ─────────────────────────
-// Хмурыч тащит подарки из-под ёлки в мешок, все эльфы бьют его снежками. Отбили — подарки
+// ───────────────────────── Рейд на Гринчича ─────────────────────────
+// Гринчич тащит подарки из саней Санты в мешок, все эльфы бьют его снежками. Отбили — подарки
 // возвращаются, следующая волна сильнее. Утащил все — убегает, через 15 с приходит снова.
-// ⭐ за урон по Хмурычу идут в тот же топ дня.
-const GIFTS_MAX = 12, BS = 6.5;    // BS — масштаб Хмурыча (кадр 64 → 416, вдвое выше эльфа)
+// ⭐ за урон по Гринчичу идут в тот же топ дня.
+const GIFTS_MAX = 12, BS = 6.5;    // BS — масштаб Гринчича (кадр 64 → 416, вдвое выше эльфа)
 const GIFT_SPOTS = Array.from({length:GIFTS_MAX}, (_, i) => {
   const a = Math.PI*(0.08 + 0.84*i/(GIFTS_MAX-1)), row = i % 2;
   return { x: TREE.x - Math.cos(a)*(150 - row*40), y: TREE.y + 18 + Math.sin(a)*(34 + row*10), c: ['#d4303f','#2f7fd8','#2fa34f','#e0a325','#9b4fd4','#e0633a'][i%6], w: 40 + (i*7)%18 };
@@ -1085,10 +1085,10 @@ function spawnBoss(){
   const n = Math.max(3, players.size);
   const hpMax = Math.round((500 + 150*n) * (1 + 0.5*(raid.wave-1)));
   raid.gifts = GIFTS_MAX;
-  boss = { key:'__boss', name:'Хмурыч', isBot:true, x:rnd(440, 640), y:stBottom(ST.farX) + 10, dir:2, walkT:0, moving:false,
+  boss = { key:'__boss', name:'Гринчич', isBot:true, x:rnd(440, 640), y:stBottom(ST.farX) + 10, dir:2, walkT:0, moving:false,
     state:'enter', goal:(([x, y]) => ({ x, y }))(walkPt(rnd(300,780), FIELD.y0 + 120)), hp:hpMax, hpMax, power:15 + 10*(raid.wave-1),
     throwT:3, stealT:8, chargeT:7, prey:null, chargeLeft:0, hitT:0, angry:false, sack:0, t:0, throwAnim:0, dmgBy:{} };
-  hostSay(raid.wave === 1 ? 'Хмурыч пришёл за подарками! Бейте его снежками!' : `Хмурыч вернулся! Волна ${raid.wave} — он ещё злее!`, 'jump', 4, 'raid');
+  hostSay(raid.wave === 1 ? 'Гринчич пришёл за подарками! Бейте его снежками!' : `Гринчич вернулся! Волна ${raid.wave} — он ещё злее!`, 'jump', 4, 'raid');
   sfxFanfare();
 }
 function bossGoalAroundTree(){ const a = rnd(0, Math.PI*2); const [x, y] = walkPt(clamp(TREE.x + Math.cos(a)*rnd(280,380), FIELD.x0+120, FIELD.x1-120), clamp(TREE.y + Math.sin(a)*rnd(170,300), FIELD.y0+180, FIELD.y1-40)); return { x, y }; }
@@ -1114,7 +1114,7 @@ function bossHit(b){
     boss.dmgBy[p.key] = (boss.dmgBy[p.key]||0) + dmg;
   }
   if (dmg >= 25) floaters.push({ x:boss.x + rnd(-60,60), y:boss.y - 56*BS, t:0, text:'-' + fmtNum(dmg), color:'#c0182c' });
-  if (!boss.angry && boss.hp < boss.hpMax/2){ boss.angry = true; hostSay('Хмурыч разозлился! Кидается углём во всех!', 'idle', 3.5, 'raid'); }
+  if (!boss.angry && boss.hp < boss.hpMax/2){ boss.angry = true; hostSay('Гринчич разозлился! Кидается углём во всех!', 'idle', 3.5, 'raid'); }
   if (boss.hp <= 0){
     boss.state = 'down'; boss.t = 0;
     const best = Object.entries(boss.dmgBy).sort((a,b) => b[1]-a[1])[0];
@@ -1122,11 +1122,11 @@ function bossHit(b){
     raid.gifts = GIFTS_MAX;
     puff(boss.x, boss.y - 100, 60, '#fff6c8');
     for (let i=0;i<4;i++) rockets.push({ x:rnd(150, CW-150), y:CH*0.75, vy:-rnd(900,1200), ty:rnd(450, 800), color:pick(['#ff4d6d','#ffd75e','#7fd3ff','#5dff8a']) });
-    hostSay(best ? `Ура! Хмурыч повержен! Больше всех снежков — ${short(bp ? bp.name : best[0], 16)}!` : 'Ура! Хмурыч повержен, подарки спасены!', 'jump', 5, 'raid');
+    hostSay(best ? `Ура! Гринчич повержен! Больше всех снежков — ${short(bp ? bp.name : best[0], 16)}!` : 'Ура! Гринчич повержен, подарки спасены!', 'jump', 5, 'raid');
     sfxGift(100);
   }
 }
-// Хмурыч врезается в эльфа: −100 ❤️ (новичку — заморозка), соседей отбрасывает и −30 ❤️
+// Гринчич врезается в эльфа: −100 ❤️ (новичку — заморозка), соседей отбрасывает и −30 ❤️
 function bossSmash(q){
   const b = boss;
   hurt(q, 100); q.hitT = 0.4;
@@ -1140,7 +1140,7 @@ function bossSmash(q){
   puff(q.x, q.y - 40, 36, '#e6f4ff'); puff(b.x, b.y - 20, 16, '#2a2433');
   floaters.push({ x:q.x, y:q.y - 170, t:0, text:'БАМ! −100', color:'#2f8a3c' });
   b.throwAnim = 0.55; sfxHit(40);
-  if (knocked) hostSay(pick([`Хмурыч снёс ${short(q.name, 14)}!`, `Ой-ой! ${short(q.name, 14)} теперь снеговик!`, `Бегите от Хмурыча! Он снёс ${short(q.name, 14)}!`]), 'idle', 3, 'charge');
+  if (knocked) hostSay(pick([`Гринчич снёс ${short(q.name, 14)}!`, `Ой-ой! ${short(q.name, 14)} теперь снеговик!`, `Бегите от Гринчича! Он снёс ${short(q.name, 14)}!`]), 'idle', 3, 'charge');
   b.state = 'fight'; b.goal = bossGoalAroundTree(); b.chargeT = b.angry ? rnd(5, 8) : rnd(8, 12);
 }
 function moveBoss(dt, speed){
@@ -1169,11 +1169,11 @@ function updateRaid(dt){
     if (b.throwAnim > 0) b.moving = false;
     else if (b.state === 'fight'){
       if (moveBoss(dt, 110)) b.goal = bossGoalAroundTree();
-      // время от времени Хмурыч срывается и бежит сносить ближайшего эльфа
+      // время от времени Гринчич срывается и бежит сносить ближайшего эльфа
       b.chargeT -= dt;
       if (b.chargeT <= 0){
         const prey = [...players.values()].filter(q => q.state !== 'frozen').sort((a, c) => Math.hypot(a.x-b.x, a.y-b.y) - Math.hypot(c.x-b.x, c.y-b.y))[0];
-        if (prey){ b.state = 'charge'; b.prey = prey; b.chargeLeft = 4.5; hostSay(`Осторожно, ${short(prey.name, 14)}! Хмурыч бежит на тебя!`, 'jump', 3, 'charge'); }
+        if (prey){ b.state = 'charge'; b.prey = prey; b.chargeLeft = 4.5; hostSay(`Осторожно, ${short(prey.name, 14)}! Гринчич бежит на тебя!`, 'jump', 3, 'charge'); }
         else b.chargeT = 4;
       }
       b.stealT -= dt;
@@ -1181,9 +1181,9 @@ function updateRaid(dt){
     } else if (moveBoss(dt, 150)){
       raid.gifts--; b.sack++;
       const g = GIFT_SPOTS[raid.gifts]; puff(g.x, g.y, 14, g.c); sfxThrow(); sfxBells();
-      if (raid.gifts <= 0){ b.state = 'escape'; b.goal = { x:b.x, y:FIELD.y0 - 260 }; hostSay('Хмурыч утащил все подарки и убегает!', 'dead', 4, 'raid'); }
+      if (raid.gifts <= 0){ b.state = 'escape'; b.goal = { x:b.x, y:FIELD.y0 - 260 }; hostSay('Гринчич утащил все подарки и убегает!', 'dead', 4, 'raid'); }
       else { b.state = 'fight'; b.goal = bossGoalAroundTree(); b.stealT = clamp(15 - raid.wave, 9, 15);
-        if (raid.gifts % 3 === 0) hostSay(`Хмурыч стащил подарок! Осталось ${raid.gifts}!`, 'idle', 3, 'raid'); }
+        if (raid.gifts % 3 === 0) hostSay(`Гринчич стащил подарок! Осталось ${raid.gifts}!`, 'idle', 3, 'raid'); }
     }
   }
   else if (b.state === 'charge'){
@@ -1213,7 +1213,7 @@ function drawSack(x, y, k){
   if (k > 0){ ctx.fillStyle = '#d4303f'; ctx.fillRect(x-22, y-r-34, 22, 22); ctx.fillStyle = '#2f7fd8'; ctx.fillRect(x+2, y-r-28, 18, 18); }
 }
 function drawBoss(){
-  const b = boss, im = IMG.hmurych;
+  const b = boss, im = IMG.grinchich;
   if (!im || !im.complete || !im.naturalWidth) return;
   ctx.fillStyle = 'rgba(60,90,130,0.3)'; ctx.beginPath(); ctx.ellipse(b.x, b.y, 22*BS, 6*BS, 0, 0, Math.PI*2); ctx.fill();
   let row, col;
@@ -1228,7 +1228,7 @@ function drawBoss(){
   if (b.hitT > 0){ ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.6; ctx.drawImage(im, col*64, row*64, 64, 64, dx, dy, 64*BS, 64*BS); ctx.restore(); }
   if (b.state !== 'down' && b.dir === 0) drawSack(sx, sy, sackK);
   ctx.textAlign = 'center';
-  strokeText(b.angry ? 'ХМУРЫЧ 😡' : 'ХМУРЫЧ', b.x, b.y - 53*BS, 'bold 38px Arial', '#2f8a3c', 7);
+  strokeText(b.angry ? 'ГРИНЧИЧ 😡' : 'ГРИНЧИЧ', b.x, b.y - 53*BS, 'bold 38px Arial', '#2f8a3c', 7);
 }
 function drawGiftPile(){
   const n = modeNow().id === 'raid' ? raid.gifts : GIFTS_MAX;
@@ -1240,7 +1240,7 @@ function drawGiftPile(){
     ctx.fillStyle = '#ffe27a'; ctx.fillRect(g.x - 4, g.y - h, 8, h); ctx.fillRect(g.x - w/2, g.y - h*0.55, w, 7);
   }
 }
-// на улице подарки лежат горкой в санях Санты — Хмурыч ворует прямо из них
+// на улице подарки лежат горкой в санях Санты — Гринчич ворует прямо из них
 function drawRaidSleigh(n){
   const ks = 11, kr = 9, f = kr/5, x0 = Math.round(TREE.x - 170), y = TREE.y + 30;
   ctx.fillStyle = 'rgba(20,20,50,0.35)'; ctx.beginPath(); ctx.ellipse(x0 + 330, y + 4, 360, 22, 0, 0, Math.PI*2); ctx.fill();
@@ -1305,10 +1305,10 @@ function drawRaidBar(){
     const f = clamp(boss.hp / boss.hpMax, 0, 1);
     ctx.fillStyle = '#3a1520'; ctx.fillRect(x, y, w, h);
     ctx.fillStyle = boss.angry ? '#ff3b4f' : '#3fbf5f'; ctx.fillRect(x, y, w*f, h);
-    ctx.textAlign = 'center'; strokeText(`ХМУРЫЧ · волна ${raid.wave} · ${fmtNum(Math.max(0,boss.hp))}`, CW/2, y+34, 'bold 28px Arial', '#ffffff', 5, '#14203f');
+    ctx.textAlign = 'center'; strokeText(`ГРИНЧИЧ · волна ${raid.wave} · ${fmtNum(Math.max(0,boss.hp))}`, CW/2, y+34, 'bold 28px Arial', '#ffffff', 5, '#14203f');
   } else {
     ctx.textAlign = 'center'; ctx.fillStyle = '#ffe27a'; ctx.font = 'bold 28px Arial';
-    ctx.fillText(`Хмурыч придёт через ${Math.max(1, Math.ceil(raid.pause))} с…`, CW/2, y+34);
+    ctx.fillText(`Гринчич придёт через ${Math.max(1, Math.ceil(raid.pause))} с…`, CW/2, y+34);
   }
   ctx.textAlign = 'right'; ctx.font = 'bold 26px Arial'; ctx.fillStyle = '#ffffff'; ctx.fillText(`🎁 ${raid.gifts}/${GIFTS_MAX}`, x + w, y + h + 40);
 }
@@ -1599,9 +1599,9 @@ const HOST_LINES = [
   'Хо-хо-хо! Напиши любое слово в чат — и твой эльф появится на поле!', 'Ставьте лайки — у вашего эльфа больше энергии!', 'Пять минут молчишь — эльф засыпает! Не спите!',
   'Кто заморозит больше всех — тот попадёт в топ дня!', 'Хо-хо-хо! Не стесняйтесь, заходите в игру, места хватит всем!',
 ];
-const HOST_LINES_RAID = ['Бейте Хмурыча снежками!', 'Не дайте Хмурычу утащить подарки!', 'Лайки — плюс энергия!', 'Монетка — снежок сильнее!',
-  'Хо-хо-хо! Хмурыч хочет оставить город без праздника — не позволим!', 'Напишите в чат — и ваш эльф встанет на защиту ёлки!',
-  'Чем больше лайков — тем быстрее прогоним Хмурыча!'];
+const HOST_LINES_RAID = ['Бейте Гринчича снежками!', 'Не дайте Гринчичу утащить подарки!', 'Лайки — плюс энергия!', 'Монетка — снежок сильнее!',
+  'Хо-хо-хо! Гринчич хочет оставить город без праздника — не позволим!', 'Напишите в чат — и ваш эльф встанет на защиту подарков!',
+  'Чем больше лайков — тем быстрее прогоним Гринчича!'];
 const HOST_LINES_SHOP = ['Эльфы, за работу! Сани ждут!', 'Лайк — и подарок готов быстрее!', 'Монетка — и подарок готов сразу!', 'Наполним сани — и Санта полетит!',
   'Хо-хо-хо! Напишите в чат — и ваш эльф начнёт мастерить подарки!', 'Каждый подарок в санях — это звёзды в топ дня!',
   'Лучший мастер саней попадёт в мой список!'];
@@ -1817,7 +1817,7 @@ function drawBall(b){
 let dayTop = [], dayLeader = null, yesterdayChampion = null;
 const RULES_BY_MODE = {
   battle: [ ['💬','Сообщение =','+1❤️ и ты в игре'], ['👍','1 лайк =','+1❤️'], ['coin','1 монета =','+10❤️ +1💪'], ['🎅','Топ-1 дня =','Золотой Санта'] ],
-  raid:   [ ['💬','Сообщение =','+1❤️ и ты в игре'], ['👍','1 лайк =','+1❤️'], ['coin','1 монета =','+10❤️ +1💪'], ['🎁','Спаси подарки','от Хмурыча!'] ],
+  raid:   [ ['💬','Сообщение =','+1❤️ и ты в игре'], ['👍','1 лайк =','+1❤️'], ['coin','1 монета =','+10❤️ +1💪'], ['🎁','Спаси подарки','от Гринчича!'] ],
   shop:   [ ['💬','Сообщение =','+1❤️ и ты в игре'], ['👍','1 лайк =','+1❤️ работа быстрее'], ['coin','1 монета =','подарок +1💪'], ['🎄','Полные сани —','салют!'] ],
 };
 function drawCoin(x, y, r){
@@ -2207,7 +2207,7 @@ if (DEMO){
       ['🔁 Режим', press('bMode')], ['⏭ Раунд', press('bRound')], ['💬 Фраза', press('bSay')],
       ['👤 +Зритель', press('bAdd')], ['👥 +5', press('bAdd5')], ['❤️ Лайки', press('bLike')],
       ['🪙 1 монета', gift(1)], ['🎁 10', gift(10)], ['🎁 99', gift(99)],
-      ['💎 1000', gift(1000)], ['😈 Хмурыч бежит', () => { if (boss && boss.state === 'fight') boss.chargeT = 0; }],
+      ['💎 1000', gift(1000)], ['😈 Гринчич бежит', () => { if (boss && boss.state === 'fight') boss.chargeT = 0; }],
       ['💤 Усыпить', () => { const ps = realPlayers().filter(q => !q.asleep); if (ps.length) pick(ps).lastActive = performance.now() - SLEEP_MS - 1000; }],
       ['🛷 Сани полные', () => { if (modeNow().id === 'shop' && !shop.fly && !shop.arrive){ shop.gifts = shop.goal; sleighFly(); } }],
     ]){ const b = document.createElement('button'); b.textContent = label; b.onclick = (e) => { e.stopPropagation(); fn(); }; grid.appendChild(b); }
