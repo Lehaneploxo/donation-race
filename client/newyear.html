@@ -23,6 +23,12 @@ button:hover{background:#43528a}
 #statusBadge.error{color:#ff4d4d}
 /* боевой режим (?username=): тест-пульт скрыт, игра на весь экран */
 body.live #panel{display:none}
+#testBar{position:fixed;left:8px;bottom:8px;z-index:99999;font-family:Arial,sans-serif}
+#testBar .tgl{font-size:14px;padding:8px 12px;border-radius:10px;background:rgba(192,24,44,.9);color:#fff;border:2px solid #ffd75e;font-weight:bold}
+#testBar .grid{display:none;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:6px;padding:8px;background:rgba(14,26,52,.92);border:1px solid #ffd75e;border-radius:12px;width:min(330px,calc(100vw - 32px))}
+#testBar.open .grid{display:grid}
+#testBar .grid button{font-size:13px;padding:9px 4px;border-radius:8px;background:#26345e;color:#fff;border:1px solid #3d4f86}
+#testBar .grid button:active{background:#c0182c}
 body.live #stage{right:0}
 .ui-btn{position:fixed;z-index:99999;width:34px;height:34px;font-size:16px;padding:0;margin:0;background:rgba(0,0,0,0.55);color:rgba(255,255,255,0.8);border:1px solid rgba(255,255,255,0.25);border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center}
 #backBtn{top:calc(50% - 90px);right:10px} #voiceBtn{top:calc(50% - 45px);right:10px} #musicBtn{top:calc(50%);right:10px} #fsBtn{top:calc(50% + 45px);right:10px}
@@ -1798,6 +1804,23 @@ if (DEMO){
   document.querySelectorAll('[data-d]').forEach(b => b.onclick = () => setTestDate(b.dataset.d));
   document.getElementById('bRound').onclick = () => endRound();
   document.getElementById('bMode').onclick = () => { modeOffset++; endRound(); };
+  // авторежим со списка игр: свой компактный пульт, чтобы тестировать с телефона
+  if (AUTO){
+    const bar = document.createElement('div'); bar.id = 'testBar';
+    const grid = document.createElement('div'); grid.className = 'grid';
+    const tgl = document.createElement('button'); tgl.className = 'tgl'; tgl.textContent = '🧪 ТЕСТ';
+    tgl.onclick = (e) => { e.stopPropagation(); bar.classList.toggle('open'); };
+    const press = id => () => document.getElementById(id).click();
+    const gift = n => () => onGift(randomReal(), n);
+    for (const [label, fn] of [
+      ['🔁 Режим', press('bMode')], ['⏭ Раунд', press('bRound')], ['💬 Фраза', press('bSay')],
+      ['👤 +Зритель', press('bAdd')], ['👥 +5', press('bAdd5')], ['❤️ Лайки', press('bLike')],
+      ['🪙 1 монета', gift(1)], ['🎁 10', gift(10)], ['🎁 99', gift(99)],
+      ['💎 1000', gift(1000)], ['😈 Хмурыч бежит', () => { if (boss && boss.state === 'fight') boss.chargeT = 0; }],
+      ['🛷 Сани полные', () => { if (modeNow().id === 'shop' && !shop.fly && !shop.arrive){ shop.gifts = shop.goal; sleighFly(); } }],
+    ]){ const b = document.createElement('button'); b.textContent = label; b.onclick = (e) => { e.stopPropagation(); fn(); }; grid.appendChild(b); }
+    bar.appendChild(grid); bar.appendChild(tgl); document.body.appendChild(bar);
+  }
   document.getElementById('bSay').onclick = () => { host.lineT = 0; };
   document.getElementById('bMusic').onclick = (e) => { audioInit(); setMusic(!SND.musicOn); e.target.textContent = '🎵 Музыка: ' + (SND.musicOn ? 'вкл' : 'выкл'); };
   document.getElementById('bSfx').onclick = (e) => { audioInit(); setSfx(!SND.sfxOn); e.target.textContent = '💥 Эффекты: ' + (SND.sfxOn ? 'вкл' : 'выкл'); };
