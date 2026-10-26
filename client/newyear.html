@@ -77,7 +77,10 @@ body:not(.live) .ui-btn{right:310px}
 // ════════════════════════════════════════════════════════════════════════════
 //  НОВОГОДНИЙ ПЕРЕПОЛОХ (25.10.2026) — сезонная игра ноябрь–январь.
 //  Режим «Снежная битва»: зрители — эльфы, кидаются снежками вокруг ёлки.
-//  Тепло = энергия (лайк +10, монета +100), Сила снежка (лайк +1, монета +10).
+//  ❤️ Энергия (старт 100; лайк +1, сообщение +1 не чаще раза в 3 с, монета +10) и 💪 Сила снежка
+//  (старт и минимум 5; только монета +1). Попадание: −энергия на силу снежка, −сила на 30% от неё (не ниже 5).
+//  Энергия 0 = снеговик на 6 с, оттаял — энергия 100, сила сохраняется. Всё переходит между режимами.
+//  5 минут без действий — эльф засыпает (стоит, не кидает); заморозили спящим — выбывает с поля.
 //  Отнятое тепло = ⭐ (топ дня, сброс в полночь по Киеву). ⭐ за всё время = уровень:
 //  с 40-го уровня эльф навсегда становится Сантой, лидер дня — Золотой Санта.
 //  Календарь (оба Рождества, отсчёт, салют) — по киевскому времени, тест: ?date=2026-12-31T23:59:40
@@ -494,7 +497,8 @@ const BOT_NAMES = ['dasha_2010','misha.ff','kira_love','artem777','polina.ks','e
 // Лишние боты уходят: в битве — когда их заморозят, в рейде и мастерской — по одному раз в 15 с.
 const BOT_MAX = 10, BOT_STEP = 15;
 let botT = 0;
-const BASE_WARMTH = 100, BASE_POWER = 10;
+const BASE_WARMTH = 100, BASE_POWER = 5;
+const SLEEP_MS = 5*60000, FIELD_MAX = 30, CHAT_CD = 3000;   // сон через 5 мин тишины; не больше 30 зрителей на поле
 
 function makePlayer(name, isBot){
   const h = hashStr(name.toLowerCase());
@@ -507,7 +511,7 @@ function makePlayer(name, isBot){
     x, y, vx:0, vy:0, dir:2, walkT:0,
     warmth:BASE_WARMTH, warmthMax:BASE_WARMTH, power:BASE_POWER, powerMax:BASE_POWER,
     state:'walk', stateT:0, throwAt:rnd(0.5,1.5), target:null, retarget:0,
-    frozenT:0, hitT:0, lastActive:performance.now(), lifetime:0, tierKnown:isBot, joinT:0, fakeLv: 1 + (h % 12),
+    frozenT:0, hitT:0, asleep:false, lastChat:0, lastActive:performance.now(), lifetime:0, tierKnown:isBot, joinT:0, fakeLv: 1 + (h % 12),
     strafe: Math.random()<0.5 ? 1 : -1, wanderX:rnd(FIELD.x0,FIELD.x1), wanderY:rnd(FIELD.y0,FIELD.y1),
   };
 }
@@ -516,6 +520,11 @@ function getPlayer(name){
   const k = name.toLowerCase();
   let p = players.get(k);
   if (!p){
+    const real = realPlayers();
+    if (real.length >= FIELD_MAX){
+      const old = real.sort((a,b) => (b.asleep - a.asleep) || (a.lastActive - b.lastActive))[0];
+      puff(old.x, old.y-60, 16, '#ffffff'); players.delete(old.key);
+    }
     p = makePlayer(name, false); players.set(k, p);
     requestTier(name);
     if (DEMO){ p.lifetime = demoLifetime[k] || 0; p.tierKnown = true; }
@@ -523,6 +532,7 @@ function getPlayer(name){
     replaceBot();
   }
   p.lastActive = performance.now();
+  if (p.asleep){ p.asleep = false; floaters.push({ x:p.x, y:p.y-170, t:0, text:'☀ проснулся!', color:'#d49a00' }); }
   return p;
 }
 function botList(){ return [...players.values()].filter(p => p.isBot); }
@@ -550,19 +560,23 @@ function skinOf(p){
   return IMG[`elf_${p.color}_${p.beard}`];
 }
 
-// рост от лайков/подарков — как в Street Fighters: растёт и текущее, и максимум
+// лайк и сообщение — +1 ❤️; сила растёт только от монет
 function onLike(name, count){
   const p = getPlayer(name); const n = Math.max(1, count|0);
   if (p.state === 'frozen') return;
-  p.warmth += 10*n; p.warmthMax += 10*n; p.power += n; p.powerMax += n;
+  p.warmth += n; p.warmthMax += n;
   if (p.ws && p.ws.ph === 'craft' && modeNow().id === 'shop') p.ws.prog = Math.min(1, p.ws.prog + 0.06*n);
 }
-function onChat(name){ getPlayer(name); }
+function onChat(name){
+  const p = getPlayer(name), now = performance.now();
+  if (p.state === 'frozen' || now - p.lastChat < CHAT_CD) return;   // флуд не накручивает энергию
+  p.lastChat = now; p.warmth += 1; p.warmthMax += 1;
+}
 function onGift(name, coins){
   coins = Math.max(1, Math.floor(Number(coins)||1));
   const p = getPlayer(name);
   if (p.state === 'frozen'){ p.frozenT = 0; thaw(p); }
-  p.warmth += 100*coins; p.warmthMax += 100*coins; p.power += 10*coins; p.powerMax += 10*coins;
+  p.warmth += 10*coins; p.warmthMax += 10*coins; p.power += coins; p.powerMax += coins;
   p.volley = Math.min(5, 1 + Math.floor(Math.log10(coins+1)*1.5));   // залп снежков сразу
   if (modeNow().id === 'shop'){
     // в мастерской монета — готовый подарок в руки сразу; крупный донат считается за несколько
@@ -610,7 +624,7 @@ function hit(b){
   if (q === boss){ bossHit(b); return; }
   if (!players.has(q.key) || q.state === 'frozen'){ puff(b.tx, b.ty, 8, b.coal ? '#333' : '#ffffff'); return; }
   const dmg = Math.min(b.power, q.warmth);
-  q.warmth -= dmg; q.hitT = 0.25;
+  hurt(q, b.power);
   q.x += clamp(q.x - b.sx, -1, 1) * 10;
   puff(b.tx, b.ty, 10 + Math.min(20, b.r), b.coal ? '#3a3a44' : '#ffffff');
   sfxHit(b.r);
@@ -621,6 +635,10 @@ function hit(b){
   }
   if (dmg >= 25) floaters.push({ x:q.x, y:q.y-150, t:0, text:'-' + fmtNum(dmg), color:'#2a7fd4' });
   if (q.warmth <= 0) freeze(q, p);
+}
+function hurt(q, amount){
+  q.warmth = Math.max(0, q.warmth - amount); q.hitT = 0.25;
+  q.power = Math.max(BASE_POWER, q.power - Math.max(1, Math.floor(amount*0.3)));
 }
 function freeze(q, by){
   q.state = 'frozen'; q.frozenT = 6; q.warmth = 0;
@@ -634,9 +652,16 @@ function freeze(q, by){
 function thaw(q){
   // лишний бот после заморозки уходит с поля, а не оттаивает
   if (q.isBot && botList().length > botTarget()){ removeBot(q); return; }
-  // нокаут обнуляет бойца — как в Street Fighters
-  q.state = 'walk'; q.warmth = q.warmthMax = BASE_WARMTH; q.power = q.powerMax = BASE_POWER;
+  // заморозили спящим — выбывает с поля (вернётся, если напишет, лайкнет или подарит)
+  if (q.asleep && !q.isBot){ leaveField(q); return; }
+  // оттаял: энергия снова 100, сила — какая была (выбитое уже не вернуть)
+  q.state = 'walk'; q.warmth = q.warmthMax = BASE_WARMTH;
   puff(q.x, q.y-60, 16, '#ffffff');
+}
+function leaveField(q){
+  puff(q.x, q.y-60, 22, '#ffffff'); players.delete(q.key);
+  floaters.push({ x:q.x, y:q.y-150, t:0, text:'💤 ' + short(q.name,14) + ' выбыл', color:'#6a7a9a' });
+  hostSay(`${short(q.name,14)} уснул и выбыл! Напиши в чат — и вернёшься!`, 'idle', 3.5, 'sleep');
 }
 function puff(x, y, n, color){
   for (let i=0;i<n;i++){ const a = rnd(0, Math.PI*2), s = rnd(60, 260); particles.push({ x, y, vx:Math.cos(a)*s, vy:Math.sin(a)*s - 80, t:0, life:rnd(0.35,0.8), r:rnd(3,8), color }); }
@@ -645,6 +670,7 @@ function puff(x, y, n, color){
 function updatePlayer(p, dt){
   if (p.hitT > 0) p.hitT -= dt;
   if (p.state === 'frozen'){ p.frozenT -= dt; if (p.frozenT <= 0) thaw(p); return; }
+  if (p.asleep){ p.moving = false; p.state = 'walk'; p.volley = 0; return; }
   const raidMode = modeNow().id === 'raid', shopMode = modeNow().id === 'shop';
   if (shopMode) p.target = null;
   else if (raidMode) p.target = bossFightable() ? boss : null;
@@ -764,10 +790,10 @@ let raid = { wave:1, gifts:GIFTS_MAX, pause:4 }, boss = null;
 function bossFightable(){ return !!boss && (boss.state === 'fight' || boss.state === 'steal' || boss.state === 'enter' || boss.state === 'charge'); }
 function spawnBoss(){
   const n = Math.max(3, players.size);
-  const hpMax = Math.round((3000 + 900*n) * (1 + 0.6*(raid.wave-1)));
+  const hpMax = Math.round((500 + 150*n) * (1 + 0.5*(raid.wave-1)));
   raid.gifts = GIFTS_MAX;
   boss = { key:'__boss', name:'Хмурыч', isBot:true, x:rnd(300, 780), y:FIELD.y0 - 200, dir:2, walkT:0, moving:false,
-    state:'enter', goal:{ x:rnd(300,780), y:FIELD.y0 + 120 }, hp:hpMax, hpMax, power:30 + 20*raid.wave,
+    state:'enter', goal:{ x:rnd(300,780), y:FIELD.y0 + 120 }, hp:hpMax, hpMax, power:15 + 10*(raid.wave-1),
     throwT:3, stealT:8, chargeT:7, prey:null, chargeLeft:0, hitT:0, angry:false, sack:0, t:0, throwAnim:0, dmgBy:{} };
   hostSay(raid.wave === 1 ? 'Хмурыч пришёл за подарками! Бейте его снежками!' : `Хмурыч вернулся! Волна ${raid.wave} — он ещё злее!`, 'jump', 4, 'raid');
   sfxFanfare();
@@ -807,19 +833,21 @@ function bossHit(b){
     sfxGift(100);
   }
 }
-// Хмурыч сносит эльфа: тот сразу становится снеговиком, соседей отбрасывает и знобит
+// Хмурыч врезается в эльфа: −100 ❤️ (новичку — заморозка), соседей отбрасывает и −30 ❤️
 function bossSmash(q){
   const b = boss;
-  freeze(q, null);
+  hurt(q, 100); q.hitT = 0.4;
+  const knocked = q.warmth <= 0;
+  if (knocked) freeze(q, null);
   for (const o of players.values()){
     if (o === q || o.state === 'frozen') continue;
     const dx = o.x - b.x, dy = o.y - b.y, d = Math.hypot(dx, dy);
-    if (d < 180 && d > 0.1){ o.x = clamp(o.x + dx/d*90, FIELD.x0, FIELD.x1); o.y = clamp(o.y + dy/d*60, FIELD.y0, FIELD.y1); o.warmth = Math.max(1, o.warmth - o.warmthMax*0.3); o.hitT = 0.3; }
+    if (d < 180 && d > 0.1){ o.x = clamp(o.x + dx/d*90, FIELD.x0, FIELD.x1); o.y = clamp(o.y + dy/d*60, FIELD.y0, FIELD.y1); hurt(o, 30); o.hitT = 0.3; if (o.warmth <= 0) freeze(o, null); }
   }
   puff(q.x, q.y - 40, 36, '#e6f4ff'); puff(b.x, b.y - 20, 16, '#2a2433');
-  floaters.push({ x:q.x, y:q.y - 170, t:0, text:'БАМ!', color:'#2f8a3c' });
+  floaters.push({ x:q.x, y:q.y - 170, t:0, text:'БАМ! −100', color:'#2f8a3c' });
   b.throwAnim = 0.55; sfxHit(40);
-  hostSay(pick([`Хмурыч снёс ${short(q.name, 14)}!`, `Ой-ой! ${short(q.name, 14)} теперь снеговик!`, `Бегите от Хмурыча! Он снёс ${short(q.name, 14)}!`]), 'idle', 3, 'charge');
+  if (knocked) hostSay(pick([`Хмурыч снёс ${short(q.name, 14)}!`, `Ой-ой! ${short(q.name, 14)} теперь снеговик!`, `Бегите от Хмурыча! Он снёс ${short(q.name, 14)}!`]), 'idle', 3, 'charge');
   b.state = 'fight'; b.goal = bossGoalAroundTree(); b.chargeT = b.angry ? rnd(5, 8) : rnd(8, 12);
 }
 function moveBoss(dt, speed){
@@ -968,7 +996,7 @@ function wsSpot(p){
 function shopStep(p, dt){
   const w = p.ws || (p.ws = { ph:'go', prog:0, c:0, cnt:1 });
   if (w.ph === 'craft'){
-    p.dir = 2; w.prog += dt / CRAFT_TIME;
+    p.dir = 2; w.prog += dt / CRAFT_TIME * (1 + Math.min(3, (p.power - BASE_POWER)/20));   // донатер работает быстрее
     if (w.prog >= 1){ w.ph = 'carry'; puff(p.x, p.y - 40, 10, '#fff6c8'); }
     return null;
   }
@@ -1213,13 +1241,13 @@ function drawShopBar(){
 // ───────────────────────── Ведущий Санта ─────────────────────────
 const host = { anim:'idle', t:0, x:965, y:1790, bubble:null, bubbleT:0, run:null, queue:[], lineT:20, lockT:0 };
 const HOST_LINES = [
-  'Пишите в чат — и вы в игре!', 'Лайк — и снежок летит сильнее!', 'Каждая монетка — +10 к силе снежка!',
+  'Пишите в чат — и вы в игре!', 'Лайк — плюс энергия, дольше не замёрзнешь!', 'Каждая монетка — плюс сила снежка и десять энергии!',
   'Лидер дня становится Золотым Сантой!', 'С 40-го уровня эльф навсегда становится Сантой!',
   'Прячьтесь за ёлкой от снежков!', 'Хо-хо-хо! Кто тут самый меткий?', 'Замёрз — стал снеговиком. Оттаешь через 6 секунд!',
-  'Хо-хо-хо! Напиши любое слово в чат — и твой эльф появится на поле!', 'Ставьте лайки — ваш эльф кидает снежки сильнее!',
+  'Хо-хо-хо! Напиши любое слово в чат — и твой эльф появится на поле!', 'Ставьте лайки — у вашего эльфа больше энергии!', 'Пять минут молчишь — эльф засыпает! Не спите!',
   'Кто заморозит больше всех — тот попадёт в топ дня!', 'Хо-хо-хо! Не стесняйтесь, заходите в игру, места хватит всем!',
 ];
-const HOST_LINES_RAID = ['Бейте Хмурыча снежками!', 'Не дайте Хмурычу утащить подарки!', 'Лайки — и снежки летят сильнее!', 'Каждая монетка — +10 к силе снежка!',
+const HOST_LINES_RAID = ['Бейте Хмурыча снежками!', 'Не дайте Хмурычу утащить подарки!', 'Лайки — плюс энергия!', 'Монетка — снежок сильнее!',
   'Хо-хо-хо! Хмурыч хочет оставить город без праздника — не позволим!', 'Напишите в чат — и ваш эльф встанет на защиту ёлки!',
   'Чем больше лайков — тем быстрее прогоним Хмурыча!'];
 const HOST_LINES_SHOP = ['Эльфы, за работу! Сани ждут!', 'Лайк — и подарок готов быстрее!', 'Монетка — и подарок готов сразу!', 'Наполним сани — и Санта полетит!',
@@ -1397,6 +1425,7 @@ function drawSnowman(p){
 function drawPlayer(p){
   if (p.state === 'frozen'){ drawSnowman(p); return; }
   const im = skinOf(p);
+  if (p.asleep) ctx.globalAlpha = 0.55;
   ctx.fillStyle = 'rgba(80,110,150,0.28)'; ctx.beginPath(); ctx.ellipse(p.x, p.y-2, 34, 11, 0, 0, Math.PI*2); ctx.fill();
   if (im && im.complete && im.naturalWidth){
     let row, col;
@@ -1410,21 +1439,20 @@ function drawPlayer(p){
     if (ws && ws.ph === 'craft') drawBench(p);
     if (ws && ws.ph === 'carry') drawGiftIcon(ws.c, p.x, p.y - (isGolden(p) ? 205 : 180), ws.cnt > 1 ? 5 : 3.6);
   }
+  ctx.globalAlpha = 1;
 }
 function drawLabel(p, up){
-  const y = p.y - up;
-  // шкала тепла
-  // в мастерской вместо тепла — сколько готово подарка
-  const ws = modeNow().id === 'shop' ? (p.ws || {}) : null;
-  const bw = 90, frac = ws ? (ws.ph === 'craft' ? clamp(ws.prog, 0, 1) : ws.ph === 'carry' ? 1 : 0) : clamp(p.warmth / Math.max(1, p.warmthMax), 0, 1);
-  ctx.fillStyle = 'rgba(20,30,60,0.55)'; ctx.fillRect(p.x - bw/2, y, bw, 9);
-  ctx.fillStyle = ws ? '#3fbf5f' : frac > 0.5 ? '#ff7a3d' : frac > 0.25 ? '#ffb13d' : '#4fb7ff'; ctx.fillRect(p.x - bw/2 + 1, y+1, (bw-2)*frac, 7);
+  const y = p.y - up - 30;
   ctx.textAlign = 'center';
   const gold = isGolden(p);
   if (gold) strokeText('ЗОЛОТОЙ САНТА', p.x, y - 40, 'bold 22px Arial', '#c0182c', 5);
   const lv = `ур.${p.isBot ? p.fakeLv : levelOf(p.lifetime)} `;
-  strokeText(lv + short(p.name, 13), p.x, y - 10, 'bold 24px Arial', gold ? '#d49a00' : '#1c2848', 5);
-  if (p.power > BASE_POWER) strokeText('❄' + fmtNum(p.power), p.x, y + 30, 'bold 18px Arial', '#2a7fd4', 4);
+  strokeText(lv + short(p.name, 13) + (p.asleep ? ' 💤' : ''), p.x, y - 10, 'bold 24px Arial', gold ? '#d49a00' : p.asleep ? '#6a7a9a' : '#1c2848', 5);
+  strokeText('❤️ ' + fmtNum(Math.max(0, Math.round(p.warmth))), p.x, y + 16, 'bold 21px Arial', '#e8336a', 4);
+  strokeText('💪 ' + fmtNum(p.power), p.x, y + 40, 'bold 21px Arial', '#e0702a', 4);
+  // в мастерской — сколько готово подарка
+  const ws = modeNow().id === 'shop' ? p.ws : null;
+  if (ws && ws.ph === 'craft'){ ctx.fillStyle = 'rgba(20,30,60,0.55)'; ctx.fillRect(p.x - 45, y + 50, 90, 9); ctx.fillStyle = '#3fbf5f'; ctx.fillRect(p.x - 44, y + 51, 88*clamp(ws.prog, 0, 1), 7); }
 }
 function drawBall(b){
   const k = b.t / b.dur, x = b.sx + (b.tx-b.sx)*k, gy = b.sy + (b.ty-b.sy)*k, z = Math.sin(Math.PI*k) * b.arc;
@@ -1436,9 +1464,9 @@ function drawBall(b){
 // ── верхняя плашка: режим + таймер, топ-5 дня, правила ──
 let dayTop = [], dayLeader = null, yesterdayChampion = null;
 const RULES_BY_MODE = {
-  battle: [ ['💬','Напиши в чат —','ты в игре'], ['❤️','Лайк =','+1 сила снежка'], ['coin','1 монета =','+10 силы'], ['🎅','Топ-1 дня =','Золотой Санта'] ],
-  raid:   [ ['💬','Напиши в чат —','бей Хмурыча'], ['❤️','Лайк =','+1 сила снежка'], ['coin','1 монета =','+10 силы'], ['🎁','Спаси подарки','под ёлкой!'] ],
-  shop:   [ ['💬','Напиши в чат —','ты в игре'], ['❤️','Лайк =','работа быстрее'], ['coin','1 монета =','подарок сразу'], ['🎄','Полные сани —','салют!'] ],
+  battle: [ ['💬','Сообщение =','+1❤️ и ты в игре'], ['👍','1 лайк =','+1❤️'], ['coin','1 монета =','+10❤️ +1💪'], ['🎅','Топ-1 дня =','Золотой Санта'] ],
+  raid:   [ ['💬','Сообщение =','+1❤️ и ты в игре'], ['👍','1 лайк =','+1❤️'], ['coin','1 монета =','+10❤️ +1💪'], ['🎁','Спаси подарки','под ёлкой!'] ],
+  shop:   [ ['💬','Сообщение =','+1❤️ и ты в игре'], ['👍','1 лайк =','+1❤️ работа быстрее'], ['coin','1 монета =','подарок +1💪'], ['🎄','Полные сани —','салют!'] ],
 };
 function drawCoin(x, y, r){
   ctx.fillStyle = '#ffc428'; ctx.strokeStyle = '#b87a0a'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI*2); ctx.fill(); ctx.stroke();
@@ -1526,9 +1554,19 @@ function update(dt){
   if (c.fireworks && !fireworksWas){ hostSay(c.M === 1 && c.D === 1 ? 'С Новым годом! Хо-хо-хо!' : 'Со Старым Новым годом!', 'jump', 6); }
   fireworksWas = c.fireworks;
   for (const p of players.values()) updatePlayer(p, dt);
-  // неактивные зрители уходят с поля через 15 минут
+  // 5 минут без лайков, сообщений и подарков — эльф засыпает; спящего замораживают — и он выбывает.
+  // В мастерской снежков нет — там спящий уходит сам ещё через 5 минут; страховка — 15 минут везде
   const now = performance.now();
-  for (const p of [...players.values()]) if (!p.isBot && now - p.lastActive > 15*60000){ puff(p.x, p.y-60, 16, '#ffffff'); players.delete(p.key); }
+  for (const p of [...players.values()]){
+    if (p.isBot) continue;
+    const idle = now - p.lastActive;
+    if (!p.asleep && idle > SLEEP_MS && p.state !== 'frozen'){
+      p.asleep = true; p.target = null;
+      floaters.push({ x:p.x, y:p.y-170, t:0, text:'💤 уснул', color:'#6a7a9a' });
+      if (Math.random() < 0.5) hostSay(`${short(p.name,14)} уснул! Поставь лайк — и проснёшься!`, 'idle', 3, 'sleep');
+    }
+    if (p.asleep && p.state !== 'frozen' && (idle > 15*60000 || (modeNow().id === 'shop' && idle > 2*SLEEP_MS))) leaveField(p);
+  }
   for (let i=snowballs.length-1;i>=0;i--){ const b = snowballs[i]; b.t += dt;
     const k = b.t/b.dur, x = b.sx + (b.tx-b.sx)*k, y = b.sy + (b.ty-b.sy)*k;
     if (k > 0.15 && k < 0.95 && Math.hypot((x-TREE.x)/TREE.rx, (y+60-TREE.y)/TREE.ry) < 1){ puff(x, y, 12, '#ffffff'); snowballs.splice(i,1); continue; }   // в ёлку
@@ -1817,6 +1855,7 @@ if (DEMO){
       ['👤 +Зритель', press('bAdd')], ['👥 +5', press('bAdd5')], ['❤️ Лайки', press('bLike')],
       ['🪙 1 монета', gift(1)], ['🎁 10', gift(10)], ['🎁 99', gift(99)],
       ['💎 1000', gift(1000)], ['😈 Хмурыч бежит', () => { if (boss && boss.state === 'fight') boss.chargeT = 0; }],
+      ['💤 Усыпить', () => { const ps = realPlayers().filter(q => !q.asleep); if (ps.length) pick(ps).lastActive = performance.now() - SLEEP_MS - 1000; }],
       ['🛷 Сани полные', () => { if (modeNow().id === 'shop' && !shop.fly && !shop.arrive){ shop.gifts = shop.goal; sleighFly(); } }],
     ]){ const b = document.createElement('button'); b.textContent = label; b.onclick = (e) => { e.stopPropagation(); fn(); }; grid.appendChild(b); }
     bar.appendChild(grid); bar.appendChild(tgl); document.body.appendChild(bar);
