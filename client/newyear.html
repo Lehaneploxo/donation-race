@@ -206,7 +206,7 @@ function loadImg(key, src){ const im = new Image(); im.src = src; IMG[key] = im;
 const SP = 'sprites/newyear/';
 for (let c=0;c<8;c++) for (let b=0;b<2;b++) loadImg(`elf_${c}_${b}`, `${SP}elf_${c}_${b}.png`);
 ['santa_red','santa_gold','santa_blue','tree_bare','tree_full','holiday16'].forEach(k => loadImg(k, SP + k + '.png'));
-loadImg('grinchich', SP + 'grinchich.png?v=2');   // v — чтобы после перерисовки спрайта браузер не брал старый из кэша
+loadImg('grinchich', SP + 'grinchich.png?v=3');   // v — чтобы после перерисовки спрайта браузер не брал старый из кэша
 const HOST_META = { idle:{n:16,w:162,h:256}, run:{n:11,w:211,h:266}, jump:{n:16,w:230,h:270}, dead:{n:17,w:313,h:275}, slide:{n:11,w:263,h:205} };
 for (const a in HOST_META) loadImg('host_'+a, `${SP}host_${a}.webp`);
 let TREE_ORN = [];
