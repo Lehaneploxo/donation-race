@@ -7,7 +7,7 @@
 <style>
 html,body{margin:0;height:100%;background:#0b1530;color:#e8e8e8;font-family:Arial,sans-serif;overflow:hidden}
 #stage{position:absolute;left:0;top:0;bottom:0;right:300px;overflow:hidden}
-#wrap{position:absolute;left:0;top:0;width:1080px;height:1920px;transform-origin:0 0}
+#wrap{position:absolute;left:0;top:0;width:1080px;height:1800px;transform-origin:0 0}
 canvas{display:block;image-rendering:pixelated}
 #panel{position:absolute;right:0;top:0;bottom:0;width:300px;background:#18203a;border-left:1px solid #2c3658;overflow-y:auto;padding:10px;box-sizing:border-box;font-size:13px}
 #panel h3{margin:2px 0 8px;font-size:16px;color:#ffd75e}
@@ -31,7 +31,7 @@ body:not(.live) .ui-btn{right:310px}
 </style>
 </head>
 <body>
-<div id="stage"><div id="wrap"><canvas id="c" width="1080" height="1920"></canvas></div><div id="statusBadge"></div><button id="soundBtn">🔊 Нажми — включить музыку</button></div>
+<div id="stage"><div id="wrap"><canvas id="c" width="1080" height="1800"></canvas></div><div id="statusBadge"></div><button id="soundBtn">🔊 Нажми — включить музыку</button></div>
 <button id="backBtn" class="ui-btn" title="Все игры">⌂</button>
 <button id="voiceBtn" class="ui-btn" title="Голос ведущего">🗣️</button>
 <button id="musicBtn" class="ui-btn" title="Музыка">🎵</button>
@@ -82,7 +82,7 @@ const LIVE_USER = (Q.get('username') || '').replace(/^@/, '').trim();
 const DEMO = !LIVE_USER;
 const AUTO = DEMO && Q.has('auto');     // тест из списка игр: имитация эфира на весь экран, без пульта
 if (!DEMO || AUTO) document.body.classList.add('live');
-const CW = 1080, CH = 1920;
+const CW = 1080, CH = 1800;   // пропорции 3:5 — как у Street Fighters и Boxing Arena (600×1000), чтобы в эфире экран стоял так же
 const cv = document.getElementById('c'), ctx = cv.getContext('2d');
 ctx.imageSmoothingEnabled = false;
 
@@ -93,6 +93,7 @@ function applyScale(){
   const wrap = document.getElementById('wrap');
   wrap.style.transform = `scale(${s})`;
   wrap.style.left = Math.round((w - CW*s)/2) + 'px';
+  wrap.style.top = Math.round((h - CH*s)/2) + 'px';   // по центру и по высоте — как в других играх
 }
 window.addEventListener('resize', applyScale); applyScale();
 
