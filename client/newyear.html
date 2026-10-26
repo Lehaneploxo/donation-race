@@ -27,11 +27,10 @@ body.live #stage{right:0}
 .ui-btn{position:fixed;z-index:99999;width:34px;height:34px;font-size:16px;padding:0;margin:0;background:rgba(0,0,0,0.55);color:rgba(255,255,255,0.8);border:1px solid rgba(255,255,255,0.25);border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center}
 #backBtn{top:calc(50% - 90px);right:10px} #voiceBtn{top:calc(50% - 45px);right:10px} #musicBtn{top:calc(50%);right:10px} #fsBtn{top:calc(50% + 45px);right:10px}
 body:not(.live) .ui-btn{right:310px}
-#soundBtn{position:absolute;left:50%;top:42%;transform:translateX(-50%);z-index:6;display:none;font-size:22px;padding:14px 26px;border-radius:30px;background:#c0182c;border:3px solid #ffd75e;box-shadow:0 6px 24px rgba(0,0,0,.5)}
 </style>
 </head>
 <body>
-<div id="stage"><div id="wrap"><canvas id="c" width="1080" height="1800"></canvas></div><div id="statusBadge"></div><button id="soundBtn">🔊 Нажми — включить музыку</button></div>
+<div id="stage"><div id="wrap"><canvas id="c" width="1080" height="1800"></canvas></div><div id="statusBadge"></div></div>
 <button id="backBtn" class="ui-btn" title="Все игры">⌂</button>
 <button id="voiceBtn" class="ui-btn" title="Голос ведущего">🗣️</button>
 <button id="musicBtn" class="ui-btn" title="Музыка">🎵</button>
@@ -227,49 +226,129 @@ function bgBattle(){
   for (let i=0;i<60;i++){ const x = r()*CW, y = r()*CH; g.fillStyle = 'rgba(150,180,215,0.25)'; g.beginPath(); g.ellipse(x, y, 40+r()*80, 10+r()*16, 0, 0, Math.PI*2); g.fill(); }
   return c;
 }
-function iceCrystal(g, x, y, k, r){
-  // кристаллы льда торчат из снега — 3-5 граней
-  const n = 3 + Math.floor(r()*3);
-  for (let i=0;i<n;i++){
-    const h = (60 + r()*90)*k, w = (16 + r()*14)*k, ox = (i - n/2)*18*k + r()*10, lean = (r()-0.5)*0.5;
-    g.save(); g.translate(x + ox, y); g.rotate(lean);
-    g.fillStyle = '#5f7fc4'; g.beginPath(); g.moveTo(-w/2,0); g.lineTo(0,-h); g.lineTo(w/2,0); g.closePath(); g.fill();
-    g.fillStyle = '#9fc4f5'; g.beginPath(); g.moveTo(-w/2,0); g.lineTo(0,-h); g.lineTo(0,0); g.closePath(); g.fill();
-    g.fillStyle = 'rgba(255,255,255,0.7)'; g.fillRect(-w/4, -h*0.6, 3*k, h*0.35);
-    g.restore();
-  }
+// домики вдоль верхнего края площади: x, ширина, высота, цвет стены, вывеска
+const TOWN_HOUSES = [[0,170,210,'#8a3b2a','ПЕКАРНЯ'],[170,190,240,'#c98a3a',''],[720,190,230,'#2f6f73','ИГРУШКИ'],[910,170,205,'#3f5f9f','']];
+const TOWN_BASE = 720;                                   // линия, где дома стоят на тротуаре
+const TOWN_LAMPS = [[140,830],[940,830],[110,1340],[975,1300]];
+function townWindow(g, x, y){
+  g.fillStyle = '#2a1a14'; g.fillRect(x-3, y-3, 36, 44);
+  g.fillStyle = '#ffd27a'; g.fillRect(x, y, 30, 38);
+  g.fillStyle = '#ffeab0'; g.fillRect(x+3, y+3, 10, 14);
+  g.fillStyle = '#2a1a14'; g.fillRect(x+13, y, 4, 38); g.fillRect(x, y+17, 30, 4);
+  g.fillStyle = '#f4f8fd'; g.fillRect(x-5, y+38, 40, 6);
 }
-function deadTree(g, x, y, k){
-  g.strokeStyle = '#2b2440'; g.lineCap = 'round';
-  const br = (x0, y0, a, len, w, d) => {
-    if (d > 4 || len < 8) return;
-    const x1 = x0 + Math.cos(a)*len, y1 = y0 + Math.sin(a)*len;
-    g.lineWidth = w; g.beginPath(); g.moveTo(x0, y0); g.lineTo(x1, y1); g.stroke();
-    br(x1, y1, a - 0.5, len*0.68, w*0.65, d+1); br(x1, y1, a + 0.42, len*0.62, w*0.65, d+1);
-  };
-  br(x, y, -Math.PI/2, 90*k, 14*k, 0);
+function townWreath(g, x, y, k){
+  for (let i=0;i<12;i++){ const a = i/12*Math.PI*2; g.fillStyle = i%2 ? '#1f5a2e' : '#2f7a3c'; g.beginPath(); g.arc(x + Math.cos(a)*12*k, y + Math.sin(a)*12*k, 6*k, 0, Math.PI*2); g.fill(); }
+  g.fillStyle = '#c0182c'; g.fillRect(x - 8*k, y + 8*k, 16*k, 7*k);
 }
 function bgRaid(){
   const [c, g] = bgCanvas(), r = seeded(31);
-  // небо в сумерках сверху, ниже — синий снег пустоши
-  const sky = g.createLinearGradient(0,0,0,640); sky.addColorStop(0,'#1b1838'); sky.addColorStop(1,'#4a3f7a');
-  g.fillStyle = sky; g.fillRect(0,0,CW,640);
-  for (let i=0;i<120;i++){ g.fillStyle = `rgba(255,255,255,${0.3 + r()*0.6})`; g.fillRect(r()*CW, r()*600, 3, 3); }
-  g.fillStyle = '#efe6c8'; g.beginPath(); g.arc(880, 500, 46, 0, Math.PI*2); g.fill();
-  g.fillStyle = '#4a3f7a'; g.beginPath(); g.arc(902, 488, 42, 0, Math.PI*2); g.fill();
-  // зубчатые ледяные горы на горизонте
-  g.fillStyle = '#2f3566'; g.beginPath(); g.moveTo(0, 640);
-  for (let x=0; x<=CW; x+=60) g.lineTo(x, 560 - r()*90);
-  g.lineTo(CW, 640); g.closePath(); g.fill();
-  const grd = g.createLinearGradient(0,600,0,CH); grd.addColorStop(0,'#8e9bd0'); grd.addColorStop(1,'#b9c4ea');
-  g.fillStyle = grd; g.fillRect(0,600,CW,CH-600);
-  for (let i=0;i<1100;i++){ const x = r()*CW, y = 600 + r()*(CH-600); g.fillStyle = r()<0.5 ? 'rgba(80,90,160,0.3)' : 'rgba(230,236,255,0.55)'; g.fillRect(x, y, 6 + r()*14, 3); }
-  // угольные пятна — Хмурыч разбрасывает уголь вместо подарков
-  for (let i=0;i<26;i++){ const x = r()*CW, y = 640 + r()*(CH-700); g.fillStyle = 'rgba(40,36,60,0.35)'; g.beginPath(); g.ellipse(x, y, 20+r()*40, 6+r()*10, 0, 0, Math.PI*2); g.fill();
-    for (let j=0;j<4;j++){ g.fillStyle = '#26222f'; g.fillRect(x + (r()-0.5)*50, y + (r()-0.5)*12, 8, 6); } }
-  for (const [x,y,k] of [[60,700,1],[1020,690,1.1],[40,1080,0.9],[1045,1150,1],[90,1420,1.1],[995,1440,1],[330,640,0.8],[760,630,0.8]]) iceCrystal(g, x, y, k, r);
-  for (const [x,y,k] of [[150,650,1.1],[950,660,1]]) deadTree(g, x, y, k);
+  // вечернее небо над крышами
+  const sky = g.createLinearGradient(0,0,0,TOWN_BASE); sky.addColorStop(0,'#141a44'); sky.addColorStop(1,'#3a3f86');
+  g.fillStyle = sky; g.fillRect(0,0,CW,TOWN_BASE);
+  for (let i=0;i<120;i++){ g.fillStyle = `rgba(255,255,255,${0.3 + r()*0.6})`; g.fillRect(r()*CW, r()*560, 3, 3); }
+  // дальние крыши города
+  g.fillStyle = '#262b5e';
+  for (let x=-20; x<CW; x+=70){ const h = 40 + r()*60; g.fillRect(x, 560 - h, 60, h + 200); g.beginPath(); g.moveTo(x-6, 560-h); g.lineTo(x+30, 530-h); g.lineTo(x+66, 560-h); g.closePath(); g.fill(); }
+  g.fillStyle = '#ffd27a'; for (let i=0;i<26;i++) g.fillRect(r()*CW, 500 + r()*60, 6, 7);
+  // домики
+  for (const [x, w, h, col, sign] of TOWN_HOUSES){
+    const top = TOWN_BASE - h;
+    g.fillStyle = col; g.fillRect(x, top, w, h);
+    g.fillStyle = 'rgba(0,0,0,0.15)'; for (let yy=top+8; yy<TOWN_BASE; yy+=22) g.fillRect(x, yy, w, 2);
+    g.fillStyle = '#5a2a2a'; g.fillRect(x + w*0.68, top - 70, 22, 60);                    // труба
+    g.fillStyle = '#3a2440'; g.beginPath(); g.moveTo(x-10, top+4); g.lineTo(x + w/2, top - 80); g.lineTo(x + w + 10, top+4); g.closePath(); g.fill();
+    g.fillStyle = '#f4f8fd'; g.beginPath(); g.moveTo(x-12, top+6); g.lineTo(x + w/2, top - 82); g.lineTo(x + w + 12, top+6); g.lineTo(x + w + 12, top - 4); g.lineTo(x + w/2, top - 66); g.lineTo(x - 12, top - 4); g.closePath(); g.fill();
+    g.fillStyle = '#f4f8fd'; g.fillRect(x + w*0.68 - 3, top - 74, 28, 8);
+    const cols = Math.floor((w - 20) / 56);
+    for (let i=0;i<cols;i++){ const wx = x + (w - cols*56)/2 + i*56 + 12; townWindow(g, wx, top + 30); }
+    // дверь с венком
+    const dx = x + w/2 - 22;
+    g.fillStyle = '#3a2410'; g.fillRect(dx, TOWN_BASE - 78, 44, 78); g.fillStyle = '#5b3218'; g.fillRect(dx+4, TOWN_BASE - 74, 36, 74);
+    g.fillStyle = '#ffd75e'; g.fillRect(dx + 32, TOWN_BASE - 40, 5, 5);
+    townWreath(g, dx + 22, TOWN_BASE - 52, 0.8);
+    if (sign){ g.fillStyle = '#3a2410'; g.fillRect(x + w/2 - 62, TOWN_BASE - 116, 124, 30); g.fillStyle = '#ffd75e'; g.font = 'bold 20px Arial'; g.textAlign = 'center'; g.fillText(sign, x + w/2, TOWN_BASE - 94); }
+    else { townWindow(g, x + 20, TOWN_BASE - 110); townWindow(g, x + w - 50, TOWN_BASE - 110); }
+  }
+  // ратуша с часами в центре
+  const hx = 360, hw = 360, htop = TOWN_BASE - 230;
+  g.fillStyle = '#d8c7a0'; g.fillRect(hx, htop, hw, 230);
+  g.fillStyle = '#b8a47a'; for (let i=0;i<5;i++) g.fillRect(hx + 30 + i*75, htop + 20, 14, 210);
+  g.fillStyle = '#7a1622'; g.beginPath(); g.moveTo(hx - 14, htop + 4); g.lineTo(hx + hw/2, htop - 70); g.lineTo(hx + hw + 14, htop + 4); g.closePath(); g.fill();
+  g.fillStyle = '#f4f8fd'; g.beginPath(); g.moveTo(hx - 16, htop + 6); g.lineTo(hx + hw/2, htop - 72); g.lineTo(hx + hw + 16, htop + 6); g.lineTo(hx + hw + 16, htop - 4); g.lineTo(hx + hw/2, htop - 58); g.lineTo(hx - 16, htop - 4); g.closePath(); g.fill();
+  g.fillStyle = '#f2ead8'; g.beginPath(); g.arc(hx + hw/2, htop + 46, 34, 0, Math.PI*2); g.fill();
+  g.strokeStyle = '#3a2410'; g.lineWidth = 5; g.beginPath(); g.arc(hx + hw/2, htop + 46, 34, 0, Math.PI*2); g.stroke();
+  g.lineWidth = 4; g.beginPath(); g.moveTo(hx + hw/2, htop + 46); g.lineTo(hx + hw/2, htop + 22); g.moveTo(hx + hw/2, htop + 46); g.lineTo(hx + hw/2 + 18, htop + 52); g.stroke();
+  townWindow(g, hx + 60, htop + 100); townWindow(g, hx + hw - 90, htop + 100);
+  g.fillStyle = '#3a2410'; g.beginPath(); g.moveTo(hx + hw/2 - 40, TOWN_BASE); g.lineTo(hx + hw/2 - 40, TOWN_BASE - 80); g.arc(hx + hw/2, TOWN_BASE - 80, 40, Math.PI, 0); g.lineTo(hx + hw/2 + 40, TOWN_BASE); g.closePath(); g.fill();
+  g.fillStyle = '#c0182c'; g.fillRect(hx + 70, htop + 150, hw - 140, 30);
+  g.fillStyle = '#ffd75e'; g.font = 'bold 22px Arial'; g.textAlign = 'center'; g.fillText('С РОЖДЕСТВОМ!', hx + hw/2, htop + 173);
+  townWreath(g, hx + 40, htop + 60, 1.1); townWreath(g, hx + hw - 40, htop + 60, 1.1);
+  // тротуар
+  g.fillStyle = '#9aa3b8'; g.fillRect(0, TOWN_BASE, CW, 46);
+  g.fillStyle = 'rgba(60,70,100,0.4)'; for (let x=0; x<CW; x+=60) g.fillRect(x, TOWN_BASE, 3, 46);
+  g.fillStyle = '#f4f8fd'; g.fillRect(0, TOWN_BASE, CW, 10);
+  // площадь: брусчатка, присыпанная снегом
+  g.fillStyle = '#4f5878'; g.fillRect(0, TOWN_BASE + 46, CW, CH - TOWN_BASE - 46);
+  for (let y = TOWN_BASE + 48, i = 0; y < CH; y += 26, i++) for (let x = -(i%2)*24; x < CW; x += 48){
+    g.fillStyle = ['#66708e','#5f6988','#717a98'][Math.floor(r()*3)]; g.fillRect(x + 2, y + 2, 44, 22);
+    g.fillStyle = 'rgba(255,255,255,0.12)'; g.fillRect(x + 4, y + 3, 40, 3);
+  }
+  // узор из светлого камня вокруг ёлки
+  g.strokeStyle = '#a3aac2'; g.lineWidth = 26; g.setLineDash([30, 6]); g.beginPath(); g.ellipse(TREE.x, TREE.y + 10, 360, 170, 0, 0, Math.PI*2); g.stroke(); g.setLineDash([]);
+  g.strokeStyle = '#c0182c'; g.lineWidth = 4; g.beginPath(); g.ellipse(TREE.x, TREE.y + 10, 384, 188, 0, 0, Math.PI*2); g.stroke();
+  // снег: сугробы по краям и пятна на площади
+  for (let i=0;i<70;i++){ const x = r()*CW, y = TOWN_BASE + 60 + r()*(CH - TOWN_BASE - 60); g.fillStyle = 'rgba(240,246,255,0.5)'; g.beginPath(); g.ellipse(x, y, 20 + r()*60, 6 + r()*12, 0, 0, Math.PI*2); g.fill(); }
+  for (let x=0; x<CW; x+=60){ g.fillStyle = '#eef4fb'; g.beginPath(); g.ellipse(x + 30, CH - 20, 60, 40, 0, 0, Math.PI*2); g.fill(); }
+  // уголь, раскиданный Хмурычем
+  for (let i=0;i<14;i++){ const x = 80 + r()*(CW-160), y = 820 + r()*700; for (let j=0;j<4;j++){ g.fillStyle = '#1f1c28'; g.fillRect(x + (r()-0.5)*40, y + (r()-0.5)*10, 8, 6); } }
+  // ярмарочные палатки слева и справа
+  for (const [sx, sign] of [[24,'ПРЯНИКИ'],[886,'ГЛИНТВЕЙН']]){
+    const sw = 170, sy = 930;
+    g.fillStyle = '#5b3218'; g.fillRect(sx + 6, sy, 10, 130); g.fillRect(sx + sw - 16, sy, 10, 130);
+    g.fillStyle = '#8a5428'; g.fillRect(sx, sy + 70, sw, 60); g.fillStyle = '#6b3d1e'; g.fillRect(sx, sy + 70, sw, 8);
+    for (let i=0;i<6;i++){ g.fillStyle = ['#d4202e','#ffd75e','#2f7a3c','#f4f8fd'][i%4]; g.fillRect(sx + 14 + i*25, sy + 56, 18, 14); }
+    for (let i=0;i<7;i++){ g.fillStyle = i%2 ? '#f4f8fd' : '#c0182c'; g.fillRect(sx + i*(sw/7), sy - 34, sw/7 + 1, 34); g.beginPath(); g.arc(sx + i*(sw/7) + sw/14, sy, sw/14, 0, Math.PI); g.fill(); }
+    g.fillStyle = '#f4f8fd'; g.fillRect(sx - 4, sy - 44, sw + 8, 12);
+    g.fillStyle = '#3a2410'; g.fillRect(sx + 20, sy + 92, sw - 40, 26); g.fillStyle = '#ffd75e'; g.font = 'bold 16px Arial'; g.textAlign = 'center'; g.fillText(sign, sx + sw/2, sy + 111);
+  }
+  // фонари на площади (свет — в drawTownLive)
+  for (const [lx, ly] of TOWN_LAMPS){ g.fillStyle = '#1c1c2c'; g.fillRect(lx - 4, ly - 150, 8, 150); g.fillRect(lx - 14, ly - 6, 28, 8); g.fillRect(lx - 14, ly - 176, 28, 28); g.fillStyle = '#ffe49a'; g.fillRect(lx - 9, ly - 171, 18, 18); g.fillStyle = '#f4f8fd'; g.fillRect(lx - 16, ly - 182, 32, 7); }
+  // внизу: санки с подарками, снеговик, скамейка
+  g.fillStyle = '#c0182c'; g.fillRect(120, 1600, 130, 22); g.fillStyle = '#5b3218'; g.fillRect(112, 1630, 150, 6); g.fillRect(130, 1620, 6, 12); g.fillRect(236, 1620, 6, 12); g.fillRect(256, 1612, 6, 24);
+  g.fillStyle = '#f4f8fd'; g.strokeStyle = '#a9bbe6'; g.lineWidth = 3;
+  for (const [cy, cr] of [[1620,34],[1566,26],[1526,19]]){ g.beginPath(); g.arc(380, cy, cr, 0, Math.PI*2); g.fill(); g.stroke(); }
+  g.fillStyle = '#222'; g.fillRect(371, 1520, 5, 5); g.fillRect(385, 1520, 5, 5); g.fillStyle = '#f08a24'; g.fillRect(380, 1528, 14, 5);
+  g.fillStyle = '#c0182c'; g.fillRect(358, 1540, 44, 8); g.fillRect(392, 1544, 8, 22); g.fillStyle = '#1c1c2c'; g.fillRect(364, 1500, 32, 8); g.fillRect(370, 1478, 20, 24);
+  g.fillStyle = '#5b3218'; g.fillRect(520, 1600, 160, 14); g.fillRect(520, 1574, 160, 10); g.fillRect(530, 1614, 10, 26); g.fillRect(660, 1614, 10, 26);
+  g.fillStyle = '#f4f8fd'; g.fillRect(520, 1570, 160, 6); g.fillRect(520, 1596, 160, 6);
   return c;
+}
+// огоньки гирлянды через улицу, свет фонарей, дым из труб, подарки на санках
+function drawTownLive(){
+  const anchors = [0, 170, 360, 720, 910, 1080], gy = 600;
+  ctx.strokeStyle = '#1f2a20'; ctx.lineWidth = 3;
+  for (let a=0; a<anchors.length-1; a++){
+    const x0 = anchors[a], x1 = anchors[a+1];
+    ctx.beginPath(); for (let k=0;k<=20;k++){ const t = k/20; ctx.lineTo(x0 + (x1-x0)*t, gy + Math.sin(t*Math.PI)*34); } ctx.stroke();
+    for (let k=1, i=a*7; k<10; k+=1.4, i++){ const t = k/10, on = (Math.floor(time*2.5) + i) % 3 !== 0;
+      ctx.globalAlpha = on ? 1 : 0.35; ctx.fillStyle = ['#ff4d6d','#ffd75e','#5dff8a','#7fd3ff','#ff9de2'][i%5];
+      ctx.beginPath(); ctx.ellipse(x0 + (x1-x0)*t, gy + Math.sin(t*Math.PI)*34 + 8, 5, 8, 0, 0, Math.PI*2); ctx.fill(); }
+  }
+  ctx.globalAlpha = 1;
+  ctx.save(); ctx.globalCompositeOperation = 'lighter';
+  for (const [lx, ly] of TOWN_LAMPS){
+    const f = 0.85 + 0.15*Math.sin(time*7 + lx), lg = ctx.createRadialGradient(lx, ly - 162, 0, lx, ly - 162, 120);
+    lg.addColorStop(0, `rgba(255,214,130,${0.5*f})`); lg.addColorStop(1, 'rgba(255,214,130,0)'); ctx.fillStyle = lg; ctx.fillRect(lx - 120, ly - 282, 240, 240);
+    const pg = ctx.createRadialGradient(lx, ly, 0, lx, ly, 110); pg.addColorStop(0, `rgba(255,200,120,${0.22*f})`); pg.addColorStop(1, 'rgba(255,200,120,0)');
+    ctx.fillStyle = pg; ctx.save(); ctx.translate(lx, ly); ctx.scale(1, 0.4); ctx.translate(-lx, -ly); ctx.fillRect(lx - 110, ly - 110, 220, 220); ctx.restore();
+  }
+  ctx.restore();
+  for (const [x, w, h] of TOWN_HOUSES){
+    const cx = x + w*0.68 + 11, cy = TOWN_BASE - h - 74;
+    for (let k=0;k<4;k++){ const t = ((time*0.35 + k*0.25) % 1); ctx.fillStyle = `rgba(220,226,240,${0.45*(1-t)})`; ctx.beginPath(); ctx.arc(cx + Math.sin(time + k)*8 + t*30, cy - t*90, 8 + t*16, 0, Math.PI*2); ctx.fill(); }
+  }
+  drawGiftIcon(0, 150, 1600, 3); drawGiftIcon(3, 188, 1600, 3.6); drawGiftIcon(5, 226, 1600, 2.8);
 }
 function candyCane(g, x, y){
   g.lineCap = 'round'; g.lineWidth = 12; g.strokeStyle = '#ffffff';
@@ -676,14 +755,14 @@ const GIFT_SPOTS = Array.from({length:GIFTS_MAX}, (_, i) => {
   return { x: TREE.x - Math.cos(a)*(150 - row*40), y: TREE.y + 18 + Math.sin(a)*(34 + row*10), c: ['#d4303f','#2f7fd8','#2fa34f','#e0a325','#9b4fd4','#e0633a'][i%6], w: 40 + (i*7)%18 };
 });
 let raid = { wave:1, gifts:GIFTS_MAX, pause:4 }, boss = null;
-function bossFightable(){ return !!boss && (boss.state === 'fight' || boss.state === 'steal' || boss.state === 'enter'); }
+function bossFightable(){ return !!boss && (boss.state === 'fight' || boss.state === 'steal' || boss.state === 'enter' || boss.state === 'charge'); }
 function spawnBoss(){
   const n = Math.max(3, players.size);
   const hpMax = Math.round((3000 + 900*n) * (1 + 0.6*(raid.wave-1)));
   raid.gifts = GIFTS_MAX;
   boss = { key:'__boss', name:'Хмурыч', isBot:true, x:rnd(300, 780), y:FIELD.y0 - 200, dir:2, walkT:0, moving:false,
     state:'enter', goal:{ x:rnd(300,780), y:FIELD.y0 + 120 }, hp:hpMax, hpMax, power:30 + 20*raid.wave,
-    throwT:3, stealT:8, hitT:0, angry:false, sack:0, t:0, throwAnim:0, dmgBy:{} };
+    throwT:3, stealT:8, chargeT:7, prey:null, chargeLeft:0, hitT:0, angry:false, sack:0, t:0, throwAnim:0, dmgBy:{} };
   hostSay(raid.wave === 1 ? 'Хмурыч пришёл за подарками! Бейте его снежками!' : `Хмурыч вернулся! Волна ${raid.wave} — он ещё злее!`, 'jump', 4, 'raid');
   sfxFanfare();
 }
@@ -722,12 +801,27 @@ function bossHit(b){
     sfxGift(100);
   }
 }
+// Хмурыч сносит эльфа: тот сразу становится снеговиком, соседей отбрасывает и знобит
+function bossSmash(q){
+  const b = boss;
+  freeze(q, null);
+  for (const o of players.values()){
+    if (o === q || o.state === 'frozen') continue;
+    const dx = o.x - b.x, dy = o.y - b.y, d = Math.hypot(dx, dy);
+    if (d < 180 && d > 0.1){ o.x = clamp(o.x + dx/d*90, FIELD.x0, FIELD.x1); o.y = clamp(o.y + dy/d*60, FIELD.y0, FIELD.y1); o.warmth = Math.max(1, o.warmth - o.warmthMax*0.3); o.hitT = 0.3; }
+  }
+  puff(q.x, q.y - 40, 36, '#e6f4ff'); puff(b.x, b.y - 20, 16, '#2a2433');
+  floaters.push({ x:q.x, y:q.y - 170, t:0, text:'БАМ!', color:'#2f8a3c' });
+  b.throwAnim = 0.55; sfxHit(40);
+  hostSay(pick([`Хмурыч снёс ${short(q.name, 14)}!`, `Ой-ой! ${short(q.name, 14)} теперь снеговик!`, `Бегите от Хмурыча! Он снёс ${short(q.name, 14)}!`]), 'idle', 3, 'charge');
+  b.state = 'fight'; b.goal = bossGoalAroundTree(); b.chargeT = b.angry ? rnd(5, 8) : rnd(8, 12);
+}
 function moveBoss(dt, speed){
   const dx = boss.goal.x - boss.x, dy = boss.goal.y - boss.y, d = Math.hypot(dx, dy);
   if (d < 12){ boss.moving = false; return true; }
   boss.x += dx/d*speed*dt; boss.y += dy/d*speed*dt; boss.walkT += dt; boss.moving = true;
   boss.dir = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 3 : 1) : (dy > 0 ? 2 : 0);
-  if (boss.state === 'fight'){
+  if (boss.state === 'fight' || boss.state === 'charge'){
     const ex = (boss.x - TREE.x)/(TREE.rx+90), ey = (boss.y - TREE.y)/(TREE.ry+40), e = Math.hypot(ex, ey);
     if (e < 1 && e > 0.001){ boss.x = TREE.x + ex/e*(TREE.rx+90); boss.y = TREE.y + ey/e*(TREE.ry+40); }
   }
@@ -747,6 +841,13 @@ function updateRaid(dt){
     if (b.throwAnim > 0) b.moving = false;
     else if (b.state === 'fight'){
       if (moveBoss(dt, 110)) b.goal = bossGoalAroundTree();
+      // время от времени Хмурыч срывается и бежит сносить ближайшего эльфа
+      b.chargeT -= dt;
+      if (b.chargeT <= 0){
+        const prey = [...players.values()].filter(q => q.state !== 'frozen').sort((a, c) => Math.hypot(a.x-b.x, a.y-b.y) - Math.hypot(c.x-b.x, c.y-b.y))[0];
+        if (prey){ b.state = 'charge'; b.prey = prey; b.chargeLeft = 4.5; hostSay(`Осторожно, ${short(prey.name, 14)}! Хмурыч бежит на тебя!`, 'jump', 3, 'charge'); }
+        else b.chargeT = 4;
+      }
       b.stealT -= dt;
       if (b.stealT <= 0 && raid.gifts > 0){ const g = GIFT_SPOTS[raid.gifts-1]; b.state = 'steal'; b.goal = { x:g.x, y:g.y + 40 }; }
     } else if (moveBoss(dt, 150)){
@@ -755,6 +856,14 @@ function updateRaid(dt){
       if (raid.gifts <= 0){ b.state = 'escape'; b.goal = { x:b.x, y:FIELD.y0 - 260 }; hostSay('Хмурыч утащил все подарки и убегает!', 'dead', 4, 'raid'); }
       else { b.state = 'fight'; b.goal = bossGoalAroundTree(); b.stealT = clamp(15 - raid.wave, 9, 15);
         if (raid.gifts % 3 === 0) hostSay(`Хмурыч стащил подарок! Осталось ${raid.gifts}!`, 'idle', 3, 'raid'); }
+    }
+  }
+  else if (b.state === 'charge'){
+    const q = b.prey; b.chargeLeft -= dt;
+    if (!q || !players.has(q.key) || q.state === 'frozen' || b.chargeLeft <= 0){ b.state = 'fight'; b.goal = bossGoalAroundTree(); b.chargeT = b.angry ? rnd(5, 8) : rnd(8, 12); }
+    else {
+      b.goal = { x:q.x, y:q.y }; moveBoss(dt, 290);
+      if (Math.hypot(q.x - b.x, q.y - b.y) < 85) bossSmash(q);
     }
   }
   else if (b.state === 'escape'){
@@ -1096,12 +1205,20 @@ function drawShopBar(){
 
 
 // ───────────────────────── Ведущий Санта ─────────────────────────
-const host = { anim:'idle', t:0, x:900, y:1690, bubble:null, bubbleT:0, run:null, queue:[], lineT:20, lockT:0 };
+const host = { anim:'idle', t:0, x:965, y:1790, bubble:null, bubbleT:0, run:null, queue:[], lineT:20, lockT:0 };
 const HOST_LINES = [
   'Пишите в чат — и вы в игре!', 'Лайк — и снежок летит сильнее!', 'Каждая монетка — +10 к силе снежка!',
   'Лидер дня становится Золотым Сантой!', 'С 40-го уровня эльф навсегда становится Сантой!',
   'Прячьтесь за ёлкой от снежков!', 'Хо-хо-хо! Кто тут самый меткий?', 'Замёрз — стал снеговиком. Оттаешь через 6 секунд!',
+  'Хо-хо-хо! Напиши любое слово в чат — и твой эльф появится на поле!', 'Ставьте лайки — ваш эльф кидает снежки сильнее!',
+  'Кто заморозит больше всех — тот попадёт в топ дня!', 'Хо-хо-хо! Не стесняйтесь, заходите в игру, места хватит всем!',
 ];
+const HOST_LINES_RAID = ['Бейте Хмурыча снежками!', 'Не дайте Хмурычу утащить подарки!', 'Лайки — и снежки летят сильнее!', 'Каждая монетка — +10 к силе снежка!',
+  'Хо-хо-хо! Хмурыч хочет оставить город без праздника — не позволим!', 'Напишите в чат — и ваш эльф встанет на защиту ёлки!',
+  'Чем больше лайков — тем быстрее прогоним Хмурыча!'];
+const HOST_LINES_SHOP = ['Эльфы, за работу! Сани ждут!', 'Лайк — и подарок готов быстрее!', 'Монетка — и подарок готов сразу!', 'Наполним сани — и Санта полетит!',
+  'Хо-хо-хо! Напишите в чат — и ваш эльф начнёт мастерить подарки!', 'Каждый подарок в санях — это звёзды в топ дня!',
+  'Лучший мастер саней попадёт в мой список!'];
 // tag — фразы одного вида не копятся: новая заменяет старую в очереди; очередь не длиннее 3
 function hostSay(text, anim, dur, tag){
   const m = { text, anim:anim||'idle', dur:dur||4, tag };
@@ -1109,17 +1226,44 @@ function hostSay(text, anim, dur, tag){
   if (i >= 0) host.queue[i] = m; else host.queue.push(m);
   while (host.queue.length > 3) host.queue.shift();
 }
-function hostRun(banner, text){ host.run = { t:0, banner, text }; sfxFanfare(); speak(banner); }
-let voiceOn = true, ruVoice = null;
-function speak(t){
-  if (!voiceOn || !window.speechSynthesis) return;
-  try {
-    const clean = t.replace(/[^\p{L}\p{N}\s.,!?—-]/gu, '').trim(); if (!clean) return;
-    if (!ruVoice) ruVoice = speechSynthesis.getVoices().find(v => /^ru/i.test(v.lang)) || null;
-    const u = new SpeechSynthesisUtterance(clean); u.lang = 'ru-RU'; u.pitch = 0.6; u.rate = 1.0; if (ruVoice) u.voice = ruVoice;
-    speechSynthesis.cancel(); speechSynthesis.speak(u);
-  } catch(e){}
+function hostRun(banner, text){ host.run = { t:0, banner, text }; sfxFanfare(); speak(banner, true); }
+let voiceOn = true;
+const voice = { q:[], speaking:false, until:0, v:null };
+function santaVoice(){
+  if (voice.v) return voice.v;
+  const vs = window.speechSynthesis ? speechSynthesis.getVoices() : [];
+  const ru = vs.filter(v => /^ru/i.test(v.lang));
+  voice.v = ru.find(v => /dmitry/i.test(v.name)) || ru.find(v => /pavel/i.test(v.name)) || ru.find(v => /male|муж|yuri|maxim/i.test(v.name) && !/female/i.test(v.name)) || ru[0] || null;
+  return voice.v;
 }
+if (window.speechSynthesis) speechSynthesis.onvoiceschanged = () => { voice.v = null; };
+function speak(t, urgent){
+  if (!voiceOn || !window.speechSynthesis) return;
+  const clean = t.normalize('NFKD').replace(/[^\p{L}\p{N}\s.,!?—-]/gu, '').replace(/\s+/g, ' ').trim(); if (!clean) return;
+  const item = { text:clean, ts:performance.now() };
+  if (urgent){ voice.q.unshift(item); try { speechSynthesis.cancel(); } catch(e){} voice.speaking = false; }
+  else voice.q.push(item);
+  if (voice.q.length > 4) voice.q.length = 4;
+  speakNext();
+}
+function speakNext(){
+  if (voice.speaking) return;
+  while (voice.q.length && performance.now() - voice.q[0].ts > 12000) voice.q.shift();   // устаревшее не озвучиваем
+  const item = voice.q.shift(); if (!item) return;
+  try {
+    const u = new SpeechSynthesisUtterance(item.text), v = santaVoice();
+    u.lang = 'ru-RU'; if (v) u.voice = v;
+    // Санта: голос пониже и неторопливый
+    u.pitch = 0.55; u.rate = 0.95; u.volume = 1;
+    voice.speaking = true; voice.until = performance.now() + Math.max(3000, item.text.length*95 + 1500);
+    duckMusic(true);
+    let done = false;
+    const fin = () => { if (done) return; done = true; voice.speaking = false; duckMusic(false); setTimeout(speakNext, 350); };
+    u.onend = u.onerror = fin; setTimeout(fin, voice.until - performance.now() + 500);
+    speechSynthesis.speak(u);
+  } catch(e){ voice.speaking = false; }
+}
+function duckMusic(on){ if (SND.music && SND.musicOn) SND.music.gain.setTargetAtTime(on ? 0.12 : 0.3, SND.ac.currentTime, 0.2); }
 function updateHost(dt){
   host.t += dt;
   if (host.run){
@@ -1127,14 +1271,14 @@ function updateHost(dt){
     if (host.run.t > 3.2){ const txt = host.run.text; host.run = null; if (txt) hostSay(txt, 'jump', 4); }
     return;
   }
-  if (host.bubbleT > 0){ host.bubbleT -= dt; if (host.bubbleT <= 0){ host.bubble = null; host.anim = 'idle'; } return; }
+  if (host.bubbleT > 0 || (host.bubble && voice.speaking && voice.until > performance.now())){ host.bubbleT -= dt; return; }
+  if (host.bubble){ host.bubble = null; host.anim = 'idle'; }
   if (host.queue.length){ const m = host.queue.shift(); host.bubble = m.text; speak(m.text); host.bubbleT = m.dur; host.anim = m.anim; host.t = 0; return; }
   host.lineT -= dt;
   if (host.lineT <= 0){
-    host.lineT = rnd(35, 55);
+    host.lineT = rnd(10, 16);
     const c = calendar();
-    const lines = modeNow().id === 'shop' ? ['Эльфы, за работу! Сани ждут!', 'Лайк — и подарок готов быстрее!', 'Монетка — и подарок готов сразу!', 'Наполним сани — и Санта полетит!']
-      : modeNow().id === 'raid' ? ['Бейте Хмурыча снежками!', 'Не дайте Хмурычу утащить подарки!', 'Лайки — и снежки летят сильнее!', 'Каждая монетка — +10 к силе снежка!'] : HOST_LINES.slice();
+    const lines = (modeNow().id === 'shop' ? HOST_LINES_SHOP : modeNow().id === 'raid' ? HOST_LINES_RAID : HOST_LINES).slice();
     if (c.sp) lines.push(c.sp.host, c.sp.host);
     const left = modeLeftMs();
     if (left < 70000 && left > 50000) lines.splice(0, lines.length, MODES.length > 1 ? `Через минуту — ${modeNext().title.toLowerCase()}!` : 'Через минуту новый раунд!');
@@ -1166,12 +1310,12 @@ function drawHost(){
   drawHostFrame(host.anim, host.x, host.y, 1.25, true, host.t);
   if (host.bubble){
     ctx.font = 'bold 36px Arial';
-    const lines = wrapText(host.bubble, 520);
+    const lines = wrapText(host.bubble, 480);
     const bw = Math.max(...lines.map(l => ctx.measureText(l).width)) + 50, bh = lines.length*46 + 34;
-    const bx = Math.min(host.x - 140 - bw, CW - bw - 20), by = host.y - 330 - bh;
+    const bx = host.x - 125 - bw, by = host.y - 175 - bh;
     ctx.fillStyle = '#ffffff'; ctx.strokeStyle = '#c0182c'; ctx.lineWidth = 5;
     roundRect(ctx, bx, by, bw, bh, 26); ctx.fill(); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(bx+bw-70, by+bh-3); ctx.lineTo(bx+bw-10, by+bh+40); ctx.lineTo(bx+bw-120, by+bh-3); ctx.closePath(); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(bx+bw-3, by+bh-70); ctx.lineTo(bx+bw+44, by+bh-30); ctx.lineTo(bx+bw-3, by+bh-26); ctx.closePath(); ctx.fill();
     ctx.fillStyle = '#1c2848'; ctx.textAlign = 'left';
     lines.forEach((l,i) => ctx.fillText(l, bx+25, by+52+i*46));
   }
@@ -1405,6 +1549,7 @@ function draw(c){
   ctx.drawImage(BG[room] || BG.battle, 0, 0);
   const small = IMG.tree_small;
   if (room === 'shop'){ drawSwag(); drawVerandaLights(); drawHearth(); }
+  if (room === 'raid') drawTownLive();
   if (room === 'shop') for (const [x,y] of SHOP_DECOR){ drawGiftIcon(1, x-34, y, 4.2); drawGiftIcon(4, x+34, y, 4.2); drawGiftIcon(6, x, y-50, 4.2); }
   else if (room === 'battle' && small.complete && small.naturalWidth) for (const [x,y] of DECOR) ctx.drawImage(small, x - small.naturalWidth*1.2, y - small.naturalHeight*2.4, small.naturalWidth*2.4, small.naturalHeight*2.4);
   // всё, что стоит на снегу, — по глубине (y), ёлка тоже
@@ -1543,11 +1688,9 @@ audioInit();     // в OBS звук стартует сам; в обычном �
 window.addEventListener('pointerdown', audioInit);
 window.addEventListener('touchend', audioInit);
 window.addEventListener('click', audioInit);
-setInterval(() => { document.getElementById('soundBtn').style.display = SND.ac && SND.ac.state === 'running' ? 'none' : 'block'; }, 500);
-document.getElementById('soundBtn').onclick = () => { audioInit(); try { speechSynthesis.speak(new SpeechSynthesisUtterance(' ')); } catch(e){} };
 document.getElementById('backBtn').onclick = () => { location.href = '/games'; };
 document.getElementById('musicBtn').onclick = (e) => { e.stopPropagation(); audioInit(); setMusic(!SND.musicOn); e.currentTarget.textContent = SND.musicOn ? '🎵' : '🔇'; };
-document.getElementById('voiceBtn').onclick = (e) => { e.stopPropagation(); voiceOn = !voiceOn; e.currentTarget.textContent = voiceOn ? '🗣️' : '🤐'; if (!voiceOn) try { speechSynthesis.cancel(); } catch(_){} };
+document.getElementById('voiceBtn').onclick = (e) => { e.stopPropagation(); voiceOn = !voiceOn; e.currentTarget.textContent = voiceOn ? '🗣️' : '🤐'; if (!voiceOn){ voice.q.length = 0; try { speechSynthesis.cancel(); } catch(_){} } };
 document.getElementById('fsBtn').onclick = () => {
   if (document.fullscreenElement) { document.exitFullscreen && document.exitFullscreen(); }
   else if (document.documentElement.requestFullscreen) {
