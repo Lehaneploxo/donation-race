@@ -983,7 +983,7 @@ function onGift(name, coins){
   if (modeNow().id === 'shop'){
     // в мастерской монета — готовый подарок в руки сразу; крупный донат считается за несколько
     const w = p.ws || (p.ws = { ph:'go', prog:0, c:0, cnt:1 });
-    if (w.ph !== 'carry'){ w.ph = 'carry'; w.c = Math.floor(Math.random()*7); w.cnt = 0; }
+    if (w.ph !== 'carry'){ w.ph = 'carry'; w.c = Math.floor(Math.random()*7); w.cnt = w.made || 0; w.made = 0; w.drop = { x:rnd(170, 520), y:rnd(745, 800) }; }
     w.cnt = Math.min(20, w.cnt + 1 + Math.floor(coins/5));
     p.volley = 0;
   }
@@ -1451,34 +1451,42 @@ const TRACK = { rx:352, ry:157 };                 // рельсы игрушеч
 let trainA = 0;
 // золотые искорки в тёплом воздухе избы
 const MOTES = Array.from({ length:36 }, (_, i) => ({ x:60 + (i*263) % 960, o:(i*197) % 700, sp:18 + (i*37) % 30, ph:i*1.7 }));                                // левый край саней на стоянке
-const CRAFT_TIME = 4, GIFT_VALUE = 5;
+const CRAFT_TIME = 4, GIFT_VALUE = 5, GIFTS_PER_TRIP = 3;
 let shop = { n:1, gifts:0, goal:20, fly:null, by:{} };
 function shopGoal(){ return Math.min(400, Math.round((30 + 8*Math.max(3, players.size)) * (1 + 0.3*(shop.n-1)))); }
 function newSleigh(){ shop.gifts = 0; shop.by = {}; shop.goal = shopGoal(); }
 // места верстаков: по бокам и снизу от ёлки (не за кроной, не у саней и не под ведущим);
 // новый эльф занимает первое свободное — порядок подобран так, чтобы поле заполнялось равномерно
 const BENCH_SPOTS = [[540,690],[150,1040],[930,790],[300,1190],[790,960],[440,880],[640,880],[150,1200],
-  [300,860],[940,950],[200,1360],[380,740],[700,740],[300,1030],[780,800],[140,880]].map(([x,y]) => ({ x, y }));
+  [300,860],[940,950],[200,1360],[380,740],[700,740],[300,1030],[780,800],[140,880],
+  // ещё 18 мест — чтобы большая толпа расходилась по всей комнате, а не стояла кучей
+  [860,1100],[230,760],[540,1420],[860,1260],[380,1380],[700,1380],[230,940],[860,870],[340,1110],[740,1060],
+  [960,1380],[450,1460],[640,1460],[820,1440],[230,1280],[960,1180],[130,1120],[620,760]].map(([x,y]) => ({ x, y }));
 function wsSpot(p){
   const w = p.ws;
   if (w.slot == null){
     const taken = new Set([...players.values()].map(o => o.ws && o.ws.slot).filter(v => v != null));
     w.slot = BENCH_SPOTS.findIndex((_, i) => !taken.has(i));
-    if (w.slot < 0) w.slot = hashStr(p.key) % BENCH_SPOTS.length;
+    if (w.slot < 0){ w.slot = hashStr(p.key) % BENCH_SPOTS.length; const a = (hashStr(p.key) % 360) * Math.PI/180; w.off = { x:Math.cos(a)*55, y:Math.sin(a)*30 }; }
   }
-  return BENCH_SPOTS[w.slot];
+  const b = BENCH_SPOTS[w.slot];
+  return w.off ? { x:b.x + w.off.x, y:b.y + w.off.y } : b;
 }
 // возвращает направление движения; null — эльф стоит за верстаком
 function shopStep(p, dt){
   const w = p.ws || (p.ws = { ph:'go', prog:0, c:0, cnt:1 });
   if (w.ph === 'craft'){
     p.dir = 2; w.prog += dt / CRAFT_TIME * (1 + Math.min(3, (p.power - BASE_POWER)/20));   // донатер работает быстрее
-    if (w.prog >= 1){ w.ph = 'carry'; puff(p.x, p.y - 40, 10, '#fff6c8'); }
+    // готовые подарки копятся на верстаке, к саням несут сразу 3 — меньше беготни и толкучки у окна
+    if (w.prog >= 1){ w.made = (w.made || 0) + 1; puff(p.x, p.y - 40, 10, '#fff6c8');
+      if (w.made < GIFTS_PER_TRIP){ w.prog = 0; w.c = Math.floor(Math.random()*7); }
+      else { w.ph = 'carry'; w.cnt = w.made; w.made = 0; w.drop = { x:rnd(170, 520), y:rnd(745, 800) }; } }
     return null;
   }
-  const t = w.ph === 'carry' ? { x:SLEIGH.x + 60, y:SLEIGH.y + 60 } : wsSpot(p);
+  // подарок отдают через окно — каждый раз в своё место вдоль подоконника, чтобы не толпились в одной точке
+  const t = w.ph === 'carry' ? (w.drop || { x:SLEIGH.x + 60, y:SLEIGH.y + 60 }) : wsSpot(p);
   const dx = t.x - p.x, dy = t.y - p.y, d = Math.hypot(dx, dy) || 1;
-  if (w.ph === 'carry' && d < 95){ deliverGift(p, w); w.ph = 'go'; return [0, 0]; }
+  if (w.ph === 'carry' && d < 40){ deliverGift(p, w); w.ph = 'go'; return [0, 0]; }
   if (w.ph === 'go' && d < 25){ w.ph = 'craft'; w.prog = 0; w.c = Math.floor(Math.random()*7); w.cnt = 1; return null; }
   return [dx/d, dy/d];
 }
@@ -1699,6 +1707,7 @@ function drawBench(p){
   ctx.fillStyle = '#8a5428'; ctx.fillRect(x-60, y-42, 120, 18);
   ctx.fillStyle = '#b07a44'; ctx.fillRect(x-60, y-46, 120, 6);
   if (w.ph === 'craft'){
+    for (let i=0;i<(w.made||0);i++) drawGiftIcon((w.c + i + 3) % 7, x - 40 + i*22, y - 44, 2.2);
     drawGiftIcon(w.c, x, y - 44, 1.2 + 2.4*w.prog);
     if (Math.random() < 0.08) particles.push({ x:x + rnd(-30,30), y:y - 60, vx:rnd(-80,80), vy:-rnd(120,260), t:0, life:0.5, r:rnd(2,4), color:'#ffe27a' });
   }
@@ -2116,6 +2125,8 @@ function draw(c){
   drawCountdown(c);
   drawRatingCard();
   drawHost();
+  // автор трека (лицензия CC BY) — мелко внизу, пока играет запись
+  if (SND.song && SND.song.credit && SND.ac && SND.ac.currentTime < SND.songEnd){ ctx.textAlign = 'center'; ctx.globalAlpha = 0.85; strokeText(SND.song.credit, CW/2, CH - 14, 'bold 22px Arial', '#ffffff', 4, '#14203f'); ctx.globalAlpha = 1; }
 }
 function frame(now){
   const dt = Math.min(0.05, (now - lastT)/1000); lastT = now;
@@ -2174,7 +2185,18 @@ const SONGS = [
     C5:1 A4:1 B4:1 C5:1 D5:1 E5:1 B4:1 A4:1 G4:1 E4:1 F#4:1 G4:1 A4:2 G4:1 A4:1
     B4:1 C5:1 D5:1 E5:1 B4:1 A4:1 G4:1 F#4:1 E4:2 D4:1 G4:1 F#4:1 G4:1 A4:2
     B4:1 C5:1 D5:1 E5:1 B4:1 A4:1 G4:1 F#4:1 E4:4`) },
+  // готовые записи (CC BY 4.0 — автор показывается внизу экрана, пока играет трек); loops — сколько раз подряд
+  { name:'Sleigh Bell Swing', file:'sleigh_bell_swing.mp3', loops:2, vol:0.45, credit:'♪ «Sleigh Bell Swing» — BudgetPixel AI · CC BY 4.0' },
+  { name:'Jazzy Christmas', file:'jazzy_christmas.mp3', loops:1, vol:0.45, credit:'♪ «Jazzy Christmas» — Sascha Ende (ende.app) · CC BY 4.0' },
 ];
+const MUSIC_BUF = {};
+function loadMusicFiles(){
+  for (const s of SONGS) if (s.file && !MUSIC_BUF[s.file]){
+    MUSIC_BUF[s.file] = 'loading';
+    fetch(SP + 'music/' + s.file).then(r => r.arrayBuffer()).then(a => new Promise((ok, no) => SND.ac.decodeAudioData(a, ok, no)))
+      .then(b => { MUSIC_BUF[s.file] = b; }).catch(() => { delete MUSIC_BUF[s.file]; });
+  }
+}
 let silentOk = false;
 function silentWavUrl(){
   const n = 4000, buf = new ArrayBuffer(44 + n), v = new DataView(buf);
@@ -2195,6 +2217,7 @@ function audioInit(){
   const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
   SND.ac = new AC();
   SND.music = SND.ac.createGain(); SND.music.gain.value = SND.musicOn ? 0.3 : 0; SND.music.connect(SND.ac.destination);
+  loadMusicFiles();
   SND.sfx = SND.ac.createGain(); SND.sfx.gain.value = SND.sfxOn ? 0.5 : 0; SND.sfx.connect(SND.ac.destination);
   SND.noiseBuf = SND.ac.createBuffer(1, SND.ac.sampleRate, SND.ac.sampleRate);
   const d = SND.noiseBuf.getChannelData(0); for (let i=0;i<d.length;i++) d[i] = Math.random()*2-1;
@@ -2218,7 +2241,21 @@ function bell(freq, t, dur, vol){
 }
 function shuffleOrder(){ SND.order = SONGS.map((_,i)=>i).sort(() => Math.random()-0.5); SND.idx = 0; }
 function startSong(i, t){
-  const s = SONGS[i]; SND.song = s; const beat = 60/s.bpm; let tt = t + 0.1;
+  let s = SONGS[i];
+  if (s.file){
+    const buf = MUSIC_BUF[s.file];
+    if (!(buf instanceof AudioBuffer)){ i = Math.floor(Math.random()*SONGS.filter(x => !x.file).length); s = SONGS[i]; }   // запись ещё не скачалась — пока нотная мелодия
+    else {
+      SND.song = s;
+      const src = SND.ac.createBufferSource(), gn = SND.ac.createGain(); src.buffer = buf; src.loop = s.loops > 1; gn.gain.value = s.vol;
+      src.connect(gn); gn.connect(SND.music); src.start(t + 0.1); if (s.loops > 1) src.stop(t + 0.1 + buf.duration*s.loops);
+      SND.src = src; SND.songEnd = t + 0.1 + buf.duration*s.loops + 1.5;
+      const el = document.getElementById('trackName'); if (el) el.textContent = '♪ ' + s.name;
+      document.querySelectorAll('#songList button, #testBar button.song').forEach((b, k) => b.classList.toggle('on', k % SONGS.length === i));
+      return;
+    }
+  }
+  SND.song = s; const beat = 60/s.bpm; let tt = t + 0.1;
   for (const [n, d] of s.mel){ bell(NOTE(n), tt, d*beat, 0.5); tt += d*beat; }
   const roots = s.bass.split(' '); let bt = t + 0.1 + (s.pick||0)*beat;
   for (const r of roots){ const f = NOTE(r + '2'); for (let k=0;k<s.bar;k++){ tone(k===0 ? f : f*1.5, bt + k*beat, beat*0.9, 'triangle', k===0 ? 0.35 : 0.18, SND.music); if (s.bells) noise(bt + k*beat, 0.09, k%2 ? 0.05 : 0.09, SND.music, 'highpass', 7000); } bt += s.bar*beat; }
@@ -2389,7 +2426,7 @@ if (DEMO){
   document.getElementById('bSay').onclick = () => { host.lineT = 0; };
   document.getElementById('bMusic').onclick = (e) => { audioInit(); setMusic(!SND.musicOn); e.target.textContent = '🎵 Музыка: ' + (SND.musicOn ? 'вкл' : 'выкл'); };
   document.getElementById('bSfx').onclick = (e) => { audioInit(); setSfx(!SND.sfxOn); e.target.textContent = '💥 Эффекты: ' + (SND.sfxOn ? 'вкл' : 'выкл'); };
-  cutMusic = () => { audioInit(); forceNext = true; if (SND.music){ SND.music.disconnect(); SND.music = SND.ac.createGain(); SND.music.gain.value = SND.musicOn ? 0.3 : 0; SND.music.connect(SND.ac.destination); } };
+  cutMusic = () => { audioInit(); forceNext = true; if (SND.src){ try { SND.src.stop(); } catch(e){} SND.src = null; } if (SND.music){ SND.music.disconnect(); SND.music = SND.ac.createGain(); SND.music.gain.value = SND.musicOn ? 0.3 : 0; SND.music.connect(SND.ac.destination); } };
   document.getElementById('bNext').onclick = cutMusic;
   // все мелодии списком — включить любую сразу
   const sl = document.getElementById('songList');
