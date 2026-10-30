@@ -29,6 +29,8 @@ body.live #panel{display:none}
 #testBar.open .grid{display:grid}
 #testBar .grid button{font-size:13px;padding:9px 4px;border-radius:8px;background:#26345e;color:#fff;border:1px solid #3d4f86}
 #testBar .grid button:active{background:#c0182c}
+#testBar .grid button.song.on,#songList button.on{background:#c0182c;border-color:#ffd75e}
+#testBar .grid{max-height:70vh;overflow-y:auto}
 body.live #stage{right:0}
 .ui-btn{position:fixed;z-index:99999;width:34px;height:34px;font-size:16px;padding:0;margin:0;background:rgba(0,0,0,0.55);color:rgba(255,255,255,0.8);border:1px solid rgba(255,255,255,0.25);border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center}
 #backBtn{top:calc(50% - 90px);right:10px} #voiceBtn{top:calc(50% - 45px);right:10px} #musicBtn{top:calc(50%);right:10px} #fsBtn{top:calc(50% + 45px);right:10px}
@@ -70,6 +72,7 @@ body:not(.live) .ui-btn{right:310px}
   <div class="sec"><b>Звук</b><br>
     <button id="bMusic">🎵 Музыка: вкл</button><button id="bNext">⏭ трек</button><button id="bSfx">💥 Эффекты: вкл</button>
     <div class="hint" id="trackName"></div>
+    <div id="songList"></div>
   </div>
 </div>
 <script>
@@ -1033,7 +1036,7 @@ function hit(b){
   if (!players.has(q.key) || q.state === 'frozen'){ puff(b.tx, b.ty, 8, b.coal ? '#333' : '#ffffff'); return; }
   const dmg = Math.min(b.power, q.warmth);
   hurt(q, b.power);
-  q.x += clamp(q.x - b.sx, -1, 1) * 10;
+  q.kb = (q.x >= b.sx ? 1 : -1) * 60;   // плавный отскок ~10px за 0.2 с (раньше — рывок, эльф дёргался)
   puff(b.tx, b.ty, 10 + Math.min(20, b.r), b.coal ? '#3a3a44' : '#ffffff');
   sfxHit(b.r);
   if (players.has(p.key) && !p.isBot && dmg > 0){
@@ -1077,6 +1080,7 @@ function puff(x, y, n, color){
 
 function updatePlayer(p, dt){
   if (p.hitT > 0) p.hitT -= dt;
+  if (p.kb){ p.x = clamp(p.x + p.kb*dt, FIELD.x0, FIELD.x1); p.kb *= Math.pow(0.0005, dt); if (Math.abs(p.kb) < 3) p.kb = 0; }
   if (p.state === 'frozen'){ p.frozenT -= dt; if (p.frozenT <= 0) thaw(p); return; }
   if (p.asleep){ p.moving = false; p.state = 'walk'; p.volley = 0; return; }
   const raidMode = modeNow().id === 'raid', shopMode = modeNow().id === 'shop';
@@ -1403,13 +1407,15 @@ function drawStreetLive(dt){
   STREET_FX.tw.forEach((c, k) => { ctx.globalAlpha = 0.55*Math.max(0, Math.sin(time*2.2 + k*2.094)); ctx.drawImage(c, 0, STREET_FX.y0); });
   ctx.restore(); ctx.globalAlpha = 1;
   for (const [cx, cy] of STREET_FX.smoke) for (let k=0;k<4;k++){ const t = ((time*0.3 + k*0.25 + cx*0.01) % 1); ctx.fillStyle = `rgba(215,222,240,${0.35*(1-t)})`; ctx.beginPath(); ctx.arc(cx + Math.sin(time + k)*4 + t*16, cy - t*60, 4 + t*10, 0, Math.PI*2); ctx.fill(); }
-  // Санта на упряжке иногда пролетает над крышами
+}
+// Санта на упряжке раз в 45 с пролетает по небу (снежная битва — над лесом, мимо луны)
+function drawSkySanta(dt, y0){
   skySanta.next -= dt;
   if (skySanta.t < 0 && skySanta.next <= 0){ skySanta.t = 0; skySanta.next = 45; }
   if (skySanta.t >= 0){
     skySanta.t += dt; const u = skySanta.t / 8;
     if (u >= 1) skySanta.t = -1;
-    else { const k = 0.4, sx = CW + 120 - u*(CW + 420), sy = 540 - Math.sin(u*Math.PI)*30 + Math.sin(time*4)*3;
+    else { const k = 0.4, sx = CW + 120 - u*(CW + 420), sy = y0 - Math.sin(u*Math.PI)*30 + Math.sin(time*4)*3;
       if (Math.random() < 0.6) particles.push({ x:sx + 10, y:sy - 14, vx:rnd(10,40), vy:rnd(-5,15), t:0, life:rnd(0.5,0.9), r:rnd(1.5,3), color:pick(['#ffe27a','#ffffff','#ff9db0']) });
       ctx.save(); ctx.translate(sx, sy); ctx.scale(-k, k); drawTeam(0, 0, true, true, false); ctx.restore(); }
   }
@@ -1922,7 +1928,7 @@ function drawPlayer(p){
     else if (p.moving){ row = p.dir; col = 1 + Math.floor(p.walkT*12) % 8; }
     else { row = p.dir; col = 0; }
     ctx.drawImage(im, col*64, row*64, 64, 64, Math.round(p.x - 32*S), Math.round(p.y - FEET*S), 64*S, 64*S);
-    if (p.hitT > 0){ ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = p.hitT*2.4; ctx.drawImage(im, col*64, row*64, 64, 64, Math.round(p.x - 32*S), Math.round(p.y - FEET*S), 64*S, 64*S); ctx.restore(); }
+    if (p.hitT > 0){ ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = p.hitT*1.2; ctx.drawImage(im, col*64, row*64, 64, 64, Math.round(p.x - 32*S), Math.round(p.y - FEET*S), 64*S, 64*S); ctx.restore(); }
     if (ws && ws.ph === 'craft') drawBench(p);
     if (ws && ws.ph === 'carry') drawGiftIcon(ws.c, p.x, p.y - (isGolden(p) ? 205 : 180), ws.cnt > 1 ? 5 : 3.6);
   }
@@ -2082,6 +2088,7 @@ function draw(c){
   ctx.drawImage(BG[room] || BG.battle, 0, 0);
   if (room === 'shop'){ drawSwag(); drawVerandaLights(); drawHearth(); }
   if (raidStreet()) drawStreetLive(Math.min(0.05, time - (drawStreetLive.last ?? time))), drawStreetLive.last = time;
+  if (room === 'battle') drawSkySanta(Math.min(0.05, time - (drawSkySanta.last ?? time)), 480), drawSkySanta.last = time;
   if (room === 'shop') for (const [x,y] of SHOP_DECOR){ drawGiftIcon(1, x-34, y, 4.2); drawGiftIcon(4, x+34, y, 4.2); drawGiftIcon(6, x, y-50, 4.2); }
   // всё, что стоит на снегу, — по глубине (y), ёлка тоже
   const ents = [...players.values()].map(p => ({ y:p.y, f:() => drawPlayer(p) }));
@@ -2142,6 +2149,30 @@ const SONGS = [
     G4:1.5 A4:0.5 G4:1 E4:3 G4:1.5 A4:0.5 G4:1 E4:3 D5:2 D5:1 B4:3 C5:2 C5:1 G4:3
     A4:2 A4:1 C5:1.5 B4:0.5 A4:1 G4:1.5 A4:0.5 G4:1 E4:3 A4:2 A4:1 C5:1.5 B4:0.5 A4:1 G4:1.5 A4:0.5 G4:1 E4:3
     D5:2 D5:1 F5:1.5 D5:0.5 B4:1 C5:3 E5:3 C5:1 G4:1 E4:1 G4:1.5 F4:0.5 D4:1 C4:6`) },
+  { name:'Joy to the World', bpm:130, bells:true, bass:'C C G C F G C C C C C C C G G C C G C', bar:4, mel:seq(`
+    C5:2 B4:1.5 A4:0.5 G4:3 F4:1 E4:2 D4:2 C4:3 G4:1 A4:3 A4:1 B4:3 B4:1 C5:3 C5:1
+    C5:1 B4:1 A4:1 G4:1 G4:1.5 F4:0.5 E4:1 C5:1 C5:1 B4:1 A4:1 G4:1 G4:1.5 F4:0.5 E4:1 E4:1
+    E4:1 E4:1 E4:1 E4:0.5 F4:0.5 G4:3 F4:0.5 E4:0.5 D4:1 D4:1 D4:1 D4:0.5 E4:0.5 F4:3 E4:0.5 D4:0.5
+    C4:1 C5:2 A4:1 G4:1.5 F4:0.5 E4:1 F4:1 E4:2 D4:2 C4:4`) },
+  { name:'O Christmas Tree (O Tannenbaum)', bpm:110, bells:false, bass:'C C G C C G G C C C G C', bar:3, pick:1, mel:seq(`
+    G3:1 C4:0.75 C4:0.25 C4:1.5 D4:0.5 E4:0.75 E4:0.25 E4:1.5 E4:0.5 D4:0.5 E4:0.5 F4:1.5 B3:0.5 D4:1 C4:1 G4:0.5 G4:0.5
+    E4:1 A4:1.5 G4:0.5 G4:0.5 F4:0.5 F4:1 F4:0.5 F4:0.5 D4:1 G4:1.5 F4:0.5 F4:0.5 E4:0.5 E4:1 G3:1
+    C4:0.75 C4:0.25 C4:1.5 D4:0.5 E4:0.75 E4:0.25 E4:1.5 E4:0.5 D4:0.5 E4:0.5 F4:1.5 B3:0.5 D4:1 C4:2`) },
+  { name:'The First Noel', bpm:140, bells:false, bass:'C C F C F G C C C C F C F G C C C C F C G F G C', bar:3, pick:1, mel:seq(`
+    E4:0.5 D4:0.5 C4:1.5 D4:0.5 E4:0.5 F4:0.5 G4:2 A4:0.5 B4:0.5 C5:1 B4:1 A4:1 G4:2 A4:0.5 B4:0.5 C5:1 B4:1 A4:1 G4:1 A4:1 B4:1 C5:1 G4:1 F4:1 E4:2 E4:0.5 D4:0.5
+    C4:1.5 D4:0.5 E4:0.5 F4:0.5 G4:2 A4:0.5 B4:0.5 C5:1 B4:1 A4:1 G4:2 A4:0.5 B4:0.5 C5:1 B4:1 A4:1 G4:1 A4:1 B4:1 C5:1 G4:1 F4:1 E4:2 E4:0.5 D4:0.5
+    C4:1.5 D4:0.5 E4:0.5 F4:0.5 G4:2 C5:0.5 B4:0.5 A4:2 A4:1 G4:2 C5:1 B4:1 A4:1 G4:1 A4:1 B4:1 C5:1 G4:2 F4:1 E4:3`) },
+  { name:'Good King Wenceslas', bpm:140, bells:true, bass:'G D C G G D C G G D C G D G D C G', bar:4, mel:seq(`
+    G4:1 G4:1 G4:1 A4:1 G4:1 G4:1 D4:2 E4:1 D4:1 E4:1 F#4:1 G4:2 G4:2
+    G4:1 G4:1 G4:1 A4:1 G4:1 G4:1 D4:2 E4:1 D4:1 E4:1 F#4:1 G4:2 G4:2
+    D5:1 C5:1 B4:1 A4:1 B4:1 A4:1 G4:2 E4:1 D4:1 E4:1 F#4:1 G4:2 G4:2
+    D4:1 D4:1 E4:1 F#4:1 G4:1 G4:1 A4:2 D5:1 C5:1 B4:1 A4:1 G4:2 C5:2 G4:4`) },
+  { name:'God Rest Ye Merry, Gentlemen', bpm:150, bells:false, bass:'E E E B E E E B A B E D G B E D G B E', bar:4, pick:1, mel:seq(`
+    E4:1 E4:1 B4:1 B4:1 A4:1 G4:1 F#4:1 E4:1 D4:1 E4:1 F#4:1 G4:1 A4:1 B4:3 E4:1
+    E4:1 B4:1 B4:1 A4:1 G4:1 F#4:1 E4:1 D4:1 E4:1 F#4:1 G4:1 A4:1 B4:3 B4:1
+    C5:1 A4:1 B4:1 C5:1 D5:1 E5:1 B4:1 A4:1 G4:1 E4:1 F#4:1 G4:1 A4:2 G4:1 A4:1
+    B4:1 C5:1 D5:1 E5:1 B4:1 A4:1 G4:1 F#4:1 E4:2 D4:1 G4:1 F#4:1 G4:1 A4:2
+    B4:1 C5:1 D5:1 E5:1 B4:1 A4:1 G4:1 F#4:1 E4:4`) },
 ];
 let silentOk = false;
 function silentWavUrl(){
@@ -2192,8 +2223,10 @@ function startSong(i, t){
   for (const r of roots){ const f = NOTE(r + '2'); for (let k=0;k<s.bar;k++){ tone(k===0 ? f : f*1.5, bt + k*beat, beat*0.9, 'triangle', k===0 ? 0.35 : 0.18, SND.music); if (s.bells) noise(bt + k*beat, 0.09, k%2 ? 0.05 : 0.09, SND.music, 'highpass', 7000); } bt += s.bar*beat; }
   SND.songEnd = Math.max(tt, bt) + 2.5;
   const el = document.getElementById('trackName'); if (el) el.textContent = '♪ ' + s.name;
+  document.querySelectorAll('#songList button, #testBar button.song').forEach((b, k, all) => b.classList.toggle('on', k % SONGS.length === i));
 }
-let forceNext = false;
+let forceNext = false, forceSong = -1, cutMusic = () => {};
+function playSong(k){ cutMusic(); forceSong = k; if (!SND.musicOn) setMusic(true); }
 function musicTick(c){
   if (!SND.ac || SND.ac.state !== 'running') return;
   const t = SND.ac.currentTime;
@@ -2201,6 +2234,7 @@ function musicTick(c){
   forceNext = false;
   if (!SND.order.length || SND.idx >= SND.order.length) shuffleOrder();
   let i = SND.order[SND.idx++];
+  if (forceSong >= 0){ i = forceSong; forceSong = -1; }
   if (c && c.sp && c.sp.shchedryk && Math.random() < 0.6) i = 3;      // Щедрый вечер — «Щедрик»
   if (c && c.sp && c.sp.eve && Math.random() < 0.5) i = 4;            // сочельник — «Тихая ночь»
   startSong(i, t);
@@ -2346,12 +2380,19 @@ if (DEMO){
       ['💤 Усыпить', () => { const ps = realPlayers().filter(q => !q.asleep); if (ps.length) pick(ps).lastActive = performance.now() - SLEEP_MS - 1000; }],
       ['🛷 Сани полные', () => { if (modeNow().id === 'shop' && !shop.fly && !shop.arrive){ shop.gifts = shop.goal; sleighFly(); } }],
     ]){ const b = document.createElement('button'); b.textContent = label; b.onclick = (e) => { e.stopPropagation(); fn(); }; grid.appendChild(b); }
+    // мелодии: включить любую сразу
+    const mus = document.createElement('div'); mus.style.cssText = 'grid-column:1/-1;color:#ffd75e;font-size:13px;font-weight:bold;margin-top:4px'; mus.textContent = '🎵 Мелодии'; grid.appendChild(mus);
+    SONGS.forEach((s, k) => { const b = document.createElement('button'); b.className = 'song'; b.textContent = (k+1) + '. ' + s.name.replace(/ \(.*\)$/, ''); b.onclick = (e) => { e.stopPropagation(); playSong(k); }; grid.appendChild(b); });
     bar.appendChild(grid); bar.appendChild(tgl); document.body.appendChild(bar);
   }
   document.getElementById('bSay').onclick = () => { host.lineT = 0; };
   document.getElementById('bMusic').onclick = (e) => { audioInit(); setMusic(!SND.musicOn); e.target.textContent = '🎵 Музыка: ' + (SND.musicOn ? 'вкл' : 'выкл'); };
   document.getElementById('bSfx').onclick = (e) => { audioInit(); setSfx(!SND.sfxOn); e.target.textContent = '💥 Эффекты: ' + (SND.sfxOn ? 'вкл' : 'выкл'); };
-  document.getElementById('bNext').onclick = () => { audioInit(); forceNext = true; if (SND.music){ SND.music.disconnect(); SND.music = SND.ac.createGain(); SND.music.gain.value = SND.musicOn ? 0.3 : 0; SND.music.connect(SND.ac.destination); } };
+  cutMusic = () => { audioInit(); forceNext = true; if (SND.music){ SND.music.disconnect(); SND.music = SND.ac.createGain(); SND.music.gain.value = SND.musicOn ? 0.3 : 0; SND.music.connect(SND.ac.destination); } };
+  document.getElementById('bNext').onclick = cutMusic;
+  // все мелодии списком — включить любую сразу
+  const sl = document.getElementById('songList');
+  SONGS.forEach((s, k) => { const b = document.createElement('button'); b.textContent = (k+1) + '. ' + s.name; b.onclick = () => playSong(k); sl.appendChild(b); });
 }
 
 if (Q.get('mode')){ const i = MODES.findIndex(m => m.id === Q.get('mode')); if (i >= 0) modeOffset = ((i - modeSlot()) % MODES.length + MODES.length) % MODES.length; }
