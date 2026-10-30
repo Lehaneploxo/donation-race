@@ -1709,7 +1709,33 @@ function drawShopBar(){
 
 
 // ───────────────────────── Ведущий Санта ─────────────────────────
-const host = { anim:'idle', t:0, x:965, y:1790, bubble:null, bubbleT:0, run:null, queue:[], lineT:20, lockT:0 };
+// bubble — текущая фраза (только состояние «говорит», на экран не выводится — есть голос)
+// Между фразами Санта гуляет по нижнему краю: бегает туда-сюда, стоит, машет (jump), иногда проезжает (slide)
+const host = { anim:'idle', t:0, x:965, y:1790, dir:-1, walk:null, act:null, idleT:3, bubble:null, bubbleT:0, run:null, queue:[], lineT:20, lockT:0 };
+const HOST_X0 = 140, HOST_X1 = 950, HOST_SPEED = 320;
+function hostAnim(a){ if (host.anim !== a){ host.anim = a; host.t = 0; } }
+function hostWander(dt){
+  if (host.walk){
+    const d = host.walk.to - host.x, st = (host.walk.slide ? 520 : HOST_SPEED) * dt;
+    host.dir = d < 0 ? -1 : 1;
+    if (Math.abs(d) <= st){ host.x = host.walk.to; host.walk = null; hostAnim('idle'); host.idleT = rnd(2, 5.5);
+      if (Math.random() < 0.35){ host.act = 16/18; hostAnim('jump'); } }
+    else host.x += Math.sign(d) * st;
+    return;
+  }
+  if (host.act != null){ host.act -= dt; if (host.act <= 0){ host.act = null; hostAnim('idle'); } return; }
+  host.idleT -= dt;
+  if (host.idleT > 0) return;
+  const r = Math.random();
+  if (r < 0.6){
+    let to; do { to = rnd(HOST_X0, HOST_X1); } while (Math.abs(to - host.x) < 250);
+    host.walk = { to }; host.dir = to < host.x ? -1 : 1; hostAnim('run');
+  } else if (r < 0.85){ host.act = 16/18; hostAnim('jump'); host.idleT = rnd(2, 4); }
+  else {
+    const dir = host.x < (HOST_X0 + HOST_X1)/2 ? 1 : -1;
+    host.walk = { to: clamp(host.x + dir*rnd(220, 320), HOST_X0, HOST_X1), slide:true }; host.dir = dir; hostAnim('slide');
+  }
+}
 const HOST_LINES = [
   'Пишите в чат — и вы в игре!', 'Лайк — плюс энергия, дольше не замёрзнешь!', 'Каждая монетка — плюс сила снежка и десять энергии!',
   'Лидер дня становится Золотым Сантой!', 'С 40-го уровня эльф навсегда становится Сантой!',
@@ -1776,8 +1802,10 @@ function updateHost(dt){
     return;
   }
   if (host.bubbleT > 0 || (host.bubble && voice.speaking && voice.until > performance.now())){ host.bubbleT -= dt; return; }
-  if (host.bubble){ host.bubble = null; host.anim = 'idle'; }
-  if (host.queue.length){ const m = host.queue.shift(); host.bubble = m.text; speak(m.text); host.bubbleT = m.dur; host.anim = m.anim; host.t = 0; return; }
+  if (host.bubble){ host.bubble = null; hostAnim('idle'); host.idleT = rnd(1, 2.5); }
+  if (host.queue.length){ const m = host.queue.shift(); host.bubble = m.text; speak(m.text); host.bubbleT = m.dur;
+    host.walk = null; host.act = null; host.dir = host.x > CW/2 ? -1 : 1; host.anim = m.anim; host.t = 0; return; }
+  hostWander(dt);
   host.lineT -= dt;
   if (host.lineT <= 0){
     host.lineT = rnd(10, 16);
@@ -1811,18 +1839,7 @@ function drawHost(){
     for (let i=0;i<5;i++){ const lx = -200 + k*(CW+400) - 200 - i*30; ctx.fillStyle = 'rgba(255,255,255,0.7)'; ctx.fillRect(lx - 220, 960 + i*40, 200, 8); }
     return;
   }
-  drawHostFrame(host.anim, host.x, host.y, 1.25, true, host.t);
-  if (host.bubble){
-    ctx.font = 'bold 36px Arial';
-    const lines = wrapText(host.bubble, 480);
-    const bw = Math.max(...lines.map(l => ctx.measureText(l).width)) + 50, bh = lines.length*46 + 34;
-    const bx = host.x - 125 - bw, by = host.y - 175 - bh;
-    ctx.fillStyle = '#ffffff'; ctx.strokeStyle = '#c0182c'; ctx.lineWidth = 5;
-    roundRect(ctx, bx, by, bw, bh, 26); ctx.fill(); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(bx+bw-3, by+bh-70); ctx.lineTo(bx+bw+44, by+bh-30); ctx.lineTo(bx+bw-3, by+bh-26); ctx.closePath(); ctx.fill();
-    ctx.fillStyle = '#1c2848'; ctx.textAlign = 'left';
-    lines.forEach((l,i) => ctx.fillText(l, bx+25, by+52+i*46));
-  }
+  drawHostFrame(host.anim, host.x, host.y, 1.25, host.dir < 0, host.t);
 }
 function wrapText(t, maxW){
   const words = t.split(' '), out = []; let cur = '';
