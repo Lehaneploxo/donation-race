@@ -1206,8 +1206,9 @@ function spawnBoss(){
   const n = Math.max(3, players.size);
   const hpMax = Math.round((500 + 150*n) * (1 + 0.5*(raid.wave-1)));
   raid.gifts = GIFTS_MAX;
-  boss = { key:'__boss', name:'Гринчич', isBot:true, x:rnd(440, 640), y:stBottom(ST.farX) + 10, dir:2, walkT:0, moving:false,
-    state:'enter', goal:(([x, y]) => ({ x, y }))(walkPt(rnd(300,780), FIELD.y0 + 120)), hp:hpMax, hpMax, power:15 + 10*(raid.wave-1),
+  // выходит слева из-за края улицы (на уровне середины поля) и идёт к подаркам
+  boss = { key:'__boss', name:'Гринчич', isBot:true, x:-120, y:1120, dir:3, walkT:0, moving:false,
+    state:'enter', goal:(([x, y]) => ({ x, y }))(walkPt(rnd(300,520), rnd(1060, 1160))), hp:hpMax, hpMax, power:15 + 10*(raid.wave-1),
     throwT:3, stealT:8, chargeT:7, prey:null, chargeLeft:0, hitT:0, angry:false, sack:0, t:0, throwAnim:0, dmgBy:{} };
   hostSay(raid.wave === 1 ? 'Гринчич пришёл за подарками! Бейте его снежками!' : `Гринчич вернулся! Волна ${raid.wave} — он ещё злее!`, 'jump', 4, 'raid');
   sfxFanfare();
