@@ -222,7 +222,8 @@ fetch(SP + 'tree_ornaments.json').then(r => r.json()).then(j => {
 
 // поле боя
 const FIELD = { x0:60, x1:1020, y0:600, y1:1400 };
-const TREE = { x:540, y:1280, sc:4.6, rx:150, ry:62 };   // y — основание ствола; rx/ry — «следа» ёлки на снегу
+const TREE = { x:540, y:1280, sc:4.6, rx:150, ry:62 };
+const TREE_Y = { battle:1280, raid:1280, shop:1370 };   // в мастерской ёлка ниже — над ней красный ковёр   // y — основание ствола; rx/ry — «следа» ёлки на снегу
 const S = 2.5;            // масштаб эльфов (кадр 64 → 160)
 const FEET = 60;          // ступни в кадре LPC
 
@@ -725,8 +726,8 @@ function shopUpgrade(g, v, r){
     g.fillStyle = '#163a2a'; g.fillRect(wx0, G.y0, SX0 - wx0, G.y1 - G.y0); g.fillRect(SX1, G.y0, CW - SX1, G.y1 - G.y0);
     for (const [a, b] of [[wx0 + 6, SX0 - 6], [SX1 + 6, CW - 6]]){ g.strokeStyle = '#c8a040'; g.lineWidth = 3; g.strokeRect(a, G.y0 + 20, b - a, G.y1 - G.y0 - 40); }
   }
-  // ── ковровая дорожка от окна через ёлку к подаркам — в проходе между верстаками
-  royalRug(g, 395, 712, 685, 1600);
+  // ── красный ковёр от окна до зелёного коврика под ёлкой — в проходе между верстаками
+  royalRug(g, 345, 712, 735, TREE.y - 130);
   // ── пол: тёплые блики и узорный ковёр под ёлкой
   const RX = 225, RY = 108, cx = TREE.x, cy = TREE.y + 10;
   g.fillStyle = v === 3 ? '#1f4a34' : '#7a1622'; g.beginPath(); g.ellipse(cx, cy, RX, RY, 0, 0, Math.PI*2); g.fill();
@@ -905,7 +906,7 @@ function bgShop(){
   g.fillStyle = vg; g.fillRect(0, G.y1 + 12, CW, CH - G.y1 - 12);
   return c;
 }
-function drawBg(){ BG.battle = bgBattle(); BG.raid = bgRaid(); BG.shop = bgShop(); }
+function drawBg(){ BG.battle = bgBattle(); BG.raid = bgRaid(); TREE.y = TREE_Y.shop; BG.shop = bgShop(); TREE.y = TREE_Y[modeNow().id] || 1280; }
 // в мастерской вместо ёлочек по углам — горки готовых подарков
 const SHOP_DECOR = [[1030,720]];
 const FIREPLACE = { x:870, y:560 };    // камин в задней стене: центр и верх полки
@@ -1482,10 +1483,10 @@ function newSleigh(){ shop.gifts = 0; shop.by = {}; shop.goal = shopGoal(); }
 // первые BENCH_FIXED — постоянные верстаки, стоят в комнате всегда: по 2 колонки слева и справа от ёлки, 5 рядов;
 // порядок — чтобы и при 2–4 эльфах они стояли симметрично. Дальше — запасные места (верстак появляется под эльфом)
 const BENCH_FIXED = 20;
-const BENCH_SPOTS = [[310,915],[770,915],[310,1070],[770,1070],[180,760],[900,760],[180,1380],[900,1380],
-  [310,760],[770,760],[310,1380],[770,1380],[180,915],[900,915],[180,1225],[900,1225],
-  [310,1225],[770,1225],[180,1070],[900,1070],
-  [540,1460],[420,1520],[660,1520],[540,730]].map(([x,y]) => ({ x, y }));
+const BENCH_SPOTS = [[275,890],[805,890],[275,1030],[805,1030],[140,750],[940,750],[140,1310],[940,1310],
+  [275,750],[805,750],[275,1310],[805,1310],[140,890],[940,890],[140,1170],[940,1170],
+  [275,1170],[805,1170],[140,1030],[940,1030],
+  [540,1540],[400,1520],[680,1520],[540,740]].map(([x,y]) => ({ x, y }));
 function wsSpot(p){
   const w = p.ws;
   if (w.slot == null){
@@ -2081,6 +2082,7 @@ function drawFlakes(){ for (const f of flakes){ ctx.globalAlpha = 0.35 + f.z*0.5
 let lastT = performance.now(), time = 0, lastSpecialKey = null, prevLeader = null;
 function update(dt){
   time += dt;
+  TREE.y = TREE_Y[modeNow().id] || 1280;
   const c = calendar();
   const slot = modeSlot();
   if (lastSlot !== null && slot !== lastSlot) endRound();
