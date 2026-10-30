@@ -674,6 +674,24 @@ function svGift(g, x, y, w, h, c1, c2){ // подарок с золотым ба
   g.fillStyle = '#f6d460'; g.beginPath(); g.ellipse(x - w*0.16, y0 - 4, w*0.16, h*0.1, -0.4, 0, Math.PI*2); g.ellipse(x + w*0.16, y0 - 4, w*0.16, h*0.1, 0.4, 0, Math.PI*2); g.fill();
   g.fillStyle = '#c8961e'; g.beginPath(); g.arc(x, y0 - 2, w*0.06 + 2, 0, Math.PI*2); g.fill();
 }
+// бордовая ковровая дорожка с золотым узором и каймой (x0..x1, y0..y1)
+function royalRug(g, x0, y0, x1, y1){
+  g.save(); g.fillStyle = 'rgba(0,0,0,0.3)'; g.fillRect(x0 + 8, y0 + 10, x1 - x0, y1 - y0);
+  g.beginPath(); g.rect(x0, y0, x1 - x0, y1 - y0); g.clip();
+  g.fillStyle = '#5a0f18'; g.fillRect(x0, y0, x1 - x0, y1 - y0);
+  const S = 90;
+  for (let y = y0 - S, i = 0; y < y1 + S; y += S/2, i++) for (let x = x0 + (i % 2 ? S/2 : 0) - S; x < x1 + S; x += S){
+    g.fillStyle = '#6e1420'; g.beginPath(); g.moveTo(x, y - S/2 + 6); g.lineTo(x + S/2 - 6, y); g.lineTo(x, y + S/2 - 6); g.lineTo(x - S/2 + 6, y); g.closePath(); g.fill();
+    g.fillStyle = '#d8a840'; g.beginPath(); g.arc(x, y, 5, 0, Math.PI*2); g.fill();
+    g.fillStyle = 'rgba(216,168,64,0.6)'; for (let k=0;k<4;k++){ const a = k*Math.PI/2; g.beginPath(); g.ellipse(x + Math.cos(a)*12, y + Math.sin(a)*12, 6, 3, a, 0, Math.PI*2); g.fill(); }
+  }
+  g.strokeStyle = 'rgba(216,168,64,0.35)'; g.lineWidth = 2; const H = y1 - y0;
+  for (let k = x0 - H; k < x1 + H; k += S){ g.beginPath(); g.moveTo(k, y0); g.lineTo(k + H, y1); g.stroke(); g.beginPath(); g.moveTo(k, y0); g.lineTo(k - H, y1); g.stroke(); }
+  g.restore();
+  g.strokeStyle = '#3a0810'; g.lineWidth = 16; g.strokeRect(x0 + 8, y0 + 8, x1 - x0 - 16, y1 - y0 - 16);
+  g.strokeStyle = '#d8a840'; g.lineWidth = 4; g.strokeRect(x0 + 18, y0 + 18, x1 - x0 - 36, y1 - y0 - 36); g.lineWidth = 2; g.strokeRect(x0 + 4, y0 + 4, x1 - x0 - 8, y1 - y0 - 8);
+  g.fillStyle = '#e8c870'; for (let x = x0 + 6; x < x1 - 4; x += 9){ g.fillRect(x, y0 - 8, 3, 8); g.fillRect(x, y1, 3, 8); }
+}
 function shopUpgrade(g, v, r){
   const G = GATE, F = FIREPLACE;
   // ── камин из камня вместо кирпича, большой венок с бантом
@@ -707,6 +725,8 @@ function shopUpgrade(g, v, r){
     g.fillStyle = '#163a2a'; g.fillRect(wx0, G.y0, SX0 - wx0, G.y1 - G.y0); g.fillRect(SX1, G.y0, CW - SX1, G.y1 - G.y0);
     for (const [a, b] of [[wx0 + 6, SX0 - 6], [SX1 + 6, CW - 6]]){ g.strokeStyle = '#c8a040'; g.lineWidth = 3; g.strokeRect(a, G.y0 + 20, b - a, G.y1 - G.y0 - 40); }
   }
+  // ── ковровая дорожка от окна через ёлку к подаркам — в проходе между верстаками
+  royalRug(g, 395, 712, 685, 1600);
   // ── пол: тёплые блики и узорный ковёр под ёлкой
   const RX = 225, RY = 108, cx = TREE.x, cy = TREE.y + 10;
   g.fillStyle = v === 3 ? '#1f4a34' : '#7a1622'; g.beginPath(); g.ellipse(cx, cy, RX, RY, 0, 0, Math.PI*2); g.fill();
@@ -887,7 +907,7 @@ function bgShop(){
 }
 function drawBg(){ BG.battle = bgBattle(); BG.raid = bgRaid(); BG.shop = bgShop(); }
 // в мастерской вместо ёлочек по углам — горки готовых подарков
-const SHOP_DECOR = [[1030,760],[60,1290],[90,1430]];
+const SHOP_DECOR = [[1030,720]];
 const FIREPLACE = { x:870, y:560 };    // камин в задней стене: центр и верх полки
 
 // ───────────────────────── Игроки ─────────────────────────
@@ -1459,12 +1479,13 @@ function shopGoal(){ return Math.min(400, Math.round((30 + 8*Math.max(3, players
 function newSleigh(){ shop.gifts = 0; shop.by = {}; shop.goal = shopGoal(); }
 // места верстаков: по бокам и снизу от ёлки (не за кроной, не у саней и не под ведущим);
 // новый эльф занимает первое свободное — порядок подобран так, чтобы поле заполнялось равномерно
-// первые BENCH_FIXED — постоянные верстаки, стоят в комнате всегда: по 2 колонки слева и справа от ёлки, 4 ряда;
+// первые BENCH_FIXED — постоянные верстаки, стоят в комнате всегда: по 2 колонки слева и справа от ёлки, 5 рядов;
 // порядок — чтобы и при 2–4 эльфах они стояли симметрично. Дальше — запасные места (верстак появляется под эльфом)
-const BENCH_FIXED = 16;
-const BENCH_SPOTS = [[310,960],[770,960],[310,1130],[770,1130],[180,800],[900,800],[180,1300],[900,1300],
-  [310,800],[770,800],[310,1300],[770,1300],[180,960],[900,960],[180,1130],[900,1130],
-  [540,1460],[400,1460],[680,1460],[860,1460],[540,730],[420,1590],[660,1590]].map(([x,y]) => ({ x, y }));
+const BENCH_FIXED = 20;
+const BENCH_SPOTS = [[310,915],[770,915],[310,1070],[770,1070],[180,760],[900,760],[180,1380],[900,1380],
+  [310,760],[770,760],[310,1380],[770,1380],[180,915],[900,915],[180,1225],[900,1225],
+  [310,1225],[770,1225],[180,1070],[900,1070],
+  [540,1460],[420,1520],[660,1520],[540,730]].map(([x,y]) => ({ x, y }));
 function wsSpot(p){
   const w = p.ws;
   if (w.slot == null){
