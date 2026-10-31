@@ -1234,7 +1234,7 @@ function setupMode(m){
   for (const p of players.values()){ p.target = null; p.ws = null; }
   if (m.id === 'shop'){ shop = { n:1, gifts:0, goal:20, fly:null, by:{} }; newSleigh(); }
   if (m.id === 'raid'){ raid = { wave:1, gifts:GIFTS_MAX, pause:4 }; boss = null; }
-  else if (boss && boss.state !== 'down'){ boss.state = 'escape'; boss.goal = { x:boss.x, y:FIELD.y0 - 260 }; }
+  else if (boss && boss.state !== 'down'){ boss.state = 'escape'; boss.goal = { ...BOSS_EXIT }; }
 }
 
 // ───────────────────────── Рейд на Гринчича ─────────────────────────
@@ -1248,6 +1248,7 @@ const GIFT_SPOTS = Array.from({length:GIFTS_MAX}, (_, i) => {
 });
 let raid = { wave:1, gifts:GIFTS_MAX, pause:4 }, boss = null;
 function bossFightable(){ return !!boss && (boss.state === 'fight' || boss.state === 'steal' || boss.state === 'enter' || boss.state === 'charge'); }
+const BOSS_EXIT = { x:-220, y:1120 };   // уходит туда же, откуда вошёл: за левый край на середине поля
 function spawnBoss(){
   const n = Math.max(3, players.size);
   const hpMax = Math.round((500 + 150*n) * (1 + 0.5*(raid.wave-1)));
@@ -1349,7 +1350,7 @@ function updateRaid(dt){
     } else if (moveBoss(dt, 150)){
       raid.gifts--; b.sack++;
       const g = GIFT_SPOTS[raid.gifts]; puff(g.x, g.y, 14, g.c); sfxThrow(); sfxBells();
-      if (raid.gifts <= 0){ b.state = 'escape'; b.goal = { x:b.x, y:FIELD.y0 - 260 }; hostSay('Гринчич утащил все подарки и убегает!', 'dead', 4, 'raid'); }
+      if (raid.gifts <= 0){ b.state = 'escape'; b.goal = { ...BOSS_EXIT }; hostSay('Гринчич утащил все подарки и убегает!', 'dead', 4, 'raid'); }
       else { b.state = 'fight'; b.goal = bossGoalAroundTree(); b.stealT = clamp(15 - raid.wave, 9, 15);
         if (raid.gifts % 3 === 0) hostSay(`Гринчич стащил подарок! Осталось ${raid.gifts}!`, 'idle', 3, 'raid'); }
     }
