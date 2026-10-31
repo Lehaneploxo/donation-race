@@ -200,6 +200,13 @@ const LEVEL_RANKS = [
   { name:'Великий Санта',     from:50, to:69,  color:'#ffd700' },
   { name:'Легенда Рождества', from:70, to:100, color:'#ffffff' },
 ];
+// новое звание (меняется раз в 5 уровней) — Санта объявляет целиком; пока уровень не пришёл с сервера — молчим
+function checkRank(p){
+  if (p.isBot || !p.tierKnown) return;
+  const r = rankOfLevel(levelOf(p.lifetime)).name;
+  if (p.rankName && p.rankName !== r) hostSay(pick(RANK_UP_LINES)(sayName(p.name), r), 'jump', 5, 'rank:' + p.key, true, true);
+  p.rankName = r;
+}
 function levelOf(total){ total = total||0; let l = 1; for (let i=0;i<LEVEL_THRESHOLDS.length;i++){ if (total >= LEVEL_THRESHOLDS[i]) l = i+1; else break; } return l; }
 function rankOfLevel(l){ return LEVEL_RANKS.find(r => l>=r.from && l<=r.to) || LEVEL_RANKS[0]; }
 
@@ -978,9 +985,11 @@ function getPlayer(name){
     if (DEMO){ p.lifetime = demoLifetime[k] || 0; p.tierKnown = true; }
     floaters.push({ x:p.x, y:p.y-170, t:0, text:'❄ ' + short(name,14) + ' в игре!', color:'#1d5fa8' });
     replaceBot();
+    if (dayLeader && dayLeader.toLowerCase() === k) hostSay(pick(LEADER_IN_LINES)(sayName(name)), 'jump', 5, 'leaderIn', true, true);
+    else hostSay(pick(JOIN_LINES)(sayName(name)), 'jump', 4, 'join:' + k);
   }
   p.lastActive = performance.now();
-  if (p.asleep){ p.asleep = false; floaters.push({ x:p.x, y:p.y-170, t:0, text:'☀ проснулся!', color:'#d49a00' }); }
+  if (p.asleep){ p.asleep = false; floaters.push({ x:p.x, y:p.y-170, t:0, text:'☀ проснулся!', color:'#d49a00' }); hostSay(pick(WAKE_LINES)(sayName(name)), 'idle', 3.5, 'wake'); }
   return p;
 }
 function botList(){ return [...players.values()].filter(p => p.isBot); }
@@ -1022,8 +1031,8 @@ function onChat(name){
 }
 function onGift(name, coins){
   coins = Math.max(1, Math.floor(Number(coins)||1));
-  const p = getPlayer(name);
-  if (p.state === 'frozen'){ p.frozenT = 0; thaw(p); }
+  const p = getPlayer(name), wasFrozen = p.state === 'frozen';
+  if (wasFrozen){ p.frozenT = 0; thaw(p); }
   p.warmth += 10*coins; p.warmthMax += 10*coins; p.power += coins; p.powerMax += coins;
   p.volley = Math.min(5, 1 + Math.floor(Math.log10(coins+1)*1.5));   // залп снежков сразу
   if (modeNow().id === 'shop'){
@@ -1035,7 +1044,9 @@ function onGift(name, coins){
   }
   floaters.push({ x:p.x, y:p.y-180, t:0, text:`🎁 +${fmtNum(coins)} ${plural(coins,'монета','монеты','монет')}`, color:'#c0182c' });
   sfxGift(coins);
-  if (coins >= 50){ hostSay(`${short(name,16)}, спасибо за подарок! Хо-хо-хо!`, 'jump', 4, 'gift:' + name.toLowerCase()); puff(p.x, p.y-60, 40, '#fff6c8'); }
+  if (coins >= 50){ hostSay(pick(BIG_GIFT_LINES)(sayName(name)), 'jump', 5, 'gift:' + name.toLowerCase(), true, true); puff(p.x, p.y-60, 40, '#fff6c8'); }
+  else if (wasFrozen) hostSay(pick(THAW_LINES)(sayName(name)), 'jump', 4, 'gift:' + name.toLowerCase());
+  else hostSay(pick(GIFT_LINES)(sayName(name)), 'jump', 4, 'gift:' + name.toLowerCase());
 }
 
 // ───────────────────────── Бой ─────────────────────────
@@ -1087,7 +1098,7 @@ function hit(b){
   sfxHit(b.r);
   if (players.has(p.key) && !p.isBot && dmg > 0){
     reportStolen(p.name, dmg);
-    p.lifetime += dmg;
+    p.lifetime += dmg; checkRank(p);
     roundPts[p.key] = (roundPts[p.key]||0) + dmg;
   }
   if (dmg >= 25) floaters.push({ x:q.x, y:q.y-150, t:0, text:'-' + fmtNum(dmg), color:'#2a7fd4' });
@@ -1278,7 +1289,7 @@ function bossHit(b){
   boss.hp -= dmg; boss.hitT = 0.15;
   puff(b.tx, b.ty, 10 + Math.min(20, b.r), '#ffffff'); sfxHit(b.r);
   if (players.has(p.key) && !p.isBot && dmg > 0){
-    reportStolen(p.name, dmg); p.lifetime += dmg;
+    reportStolen(p.name, dmg); p.lifetime += dmg; checkRank(p);
     roundPts[p.key] = (roundPts[p.key]||0) + dmg;
     boss.dmgBy[p.key] = (boss.dmgBy[p.key]||0) + dmg;
   }
@@ -1544,7 +1555,7 @@ function shopStep(p, dt){
 function deliverGift(p, w){
   const val = p.power * GIFT_VALUE * w.cnt;
   if (!p.isBot){
-    reportStolen(p.name, val); p.lifetime += val;
+    reportStolen(p.name, val); p.lifetime += val; checkRank(p);
     roundPts[p.key] = (roundPts[p.key]||0) + val;
     shop.by[p.key] = (shop.by[p.key]||0) + w.cnt;
   }
@@ -1758,7 +1769,8 @@ function drawShopBar(){
 // ───────────────────────── Ведущий Санта ─────────────────────────
 // bubble — текущая фраза (только состояние «говорит», на экран не выводится — есть голос)
 // Между фразами Санта гуляет по нижнему краю: бегает туда-сюда, стоит, машет (jump), иногда проезжает (slide)
-const host = { anim:'idle', t:0, x:965, y:1790, dir:-1, walk:null, act:null, idleT:3, bubble:null, bubbleT:0, run:null, queue:[], lineT:20, lockT:0 };
+const host = { anim:'idle', t:0, x:965, y:1790, dir:-1, walk:null, act:null, idleT:3, bubble:null, bubbleT:0, run:null, queue:[], lockT:0,
+               quietT:0, ruleA:12, ruleB:35, ruleC:50, longIdx:0, modeIdx:0, warnSlot:null };   // ruleA/B/C — таймеры правил, сдвинуты, чтобы не звучали разом
 const HOST_X0 = 140, HOST_X1 = 950, HOST_SPEED = 320;
 function hostAnim(a){ if (host.anim !== a){ host.anim = a; host.t = 0; } }
 function hostWander(dt){
@@ -1783,29 +1795,78 @@ function hostWander(dt){
     host.walk = { to: clamp(host.x + dir*rnd(220, 320), HOST_X0, HOST_X1), slide:true }; host.dir = dir; hostAnim('slide');
   }
 }
-const HOST_LINES = [
-  'Пишите в чат — и вы в игре!', 'Лайк — плюс энергия, дольше не замёрзнешь!', 'Каждая монетка — плюс сила снежка и десять энергии!',
-  'Лидер дня становится Золотым Сантой!', 'С 40-го уровня эльф навсегда становится Сантой!',
-  'Прячьтесь за ёлкой от снежков!', 'Хо-хо-хо! Кто тут самый меткий?', 'Замёрз — стал снеговиком. Оттаешь через 6 секунд!',
-  'Хо-хо-хо! Напиши любое слово в чат — и твой эльф появится на поле!', 'Ставьте лайки — у вашего эльфа больше энергии!', 'Пять минут молчишь — эльф засыпает! Не спите!',
-  'Кто заморозит больше всех — тот попадёт в топ дня!', 'Хо-хо-хо! Не стесняйтесь, заходите в игру, места хватит всем!',
+// ── Озвучка Санты — по схеме Street Fighter: правила звучат по своему расписанию ЦЕЛИКОМ
+// (protect — их не перебивают), события зрителей встают в очередь, в паузах (10 с тишины) — шутки.
+// Боты не озвучиваются никогда. Про телеграм и сайт Санта НЕ говорит.
+const RULE_PRIMARY = 'Пиши в чат, ставь лайки, дари подарки — и твой эльф получит энергию и силу!';   // каждые 30 с
+const RULE_LONG = [   // по очереди раз в минуту
+  'Твой уровень растёт от каждой звезды и никогда не обнуляется. С сорокового уровня эльф навсегда становится Сантой!',
+  'Каждую полночь топ дня обнуляется. Кто наберёт больше всех звёзд за день — станет Золотым Сантой!',
 ];
-const HOST_LINES_RAID = ['Бейте Гринчича снежками!', 'Не дайте Гринчичу утащить подарки!', 'Лайки — плюс энергия!', 'Монетка — снежок сильнее!',
-  'Хо-хо-хо! Гринчич хочет оставить город без праздника — не позволим!', 'Напишите в чат — и ваш эльф встанет на защиту подарков!',
-  'Чем больше лайков — тем быстрее прогоним Гринчича!'];
-const HOST_LINES_SHOP = ['Эльфы, за работу! Сани ждут!', 'Лайк — и подарок готов быстрее!', 'Монетка — и подарок готов сразу!', 'Наполним сани — и Санта полетит!',
-  'Хо-хо-хо! Напишите в чат — и ваш эльф начнёт мастерить подарки!', 'Каждый подарок в санях — это звёзды в топ дня!',
-  'Лучший мастер саней попадёт в мой список!'];
+const RULES_MODE = {   // по кругу раз в минуту, свои в каждом режиме
+  battle: ['Звёзды дают за отнятую энергию: попал снежком — получил звёзды!', 'Кончилась энергия — стал снеговиком! Монетка размораживает сразу!',
+           'Режимы меняются каждые пять минут: снежная битва, рейд на Гринчича и мастерская Санты!', 'Напиши в чат слово рейтинг — узнаешь свой уровень и место в топе!',
+           'Пять минут без лайков и сообщений — эльф засыпает. Не спите, эльфы!'],
+  raid:   ['Бейте Гринчича снежками — каждый удар это звёзды в топ!', 'Гринчич ворует подарки из саней — прогоните его, пока не утащил все!',
+           'Разозлённый Гринчич кидается углём и сносит эльфов — держите энергию лайками!', 'Напиши в чат слово рейтинг — узнаешь свой уровень и место в топе!'],
+  shop:   ['Мастерите подарки и несите в сани — каждый подарок это звёзды в топ!', 'Лайк ускоряет работу, а монетка даёт готовый подарок сразу!',
+           'Чем больше у эльфа силы, тем дороже его подарок для Санты!', 'Напиши в чат слово рейтинг — узнаешь свой уровень и место в топе!'],
+};
+const FILLER = [
+  'Хо-хо-хо! Кто это там без шапки? Простудишься!', 'Олени отдыхают, а эльфы ждут ваших лайков!', 'Рудольф говорит: без лайков нос не светится!',
+  'Мандарины закончились... Шучу! У Санты мандарины не заканчиваются никогда!', 'Тихо как-то... Даже снег падает громче, чем лайки!',
+  'Мой список хороших детей пополняется. Особенно теми, кто ставит лайки!', 'Говорят, кто дарит подарки под Новый год — у того весь год удачный. Санта проверял!',
+  'Три секунды тишины. Четыре. Пять. Эльфы начинают замерзать!', 'Борода у меня настоящая, можете не дёргать!', 'Кто съел печенье с моего стола? Признавайтесь!',
+  'Секрет Санты: я тоже ставлю лайки. Тайком.', 'Лайк — как снежинка: одна незаметна, а тысяча — уже сугроб!', 'Санта не опаздывает. Санта приходит ровно в полночь!',
+  'Эльфы, кто опять спрятал мои очки? Без них я не вижу ваших ников!', 'Хо-хо-хо! Чем больше вас в игре, тем веселее праздник!',
+];
+const FILLER_MODE = {
+  battle: ['Кто кинул снежок в Санту? Я всё видел!', 'Снежки лепим плотнее — летят дальше!', 'Хороший снеговик — это бывший эльф без лайков!', 'Кто тут самый меткий? Покажите!',
+           'Снежная битва — лучшая зарядка перед праздником!'],
+  raid:   ['Гринчич опять что-то задумал... Я по глазам вижу!', 'Гринчич не любит праздники, зато очень любит чужие подарки!', 'Держите сани крепче, эльфы!',
+           'Говорят, Гринчич боится лайков. Проверим?', 'Гринчич, отдай подарки! Это не твоё!'],
+  shop:   ['Тук-тук-тук! Слышите? Это эльфы мастерят!', 'Олени уже бьют копытом — сани ждут подарков!', 'Кто упаковал подарок в носок? Ладно, тоже сойдёт!',
+           'В мастерской пахнет имбирным печеньем и трудовыми подвигами!', 'Аккуратнее с лентами, эльфы! В прошлом году одного так и упаковали!'],
+};
+// события зрителей: новый эльф, подарок, оттаял от монетки, проснулся, новое звание, вход Золотого Санты
+const JOIN_LINES = [n=>`Встречайте — ${n}! Новый эльф в игре!`, n=>`${n} прибежал на праздник! Хо-хо-хо!`, n=>`Эльф ${n} на месте! Все по местам!`,
+  n=>`О! ${n} в деле! Добро пожаловать в Новогодний переполох!`, n=>`${n} надел колпак — и сразу в игру!`];
+const GIFT_LINES = [n=>`${n} не жалеет монет! Эльф становится сильнее!`, n=>`Мешок Санты пополнился! Спасибо, ${n}!`, n=>`${n} прокачал эльфа! Снежки станут тяжелее!`,
+  n=>`Олени аплодируют! ${n}, спасибо за подарок!`, n=>`${n} подарил подарок Санте! Хо-хо-хо, спасибо!`];
+const BIG_GIFT_LINES = [n=>`Ого! ${n} устроил настоящий Новый год! Спасибо за подарок!`, n=>`${n}, вот это подарок! Хо-хо-хо! Санта растроган!`,
+  n=>`Все эльфы встали и захлопали! ${n}, огромное спасибо!`];
+const THAW_LINES = [n=>`${n} растаял от монетки — и снова в бою!`, n=>`Горячий шоколад подействовал! ${n} снова в деле!`, n=>`${n} оттаял быстрее весны!`];
+const WAKE_LINES = [n=>`${n} проснулся! Доброе утро, эльф!`, n=>`${n} снова с нами! Хватит спать — праздник идёт!`];
+const RANK_UP_LINES = [(n, r)=>`Внимание! ${n} получает новое звание — ${r}! Хо-хо-хо!`, (n, r)=>`Ого! ${n} дорос до звания «${r}»! Эльфы аплодируют!`,
+  (n, r)=>`Новое звание! ${n} теперь ${r}! Санта гордится!`];
+const LEADER_IN_LINES = [n=>`Золотой Санта ${n} в игре! Держитесь, эльфы!`, n=>`Внимание! Сам Золотой Санта ${n} пришёл на праздник!`];
+function sayName(n){ return short(String(n||'').replace(/[_.\-]+/g, ' ').trim(), 18); }   // «masha_2012» диктор читает как «masha 2012»
+let fillerPool = [];
+function nextFiller(){
+  if (!fillerPool.length){
+    const c = calendar(), m = modeNow().id;
+    fillerPool = [...FILLER, ...FILLER_MODE[m], ...FILLER_MODE[m]].sort(() => Math.random() - 0.5);
+    if (c.sp) fillerPool.splice(1, 0, c.sp.host);
+    const cd = infoLine(c); if (cd) fillerPool.splice(4, 0, cd + '!');
+    fillerPool.poolMode = m;
+  }
+  return fillerPool.shift();
+}
 // tag — фразы одного вида не копятся: новая заменяет старую в очереди; очередь не длиннее 3
-function hostSay(text, anim, dur, tag){
-  const m = { text, anim:anim||'idle', dur:dur||4, tag };
+// urgent — встаёт первой и обрывает текущую фразу (если та не protect); protect — сама не обрывается
+function hostSay(text, anim, dur, tag, urgent, protect){
+  const m = { text, anim:anim||'idle', dur:dur||4, tag, protect:!!protect, ts:performance.now() };
   const i = tag ? host.queue.findIndex(q => q.tag === tag) : -1;
-  if (i >= 0) host.queue[i] = m; else host.queue.push(m);
-  while (host.queue.length > 3) host.queue.shift();
+  if (i >= 0) host.queue.splice(i, 1);
+  if (urgent){   // urgent === 'front' — первой в очередь, но текущую фразу не обрывает
+    host.queue.unshift(m);
+    if (urgent !== 'front' && !voice.protected && (voice.speaking || host.bubble)){ try { speechSynthesis.cancel(); } catch(e){} voice.q.length = 0; voice.speaking = false; host.bubble = null; host.bubbleT = 0; }
+  } else host.queue.push(m);
+  while (host.queue.length > 8) host.queue.splice(host.queue.findIndex(q => !q.protect) >= 0 ? host.queue.findIndex(q => !q.protect) : 0, 1);
 }
 function hostRun(banner, text){ host.run = { t:0, banner, text }; sfxFanfare(); speak(banner, true); }
 let voiceOn = true;
-const voice = { q:[], speaking:false, until:0, v:null };
+const voice = { q:[], speaking:false, protected:false, until:0, v:null };
 function santaVoice(){
   if (voice.v) return voice.v;
   const vs = window.speechSynthesis ? speechSynthesis.getVoices() : [];
@@ -1814,11 +1875,12 @@ function santaVoice(){
   return voice.v;
 }
 if (window.speechSynthesis) speechSynthesis.onvoiceschanged = () => { voice.v = null; };
-function speak(t, urgent){
+function speak(t, urgent, protect){
   if (!voiceOn || !window.speechSynthesis) return;
-  const clean = t.normalize('NFKD').replace(/[^\p{L}\p{N}\s.,!?—-]/gu, '').replace(/\s+/g, ' ').trim(); if (!clean) return;
-  const item = { text:clean, ts:performance.now() };
-  if (urgent){ voice.q.unshift(item); try { speechSynthesis.cancel(); } catch(e){} voice.speaking = false; }
+  const clean = t.normalize('NFKD').replace(/([\p{L}\p{N}])[_.](?=[\p{L}\p{N}])/gu, '$1 ').replace(/[^\p{L}\p{M}\p{N}\s.,!?—-]/gu, '').normalize('NFC').replace(/\s+/g, ' ').trim(); if (!clean) return;   // \p{M} + NFC — иначе «й» превращалась в «и»
+  const item = { text:clean, ts:performance.now(), protect:!!protect };
+  if (urgent && !voice.protected){ voice.q.unshift(item); try { speechSynthesis.cancel(); } catch(e){} voice.speaking = false; }
+  else if (urgent) voice.q.unshift(item);
   else voice.q.push(item);
   if (voice.q.length > 4) voice.q.length = 4;
   speakNext();
@@ -1832,10 +1894,10 @@ function speakNext(){
     u.lang = 'ru-RU'; if (v) u.voice = v;
     // Санта: голос пониже и неторопливый
     u.pitch = 0.55; u.rate = 0.95; u.volume = 1;
-    voice.speaking = true; voice.until = performance.now() + Math.max(3000, item.text.length*95 + 1500);
+    voice.speaking = true; voice.protected = item.protect; voice.until = performance.now() + Math.max(3000, item.text.length*95 + 1500);
     duckMusic(true);
     let done = false;
-    const fin = () => { if (done) return; done = true; voice.speaking = false; duckMusic(false); setTimeout(speakNext, 350); };
+    const fin = () => { if (done) return; done = true; voice.speaking = false; voice.protected = false; duckMusic(false); setTimeout(speakNext, 350); };
     u.onend = u.onerror = fin; setTimeout(fin, voice.until - performance.now() + 500);
     speechSynthesis.speak(u);
   } catch(e){ voice.speaking = false; }
@@ -1843,6 +1905,15 @@ function speakNext(){
 function duckMusic(on){ if (SND.music && SND.musicOn) SND.music.gain.setTargetAtTime(on ? 0.12 : 0.3, SND.ac.currentTime, 0.2); }
 function updateHost(dt){
   host.t += dt;
+  // правила — по своему расписанию, целиком (protect), встают первыми в очередь
+  const mid = modeNow().id;
+  host.ruleA -= dt; host.ruleB -= dt; host.ruleC -= dt;
+  if (host.ruleA <= 0){ host.ruleA = 30; hostSay(RULE_PRIMARY, 'jump', 5, 'rule', 'front', true); }
+  if (host.ruleB <= 0){ host.ruleB = 60; hostSay(RULE_LONG[host.longIdx++ % RULE_LONG.length], 'idle', 6, 'ruleLong', 'front', true); }
+  if (host.ruleC <= 0){ host.ruleC = 60; const rl = RULES_MODE[mid]; hostSay(rl[host.modeIdx++ % rl.length], 'idle', 5, 'ruleMode', 'front', true); }
+  // за минуту до смены режима — обязательно, обрывает текущую фразу
+  const left = modeLeftMs(), slot = modeSlot();
+  if (MODES.length > 1 && left < 60000 && host.warnSlot !== slot){ host.warnSlot = slot; hostSay(`Через минуту — ${modeNext().title.toLowerCase()}!`, 'jump', 4, 'warn', true, true); }
   if (host.run){
     host.run.t += dt;
     if (host.run.t > 3.2){ const txt = host.run.text; host.run = null; if (txt) hostSay(txt, 'jump', 4); }
@@ -1850,19 +1921,14 @@ function updateHost(dt){
   }
   if (host.bubbleT > 0 || (host.bubble && voice.speaking && voice.until > performance.now())){ host.bubbleT -= dt; return; }
   if (host.bubble){ host.bubble = null; hostAnim('idle'); host.idleT = rnd(1, 2.5); }
-  if (host.queue.length){ const m = host.queue.shift(); host.bubble = m.text; speak(m.text); host.bubbleT = m.dur;
+  while (host.queue.length && !host.queue[0].protect && performance.now() - host.queue[0].ts > 12000) host.queue.shift();   // устаревшее не говорим
+  if (host.queue.length){ const m = host.queue.shift(); host.bubble = m.text; speak(m.text, false, m.protect); host.bubbleT = m.dur; host.quietT = 0;
     host.walk = null; host.act = null; host.dir = host.x > CW/2 ? -1 : 1; host.anim = m.anim; host.t = 0; return; }
   hostWander(dt);
-  host.lineT -= dt;
-  if (host.lineT <= 0){
-    host.lineT = rnd(10, 16);
-    const c = calendar();
-    const lines = (modeNow().id === 'shop' ? HOST_LINES_SHOP : modeNow().id === 'raid' ? HOST_LINES_RAID : HOST_LINES).slice();
-    if (c.sp) lines.push(c.sp.host, c.sp.host);
-    const left = modeLeftMs();
-    if (left < 70000 && left > 50000) lines.splice(0, lines.length, MODES.length > 1 ? `Через минуту — ${modeNext().title.toLowerCase()}!` : 'Через минуту новый раунд!');
-    hostSay(pick(lines), 'idle', 4.5);
-  }
+  // 10 секунд тишины — шутка
+  if (fillerPool.poolMode && fillerPool.poolMode !== modeNow().id) fillerPool = [];
+  host.quietT += dt;
+  if (host.quietT >= 10 && !voice.speaking){ host.quietT = 0; hostSay(nextFiller(), 'idle', 4.5, 'filler'); }
 }
 function drawHostFrame(anim, x, y, sc, flip, t){
   const m = HOST_META[anim], im = IMG['host_'+anim];
@@ -2460,7 +2526,7 @@ if (DEMO){
     SONGS.forEach((s, k) => { const b = document.createElement('button'); b.className = 'song'; b.textContent = (k+1) + '. ' + s.name.replace(/ \(.*\)$/, ''); b.onclick = (e) => { e.stopPropagation(); playSong(k); }; grid.appendChild(b); });
     bar.appendChild(grid); bar.appendChild(tgl); document.body.appendChild(bar);
   }
-  document.getElementById('bSay').onclick = () => { host.lineT = 0; };
+  document.getElementById('bSay').onclick = () => { host.quietT = 99; };
   document.getElementById('bMusic').onclick = (e) => { audioInit(); setMusic(!SND.musicOn); e.target.textContent = '🎵 Музыка: ' + (SND.musicOn ? 'вкл' : 'выкл'); };
   document.getElementById('bSfx').onclick = (e) => { audioInit(); setSfx(!SND.sfxOn); e.target.textContent = '💥 Эффекты: ' + (SND.sfxOn ? 'вкл' : 'выкл'); };
   cutMusic = () => { audioInit(); forceNext = true; if (SND.src){ try { SND.src.stop(); } catch(e){} SND.src = null; } if (SND.music){ SND.music.disconnect(); SND.music = SND.ac.createGain(); SND.music.gain.value = SND.musicOn ? 0.3 : 0; SND.music.connect(SND.ac.destination); } };
