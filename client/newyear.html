@@ -223,7 +223,10 @@ fetch(SP + 'tree_ornaments.json').then(r => r.json()).then(j => {
 // поле боя
 const FIELD = { x0:60, x1:1020, y0:600, y1:1400 };
 const TREE = { x:540, y:1280, sc:4.6, rx:150, ry:62 };
-const TREE_Y = { battle:1280, raid:1280, shop:1370 };   // в мастерской ёлка ниже — над ней красный ковёр   // y — основание ствола; rx/ry — «следа» ёлки на снегу
+// x,y — основание ствола, sc — масштаб; в битве ёлка в правом нижнем углу (Санта-ведущий ходит поверх неё),
+// в рейде её нет (по ней стоят сани с подарками), в мастерской — ниже, над ней красный ковёр
+const TREE_AT = { battle:{ x:900, y:1660, sc:4.3 }, raid:{ x:540, y:1280, sc:4.6 }, shop:{ x:540, y:1370, sc:4.6 } };
+function placeTree(id){ const t = TREE_AT[id] || TREE_AT.raid; TREE.x = t.x; TREE.y = t.y; TREE.sc = t.sc; TREE.rx = 150*t.sc/4.6; TREE.ry = 62*t.sc/4.6; }   // rx/ry — «след» ёлки на снегу
 const S = 2.5;            // масштаб эльфов (кадр 64 → 160)
 const FEET = 60;          // ступни в кадре LPC
 
@@ -906,7 +909,7 @@ function bgShop(){
   g.fillStyle = vg; g.fillRect(0, G.y1 + 12, CW, CH - G.y1 - 12);
   return c;
 }
-function drawBg(){ BG.battle = bgBattle(); BG.raid = bgRaid(); TREE.y = TREE_Y.shop; BG.shop = bgShop(); TREE.y = TREE_Y[modeNow().id] || 1280; }
+function drawBg(){ BG.battle = bgBattle(); BG.raid = bgRaid(); placeTree('shop'); BG.shop = bgShop(); placeTree(modeNow().id); }
 // в мастерской вместо ёлочек по углам — горки готовых подарков
 const SHOP_DECOR = [[1030,720]];
 const FIREPLACE = { x:870, y:560 };    // камин в задней стене: центр и верх полки
@@ -1378,12 +1381,15 @@ function drawBoss(){
 function drawGiftPile(){
   const n = modeNow().id === 'raid' ? raid.gifts : GIFTS_MAX;
   if (raidStreet()){ drawRaidSleigh(n); return; }
+  ctx.save();
+  if (modeNow().id === 'battle'){ const k = TREE.sc/4.6; ctx.translate(TREE.x, TREE.y); ctx.scale(k, k); ctx.translate(-540, -1280); }   // горка подарков едет за ёлкой в угол
   for (let i=0;i<n;i++){
     const g = GIFT_SPOTS[i], w = g.w, h = w*0.8;
     ctx.fillStyle = g.c; ctx.strokeStyle = 'rgba(0,0,0,0.45)'; ctx.lineWidth = 3;
     ctx.fillRect(g.x - w/2, g.y - h, w, h); ctx.strokeRect(g.x - w/2, g.y - h, w, h);
     ctx.fillStyle = '#ffe27a'; ctx.fillRect(g.x - 4, g.y - h, 8, h); ctx.fillRect(g.x - w/2, g.y - h*0.55, w, 7);
   }
+  ctx.restore();
 }
 // на улице подарки лежат горкой в санях Санты — Гринчич ворует прямо из них
 function drawRaidSleigh(n){
@@ -2082,7 +2088,7 @@ function drawFlakes(){ for (const f of flakes){ ctx.globalAlpha = 0.35 + f.z*0.5
 let lastT = performance.now(), time = 0, lastSpecialKey = null, prevLeader = null;
 function update(dt){
   time += dt;
-  TREE.y = TREE_Y[modeNow().id] || 1280;
+  placeTree(modeNow().id);
   const c = calendar();
   const slot = modeSlot();
   if (lastSlot !== null && slot !== lastSlot) endRound();
