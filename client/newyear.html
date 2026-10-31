@@ -169,17 +169,18 @@ function calendar(){
 }
 function plural(n, a, b, c){ n = Math.abs(n) % 100; const n1 = n % 10; if (n > 10 && n < 20) return c; if (n1 > 1 && n1 < 5) return b; if (n1 === 1) return a; return c; }
 function hms(ms){ const s = Math.max(0, Math.ceil(ms/1000)); return `${String(Math.floor(s/3600)).padStart(2,'0')}:${String(Math.floor(s/60)%60).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`; }
+// строка под шапкой: отсчёт ТОЛЬКО до Нового года (последние сутки — часы:минуты:секунды);
+// в праздники вместо отсчёта — поздравление (оба Рождества с сочельниками), после Нового года — «С Новым годом!»
+const GREET = {
+  '12-24':'⭐ С Сочельником!', '12-25':'🔔 С Рождеством Христовым!', '01-01':'🎆 С Новым годом!',
+  '01-06':'⭐ Святой вечер!', '01-07':'🔔 С Рождеством Христовым!', '01-13':'🎶 Щедрый вечер!', '01-14':'🎆 Со Старым Новым годом!',
+};
 function infoLine(c){
   if (c.toNY > 0 && c.toNY <= DAY) return '🥂 До Нового года ' + hms(c.toNY);
-  if (c.toOldNY > 0 && c.toOldNY <= DAY && c.key === '01-13') return '🎆 До Старого Нового года ' + hms(c.toOldNY);
-  if (c.sp) return c.sp.title;
-  const alt = Math.floor(performance.now()/8000) % 2;
-  const days = ms => Math.ceil(ms/DAY);
-  if (c.toXmas1 > 0 && alt) return `🔔 До Рождества (25 декабря) ${days(c.toXmas1)} ${plural(days(c.toXmas1),'день','дня','дней')}`;
-  if (c.toNY > 0) return `🎄 До Нового года ${days(c.toNY)} ${plural(days(c.toNY),'день','дня','дней')}`;
-  if (c.toXmas2 > 0) return `🔔 До Рождества (7 января) ${days(c.toXmas2)} ${plural(days(c.toXmas2),'день','дня','дней')}`;
-  if (c.toOldNY > 0) return `🎆 До Старого Нового года ${days(c.toOldNY)} ${plural(days(c.toOldNY),'день','дня','дней')}`;
-  return '❄️ Зимние каникулы — играем дальше!';
+  if (GREET[c.key]) return GREET[c.key];
+  const d = Math.ceil(c.toNY/DAY);
+  if (c.toNY > 0) return `🎄 До Нового года ${d} ${plural(d,'день','дня','дней')}`;
+  return '🎆 С Новым годом!';
 }
 
 // ───────────────────────── Уровни ─────────────────────────
@@ -1768,7 +1769,7 @@ function drawShopBar(){
 
 // ───────────────────────── Ведущий Санта ─────────────────────────
 // bubble — текущая фраза (только состояние «говорит», на экран не выводится — есть голос)
-// Между фразами Санта гуляет по нижнему краю: бегает туда-сюда, стоит, машет (jump), иногда проезжает (slide)
+// Санта гуляет по нижнему краю: бежит в какую-то сторону, стоит спокойно (без жестов на месте), иногда проезжает (slide)
 const host = { anim:'idle', t:0, x:965, y:1790, dir:-1, walk:null, act:null, idleT:3, bubble:null, bubbleT:0, run:null, queue:[], lockT:0,
                quietT:0, ruleA:12, ruleB:35, ruleC:50, longIdx:0, modeIdx:0, warnSlot:null };   // ruleA/B/C — таймеры правил, сдвинуты, чтобы не звучали разом
 const HOST_X0 = 140, HOST_X1 = 950, HOST_SPEED = 320;
@@ -1777,8 +1778,7 @@ function hostWander(dt){
   if (host.walk){
     const d = host.walk.to - host.x, st = (host.walk.slide ? 520 : HOST_SPEED) * dt;
     host.dir = d < 0 ? -1 : 1;
-    if (Math.abs(d) <= st){ host.x = host.walk.to; host.walk = null; hostAnim('idle'); host.idleT = rnd(2, 5.5);
-      if (Math.random() < 0.35){ host.act = 16/18; hostAnim('jump'); } }
+    if (Math.abs(d) <= st){ host.x = host.walk.to; host.walk = null; hostAnim('idle'); host.idleT = rnd(2, 5.5); }
     else host.x += Math.sign(d) * st;
     return;
   }
@@ -1786,11 +1786,10 @@ function hostWander(dt){
   host.idleT -= dt;
   if (host.idleT > 0) return;
   const r = Math.random();
-  if (r < 0.6){
+  if (r < 0.75){
     let to; do { to = rnd(HOST_X0, HOST_X1); } while (Math.abs(to - host.x) < 250);
     host.walk = { to }; host.dir = to < host.x ? -1 : 1; hostAnim('run');
-  } else if (r < 0.85){ host.act = 16/18; hostAnim('jump'); host.idleT = rnd(2, 4); }
-  else {
+  } else {
     const dir = host.x < (HOST_X0 + HOST_X1)/2 ? 1 : -1;
     host.walk = { to: clamp(host.x + dir*rnd(220, 320), HOST_X0, HOST_X1), slide:true }; host.dir = dir; hostAnim('slide');
   }
@@ -2115,7 +2114,7 @@ function drawHeader(c){
   ctx.textAlign = 'center'; ctx.fillStyle = '#fff'; ctx.fillText(info, CW/2, Y+H+44);
 }
 function drawCountdown(c){
-  const ms = c.toNY > 0 && c.toNY <= 60000 ? c.toNY : (c.toOldNY > 0 && c.toOldNY <= 60000 ? c.toOldNY : 0);
+  const ms = c.toNY > 0 && c.toNY <= 60000 ? c.toNY : 0;   // большие цифры последней минуты — только перед Новым годом
   if (ms > 0){
     const n = Math.ceil(ms/1000), k = 1 - (ms/1000 - Math.floor(ms/1000));
     ctx.textAlign = 'center';
