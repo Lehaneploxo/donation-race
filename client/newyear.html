@@ -1212,11 +1212,11 @@ function updatePlayer(p, dt){
 }
 
 // ───────────────────────── Раунды и режимы ─────────────────────────
-// Режимы идут по кругу по 20 минут, привязка к киевским часам (перезагрузка страницы не сбивает).
+// Режимы идут по кругу по 5 минут, привязка к киевским часам (перезагрузка страницы не сбивает).
 const MODES = [ { id:'battle', title:'СНЕЖНАЯ БИТВА', short:'битва', icon:'❄️' }, { id:'raid', title:'РЕЙД НА ГРИНЧИЧА', short:'рейд', icon:'😈' },
                 { id:'shop', title:'МАСТЕРСКАЯ САНТЫ', short:'мастерская', icon:'🎁' } ];
 let modeOffset = 0;   // тест: ?mode=raid или кнопка на пульте
-const MODE_MIN = 20;
+const MODE_MIN = 5;
 let roundPts = {}, lastSlot = null;
 function modeSlot(){ const w = wallNow(); return Math.floor(w / (MODE_MIN*60000)); }
 function modeNow(){ return MODES[(modeSlot() + modeOffset) % MODES.length]; }
