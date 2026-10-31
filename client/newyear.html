@@ -1858,10 +1858,9 @@ function hostSay(text, anim, dur, tag, urgent, protect){
   const m = { text, anim:anim||'idle', dur:dur||4, tag, protect:!!protect, ts:performance.now() };
   const i = tag ? host.queue.findIndex(q => q.tag === tag) : -1;
   if (i >= 0) host.queue.splice(i, 1);
-  if (urgent){   // urgent === 'front' — первой в очередь, но текущую фразу не обрывает
-    host.queue.unshift(m);
-    if (urgent !== 'front' && !voice.protected && (voice.speaking || host.bubble)){ try { speechSynthesis.cancel(); } catch(e){} voice.q.length = 0; voice.speaking = false; host.bubble = null; host.bubbleT = 0; }
-  } else host.queue.push(m);
+  // urgent — первой в очередь; текущую фразу НЕ обрываем: на iPhone speechSynthesis.cancel() + новая фраза
+  // сразу следом иногда «заклинивает» голос до перезагрузки страницы — фразы короткие, дождёмся
+  if (urgent) host.queue.unshift(m); else host.queue.push(m);
   while (host.queue.length > 8) host.queue.splice(host.queue.findIndex(q => !q.protect) >= 0 ? host.queue.findIndex(q => !q.protect) : 0, 1);
 }
 function hostRun(banner, text){ host.run = { t:0, banner, text }; sfxFanfare(); speak(banner, true); }
@@ -1879,8 +1878,7 @@ function speak(t, urgent, protect){
   if (!voiceOn || !window.speechSynthesis) return;
   const clean = t.normalize('NFKD').replace(/([\p{L}\p{N}])[_.](?=[\p{L}\p{N}])/gu, '$1 ').replace(/[^\p{L}\p{M}\p{N}\s.,!?—-]/gu, '').normalize('NFC').replace(/\s+/g, ' ').trim(); if (!clean) return;   // \p{M} + NFC — иначе «й» превращалась в «и»
   const item = { text:clean, ts:performance.now(), protect:!!protect };
-  if (urgent && !voice.protected){ voice.q.unshift(item); try { speechSynthesis.cancel(); } catch(e){} voice.speaking = false; }
-  else if (urgent) voice.q.unshift(item);
+  if (urgent) voice.q.unshift(item);   // без cancel() — см. hostSay
   else voice.q.push(item);
   if (voice.q.length > 4) voice.q.length = 4;
   speakNext();
@@ -1892,6 +1890,7 @@ function speakNext(){
   try {
     const u = new SpeechSynthesisUtterance(item.text), v = santaVoice();
     u.lang = 'ru-RU'; if (v) u.voice = v;
+    try { if (speechSynthesis.paused) speechSynthesis.resume(); } catch(e){}   // iOS ставит синтез на паузу, когда вкладка уходила в фон
     // Санта: голос пониже и неторопливый
     u.pitch = 0.55; u.rate = 0.95; u.volume = 1;
     voice.speaking = true; voice.protected = item.protect; voice.until = performance.now() + Math.max(3000, item.text.length*95 + 1500);
@@ -1919,12 +1918,15 @@ function updateHost(dt){
     if (host.run.t > 3.2){ const txt = host.run.text; host.run = null; if (txt) hostSay(txt, 'jump', 4); }
     return;
   }
-  if (host.bubbleT > 0 || (host.bubble && voice.speaking && voice.until > performance.now())){ host.bubbleT -= dt; return; }
-  if (host.bubble){ host.bubble = null; hostAnim('idle'); host.idleT = rnd(1, 2.5); }
-  while (host.queue.length && !host.queue[0].protect && performance.now() - host.queue[0].ts > 12000) host.queue.shift();   // устаревшее не говорим
-  if (host.queue.length){ const m = host.queue.shift(); host.bubble = m.text; speak(m.text, false, m.protect); host.bubbleT = m.dur; host.quietT = 0;
-    host.walk = null; host.act = null; host.dir = host.x > CW/2 ? -1 : 1; host.anim = m.anim; host.t = 0; return; }
+  // речь идёт сама по себе, Санта при этом продолжает гулять — не замирает и не прыгает на месте
+  if (host.bubble && (host.bubbleT > 0 || (voice.speaking && voice.until > performance.now()))) host.bubbleT -= dt;
+  else {
+    host.bubble = null;
+    while (host.queue.length && !host.queue[0].protect && performance.now() - host.queue[0].ts > 12000) host.queue.shift();   // устаревшее не говорим
+    if (host.queue.length){ const m = host.queue.shift(); host.bubble = m.text; speak(m.text, false, m.protect); host.bubbleT = m.dur; host.quietT = 0; }
+  }
   hostWander(dt);
+  if (host.bubble || host.queue.length) return;
   // 10 секунд тишины — шутка
   if (fillerPool.poolMode && fillerPool.poolMode !== modeNow().id) fillerPool = [];
   host.quietT += dt;
