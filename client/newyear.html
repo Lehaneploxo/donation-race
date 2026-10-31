@@ -1518,7 +1518,7 @@ const SKY_START = 4.2, SKY_END = 7.6;          // уехав за избу, уп
 const TRACK = { rx:190, ry:86 };                 // рельсы игрушечной железной дороги вокруг ёлки
 // золотые искорки в тёплом воздухе избы
 const MOTES = Array.from({ length:36 }, (_, i) => ({ x:60 + (i*263) % 960, o:(i*197) % 700, sp:18 + (i*37) % 30, ph:i*1.7 }));                                // левый край саней на стоянке
-const CRAFT_TIME = 4, GIFT_VALUE = 5, GIFTS_PER_TRIP = 3;
+const CRAFT_TIME = 4, GIFT_VALUE = 2, GIFTS_PER_TRIP = 3;   // подарок = сила × 2 ⭐ — по скорости звёзд мастерская наравне с битвой и рейдом
 let shop = { n:1, gifts:0, goal:20, fly:null, by:{} };
 function shopGoal(){ return Math.min(400, Math.round((30 + 8*Math.max(3, players.size)) * (1 + 0.3*(shop.n-1)))); }
 function newSleigh(){ shop.gifts = 0; shop.by = {}; shop.goal = shopGoal(); }
@@ -1545,7 +1545,7 @@ function wsSpot(p){
 function shopStep(p, dt){
   const w = p.ws || (p.ws = { ph:'go', prog:0, c:0, cnt:1 });
   if (w.ph === 'craft'){
-    p.dir = 2; w.prog += dt / CRAFT_TIME * (1 + Math.min(3, (p.power - BASE_POWER)/20));   // донатер работает быстрее
+    p.dir = 2; w.prog += dt / CRAFT_TIME;   // скорость у всех одна; быстрее — только от лайков (onLike), сила влияет лишь на цену подарка
     // готовые подарки копятся на верстаке, к саням несут сразу 3 — меньше беготни и толкучки у окна
     if (w.prog >= 1){ w.made = (w.made || 0) + 1; puff(p.x, p.y - 40, 10, '#fff6c8');
       if (w.made < GIFTS_PER_TRIP){ w.prog = 0; w.c = Math.floor(Math.random()*7); }
