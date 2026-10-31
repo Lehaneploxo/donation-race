@@ -1979,7 +1979,7 @@ function drawLabel(p, up){
   const y = p.y - up - 30;
   ctx.textAlign = 'center';
   const gold = isGolden(p);
-  if (gold) strokeText('ЗОЛОТОЙ САНТА', p.x, y - 40, 'bold 22px Arial', '#c0182c', 5);
+  // лидер дня выделяется только золотым цветом (костюм и ник), без отдельной надписи
   const lv = `ур.${p.isBot ? p.fakeLv : levelOf(p.lifetime)} `;
   strokeText(lv + short(p.name, 13) + (p.asleep ? ' 💤' : ''), p.x, y - 10, 'bold 24px Arial', gold ? '#d49a00' : p.asleep ? '#6a7a9a' : '#1c2848', 5);
   // ❤️ и 💪 — столбиком: значки друг под другом, обе строки с одного левого края, блок по центру под ником
