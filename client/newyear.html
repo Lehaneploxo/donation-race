@@ -2326,6 +2326,8 @@ function iosUnlock(){
 }
 function audioInit(){
   iosUnlock();
+  // голос Санты: на iPhone первую фразу браузер пропускает только из касания — «будим» синтез пустой фразой (как в Street Fighter)
+  if (!voice.unlocked && window.speechSynthesis){ voice.unlocked = true; try { const s0 = new SpeechSynthesisUtterance(' '); s0.volume = 0; speechSynthesis.speak(s0); } catch(e){} }
   if (SND.ac){ if (SND.ac.state === 'suspended') SND.ac.resume(); return; }
   const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
   SND.ac = new AC();
