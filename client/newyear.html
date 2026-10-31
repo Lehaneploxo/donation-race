@@ -695,6 +695,26 @@ function royalRug(g, x0, y0, x1, y1){
   g.strokeStyle = '#3a0810'; g.lineWidth = 16; g.strokeRect(x0 + 8, y0 + 8, x1 - x0 - 16, y1 - y0 - 16);
   g.strokeStyle = '#d8a840'; g.lineWidth = 4; g.strokeRect(x0 + 18, y0 + 18, x1 - x0 - 36, y1 - y0 - 36); g.lineWidth = 2; g.strokeRect(x0 + 4, y0 + 4, x1 - x0 - 8, y1 - y0 - 8);
   g.fillStyle = '#e8c870'; for (let x = x0 + 6; x < x1 - 4; x += 9){ g.fillRect(x, y0 - 8, 3, 8); g.fillRect(x, y1, 3, 8); }
+  for (let y = y0 + 6; y < y1 - 4; y += 9){ g.fillRect(x0 - 8, y, 8, 3); g.fillRect(x1, y, 8, 3); }
+}
+// кожаное кресло Санты: высокая стёганая спинка с пуговицами, подлокотники; x — центр, y — низ сиденья (спинка торчит над столом)
+function santaChair(g, x, y){
+  g.fillStyle = 'rgba(0,0,0,0.3)'; g.beginPath(); g.ellipse(x, y + 4, 92, 14, 0, 0, Math.PI*2); g.fill();
+  const lg = g.createLinearGradient(x - 80, 0, x + 80, 0); lg.addColorStop(0, '#4a1c10'); lg.addColorStop(0.45, '#8a3a1e'); lg.addColorStop(1, '#3a140a');
+  g.fillStyle = lg; g.beginPath(); g.roundRect(x - 70, y - 190, 140, 170, [46, 46, 8, 8]); g.fill();
+  g.strokeStyle = '#2a0c06'; g.lineWidth = 3; g.stroke();
+  g.strokeStyle = 'rgba(30,8,4,0.55)'; g.lineWidth = 2;
+  for (let row=0; row<4; row++) for (let k=0; k<(row%2 ? 3 : 4); k++){
+    const bx = x - 45 + k*30 + (row%2 ? 15 : 0), by = y - 160 + row*32;
+    g.beginPath(); g.moveTo(bx, by - 14); g.lineTo(bx + 15, by); g.lineTo(bx, by + 14); g.lineTo(bx - 15, by); g.closePath(); g.stroke();
+    g.fillStyle = '#d8a840'; g.beginPath(); g.arc(bx, by, 3, 0, Math.PI*2); g.fill();
+  }
+  g.fillStyle = 'rgba(255,220,180,0.18)'; g.beginPath(); g.roundRect(x - 52, y - 182, 26, 120, 12); g.fill();
+  for (const sx of [-1, 1]){
+    g.fillStyle = '#5a2414'; g.beginPath(); g.roundRect(x + sx*78 - 18, y - 92, 36, 92, 12); g.fill();
+    g.fillStyle = '#7a3420'; g.beginPath(); g.roundRect(x + sx*78 - 20, y - 100, 40, 22, 11); g.fill();
+    g.fillStyle = '#d8a840'; for (let k=0;k<5;k++){ g.beginPath(); g.arc(x + sx*78 - 14 + k*7, y - 78, 2, 0, Math.PI*2); g.fill(); }
+  }
 }
 function shopUpgrade(g, v, r){
   const G = GATE, F = FIREPLACE;
@@ -729,17 +749,18 @@ function shopUpgrade(g, v, r){
     g.fillStyle = '#163a2a'; g.fillRect(wx0, G.y0, SX0 - wx0, G.y1 - G.y0); g.fillRect(SX1, G.y0, CW - SX1, G.y1 - G.y0);
     for (const [a, b] of [[wx0 + 6, SX0 - 6], [SX1 + 6, CW - 6]]){ g.strokeStyle = '#c8a040'; g.lineWidth = 3; g.strokeRect(a, G.y0 + 20, b - a, G.y1 - G.y0 - 40); }
   }
-  // ── красный ковёр от окна по проходу между верстаками
-  royalRug(g, 345, 712, 735, 1240);
+  // ── красный ковёр от окна по проходу между верстаками почти до низа комнаты
+  royalRug(g, 345, 712, 735, 1580);
   // ── пол: тёплые блики и узорный ковёр под ёлкой
   const RX = 112, RY = 54, cx = TREE.x, cy = TREE.y + 10;
   g.fillStyle = v === 3 ? '#1f4a34' : '#7a1622'; g.beginPath(); g.ellipse(cx, cy, RX, RY, 0, 0, Math.PI*2); g.fill();
   g.fillStyle = v === 3 ? '#2a6046' : '#a8202c'; g.beginPath(); g.ellipse(cx, cy, RX - 26, RY - 20, 0, 0, Math.PI*2); g.fill();
   g.strokeStyle = '#d8a840'; g.lineWidth = 4; g.beginPath(); g.ellipse(cx, cy, RX - 14, RY - 10, 0, 0, Math.PI*2); g.stroke();
   for (let i=0;i<28;i++){ const a = i/28*Math.PI*2, x = cx + Math.cos(a)*(RX - 13), y = cy + Math.sin(a)*(RY - 10); g.fillStyle = i%2 ? '#e8c060' : (v === 3 ? '#c0182c' : '#1f5a2e'); g.beginPath(); g.moveTo(x, y - 6); g.lineTo(x + 6, y); g.lineTo(x, y + 6); g.lineTo(x - 6, y); g.closePath(); g.fill(); }
-  // ── стол Санты вместо кресла: лампа, свиток-список, снежный шар, книги, печенье
+  // ── рабочее место Санты: кожаное кресло за столом, стол в 0.62 от прежнего — под рост Санты
   const dx = 20, dy = 1560, dw = 300;
-  g.fillStyle = '#2a1608'; g.fillRect(dx - 6, dy - 70, dw + 16, 260);   // закрываем старое кресло тенью-фоном
+  santaChair(g, 118, 1612);
+  g.save(); g.translate(dx, 1720); g.scale(0.62, 0.62); g.translate(-dx, -1720);
   const tg = g.createLinearGradient(0, dy - 60, 0, dy); tg.addColorStop(0, '#9a6232'); tg.addColorStop(1, '#6a3e1c'); g.fillStyle = tg; g.fillRect(dx, dy - 60, dw, 60);
   g.fillStyle = '#4a2a12'; g.fillRect(dx, dy, dw, 160); g.fillStyle = '#5a3418'; for (const k of [0, 1]){ g.fillRect(dx + 14 + k*150, dy + 18, 120, 60); g.fillRect(dx + 14 + k*150, dy + 88, 120, 60); g.fillStyle = '#c8a040'; g.fillRect(dx + 64 + k*150, dy + 44, 20, 5); g.fillRect(dx + 64 + k*150, dy + 114, 20, 5); g.fillStyle = '#5a3418'; }
   g.fillStyle = '#b07a44'; g.fillRect(dx - 8, dy - 66, dw + 16, 10);
@@ -757,6 +778,7 @@ function shopUpgrade(g, v, r){
   g.fillStyle = '#3a2410'; g.fillRect(dx + 96, dy - 70, 30, 8);
   const sg = g.createRadialGradient(dx + 106, dy - 96, 2, dx + 111, dy - 90, 22); sg.addColorStop(0, 'rgba(255,255,255,0.95)'); sg.addColorStop(1, 'rgba(170,200,240,0.55)'); g.fillStyle = sg; g.beginPath(); g.arc(dx + 111, dy - 90, 22, 0, Math.PI*2); g.fill();
   g.fillStyle = '#1f5a2e'; g.beginPath(); g.moveTo(dx + 111, dy - 104); g.lineTo(dx + 103, dy - 80); g.lineTo(dx + 119, dy - 80); g.fill();
+  g.restore();
   // ── гора подарков с золотыми бантами на переднем плане
   const GIFTS = [[420,1790,110,90,'#c0182c','#7a0c18'],[530,1795,96,120,'#1f6a3a','#0f3a20'],[640,1790,120,80,'#c0182c','#8a1020'],[480,1712,80,70,'#2a4a8a','#16285a'],[590,1700,90,80,'#e8e0d0','#b8b0a0'],[540,1630,70,60,'#c0182c','#7a0c18'],[740,1795,90,100,'#2a6a4a','#123a26']];
   for (const [x, y, w, h, c1, c2] of GIFTS) svGift(g, x, y, w, h, c1, c2);
@@ -877,6 +899,7 @@ function bgShop(){
   g.fillStyle = '#2f7a3c'; for (let i=0;i<16;i++){ const a = i/16*Math.PI*2; g.beginPath(); g.arc(TREE.x + Math.cos(a)*385, TREE.y + 10 + Math.sin(a)*179, 9, 0, Math.PI*2); g.fill(); }
   for (const [x,y] of [[175,TREE.y+30],[895,TREE.y+30],[330,TREE.y+175],[770,TREE.y+175]]) candyCane(g, x, y);
   }
+  if (!SV){
   // кресло с клетчатым пледом
   g.fillStyle = '#5e1019'; g.fillRect(40, 1500, 180, 120); g.fillStyle = '#8a1a26'; g.fillRect(52, 1510, 156, 100);
   g.fillStyle = '#6e131d'; g.fillRect(30, 1580, 40, 120); g.fillRect(190, 1580, 40, 120); g.fillStyle = '#9a2230'; g.fillRect(60, 1600, 140, 80);
@@ -888,6 +911,7 @@ function bgShop(){
   g.fillStyle = '#b8782f'; for (const [cx, cy] of [[250,1679],[262,1676],[266,1683]]){ g.beginPath(); g.arc(cx, cy, 7, 0, Math.PI*2); g.fill(); }
   g.fillStyle = '#5a3418'; g.fillRect(248, 1677, 2, 2); g.fillRect(262, 1674, 2, 2);
   g.fillStyle = 'rgba(230,240,255,0.7)'; g.fillRect(286, 1650, 16, 36); g.fillStyle = '#ffffff'; g.fillRect(288, 1662, 12, 22);
+  }
   // поленница и мешок с подарками (правее кресла; справа внизу стоит Санта-ведущий)
   g.save(); g.translate(-470, 0);
   for (let row=0; row<3; row++) for (let i=0;i<4-row;i++){ const lx = 820 + i*30 + row*15, ly = 1780 - row*26;
@@ -1484,9 +1508,9 @@ function newSleigh(){ shop.gifts = 0; shop.by = {}; shop.goal = shopGoal(); }
 // первые BENCH_FIXED — постоянные верстаки, стоят в комнате всегда: по 2 колонки слева и справа от ёлки, 5 рядов;
 // порядок — чтобы и при 2–4 эльфах они стояли симметрично. Дальше — запасные места (верстак появляется под эльфом)
 const BENCH_FIXED = 20;
-const BENCH_SPOTS = [[275,890],[805,890],[275,1030],[805,1030],[140,750],[940,750],[140,1310],[940,1310],
-  [275,750],[805,750],[275,1310],[805,1310],[140,890],[940,890],[140,1170],[940,1170],
-  [275,1170],[805,1170],[140,1030],[940,1030],
+const BENCH_SPOTS = [[265,890],[815,890],[265,1030],[815,1030],[120,750],[960,750],[120,1310],[960,1310],
+  [265,750],[815,750],[265,1310],[815,1310],[120,890],[960,890],[120,1170],[960,1170],
+  [265,1170],[815,1170],[120,1030],[960,1030],
   [540,1540],[400,1520],[680,1520],[540,740]].map(([x,y]) => ({ x, y }));
 function wsSpot(p){
   const w = p.ws;
@@ -1702,16 +1726,16 @@ function drawVerandaLights(){
   ctx.globalAlpha = 1;
 }
 function benchBg(g, x, y){
-  y += 30; g.fillStyle = 'rgba(0,0,0,0.25)'; g.beginPath(); g.ellipse(x, y + 6, 64, 10, 0, 0, Math.PI*2); g.fill();
-  g.fillStyle = '#1c4a2a'; g.fillRect(x-50, y-28, 12, 34); g.fillRect(x+38, y-28, 12, 34);
-  g.fillStyle = '#2f7a3c'; g.fillRect(x-60, y-42, 120, 18); g.fillStyle = '#4fa35a'; g.fillRect(x-60, y-46, 120, 6);
-  g.fillStyle = '#c0182c'; g.fillRect(x + 30, y - 52, 14, 8); g.fillStyle = '#e8b030'; g.fillRect(x - 46, y - 50, 10, 5);   // ленточка и катушка на пустом верстаке
+  y += 30; g.fillStyle = 'rgba(0,0,0,0.25)'; g.beginPath(); g.ellipse(x, y + 6, 54, 10, 0, 0, Math.PI*2); g.fill();
+  g.fillStyle = '#1c4a2a'; g.fillRect(x-42, y-28, 12, 34); g.fillRect(x+30, y-28, 12, 34);
+  g.fillStyle = '#2f7a3c'; g.fillRect(x-50, y-42, 100, 18); g.fillStyle = '#4fa35a'; g.fillRect(x-50, y-46, 100, 6);
+  g.fillStyle = '#c0182c'; g.fillRect(x + 24, y - 52, 14, 8); g.fillStyle = '#e8b030'; g.fillRect(x - 40, y - 50, 10, 5);   // ленточка и катушка на пустом верстаке
 }
 function drawBench(p){
-  const w = p.ws, x = p.x, y = p.y + 30;
-  ctx.fillStyle = '#1c4a2a'; ctx.fillRect(x-50, y-28, 12, 34); ctx.fillRect(x+38, y-28, 12, 34);
-  ctx.fillStyle = '#2f7a3c'; ctx.fillRect(x-60, y-42, 120, 18);
-  ctx.fillStyle = '#4fa35a'; ctx.fillRect(x-60, y-46, 120, 6);
+  const w = p.ws, b = wsSpot(p), x = b.x, y = b.y + 30;   // ровно поверх верстака из фона, а не там, где встал эльф — иначе два верстака внахлёст
+  ctx.fillStyle = '#1c4a2a'; ctx.fillRect(x-42, y-28, 12, 34); ctx.fillRect(x+30, y-28, 12, 34);
+  ctx.fillStyle = '#2f7a3c'; ctx.fillRect(x-50, y-42, 100, 18);
+  ctx.fillStyle = '#4fa35a'; ctx.fillRect(x-50, y-46, 100, 6);
   if (w.ph === 'craft'){
     for (let i=0;i<(w.made||0);i++) drawGiftIcon((w.c + i + 3) % 7, x - 40 + i*22, y - 44, 2.2);
     drawGiftIcon(w.c, x, y - 44, 1.2 + 2.4*w.prog);
