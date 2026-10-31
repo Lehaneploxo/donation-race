@@ -223,9 +223,9 @@ fetch(SP + 'tree_ornaments.json').then(r => r.json()).then(j => {
 // поле боя
 const FIELD = { x0:60, x1:1020, y0:600, y1:1400 };
 const TREE = { x:540, y:1280, sc:4.6, rx:150, ry:62 };
-// x,y — основание ствола, sc — масштаб; в битве ёлка в правом нижнем углу (Санта-ведущий ходит поверх неё),
-// в рейде её нет (по ней стоят сани с подарками), в мастерской — ниже, над ней красный ковёр
-const TREE_AT = { battle:{ x:900, y:1660, sc:4.3 }, raid:{ x:540, y:1280, sc:4.6 }, shop:{ x:540, y:1370, sc:4.6 } };
+// x,y — основание ствола, sc — масштаб; в битве и мастерской ёлка в правом нижнем углу (Санта-ведущий ходит поверх неё),
+// в рейде её нет (по ней стоят сани с подарками)
+const TREE_AT = { battle:{ x:900, y:1660, sc:4.3 }, raid:{ x:540, y:1280, sc:4.6 }, shop:{ x:900, y:1660, sc:4.3 } };
 function placeTree(id){ const t = TREE_AT[id] || TREE_AT.raid; TREE.x = t.x; TREE.y = t.y; TREE.sc = t.sc; TREE.rx = 150*t.sc/4.6; TREE.ry = 62*t.sc/4.6; }   // rx/ry — «след» ёлки на снегу
 const S = 2.5;            // масштаб эльфов (кадр 64 → 160)
 const FEET = 60;          // ступни в кадре LPC
@@ -729,18 +729,14 @@ function shopUpgrade(g, v, r){
     g.fillStyle = '#163a2a'; g.fillRect(wx0, G.y0, SX0 - wx0, G.y1 - G.y0); g.fillRect(SX1, G.y0, CW - SX1, G.y1 - G.y0);
     for (const [a, b] of [[wx0 + 6, SX0 - 6], [SX1 + 6, CW - 6]]){ g.strokeStyle = '#c8a040'; g.lineWidth = 3; g.strokeRect(a, G.y0 + 20, b - a, G.y1 - G.y0 - 40); }
   }
-  // ── красный ковёр от окна до зелёного коврика под ёлкой — в проходе между верстаками
-  royalRug(g, 345, 712, 735, TREE.y - 130);
+  // ── красный ковёр от окна по проходу между верстаками
+  royalRug(g, 345, 712, 735, 1240);
   // ── пол: тёплые блики и узорный ковёр под ёлкой
-  const RX = 225, RY = 108, cx = TREE.x, cy = TREE.y + 10;
+  const RX = 112, RY = 54, cx = TREE.x, cy = TREE.y + 10;
   g.fillStyle = v === 3 ? '#1f4a34' : '#7a1622'; g.beginPath(); g.ellipse(cx, cy, RX, RY, 0, 0, Math.PI*2); g.fill();
   g.fillStyle = v === 3 ? '#2a6046' : '#a8202c'; g.beginPath(); g.ellipse(cx, cy, RX - 26, RY - 20, 0, 0, Math.PI*2); g.fill();
   g.strokeStyle = '#d8a840'; g.lineWidth = 4; g.beginPath(); g.ellipse(cx, cy, RX - 14, RY - 10, 0, 0, Math.PI*2); g.stroke();
   for (let i=0;i<28;i++){ const a = i/28*Math.PI*2, x = cx + Math.cos(a)*(RX - 13), y = cy + Math.sin(a)*(RY - 10); g.fillStyle = i%2 ? '#e8c060' : (v === 3 ? '#c0182c' : '#1f5a2e'); g.beginPath(); g.moveTo(x, y - 6); g.lineTo(x + 6, y); g.lineTo(x, y + 6); g.lineTo(x - 6, y); g.closePath(); g.fill(); }
-  // рельсы игрушечной дороги — заново поверх ковра
-  g.strokeStyle = '#6b3d1e'; g.lineWidth = 5;
-  for (let i=0;i<48;i++){ const a = i/48*Math.PI*2, c1 = Math.cos(a), s1 = Math.sin(a); g.beginPath(); g.moveTo(cx + c1*(TRACK.rx-14), cy + s1*(TRACK.ry-12)); g.lineTo(cx + c1*(TRACK.rx+14), cy + s1*(TRACK.ry+12)); g.stroke(); }
-  g.strokeStyle = '#c9ced8'; g.lineWidth = 3; for (const d of [-9, 9]){ g.beginPath(); g.ellipse(cx, cy, TRACK.rx + d, TRACK.ry + d*0.85, 0, 0, Math.PI*2); g.stroke(); }
   // ── стол Санты вместо кресла: лампа, свиток-список, снежный шар, книги, печенье
   const dx = 20, dy = 1560, dw = 300;
   g.fillStyle = '#2a1608'; g.fillRect(dx - 6, dy - 70, dw + 16, 260);   // закрываем старое кресло тенью-фоном
@@ -905,7 +901,7 @@ function bgShop(){
   g.restore();
   if (SV) shopUpgrade(g, SV, r);
   for (const b of BENCH_SPOTS.slice(0, BENCH_FIXED)) benchBg(g, b.x, b.y);
-  const vg = g.createRadialGradient(TREE.x, TREE.y + 50, 300, TREE.x, TREE.y + 50, 900); vg.addColorStop(0,'rgba(40,15,5,0)'); vg.addColorStop(1,'rgba(40,15,5,0.45)');
+  const vg = g.createRadialGradient(540, 1420, 300, 540, 1420, 900); vg.addColorStop(0,'rgba(40,15,5,0)'); vg.addColorStop(1,'rgba(40,15,5,0.45)');
   g.fillStyle = vg; g.fillRect(0, G.y1 + 12, CW, CH - G.y1 - 12);
   return c;
 }
@@ -1382,7 +1378,7 @@ function drawGiftPile(){
   const n = modeNow().id === 'raid' ? raid.gifts : GIFTS_MAX;
   if (raidStreet()){ drawRaidSleigh(n); return; }
   ctx.save();
-  if (modeNow().id === 'battle'){ const k = TREE.sc/4.6; ctx.translate(TREE.x, TREE.y); ctx.scale(k, k); ctx.translate(-540, -1280); }   // горка подарков едет за ёлкой в угол
+  if (modeNow().id !== 'raid'){ const k = TREE.sc/4.6; ctx.translate(TREE.x, TREE.y); ctx.scale(k, k); ctx.translate(-540, -1280); }   // горка подарков едет за ёлкой в угол
   for (let i=0;i<n;i++){
     const g = GIFT_SPOTS[i], w = g.w, h = w*0.8;
     ctx.fillStyle = g.c; ctx.strokeStyle = 'rgba(0,0,0,0.45)'; ctx.lineWidth = 3;
@@ -1477,7 +1473,6 @@ const GATE = { x0:0, x1:660, y0:452, y1:690 };   // слева стена отк
 const TEAM_X = 40;
 const SKY_START = 4.2, SKY_END = 7.6;          // уехав за избу, упряжка взлетает и пролетает вдали по небу (мимо луны)
 const TRACK = { rx:190, ry:86 };                 // рельсы игрушечной железной дороги вокруг ёлки
-let trainA = 0;
 // золотые искорки в тёплом воздухе избы
 const MOTES = Array.from({ length:36 }, (_, i) => ({ x:60 + (i*263) % 960, o:(i*197) % 700, sp:18 + (i*37) % 30, ph:i*1.7 }));                                // левый край саней на стоянке
 const CRAFT_TIME = 4, GIFT_VALUE = 5, GIFTS_PER_TRIP = 3;
@@ -1543,7 +1538,6 @@ function sleighFly(){
   sfxFanfare();
 }
 function updateShop(dt){
-  trainA += dt*0.5;
   if (shop.arrive && (shop.arrive.t += dt) > 2.5) shop.arrive = null;
   if (!shop.fly) return;
   shop.fly.t += dt;
@@ -1620,31 +1614,6 @@ function drawTeam(x0, y, run, santa, fx){
       drawGiftIcon(i % 7, x0 + 30 + col*18 + row*9, y - 46 - row*18, 2.2); }
     drawSheet(6, 2, 20, 14, x0, y - 14*ks, ks);
   }
-}
-function trainCars(){
-  const cars = [];
-  for (let i=0;i<4;i++){
-    const a = trainA - i*0.28, x = TREE.x + Math.cos(a)*TRACK.rx, y = TREE.y + 10 + Math.sin(a)*TRACK.ry;
-    cars.push({ y, f:() => drawTrainCar(i, x, y, -Math.sin(a) >= 0 ? 1 : -1) });
-  }
-  return cars;
-}
-function drawTrainCar(i, x, y, dir){
-  ctx.save(); ctx.translate(Math.round(x), Math.round(y)); ctx.scale(dir, 1);
-  ctx.fillStyle = 'rgba(40,20,10,0.3)'; ctx.beginPath(); ctx.ellipse(0, 2, 30, 7, 0, 0, Math.PI*2); ctx.fill();
-  ctx.fillStyle = '#1c1c22'; for (const wx of [-16, 0, 16]){ ctx.beginPath(); ctx.arc(wx, -6, 6, 0, Math.PI*2); ctx.fill(); }
-  if (i === 0){
-    ctx.fillStyle = '#c0182c'; ctx.fillRect(-26, -34, 46, 26);
-    ctx.fillStyle = '#8a0f1e'; ctx.fillRect(-26, -50, 20, 18);
-    ctx.fillStyle = '#ffd75e'; ctx.fillRect(-26, -24, 46, 4); ctx.fillRect(-22, -46, 12, 8);
-    ctx.fillStyle = '#1c1c22'; ctx.fillRect(10, -48, 8, 14); ctx.fillStyle = '#ffd75e'; ctx.fillRect(20, -28, 6, 8);
-    if (Math.random() < 0.12) particles.push({ x:x + dir*14, y:y - 50, vx:rnd(-20,20), vy:-rnd(30,60), t:0, life:1.2, r:rnd(4,7), color:'rgba(255,255,255,0.8)' });
-  } else {
-    ctx.fillStyle = ['#2f7a3c','#2a5fb3','#d49a00'][i-1]; ctx.fillRect(-22, -22, 44, 14);
-    ctx.fillStyle = '#ffffff'; ctx.fillRect(-22, -22, 44, 3);
-  }
-  ctx.restore();
-  if (i > 0) drawGiftIcon((i*3) % 7, x, y - 20, 2.1);
 }
 function drawMotes(){
   ctx.save(); ctx.globalCompositeOperation = 'lighter';
@@ -1734,15 +1703,15 @@ function drawVerandaLights(){
 }
 function benchBg(g, x, y){
   y += 30; g.fillStyle = 'rgba(0,0,0,0.25)'; g.beginPath(); g.ellipse(x, y + 6, 64, 10, 0, 0, Math.PI*2); g.fill();
-  g.fillStyle = '#5a3418'; g.fillRect(x-50, y-28, 12, 34); g.fillRect(x+38, y-28, 12, 34);
-  g.fillStyle = '#8a5428'; g.fillRect(x-60, y-42, 120, 18); g.fillStyle = '#b07a44'; g.fillRect(x-60, y-46, 120, 6);
+  g.fillStyle = '#1c4a2a'; g.fillRect(x-50, y-28, 12, 34); g.fillRect(x+38, y-28, 12, 34);
+  g.fillStyle = '#2f7a3c'; g.fillRect(x-60, y-42, 120, 18); g.fillStyle = '#4fa35a'; g.fillRect(x-60, y-46, 120, 6);
   g.fillStyle = '#c0182c'; g.fillRect(x + 30, y - 52, 14, 8); g.fillStyle = '#e8b030'; g.fillRect(x - 46, y - 50, 10, 5);   // ленточка и катушка на пустом верстаке
 }
 function drawBench(p){
   const w = p.ws, x = p.x, y = p.y + 30;
-  ctx.fillStyle = '#5a3418'; ctx.fillRect(x-50, y-28, 12, 34); ctx.fillRect(x+38, y-28, 12, 34);
-  ctx.fillStyle = '#8a5428'; ctx.fillRect(x-60, y-42, 120, 18);
-  ctx.fillStyle = '#b07a44'; ctx.fillRect(x-60, y-46, 120, 6);
+  ctx.fillStyle = '#1c4a2a'; ctx.fillRect(x-50, y-28, 12, 34); ctx.fillRect(x+38, y-28, 12, 34);
+  ctx.fillStyle = '#2f7a3c'; ctx.fillRect(x-60, y-42, 120, 18);
+  ctx.fillStyle = '#4fa35a'; ctx.fillRect(x-60, y-46, 120, 6);
   if (w.ph === 'craft'){
     for (let i=0;i<(w.made||0);i++) drawGiftIcon((w.c + i + 3) % 7, x - 40 + i*22, y - 44, 2.2);
     drawGiftIcon(w.c, x, y - 44, 1.2 + 2.4*w.prog);
@@ -2143,7 +2112,7 @@ function draw(c){
   if (!raidStreet()) ents.push({ y:TREE.y, f:() => drawTree(c, time) });
   ents.push({ y:TREE.y + 60, f:drawGiftPile });
   if (boss) ents.push({ y:boss.y, f:drawBoss });
-  if (modeNow().id === 'shop'){ ents.push({ y:SLEIGH.y, f:drawSleigh }); ents.push(...trainCars()); }
+  if (modeNow().id === 'shop'){ ents.push({ y:SLEIGH.y, f:drawSleigh }); }
   ents.sort((a,b) => a.y - b.y).forEach(e => e.f());
   if (room === 'shop') drawMotes();
   for (const p of [...players.values()].sort((a,b) => a.y - b.y)) drawLabel(p, p.state === 'frozen' ? 190 : 132);
