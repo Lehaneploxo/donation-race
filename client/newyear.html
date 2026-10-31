@@ -1981,8 +1981,13 @@ function drawLabel(p, up){
   if (gold) strokeText('ЗОЛОТОЙ САНТА', p.x, y - 40, 'bold 22px Arial', '#c0182c', 5);
   const lv = `ур.${p.isBot ? p.fakeLv : levelOf(p.lifetime)} `;
   strokeText(lv + short(p.name, 13) + (p.asleep ? ' 💤' : ''), p.x, y - 10, 'bold 24px Arial', gold ? '#d49a00' : p.asleep ? '#6a7a9a' : '#1c2848', 5);
-  strokeText('❤️ ' + fmtNum(Math.max(0, Math.round(p.warmth))), p.x, y + 16, 'bold 21px Arial', '#e8336a', 4);
-  strokeText('💪 ' + fmtNum(p.power), p.x, y + 40, 'bold 21px Arial', '#e0702a', 4);
+  // ❤️ и 💪 — столбиком: значки друг под другом, обе строки с одного левого края, блок по центру под ником
+  const tw = '❤️ ' + fmtNum(Math.max(0, Math.round(p.warmth))), tp = '💪 ' + fmtNum(p.power);
+  ctx.font = 'bold 21px Arial'; const lx = Math.round(p.x - Math.max(ctx.measureText(tw).width, ctx.measureText(tp).width)/2);
+  ctx.textAlign = 'left';
+  strokeText(tw, lx, y + 16, 'bold 21px Arial', '#e8336a', 4);
+  strokeText(tp, lx, y + 40, 'bold 21px Arial', '#e0702a', 4);
+  ctx.textAlign = 'center';
   // в мастерской — сколько готово подарка
   const ws = modeNow().id === 'shop' ? p.ws : null;
   if (ws && ws.ph === 'craft'){ ctx.fillStyle = 'rgba(20,30,60,0.55)'; ctx.fillRect(p.x - 45, y + 50, 90, 9); ctx.fillStyle = '#3fbf5f'; ctx.fillRect(p.x - 44, y + 51, 88*clamp(ws.prog, 0, 1), 7); }
