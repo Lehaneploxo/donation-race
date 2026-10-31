@@ -4,6 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>🎄 Новогодний переполох</title>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Russo+One&display=swap" rel="stylesheet">
 <style>
 html,body{margin:0;height:100%;background:#0b1530;color:#e8e8e8;font-family:Arial,sans-serif;overflow:hidden}
 #stage{position:absolute;left:0;top:0;bottom:0;right:300px;overflow:hidden}
@@ -54,15 +56,19 @@ body:not(.live) .ui-btn{right:310px}
     <button data-g="1">1 монета</button><button data-g="10">10</button><button data-g="99">99</button><button data-g="1000">1000</button>
   </div>
   <div class="sec"><b>Календарь (тест даты)</b><br>
-    <button data-d="2026-11-05T19:00:00">5 ноября</button>
-    <button data-d="2026-12-06T19:00:00">6.12 Николай</button>
-    <button data-d="2026-12-15T19:00:00">15 декабря</button>
-    <button data-d="2026-12-24T20:00:00">24.12 Сочельник</button>
-    <button data-d="2026-12-25T19:00:00">25.12 Рождество</button>
-    <button data-d="2026-12-31T23:59:40">31.12 23:59:40</button>
-    <button data-d="2027-01-06T20:00:00">6.01 Сочельник</button>
-    <button data-d="2027-01-07T19:00:00">7.01 Рождество</button>
-    <button data-d="2027-01-13T23:59:40">13.01 23:59:40</button>
+    <button data-d="2026-11-15T19:00:00">15.11 · До НГ 47 дней</button>
+    <button data-d="2026-12-06T19:00:00">6.12 Николай · отсчёт</button>
+    <button data-d="2026-12-24T20:00:00">24.12 · С Сочельником!</button>
+    <button data-d="2026-12-25T19:00:00">25.12 · С Рождеством</button>
+    <button data-d="2026-12-30T19:00:00">30.12 · До НГ 2 дня</button>
+    <button data-d="2026-12-31T20:00:00">31.12 20:00 · часы</button>
+    <button data-d="2026-12-31T23:59:40">31.12 23:59:40 · отсчёт → салют</button>
+    <button data-d="2027-01-01T12:00:00">1.01 · С Новым годом!</button>
+    <button data-d="2027-01-03T19:00:00">3.01 · С Новым годом!</button>
+    <button data-d="2027-01-06T20:00:00">6.01 · Святой вечер!</button>
+    <button data-d="2027-01-07T19:00:00">7.01 · С Рождеством</button>
+    <button data-d="2027-01-13T19:00:00">13.01 · Щедрый вечер!</button>
+    <button data-d="2027-01-14T00:00:05">14.01 · Старый НГ + салют</button>
     <button data-d="">сейчас</button>
     <div class="hint" id="dateNow"></div>
   </div>
@@ -1485,7 +1491,7 @@ function drawSkySanta(dt, y0){
 }
 function drawRaidBar(){
   if (modeNow().id !== 'raid') return;
-  const x = 90, y = 412, w = CW - 180, h = 46;
+  const x = 90, y = 424, w = CW - 180, h = 46;
   ctx.fillStyle = 'rgba(14,26,52,0.9)'; roundRect(ctx, x-6, y-6, w+12, h+12, 14); ctx.fill();
   if (boss && boss.state !== 'escape'){
     const f = clamp(boss.hp / boss.hpMax, 0, 1);
@@ -1757,7 +1763,7 @@ function drawBench(p){
 }
 function drawShopBar(){
   if (modeNow().id !== 'shop') return;
-  const x = 90, y = 412, w = CW - 180, h = 46;
+  const x = 90, y = 424, w = CW - 180, h = 46;
   ctx.fillStyle = 'rgba(14,26,52,0.9)'; roundRect(ctx, x-6, y-6, w+12, h+12, 14); ctx.fill();
   ctx.textAlign = 'center';
   if (shop.fly){ ctx.fillStyle = '#ffe27a'; ctx.font = 'bold 28px Arial'; ctx.fillText(`Сани №${shop.n} улетели! Хо-хо-хо!`, CW/2, y+34); return; }
@@ -2078,6 +2084,8 @@ function drawCoin(x, y, r){
   ctx.fillStyle = '#ffc428'; ctx.strokeStyle = '#b87a0a'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI*2); ctx.fill(); ctx.stroke();
   ctx.strokeStyle = '#e39a1a'; ctx.beginPath(); ctx.arc(x, y, r*0.55, 0, Math.PI*2); ctx.stroke();
 }
+let INFO_FONT = 'bold 39px Arial';
+if (document.fonts) document.fonts.load('39px "Russo One"', 'До Нового года 0123456789:!').then(f => { if (f.length) INFO_FONT = '39px "Russo One"'; }).catch(() => {});
 function drawHeader(c){
   const X = 10, Y = 10, W = CW-20, H = 330;
   ctx.fillStyle = 'rgba(14,26,52,0.92)'; roundRect(ctx, X, Y, W, H, 22); ctx.fill();
@@ -2109,9 +2117,10 @@ function drawHeader(c){
   });
   // строка календаря под плашкой
   const info = infoLine(c);
-  ctx.font = 'bold 30px Arial'; const iw = ctx.measureText(info).width + 44;
-  ctx.fillStyle = 'rgba(176,28,46,0.92)'; roundRect(ctx, CW/2 - iw/2, Y+H+10, iw, 46, 23); ctx.fill();
-  ctx.textAlign = 'center'; ctx.fillStyle = '#fff'; ctx.fillText(info, CW/2, Y+H+44);
+  // плашка на 30% крупнее прежней, шрифт Russo One (пока грузится — Arial)
+  ctx.font = INFO_FONT; const iw = ctx.measureText(info).width + 56;
+  ctx.fillStyle = 'rgba(176,28,46,0.92)'; roundRect(ctx, CW/2 - iw/2, Y+H+8, iw, 60, 30); ctx.fill();
+  ctx.textAlign = 'center'; ctx.fillStyle = '#fff'; ctx.fillText(info, CW/2, Y+H+52);
 }
 function drawCountdown(c){
   const ms = c.toNY > 0 && c.toNY <= 60000 ? c.toNY : 0;   // большие цифры последней минуты — только перед Новым годом
