@@ -2241,8 +2241,8 @@ function draw(c){
   // авторы графики персонажей (LPC, CC-BY-SA) — почти незаметно в левом нижнем углу
   ctx.textAlign = 'left'; ctx.globalAlpha = 0.4; ctx.fillStyle = '#ffffff'; ctx.font = '13px Arial';
   ctx.fillText('Персонажи: LPC contributors, CC-BY-SA 3.0 · opengameart.org', 8, CH - 6); ctx.globalAlpha = 1;
-  // автор трека (лицензия CC BY) — мелко внизу, пока играет запись
-  if (SND.song && SND.song.credit && SND.ac && SND.ac.currentTime < SND.songEnd){ ctx.textAlign = 'center'; ctx.globalAlpha = 0.85; strokeText(SND.song.credit, CW/2, CH - 14, 'bold 22px Arial', '#ffffff', 4, '#14203f'); ctx.globalAlpha = 1; }
+  // автор трека (лицензия CC BY) — так же незаметно, как титры LPC, но в правом нижнем углу, пока играет запись
+  if (SND.song && SND.song.credit && SND.ac && SND.ac.currentTime < SND.songEnd){ ctx.textAlign = 'right'; ctx.globalAlpha = 0.4; ctx.fillStyle = '#ffffff'; ctx.font = '13px Arial'; ctx.fillText(SND.song.credit, CW - 8, CH - 6); ctx.globalAlpha = 1; }
 }
 function frame(now){
   const dt = Math.min(0.05, (now - lastT)/1000); lastT = now;
