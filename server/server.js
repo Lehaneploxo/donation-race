@@ -169,6 +169,16 @@ app.get('/status', (req, res) => {
   res.json({ ok: true, rooms: roomList });
 });
 
+// Активность эфиров для автопилота телефонов (Desktop/пульт-телефонов): реальные
+// лайки/подарки/заходы/чат по каждому аккаунту за 5/10/20/60 минут, без ников
+app.get('/activity', (req, res) => {
+  const out = {};
+  rooms.forEach((room, key) => {
+    out[key] = { mode: room.connection?._tiktokMode || 'unknown', clients: room.clients.size, ...room.activity() };
+  });
+  res.json({ ok: true, t: new Date().toISOString(), rooms: out });
+});
+
 // Ручной тест: /test-event?username=TestUser&type=gift&coins=10
 app.get('/test-event', (req, res) => {
   const username = req.query.username || 'TestUser';
@@ -765,7 +775,34 @@ class Room {
     // см. _stateDbSavedAt/saveStateSnapshot ниже.
     this._stateSnapshots = {};
     this._stateDbSavedAt = {};
+    // Журнал РЕАЛЬНОЙ активности эфира за последний час (демо-боты не считаются) —
+    // его читает автопилот телефонов (/activity), чтобы перезапускать эфир в тихий
+    // момент, а не посреди подарков (12.11.2026)
+    this._act = [];
     this._connect();
+  }
+
+  _track(kind, data, n) {
+    if (this.connection?._tiktokMode !== 'tiktok') return;
+    const now = Date.now();
+    this._act.push({ t: now, k: kind, u: String(data.userId || data.username || '?'), n: Number(n) || 1 });
+    if (this._act.length > 5000 || (this._act[0] && now - this._act[0].t > 3600e3)) {
+      this._act = this._act.filter(e => now - e.t <= 3600e3).slice(-5000);
+    }
+  }
+
+  activity() {
+    const now = Date.now();
+    const win = (min) => {
+      const ev = this._act.filter(e => now - e.t <= min * 60e3);
+      const users = k => new Set(ev.filter(e => e.k === k).map(e => e.u)).size;
+      const sum = k => ev.filter(e => e.k === k).reduce((a, e) => a + e.n, 0);
+      return { likes: sum('like'), likers: users('like'), gifts: ev.filter(e => e.k === 'gift').length,
+               coins: sum('gift'), joins: users('join'), chats: sum('chat'), chatters: users('chat') };
+    };
+    const lastGift = [...this._act].reverse().find(e => e.k === 'gift');
+    return { m5: win(5), m10: win(10), m20: win(20), m60: win(60),
+             lastGiftAgoSec: lastGift ? Math.round((now - lastGift.t) / 1000) : null };
   }
 
   _connect() {
@@ -791,6 +828,7 @@ class Room {
           this.broadcast({ type: 'war_gift', team: warTeam, unitType: warUnit, username: data.username });
         }
 
+        this._track('gift', data, data.coins);
         // Arena game: any gift spawns/upgrades warrior with coin value
         this._giftCount++;
         this._lastGift = { username: data.username, coins: data.coins, gift: data.giftName, t: new Date().toISOString() };
@@ -826,12 +864,14 @@ class Room {
       (status) => this.broadcast({ type: 'status', ...status }),
       // onMember — зритель зашёл в стрим
       (data) => {
+        this._track('join', data);
         // Arena: viewer joins stream → spawn with 1 coin if slot available
         this.broadcast({ type: 'arena_member', username: data.username });
         this.broadcast({ type: 'arena_join',   username: data.username });
       },
       // onLike — лайки
       (data) => {
+        this._track('like', data, data.likes);
         this.broadcast({ type: 'arena_like', likes: data.likes || 0, username: data.username, avatarUrl: data.avatarUrl });
         this.broadcast({ type: 'arena_member', username: data.username });
 
@@ -852,6 +892,7 @@ class Room {
       (data) => {
         const msg = (data.message || '').trim();
         const msgLower = msg.toLowerCase();
+        this._track('chat', data);
 
         // сырой чат — его слушает Arena Battle 2 (/arena2)
         this.broadcast({ type: 'chat', uniqueId: data.userId, username: data.username, comment: msg });
