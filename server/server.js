@@ -1108,6 +1108,9 @@ class Room {
         energy:    Math.max(0, Math.floor(Number(p.energy))    || 0),
         powerMax:  Math.max(0, Math.floor(Number(p.powerMax))  || 0),
         power:     Math.max(0, Math.floor(Number(p.power))     || 0),
+        // когда зритель последний раз лайкал/донатил — чтобы после перезапуска страницы
+        // таймер бездействия (5 мин → Сила тает) продолжался, а не пропадал
+        lastActiveAt: Math.max(0, Math.floor(Number(p.lastActiveAt)) || 0),
       }));
     this._stateSnapshots[game] = clean;
 

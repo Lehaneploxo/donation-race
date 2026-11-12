@@ -387,6 +387,11 @@ function restoreFighter(entry){
   v.powerMax  = Math.max(0, Number(entry.powerMax)||0);
   v.power     = Math.max(0, Number(entry.power)||0);
   initFighterRuntime(v, pos.x, pos.y);
+  // таймер бездействия: когда зритель последний раз лайкал/донатил (из снапшота);
+  // старый снапшот без этого поля — считаем с момента восстановления. Без этой
+  // строки у восстановленного бойца Сила не таяла НИКОГДА (NaN в update(), 12.11.2026)
+  const la = Number(entry.lastActiveAt);
+  v.lastActiveAt = la > 0 && la <= Date.now() ? la : Date.now();
   VARIANTS.push(v);
   requestTier(entry.username);
   syncChampionStatus();
@@ -1011,7 +1016,7 @@ function saveStateSnapshot(){
   if (!_ws || _ws.readyState!==1) return;
   const players = VARIANTS
     .filter(v=>!v.isBot && v.alive && !v.eliminated && v.energy>0)
-    .map(v=>({ username:v.name, energyMax:v.energyMax, energy:v.energy, powerMax:v.powerMax, power:v.power }));
+    .map(v=>({ username:v.name, energyMax:v.energyMax, energy:v.energy, powerMax:v.powerMax, power:v.power, lastActiveAt:v.lastActiveAt }));
   _ws.send(JSON.stringify({ type:'boxing_state_save', players }));
 }
 setInterval(saveStateSnapshot, 15000);
