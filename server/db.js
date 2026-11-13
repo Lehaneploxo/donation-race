@@ -249,6 +249,31 @@ async function init() {
   // снапшоты бойцов убранных игр (см. DROP TABLE выше)
   await pool.query(`DELETE FROM game_state_snapshots WHERE game IN ('boxing_en', 'fantasyarenatv')`);
 
+  // Статистика эфиров (13.11.2026): одна строка на аккаунт за 10 минут, без ников.
+  // bucket — начало 10-минутки (UTC). Подробности — Room._statsBucket в server.js
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS stream_stats (
+      account TEXT NOT NULL,
+      bucket TIMESTAMPTZ NOT NULL,
+      live_min INTEGER NOT NULL DEFAULT 0,
+      game_open_min INTEGER NOT NULL DEFAULT 0,
+      viewers_max INTEGER NOT NULL DEFAULT 0,
+      viewers_avg INTEGER NOT NULL DEFAULT 0,
+      joins INTEGER NOT NULL DEFAULT 0,
+      likes INTEGER NOT NULL DEFAULT 0,
+      likers INTEGER NOT NULL DEFAULT 0,
+      gifts INTEGER NOT NULL DEFAULT 0,
+      coins INTEGER NOT NULL DEFAULT 0,
+      gifters INTEGER NOT NULL DEFAULT 0,
+      chats INTEGER NOT NULL DEFAULT 0,
+      chatters INTEGER NOT NULL DEFAULT 0,
+      follows INTEGER NOT NULL DEFAULT 0,
+      shares INTEGER NOT NULL DEFAULT 0,
+      stream_ends INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (account, bucket)
+    )
+  `);
+
   console.log('[DB] Таблицы kills, boss_damage, race_donations, boxing_stolen, streetfighter_stolen, fantasyarena_stolen, streetwars_stolen, newyear_stolen и game_state_snapshots готовы');
 }
 
@@ -1282,10 +1307,57 @@ function mostRecentMidnightKyivMs(nowMs) {
   return kyivMidnightAsUtcFields - offsetMin*60000;
 }
 
+// ── Статистика эфиров ────────────────────────────────────────────────────────
+// Если корзина уже есть (сервер перезапустился посреди 10 минут) — складываем.
+async function saveStreamStats(r) {
+  if (!pool) return;
+  await pool.query(`
+    INSERT INTO stream_stats (account, bucket, live_min, game_open_min, viewers_max, viewers_avg,
+      joins, likes, likers, gifts, coins, gifters, chats, chatters, follows, shares, stream_ends)
+    VALUES ($1, to_timestamp($2 / 1000.0), $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+    ON CONFLICT (account, bucket) DO UPDATE SET
+      live_min = LEAST(10, stream_stats.live_min + EXCLUDED.live_min),
+      game_open_min = LEAST(10, stream_stats.game_open_min + EXCLUDED.game_open_min),
+      viewers_max = GREATEST(stream_stats.viewers_max, EXCLUDED.viewers_max),
+      viewers_avg = GREATEST(stream_stats.viewers_avg, EXCLUDED.viewers_avg),
+      joins = stream_stats.joins + EXCLUDED.joins, likes = stream_stats.likes + EXCLUDED.likes,
+      likers = stream_stats.likers + EXCLUDED.likers, gifts = stream_stats.gifts + EXCLUDED.gifts,
+      coins = stream_stats.coins + EXCLUDED.coins, gifters = stream_stats.gifters + EXCLUDED.gifters,
+      chats = stream_stats.chats + EXCLUDED.chats, chatters = stream_stats.chatters + EXCLUDED.chatters,
+      follows = stream_stats.follows + EXCLUDED.follows, shares = stream_stats.shares + EXCLUDED.shares,
+      stream_ends = stream_stats.stream_ends + EXCLUDED.stream_ends
+  `, [r.account, r.bucket, r.liveMin, r.openMin, r.viewersMax, r.viewersAvg, r.joins, r.likes, r.likers,
+      r.gifts, r.coins, r.gifters, r.chats, r.chatters, r.follows, r.shares, r.streamEnds]);
+}
+
+// group: '10min' | 'hour' | 'day' (часы/дни — по Киеву). При группировке
+// «чел» (лайкали/дарили/писали/зашло) — сумма по 10-минуткам, т.е. один
+// и тот же человек в разных 10-минутках считается несколько раз.
+async function getStreamStats(days, group, account) {
+  if (!pool) return [];
+  const per = group === 'day'  ? `to_char(date_trunc('day',  bucket AT TIME ZONE 'Europe/Kyiv'), 'YYYY-MM-DD')`
+            : group === 'hour' ? `to_char(date_trunc('hour', bucket AT TIME ZONE 'Europe/Kyiv'), 'YYYY-MM-DD HH24:MI')`
+            :                    `to_char(bucket AT TIME ZONE 'Europe/Kyiv', 'YYYY-MM-DD HH24:MI')`;
+  const { rows } = await pool.query(`
+    SELECT ${per} AS period, account,
+      SUM(live_min)::int AS live_min, SUM(game_open_min)::int AS game_open_min,
+      MAX(viewers_max)::int AS viewers_max,
+      COALESCE(ROUND(AVG(NULLIF(viewers_avg, 0))), 0)::int AS viewers_avg,
+      SUM(joins)::int AS joins, SUM(likes)::int AS likes, SUM(likers)::int AS likers,
+      SUM(gifts)::int AS gifts, SUM(coins)::int AS coins, SUM(gifters)::int AS gifters,
+      SUM(chats)::int AS chats, SUM(chatters)::int AS chatters,
+      SUM(follows)::int AS follows, SUM(shares)::int AS shares, SUM(stream_ends)::int AS stream_ends
+    FROM stream_stats
+    WHERE bucket >= now() - make_interval(days => $1) AND ($2::text IS NULL OR account = $2)
+    GROUP BY 1, 2 ORDER BY 1, 2
+  `, [days, account]);
+  return rows;
+}
+
 function isConnected() { return pool !== null; }
 
 module.exports = {
-  init, addKill, getTopKillers, getUserRank, addBossDamage, getTopBossDamage,
+  init, saveStreamStats, getStreamStats, addKill, getTopKillers, getUserRank, addBossDamage, getTopBossDamage,
   resetBossDamage, getUserBossDamageRank, addRaceCoins, getTopRaceDonations,
   addBoxingStolen, getTopBoxingStolen, getUserBoxingRank, addBoxingKO,
   addBoxingBeltSeconds, resetBoxingRating, setBoxingStolen, deleteBoxingUser,

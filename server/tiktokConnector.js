@@ -22,7 +22,9 @@ else            console.log('[TikTok] sessionId НЕ задан');
 if (MS_TOKEN)   console.log('[TikTok] msToken найден');
 else            console.log('[TikTok] msToken НЕ задан');
 
-function connectToTikTok(username, onGift, onStatus, onMember, onLike, onChat, onFollow) {
+// onStats(kind, data) — необязательный, для статистики эфиров (13.11.2026):
+// 'viewers' {viewerCount}, 'follow', 'share', 'streamEnd' {action}
+function connectToTikTok(username, onGift, onStatus, onMember, onLike, onChat, onFollow, onStats) {
   const notify = onStatus || (() => {});
   const handle = { _tiktokMode: 'connecting' };
 
@@ -155,7 +157,23 @@ function connectToTikTok(username, onGift, onStatus, onMember, onLike, onChat, o
       // для "Взаимок", где нужно отличать реальную подписку от простого захода
       if (onMember) onMember(payload);
       if (onFollow) onFollow(payload);
+      if (onStats) onStats('follow', payload);
     });
+
+    // статистика эфиров: зрители онлайн, репосты, конец эфира со стороны TikTok
+    if (onStats) {
+      connection.on('roomUser', (data) => {
+        const n = Number(data && data.viewerCount);
+        if (Number.isFinite(n)) onStats('viewers', { viewerCount: n });
+      });
+      connection.on('share', (data) => {
+        onStats('share', { userId: String((data && (data.userId || data.uniqueId)) || 'u') });
+      });
+      connection.on('streamEnd', (data) => {
+        console.log(`[TikTok][${username}] ⏹ TikTok сообщил: эфир завершён (action=${data && data.action})`);
+        onStats('streamEnd', { action: data && data.action });
+      });
+    }
 
     connection.on('disconnected', (info) => {
       // диагностика: код/причина закрытия WebSocket помогают понять, кто

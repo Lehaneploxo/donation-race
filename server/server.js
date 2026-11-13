@@ -179,6 +179,34 @@ app.get('/activity', (req, res) => {
   res.json({ ok: true, t: new Date().toISOString(), rooms: out });
 });
 
+// Статистика эфиров (13.11.2026) — внутренняя аналитика, без ников.
+//   /stats                      — таблица (CSV для Excel) за 7 дней, по 10 минут
+//   ?days=30  ?group=hour|day   ?account=tiktokgame8805   ?format=json
+app.get('/stats', async (req, res) => {
+  try {
+    const days    = Math.min(Math.max(parseInt(req.query.days) || 7, 1), 366);
+    const group   = ['hour', 'day'].includes(req.query.group) ? req.query.group : '10min';
+    const account = req.query.account ? String(req.query.account).toLowerCase().replace(/^@/, '') : null;
+    const rows    = await db.getStreamStats(days, group, account);
+    if (req.query.format === 'json') return res.json({ ok: true, days, group, rows });
+    const cols = [
+      ['period', 'Время (Киев)'], ['account', 'Аккаунт'], ['live_min', 'Эфир шёл, мин'], ['game_open_min', 'Игра открыта, мин'],
+      ['viewers_max', 'Зрителей макс'], ['viewers_avg', 'Зрителей в среднем'], ['joins', 'Зашло'],
+      ['likes', 'Лайки'], ['likers', 'Лайкали, чел'], ['gifts', 'Подарки'], ['coins', 'Монеты'], ['gifters', 'Дарили, чел'],
+      ['chats', 'Сообщения'], ['chatters', 'Писали, чел'], ['follows', 'Подписки'], ['shares', 'Репосты'],
+      ['stream_ends', 'TikTok завершил эфир'],
+    ];
+    const esc = v => { const s = v == null ? '' : String(v); return /[;"\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
+    const csv = '﻿' + [cols.map(c => c[1]).join(';'), ...rows.map(r => cols.map(c => esc(r[c[0]])).join(';'))].join('\r\n');
+    const name = `stats_${group}_${days}d${account ? '_' + account : ''}.csv`;
+    res.set('Content-Type', 'text/csv; charset=utf-8');
+    res.set('Content-Disposition', `attachment; filename="${name}"`);
+    res.send(csv);
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
 // Ручной тест: /test-event?username=TestUser&type=gift&coins=10
 app.get('/test-event', (req, res) => {
   const username = req.query.username || 'TestUser';
@@ -748,6 +776,15 @@ app.get('/top-newyear-season', async (req, res) => {
 // ─── Rooms ───────────────────────────────────────────────────────────────────
 const rooms = new Map();
 
+// статистика эфиров — 10-минутные корзины, см. Room._statsBucket
+const STATS_BUCKET_MS = 10 * 60 * 1000;
+function newStatsBucket(bucket) {
+  return { bucket, liveMin: 0, openMin: 0, vMax: 0, vSum: 0, vN: 0,
+           joins: new Set(), likes: 0, likers: new Set(), gifts: 0, coins: 0, gifters: new Set(),
+           chats: 0, chatters: new Set(), follows: 0, shares: 0, ends: 0 };
+}
+setInterval(() => { rooms.forEach(r => { try { r._statsMinute(); } catch (e) {} }); }, 60 * 1000);
+
 // снапшоты боя Street Fighter / Boxing Arena — см. Room.saveStateSnapshot/
 // sendStateSnapshot и обработку streetfighter_state_*/boxing_state_* ниже
 const STATE_DB_SAVE_MIN_INTERVAL_MS = 60 * 1000;
@@ -784,6 +821,7 @@ class Room {
 
   _track(kind, data, n) {
     if (this.connection?._tiktokMode !== 'tiktok') return;
+    this._statsAdd(kind, data, Number(n) || 1);
     const now = Date.now();
     this._act.push({ t: now, k: kind, u: String(data.userId || data.username || '?'), n: Number(n) || 1 });
     if (this._act.length > 5000 || (this._act[0] && now - this._act[0].t > 3600e3)) {
@@ -1073,8 +1111,70 @@ class Room {
             });
         }
 
-      }
+      },
+      undefined,   // onFollow — не нужен (подписка и так приходит как заход)
+      (kind, d) => this._statsExtra(kind, d)
     );
+  }
+
+  // ── Статистика эфиров (13.11.2026) ─────────────────────────────────────────
+  // Копим реальные события эфира (демо-боты не считаются) в 10-минутную корзину,
+  // раз в минуту отмечаем «эфир живой / игра открыта / зрителей онлайн»,
+  // на смене 10 минут пишем ОДНУ строку в БД (stream_stats). Без ников.
+  _statsBucket(now) {
+    const b = Math.floor(now / STATS_BUCKET_MS) * STATS_BUCKET_MS;
+    if (!this._st) this._st = newStatsBucket(b);
+    else if (this._st.bucket !== b) { this._statsFlush(); this._st = newStatsBucket(b); }
+    return this._st;
+  }
+
+  _statsAdd(kind, data, n) {
+    const s = this._statsBucket(Date.now());
+    const u = String(data.userId || data.username || '?');
+    if (kind === 'join')  s.joins.add(u);
+    if (kind === 'like')  { s.likes += n; s.likers.add(u); }
+    if (kind === 'gift')  { s.gifts++; s.coins += n; s.gifters.add(u); }
+    if (kind === 'chat')  { s.chats++; s.chatters.add(u); }
+  }
+
+  _statsExtra(kind, d) {
+    if (kind === 'streamEnd') { this._statsBucket(Date.now()).ends++; this._viewers = null; return; }
+    if (this.connection?._tiktokMode !== 'tiktok') return;
+    const s = this._statsBucket(Date.now());
+    if (kind === 'viewers') { this._viewers = d.viewerCount; s.vMax = Math.max(s.vMax, d.viewerCount); }
+    if (kind === 'follow')  s.follows++;
+    if (kind === 'share')   s.shares++;
+  }
+
+  // раз в минуту (см. setInterval ниже)
+  _statsMinute() {
+    const s = this._statsBucket(Date.now());
+    const live = this.connection?._tiktokMode === 'tiktok';
+    if (live) {
+      s.liveMin++;
+      if (this._viewers != null) { s.vSum += this._viewers; s.vN++; s.vMax = Math.max(s.vMax, this._viewers); }
+    } else {
+      this._viewers = null;
+    }
+    if (this.clients.size > 0) s.openMin++;
+  }
+
+  _statsFlush() {
+    const s = this._st;
+    if (!s) return;
+    this._st = null;
+    const row = {
+      account: this.username, bucket: s.bucket,
+      liveMin: s.liveMin, openMin: s.openMin,
+      viewersMax: s.vMax, viewersAvg: s.vN ? Math.round(s.vSum / s.vN) : 0,
+      joins: s.joins.size, likes: s.likes, likers: s.likers.size,
+      gifts: s.gifts, coins: s.coins, gifters: s.gifters.size,
+      chats: s.chats, chatters: s.chatters.size,
+      follows: s.follows, shares: s.shares, streamEnds: s.ends,
+    };
+    const empty = !row.liveMin && !row.openMin && !row.joins && !row.likes && !row.gifts && !row.chats && !row.streamEnds;
+    if (empty) return;
+    db.saveStreamStats(row).catch(e => console.error('[DB] stream_stats error:', e.message));
   }
 
   addClient(ws) {
@@ -1116,6 +1216,7 @@ class Room {
   }
 
   destroy() {
+    this._statsFlush();
     const c = this.connection;
     if (c) {
       clearInterval(c._demoInterval);
@@ -1584,4 +1685,11 @@ server.listen(PORT, () => {
     console.log(`[Server] Предварительное подключение к @${DEFAULT_USERNAME}…`);
     getOrCreateRoom(DEFAULT_USERNAME);
   }
+});
+
+// Railway при деплое шлёт SIGTERM — дописываем неполные 10-минутные корзины
+// статистики эфиров в БД, иначе последние минуты перед рестартом терялись бы
+process.on('SIGTERM', () => {
+  rooms.forEach(r => { try { r._statsFlush(); } catch (e) {} });
+  setTimeout(() => process.exit(0), 1500);
 });
