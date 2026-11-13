@@ -1259,7 +1259,6 @@ class Room {
   // раз в минуту (см. setInterval ниже)
   _statsMinute() {
     const now = Date.now();
-    const prevBucket = this._st && this._st.bucket;
     const s = this._statsBucket(now);
     const live = this.connection?._tiktokMode === 'tiktok';
     const ss = live ? this._sessCur() : (this._sess && !this._sess.closed ? this._sess : null);
@@ -1277,7 +1276,10 @@ class Room {
     }
     if (this.clients.size > 0) s.openMin++;
     // раз в 10 минут — промежуточная запись итога (на случай падения сервера)
-    if (prevBucket && prevBucket !== s.bucket && this._sess && !this._sess.closed) this._sessFlush();
+    if (this._sess && !this._sess.closed && now - (this._sess.flushedAt || this._sess.startedAt) >= STATS_BUCKET_MS - 30e3) {
+      this._sess.flushedAt = now;
+      this._sessFlush();
+    }
   }
 
   _statsFlush() {
