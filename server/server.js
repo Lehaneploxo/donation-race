@@ -207,6 +207,52 @@ app.get('/stats', async (req, res) => {
   }
 });
 
+// Итоги эфиров: одна строка на трансляцию. /stats/streams?days=30&account=...&format=json
+app.get('/stats/streams', async (req, res) => {
+  try {
+    const days    = Math.min(Math.max(parseInt(req.query.days) || 30, 1), 366);
+    const account = req.query.account ? String(req.query.account).toLowerCase().replace(/^@/, '') : null;
+    const rows    = await db.getStreamSessions(days, account);
+    if (req.query.format === 'json') return res.json({ ok: true, days, rows });
+    const cols = [
+      ['started', 'Начало (Киев)'], ['ended', 'Конец (Киев)'], ['account', 'Аккаунт'], ['live_min', 'Длился, мин'],
+      ['viewers_max', 'Зрителей макс'], ['viewers_avg', 'Зрителей в среднем'],
+      ['uniq_people', 'Разных людей всего'], ['new_people', 'Из них новых'], ['returning_people', 'Вернувшихся'],
+      ['uniq_joined', 'Зашло, чел'], ['uniq_likers', 'Лайкали, чел'], ['uniq_chatters', 'Писали, чел'], ['uniq_gifters', 'Дарили, чел'],
+      ['likes', 'Лайки'], ['chats', 'Сообщения'], ['gifts', 'Подарки'], ['coins', 'Монеты'],
+      ['top1', 'Топ-1 даритель, монет'], ['top2', 'Топ-2, монет'], ['top3', 'Топ-3, монет'],
+      ['follows', 'Подписки'], ['shares', 'Репосты'],
+      ['post_before', 'Пост перед эфиром'], ['end_reason', 'Чем закончился'], ['note', 'Примечание'],
+    ];
+    const esc = v => { const t = v == null ? '' : String(v); return /[;"\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t; };
+    const csv = '\uFEFF' + [cols.map(c => c[1]).join(';'), ...rows.map(r => cols.map(c => esc(r[c[0]])).join(';'))].join('\r\n');
+    res.set('Content-Type', 'text/csv; charset=utf-8');
+    res.set('Content-Disposition', `attachment; filename="streams_${days}d${account ? '_' + account : ''}.csv"`);
+    res.send(csv);
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// События программы телефонов (пост опубликован, перезапуск и почему) — чтобы
+// в итогах эфиров было видно «пост перед эфиром» и «чем закончился»
+app.post('/stats/event', express.json({ limit: '4kb' }), async (req, res) => {
+  const b = req.body || {};
+  const account = String(b.account || '').toLowerCase().replace(/^@/, '');
+  const kind = String(b.kind || '');
+  if (!ALLOWED_STREAMERS.has(account) || account === 'demo') return res.status(400).json({ ok: false, error: 'account' });
+  if (kind !== 'post' && kind !== 'restart') return res.status(400).json({ ok: false, error: 'kind' });
+  const key = account + ':' + kind;
+  if (Date.now() - (statsEventLast.get(key) || 0) < 30e3) return res.status(429).json({ ok: false });
+  statsEventLast.set(key, Date.now());
+  try {
+    await db.saveStreamEvent(account, kind, String(b.details || '').slice(0, 300));
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
 // Ручной тест: /test-event?username=TestUser&type=gift&coins=10
 app.get('/test-event', (req, res) => {
   const username = req.query.username || 'TestUser';
@@ -784,6 +830,13 @@ function newStatsBucket(bucket) {
            chats: 0, chatters: new Set(), follows: 0, shares: 0, ends: 0 };
 }
 setInterval(() => { rooms.forEach(r => { try { r._statsMinute(); } catch (e) {} }); }, 60 * 1000);
+// «часть» эфира = отрезок, записанный одним запуском сервера
+const STATS_PART_ID = Date.now().toString(36);
+// человек в статистике — не ник, а обезличенный номер (для «новые / вернувшиеся»)
+const statsPersonId = (account, uid) => require('crypto').createHash('sha256').update(account + ':' + uid).digest('hex').slice(0, 16);
+// события программы телефонов: не чаще раза в 30 сек на аккаунт (защита от мусора, ключа нет —
+// событие влияет только на подпись в итогах эфиров)
+const statsEventLast = new Map();
 
 // снапшоты боя Street Fighter / Boxing Arena — см. Room.saveStateSnapshot/
 // sendStateSnapshot и обработку streetfighter_state_*/boxing_state_* ниже
@@ -1131,6 +1184,7 @@ class Room {
   _statsAdd(kind, data, n) {
     const s = this._statsBucket(Date.now());
     const u = String(data.userId || data.username || '?');
+    this._sessAdd(kind, u, n);
     if (kind === 'join')  s.joins.add(u);
     if (kind === 'like')  { s.likes += n; s.likers.add(u); }
     if (kind === 'gift')  { s.gifts++; s.coins += n; s.gifters.add(u); }
@@ -1138,25 +1192,92 @@ class Room {
   }
 
   _statsExtra(kind, d) {
-    if (kind === 'streamEnd') { this._statsBucket(Date.now()).ends++; this._viewers = null; return; }
+    if (kind === 'connected') { this._sessStart(d.roomId); return; }
+    if (kind === 'streamEnd') { this._statsBucket(Date.now()).ends++; this._viewers = null; this._sessClose('TikTok: эфир завершён'); return; }
     if (this.connection?._tiktokMode !== 'tiktok') return;
     const s = this._statsBucket(Date.now());
-    if (kind === 'viewers') { this._viewers = d.viewerCount; s.vMax = Math.max(s.vMax, d.viewerCount); }
-    if (kind === 'follow')  s.follows++;
-    if (kind === 'share')   s.shares++;
+    const ss = this._sessCur();
+    if (kind === 'viewers') { this._viewers = d.viewerCount; s.vMax = Math.max(s.vMax, d.viewerCount); if (ss) ss.vMax = Math.max(ss.vMax, d.viewerCount); }
+    if (kind === 'follow')  { s.follows++; if (ss) ss.follows++; }
+    if (kind === 'share')   { s.shares++;  if (ss) ss.shares++; }
+  }
+
+  // ── Итог эфира: одна трансляция TikTok = один номер эфира (roomId) ──────────
+  // Копится в памяти, раз в 10 минут и при остановке сервера пишется в БД
+  // (stream_parts). Если сервер перезапустился посреди эфира, у эфира будет
+  // две «части» — /stats/streams склеивает их и помечает эфир как неполный.
+  _sessStart(roomId) {
+    const id = roomId || ('нет-номера-' + new Date().toISOString().slice(0, 13));
+    if (this._sess && this._sess.roomId === id) return;          // переподключение к тому же эфиру
+    if (this._sess) this._sessClose('начался новый эфир');
+    const now = Date.now();
+    this._sess = { roomId: id, partId: STATS_PART_ID, startedAt: now, lastLiveAt: now, liveMin: 0,
+      vMax: 0, vSum: 0, vN: 0, joined: new Set(), likers: new Set(), chatters: new Set(), gifters: new Map(),
+      people: new Set(), unsavedPeople: new Set(), likes: 0, chats: 0, gifts: 0, coins: 0, follows: 0, shares: 0,
+      endKind: null, closed: false };
+  }
+  _sessCur() {
+    if (this._sess && !this._sess.closed) return this._sess;
+    if (this.connection?._tiktokMode === 'tiktok') { this._sessStart(this.connection._roomId); return this._sess; }
+    return null;
+  }
+  _sessAdd(kind, u, n) {
+    const ss = this._sessCur();
+    if (!ss) return;
+    if (!ss.people.has(u)) { ss.people.add(u); ss.unsavedPeople.add(u); }
+    if (kind === 'join') ss.joined.add(u);
+    if (kind === 'like') { ss.likes += n; ss.likers.add(u); }
+    if (kind === 'chat') { ss.chats++; ss.chatters.add(u); }
+    if (kind === 'gift') { ss.gifts++; ss.coins += n; ss.gifters.set(u, (ss.gifters.get(u) || 0) + n); }
+  }
+  _sessClose(endKind) {
+    const ss = this._sess;
+    if (!ss || ss.closed) return;
+    ss.closed = true; ss.endKind = endKind;
+    this._sessFlush();
+  }
+  _sessFlush() {
+    const ss = this._sess;
+    if (!ss || (!ss.liveMin && !ss.people.size)) return;
+    const top = [...ss.gifters.values()].sort((a, b) => b - a);
+    const raw = [...ss.unsavedPeople];
+    const people = raw.map(u => statsPersonId(this.username, u));
+    ss.unsavedPeople.clear();
+    db.saveStreamPart({
+      account: this.username, roomId: ss.roomId, partId: ss.partId,
+      startedAt: ss.startedAt, lastLiveAt: ss.lastLiveAt, liveMin: ss.liveMin,
+      viewersMax: ss.vMax, viewersSum: ss.vSum, viewersN: ss.vN,
+      uniqJoined: ss.joined.size, uniqLikers: ss.likers.size, uniqChatters: ss.chatters.size,
+      uniqGifters: ss.gifters.size, uniqPeople: ss.people.size,
+      likes: ss.likes, chats: ss.chats, gifts: ss.gifts, coins: ss.coins, follows: ss.follows, shares: ss.shares,
+      top1: top[0] || 0, top2: top[1] || 0, top3: top[2] || 0,
+      endKind: ss.endKind, closed: ss.closed,
+    }, people)
+      .catch(e => { raw.forEach(u => ss.unsavedPeople.add(u)); console.error('[DB] stream_parts error:', e.message); });
   }
 
   // раз в минуту (см. setInterval ниже)
   _statsMinute() {
-    const s = this._statsBucket(Date.now());
+    const now = Date.now();
+    const prevBucket = this._st && this._st.bucket;
+    const s = this._statsBucket(now);
     const live = this.connection?._tiktokMode === 'tiktok';
+    const ss = live ? this._sessCur() : (this._sess && !this._sess.closed ? this._sess : null);
     if (live) {
       s.liveMin++;
       if (this._viewers != null) { s.vSum += this._viewers; s.vN++; s.vMax = Math.max(s.vMax, this._viewers); }
+      if (ss) {
+        ss.liveMin++; ss.lastLiveAt = now;
+        if (this._viewers != null) { ss.vSum += this._viewers; ss.vN++; ss.vMax = Math.max(ss.vMax, this._viewers); }
+      }
     } else {
       this._viewers = null;
+      // связь с эфиром пропала надолго — считаем эфир законченным
+      if (ss && now - ss.lastLiveAt > 20 * 60e3) this._sessClose('связь с эфиром пропала');
     }
     if (this.clients.size > 0) s.openMin++;
+    // раз в 10 минут — промежуточная запись итога (на случай падения сервера)
+    if (prevBucket && prevBucket !== s.bucket && this._sess && !this._sess.closed) this._sessFlush();
   }
 
   _statsFlush() {
@@ -1217,6 +1338,7 @@ class Room {
 
   destroy() {
     this._statsFlush();
+    this._sessFlush();
     const c = this.connection;
     if (c) {
       clearInterval(c._demoInterval);
@@ -1690,6 +1812,6 @@ server.listen(PORT, () => {
 // Railway при деплое шлёт SIGTERM — дописываем неполные 10-минутные корзины
 // статистики эфиров в БД, иначе последние минуты перед рестартом терялись бы
 process.on('SIGTERM', () => {
-  rooms.forEach(r => { try { r._statsFlush(); } catch (e) {} });
+  rooms.forEach(r => { try { r._statsFlush(); r._sessFlush(); } catch (e) {} });
   setTimeout(() => process.exit(0), 1500);
 });

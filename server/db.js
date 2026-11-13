@@ -274,6 +274,62 @@ async function init() {
     )
   `);
 
+  // Итоги эфиров (13.11.2026). Часть = отрезок эфира, записанный одним запуском
+  // сервера (обычно у эфира одна часть). Склеиваются в getStreamSessions.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS stream_parts (
+      account TEXT NOT NULL,
+      room_id TEXT NOT NULL,
+      part_id TEXT NOT NULL,
+      started_at TIMESTAMPTZ NOT NULL,
+      last_live_at TIMESTAMPTZ NOT NULL,
+      live_min INTEGER NOT NULL DEFAULT 0,
+      viewers_max INTEGER NOT NULL DEFAULT 0,
+      viewers_sum BIGINT NOT NULL DEFAULT 0,
+      viewers_n INTEGER NOT NULL DEFAULT 0,
+      uniq_joined INTEGER NOT NULL DEFAULT 0,
+      uniq_likers INTEGER NOT NULL DEFAULT 0,
+      uniq_chatters INTEGER NOT NULL DEFAULT 0,
+      uniq_gifters INTEGER NOT NULL DEFAULT 0,
+      uniq_people INTEGER NOT NULL DEFAULT 0,
+      new_people INTEGER NOT NULL DEFAULT 0,
+      likes BIGINT NOT NULL DEFAULT 0,
+      chats INTEGER NOT NULL DEFAULT 0,
+      gifts INTEGER NOT NULL DEFAULT 0,
+      coins INTEGER NOT NULL DEFAULT 0,
+      follows INTEGER NOT NULL DEFAULT 0,
+      shares INTEGER NOT NULL DEFAULT 0,
+      top1 INTEGER NOT NULL DEFAULT 0,
+      top2 INTEGER NOT NULL DEFAULT 0,
+      top3 INTEGER NOT NULL DEFAULT 0,
+      end_kind TEXT,
+      closed BOOLEAN NOT NULL DEFAULT false,
+      PRIMARY KEY (account, room_id, part_id)
+    )
+  `);
+  // люди (обезличенный номер, не ник) — когда впервые пришли на этот аккаунт: «новые / вернувшиеся»
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS stream_people (
+      account TEXT NOT NULL,
+      person TEXT NOT NULL,
+      first_seen TIMESTAMPTZ NOT NULL DEFAULT now(),
+      last_seen TIMESTAMPTZ NOT NULL DEFAULT now(),
+      PRIMARY KEY (account, person)
+    )
+  `);
+  // события программы телефонов: пост опубликован, перезапуск (и почему)
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS stream_events (
+      id SERIAL PRIMARY KEY,
+      account TEXT NOT NULL,
+      at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      kind TEXT NOT NULL,
+      details TEXT
+    )
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS stream_events_acc_at ON stream_events (account, at)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS stream_people_acc_first ON stream_people (account, first_seen)`);
+
   console.log('[DB] Таблицы kills, boss_damage, race_donations, boxing_stolen, streetfighter_stolen, fantasyarena_stolen, streetwars_stolen, newyear_stolen и game_state_snapshots готовы');
 }
 
@@ -1354,10 +1410,86 @@ async function getStreamStats(days, group, account) {
   return rows;
 }
 
+// сначала люди: кто впервые на этом аккаунте — тот «новый» (возвращает, сколько новых)
+async function saveStreamPart(r, people) {
+  if (!pool) return 0;
+  let added = 0;
+  if (people && people.length) {
+    const { rows } = await pool.query(`
+      INSERT INTO stream_people (account, person) SELECT $1, unnest($2::text[])
+      ON CONFLICT (account, person) DO UPDATE SET last_seen = now()
+      RETURNING (xmax = 0) AS inserted
+    `, [r.account, people]);
+    added = rows.filter(x => x.inserted).length;
+  }
+  await pool.query(`
+    INSERT INTO stream_parts (account, room_id, part_id, started_at, last_live_at, live_min, viewers_max, viewers_sum, viewers_n,
+      uniq_joined, uniq_likers, uniq_chatters, uniq_gifters, uniq_people, likes, chats, gifts, coins, follows, shares,
+      top1, top2, top3, end_kind, closed, new_people)
+    VALUES ($1, $2, $3, to_timestamp($4 / 1000.0), to_timestamp($5 / 1000.0), $6, $7, $8, $9, $10, $11, $12, $13, $14,
+      $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26)
+    ON CONFLICT (account, room_id, part_id) DO UPDATE SET
+      last_live_at = EXCLUDED.last_live_at, live_min = EXCLUDED.live_min, viewers_max = EXCLUDED.viewers_max,
+      viewers_sum = EXCLUDED.viewers_sum, viewers_n = EXCLUDED.viewers_n, uniq_joined = EXCLUDED.uniq_joined,
+      uniq_likers = EXCLUDED.uniq_likers, uniq_chatters = EXCLUDED.uniq_chatters, uniq_gifters = EXCLUDED.uniq_gifters,
+      uniq_people = EXCLUDED.uniq_people, likes = EXCLUDED.likes, chats = EXCLUDED.chats, gifts = EXCLUDED.gifts,
+      coins = EXCLUDED.coins, follows = EXCLUDED.follows, shares = EXCLUDED.shares, top1 = EXCLUDED.top1,
+      top2 = EXCLUDED.top2, top3 = EXCLUDED.top3, end_kind = EXCLUDED.end_kind, closed = EXCLUDED.closed,
+      new_people = stream_parts.new_people + EXCLUDED.new_people
+  `, [r.account, r.roomId, r.partId, r.startedAt, r.lastLiveAt, r.liveMin, r.viewersMax, r.viewersSum, r.viewersN,
+      r.uniqJoined, r.uniqLikers, r.uniqChatters, r.uniqGifters, r.uniqPeople, r.likes, r.chats, r.gifts, r.coins,
+      r.follows, r.shares, r.top1, r.top2, r.top3, r.endKind, r.closed, added]);
+  return added;
+}
+
+async function saveStreamEvent(account, kind, details) {
+  if (!pool) return;
+  await pool.query(`INSERT INTO stream_events (account, kind, details) VALUES ($1, $2, $3)`, [account, kind, details]);
+}
+
+// Итоги эфиров (Киевское время). «Новые» = впервые замечены на этом аккаунте
+// во время этого эфира (считается при записи, см. saveStreamPart). Если эфир записан несколькими частями (сервер
+// перезапускался) — «разных людей» берётся по самой большой части (занижено).
+async function getStreamSessions(days, account) {
+  if (!pool) return [];
+  const { rows } = await pool.query(`
+    WITH s AS (
+      SELECT account, room_id, MIN(started_at) AS st, MAX(last_live_at) AS en, SUM(live_min)::int AS live_min,
+        MAX(viewers_max)::int AS viewers_max,
+        COALESCE(ROUND(SUM(viewers_sum)::numeric / NULLIF(SUM(viewers_n), 0)), 0)::int AS viewers_avg,
+        MAX(uniq_people)::int AS uniq_people, MAX(uniq_joined)::int AS uniq_joined, MAX(uniq_likers)::int AS uniq_likers,
+        MAX(uniq_chatters)::int AS uniq_chatters, MAX(uniq_gifters)::int AS uniq_gifters,
+        SUM(likes)::bigint AS likes, SUM(chats)::int AS chats, SUM(gifts)::int AS gifts, SUM(coins)::int AS coins,
+        SUM(follows)::int AS follows, SUM(shares)::int AS shares,
+        SUM(new_people)::int AS new_people, MAX(top1)::int AS top1, MAX(top2)::int AS top2, MAX(top3)::int AS top3,
+        MAX(end_kind) AS end_kind, BOOL_OR(closed) AS closed, COUNT(*)::int AS parts
+      FROM stream_parts
+      WHERE started_at >= now() - make_interval(days => $1) AND ($2::text IS NULL OR account = $2)
+      GROUP BY account, room_id
+    )
+    SELECT s.*,
+      to_char(s.st AT TIME ZONE 'Europe/Kyiv', 'YYYY-MM-DD HH24:MI') AS started,
+      to_char(s.en AT TIME ZONE 'Europe/Kyiv', 'YYYY-MM-DD HH24:MI') AS ended,
+      (SELECT CASE WHEN COUNT(*) > 0 THEN 'да' ELSE '' END FROM stream_events e WHERE e.account = s.account
+         AND e.kind = 'post' AND e.at BETWEEN s.st - interval '40 minutes' AND s.st + interval '5 minutes') AS post_before,
+      (SELECT e.details FROM stream_events e WHERE e.account = s.account AND e.kind = 'restart'
+         AND e.at BETWEEN s.en - interval '5 minutes' AND s.en + interval '25 minutes' ORDER BY e.at LIMIT 1) AS restart_reason
+    FROM s ORDER BY s.st
+  `, [days, account]);
+  for (const r of rows) {
+    r.new_people = Math.min(r.new_people, r.uniq_people);
+    r.returning_people = Math.max(0, r.uniq_people - r.new_people);
+    r.end_reason = r.restart_reason ? 'перезапуск: ' + r.restart_reason : (r.end_kind || (r.closed ? '' : 'идёт сейчас'));
+    r.note = r.parts > 1 ? 'сервер перезапускался во время эфира — «разных людей» занижено' : '';
+    delete r.st; delete r.en; delete r.restart_reason;
+  }
+  return rows;
+}
+
 function isConnected() { return pool !== null; }
 
 module.exports = {
-  init, saveStreamStats, getStreamStats, addKill, getTopKillers, getUserRank, addBossDamage, getTopBossDamage,
+  init, saveStreamStats, getStreamStats, saveStreamPart, saveStreamEvent, getStreamSessions, addKill, getTopKillers, getUserRank, addBossDamage, getTopBossDamage,
   resetBossDamage, getUserBossDamageRank, addRaceCoins, getTopRaceDonations,
   addBoxingStolen, getTopBoxingStolen, getUserBoxingRank, addBoxingKO,
   addBoxingBeltSeconds, resetBoxingRating, setBoxingStolen, deleteBoxingUser,

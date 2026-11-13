@@ -205,9 +205,12 @@ function connectToTikTok(username, onGift, onStatus, onMember, onLike, onChat, o
     });
 
     connection.connect()
-      .then(() => {
+      .then((st) => {
         console.log(`[TikTok][${username}] ✅ Подключён!`);
         handle._tiktokMode = 'tiktok';
+        // номер эфира: у каждой новой трансляции свой — по нему статистика отличает эфиры
+        handle._roomId = st && st.roomId ? String(st.roomId) : null;
+        if (onStats) onStats('connected', { roomId: handle._roomId });
         _stopDemo(handle);
         notify({ connected: true, mode: 'tiktok', message: `Подключён к @${username}` });
         // продержались минуту без обрыва — считаем флаппинг закончившимся,
