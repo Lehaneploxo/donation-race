@@ -2866,6 +2866,9 @@ function advanceAnim(v, dt){
     : v.state==='ko' ? 'ko'
     : 'idle';
   const def = CHAR_ANIMS[v.baseType][key];
+  // (13.11.2026) смена анимации — с первого кадра: иначе номер кадра от ходьбы
+  // (10 кадров) уходил за конец стойки (4 кадра), кадра нет — боец мигал/исчезал
+  if (key !== v.animName){ v.frameIdx = 0; v.frameTimer = 0; }
   v.frameTimer += dt;
   const frameDur = 1000/def.fps;
   if (v.frameTimer >= frameDur){
@@ -3158,6 +3161,16 @@ function update(dt){
     if (v.inExchange) continue;
 
     v.wanderPause -= dt;
+    // (13.11.2026) стоящего бойца сосед сдвинул на пару пикселей — новое место
+    // считаем своим, а не шагаем назад (иначе дёрганье стойка/ходьба и развороты)
+    if (v.state!=='walk' && Math.hypot(v.tx-v.x, v.ty-v.y) <= 15){ v.tx = v.x; v.ty = v.y; }
+    // (13.11.2026) упёрся в соседа: ~0,7 сек почти без продвижения к точке —
+    // берём новую точку (иначе двое стояли слипшись, пока кто-то не ударит)
+    if (v.state==='walk' && v.prevDist !== undefined){
+      const d0 = Math.hypot(v.tx-v.x, v.ty-v.y);
+      v.blockedMs = (v.prevDist - d0 < 0.05*dt*0.3) ? (v.blockedMs||0) + dt : 0;
+      if (v.blockedMs > 700){ v.blockedMs = 0; v.tx = v.x; v.ty = v.y; v.wanderPause = 0; }
+    } else v.blockedMs = 0;
     const dx=v.tx-v.x, dy=v.ty-v.y, dist=Math.hypot(dx,dy);
     if (dist<6 && v.wanderPause<=0){
       v.tx = RING.xMin + Math.random()*(RING.xMax-RING.xMin);
@@ -3172,8 +3185,10 @@ function update(dt){
       v.y += (dy/dist)*speed*dt;
       v.facing = dx>=0 ? -1 : 1; // спрайт по умолчанию смотрит влево — флип нужен при движении вправо
       v.state = 'walk';
+      v.prevDist = dist;
     } else {
       v.state = 'idle';
+      v.prevDist = undefined;
       v.lean = (v.lean||0)*0.85;
     }
   }
